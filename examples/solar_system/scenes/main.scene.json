@@ -1,0 +1,48 @@
+{
+  "name": "Solar System Hierarchy",
+  "entities": [
+    {
+      "id": "sun",
+      "name": "Sun",
+      "components": {
+        "Transform": {
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        },
+        "SphereRenderer": { "radius": 1.2, "color": [253, 249, 0, 255] }
+      },
+      "children": [
+        {
+          "id": "earth",
+          "name": "Earth",
+          "components": {
+            "Transform": {
+              "position": [4, 0, 0],
+              "rotation": [0, 0, 0],
+              "scale": [1, 1, 1]
+            },
+            "SphereRenderer": { "radius": 0.55, "color": [102, 191, 255, 255] },
+            "Orbit": { "degrees_per_second": 12.0 },
+            "Rotator": { "degrees_per_second": 48.0 }
+          },
+          "children": [
+            {
+              "id": "moon",
+              "name": "Moon",
+              "components": {
+                "Transform": {
+                  "position": [1.15, 0, 0],
+                  "rotation": [0, 0, 0],
+                  "scale": [1, 1, 1]
+                },
+                "SphereRenderer": { "radius": 0.18, "color": [200, 200, 200, 255] },
+                "Orbit": { "degrees_per_second": 160.0 }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

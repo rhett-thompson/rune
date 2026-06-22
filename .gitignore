@@ -1,0 +1,32 @@
+# Odin build outputs
+*.exe
+*.dll
+*.so
+*.dylib
+*.pdb
+*.ilk
+
+# Build directories
+/build/
+/bin/
+/out/
+
+# Odin language server and compiler caches
+.odin/
+.ols/
+
+# Editor and OS files
+.vscode/
+.idea/
+.vs/
+*.code-workspace
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temporary files and logs
+*.log
+*.tmp
+*.bak
+*.swp
+*~

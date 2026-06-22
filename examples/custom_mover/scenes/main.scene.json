@@ -1,0 +1,19 @@
+{
+  "name": "Custom Mover Scene",
+  "entities": [
+    {
+      "id": "moving_ball",
+      "name": "Moving Ball",
+      "components": {
+        "Transform": {
+          "position": [80, 225, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        },
+        "Mover": {
+          "speed": 180.0
+        }
+      }
+    }
+  ]
+}

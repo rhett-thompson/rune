@@ -1,0 +1,12 @@
+{
+  "name": "Rune Solar System",
+  "startup_scene": "scenes/main.scene.json",
+  "window": {
+    "width": 1100,
+    "height": 700,
+    "title": "Rune - Solar System Hierarchy",
+    "fullscreen": false,
+    "vsync": true
+  },
+  "input": "input/default.input.json"
+}

@@ -1,0 +1,4 @@
+{
+    "odin_command": "odin",
+    "checker_args": "-strict-style"
+}

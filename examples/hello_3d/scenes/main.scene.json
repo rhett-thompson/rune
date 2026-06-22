@@ -1,0 +1,20 @@
+{
+  "name": "Rotating Cube",
+  "entities": [
+    {
+      "id": "cube",
+      "name": "Rotating Cube",
+      "components": {
+        "Transform": {
+          "position": [0, 0.5, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "color": [102, 191, 255, 255]
+        }
+      }
+    }
+  ]
+}

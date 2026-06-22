@@ -1,0 +1,12 @@
+{
+  "name": "Rune 3D Hello World",
+  "startup_scene": "scenes/main.scene.json",
+  "window": {
+    "width": 960,
+    "height": 540,
+    "title": "Rune - 3D Hello World",
+    "fullscreen": false,
+    "vsync": true
+  },
+  "input": "input/default.input.json"
+}

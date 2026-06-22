@@ -1,0 +1,12 @@
+{
+  "name": "Custom Mover",
+  "startup_scene": "scenes/main.scene.json",
+  "window": {
+    "width": 800,
+    "height": 450,
+    "title": "Rune - Custom Component Mover",
+    "fullscreen": false,
+    "vsync": true
+  },
+  "input": "input/default.input.json"
+}
