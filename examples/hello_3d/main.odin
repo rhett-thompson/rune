@@ -38,16 +38,10 @@ main :: proc() {
 		return
 	}
 
-	loaded_scene, scene_ok := scene.load("examples/hello_3d/scenes/main.scene.json")
+	scene_ok: bool
+	world, scene_ok = scene.load("examples/hello_3d/scenes/main.scene.json", engine.component_registry(&game))
 	if !scene_ok {
-		fmt.eprintln("Could not load the 3D hello-world scene")
-		engine.shutdown(&game)
-		return
-	}
-
-	world = ecs.init()
-	if !scene.instantiate(&world, engine.component_registry(&game), loaded_scene) {
-		fmt.eprintln("Could not instantiate the 3D scene components")
+		fmt.eprintln("Could not load and instantiate the 3D hello-world scene")
 		engine.shutdown(&game)
 		return
 	}

@@ -14,6 +14,8 @@ World :: struct {
 	sprite_renderers: map[Entity]SpriteRenderer,
 	mesh_renderers:   map[Entity]MeshRenderer,
 	sphere_renderers: map[Entity]SphereRenderer,
+	orbits:           map[Entity]Orbit,
+	rotators:         map[Entity]Rotator,
 }
 
 init :: proc() -> World {
@@ -26,6 +28,8 @@ init :: proc() -> World {
 		sprite_renderers = make(map[Entity]SpriteRenderer),
 		mesh_renderers = make(map[Entity]MeshRenderer),
 		sphere_renderers = make(map[Entity]SphereRenderer),
+		orbits = make(map[Entity]Orbit),
+		rotators = make(map[Entity]Rotator),
 	}
 }
 
@@ -93,6 +97,8 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 	sprite_renderer: SpriteRenderer
 	mesh_renderer: MeshRenderer
 	sphere_renderer: SphereRenderer
+	orbit: Orbit
+	rotator: Rotator
 	parse_ok: bool
 	if name == "Transform" {
 		transform, parse_ok = transform_from_json(data)
@@ -103,6 +109,8 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 	if name == "SpriteRenderer" { sprite_renderer, parse_ok = sprite_renderer_from_json(data); if !parse_ok { return false } }
 	if name == "MeshRenderer" { mesh_renderer, parse_ok = mesh_renderer_from_json(data); if !parse_ok { return false } }
 	if name == "SphereRenderer" { sphere_renderer, parse_ok = sphere_renderer_from_json(data); if !parse_ok { return false } }
+	if name == "Orbit" { orbit, parse_ok = orbit_from_json(data); if !parse_ok { return false } }
+	if name == "Rotator" { rotator, parse_ok = rotator_from_json(data); if !parse_ok { return false } }
 
 	components, component_type_found := world.component_data[name]
 	if !component_type_found {
@@ -117,6 +125,8 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 	if name == "SpriteRenderer" { world.sprite_renderers[entity] = sprite_renderer }
 	if name == "MeshRenderer" { world.mesh_renderers[entity] = mesh_renderer }
 	if name == "SphereRenderer" { world.sphere_renderers[entity] = sphere_renderer }
+	if name == "Orbit" { world.orbits[entity] = orbit }
+	if name == "Rotator" { world.rotators[entity] = rotator }
 	return true
 }
 
@@ -138,6 +148,8 @@ remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
 	if name == "SpriteRenderer" { delete_key(&world.sprite_renderers, entity) }
 	if name == "MeshRenderer" { delete_key(&world.mesh_renderers, entity) }
 	if name == "SphereRenderer" { delete_key(&world.sphere_renderers, entity) }
+	if name == "Orbit" { delete_key(&world.orbits, entity) }
+	if name == "Rotator" { delete_key(&world.rotators, entity) }
 	return true
 }
 
@@ -182,3 +194,7 @@ get_mesh_renderer :: proc(world: ^World, entity: Entity) -> (MeshRenderer, bool)
 set_mesh_renderer :: proc(world: ^World, entity: Entity, value: MeshRenderer) -> bool { if !has_component_data(world, entity, "MeshRenderer") { return false }; world.mesh_renderers[entity] = value; return true }
 get_sphere_renderer :: proc(world: ^World, entity: Entity) -> (SphereRenderer, bool) { value, found := world.sphere_renderers[entity]; return value, found }
 set_sphere_renderer :: proc(world: ^World, entity: Entity, value: SphereRenderer) -> bool { if !has_component_data(world, entity, "SphereRenderer") { return false }; world.sphere_renderers[entity] = value; return true }
+get_orbit :: proc(world: ^World, entity: Entity) -> (Orbit, bool) { value, found := world.orbits[entity]; return value, found }
+set_orbit :: proc(world: ^World, entity: Entity, value: Orbit) -> bool { if !has_component_data(world, entity, "Orbit") { return false }; world.orbits[entity] = value; return true }
+get_rotator :: proc(world: ^World, entity: Entity) -> (Rotator, bool) { value, found := world.rotators[entity]; return value, found }
+set_rotator :: proc(world: ^World, entity: Entity, value: Rotator) -> bool { if !has_component_data(world, entity, "Rotator") { return false }; world.rotators[entity] = value; return true }

@@ -7,7 +7,7 @@ Rune is a small, code-first game engine written in Odin. Projects, scenes, and l
 The initial scaffold provides:
 
 - a raylib-backed engine loop;
-- JSON `project.json` and scene loading;
+- JSON `project.json` loading and scene-to-world instantiation;
 - an ECS world with registered, JSON-backed custom components;
 - dedicated packages for assets, input, rendering, scenes, and future r3d integration;
 - a runnable hello-world example.
@@ -36,7 +36,7 @@ From the repository root on Windows:
 odin run examples/hello_world -collection:engine=engine
 ```
 
-The example loads `project.json` and `scenes/main.scene.json`, then renders a small window using Rune's core loop.
+The example loads `project.json`; `scene.load` then reads `scenes/main.scene.json` and returns its populated runtime `World`.
 
 ## Custom components
 

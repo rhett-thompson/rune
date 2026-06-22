@@ -21,7 +21,9 @@ register_builtin_components :: proc(registry: ^Component_Registry) -> bool {
 	sprite_registered := register_component(registry, Component_Descriptor{name = "SpriteRenderer", description = "2D texture renderer"})
 	mesh_registered := register_component(registry, Component_Descriptor{name = "MeshRenderer", description = "Primitive 3D mesh renderer"})
 	sphere_registered := register_component(registry, Component_Descriptor{name = "SphereRenderer", description = "Sphere 3D renderer"})
-	return transform_registered && sprite_registered && mesh_registered && sphere_registered
+	orbit_registered := register_component(registry, Component_Descriptor{name = "Orbit", description = "Moves an entity around its parent on the XZ plane"})
+	rotator_registered := register_component(registry, Component_Descriptor{name = "Rotator", description = "Spins an entity around its local Y axis"})
+	return transform_registered && sprite_registered && mesh_registered && sphere_registered && orbit_registered && rotator_registered
 }
 
 // register_component makes a component name available to a World. The component's

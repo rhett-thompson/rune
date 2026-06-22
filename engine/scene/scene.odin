@@ -32,7 +32,10 @@ Scene :: struct {
 	entities: []Entity_Data,
 }
 
-load :: proc(path: string) -> (Scene, bool) {
+// load reads a scene document and returns the fully instantiated runtime World.
+// The caller supplies the engine's component registry so built-ins and any
+// game-defined component registrations are shared with the loaded scene.
+load :: proc(path: string, registry: ^ecs.Component_Registry) -> (ecs.World, bool) {
 	data, read_error := os.read_entire_file(path, context.allocator)
 	if read_error != nil {
 		return {}, false
@@ -43,7 +46,12 @@ load :: proc(path: string) -> (Scene, bool) {
 		return {}, false
 	}
 
-	return scene, true
+	world := ecs.init()
+	if !instantiate(&world, registry, scene) {
+		return {}, false
+	}
+
+	return world, true
 }
 
 // register_components discovers all component names used by a scene and makes

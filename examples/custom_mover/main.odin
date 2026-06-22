@@ -33,16 +33,10 @@ main :: proc() {
 		return
 	}
 
-	loaded_scene, scene_ok := scene.load("examples/custom_mover/scenes/main.scene.json")
+	scene_ok: bool
+	world, scene_ok = scene.load("examples/custom_mover/scenes/main.scene.json", engine.component_registry(&game))
 	if !scene_ok {
-		fmt.eprintln("Could not load the custom-mover scene")
-		engine.shutdown(&game)
-		return
-	}
-
-	world = ecs.init()
-	if !scene.instantiate(&world, engine.component_registry(&game), loaded_scene) {
-		fmt.eprintln("Could not instantiate custom-mover components")
+		fmt.eprintln("Could not load and instantiate the custom-mover scene")
 		engine.shutdown(&game)
 		return
 	}
