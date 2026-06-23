@@ -24,6 +24,23 @@ ModelRenderer :: struct {
 	tint:  Color,
 }
 
+Tilemap_Tile :: struct { x, y, index: i32 }
+
+TilemapRenderer :: struct {
+	texture:   string,
+	tile_size: [2]f32,
+	tiles:     []Tilemap_Tile,
+}
+
+TextRenderer :: struct {
+	text:      string,
+	font:      string,
+	font_size: f32,
+	spacing:   f32,
+	color:     Color,
+	origin:    [2]f32,
+}
+
 sprite_renderer_from_json :: proc(data: json.Value) -> (SpriteRenderer, bool) {
 	object, ok := data.(json.Object)
 	if !ok { return {}, false }
@@ -69,6 +86,52 @@ model_renderer_from_json :: proc(data: json.Value) -> (ModelRenderer, bool) {
 	result.model, ok = model.(json.String)
 	if !ok || len(result.model) == 0 { return {}, false }
 	if value, found := object["tint"]; found && !read_color(value, &result.tint) { return {}, false }
+	return result, true
+}
+
+tilemap_renderer_from_json :: proc(data: json.Value) -> (TilemapRenderer, bool) {
+	object, ok := data.(json.Object)
+	if !ok { return {}, false }
+	result := TilemapRenderer{}
+	texture, has_texture := object["texture"]
+	if !has_texture { return {}, false }
+	result.texture, ok = texture.(json.String)
+	if !ok || len(result.texture) == 0 { return {}, false }
+	if value, found := object["tile_size"]; !found || !read_vector2(value, &result.tile_size) { return {}, false }
+	if result.tile_size[0] <= 0 || result.tile_size[1] <= 0 { return {}, false }
+	grid, has_grid := object["grid"]
+	if !has_grid { return {}, false }
+	rows, rows_ok := grid.(json.Array)
+	if !rows_ok { return {}, false }
+	tiles := make([dynamic]Tilemap_Tile, context.allocator)
+	for row_value, y in rows {
+		row, row_ok := row_value.(json.Array)
+		if !row_ok { return {}, false }
+		for cell_value, x in row {
+			index, index_ok := read_number(cell_value)
+			if !index_ok || index != f32(i32(index)) || index < -1 { return {}, false }
+			if index >= 0 { append(&tiles, Tilemap_Tile{x = i32(x), y = i32(y), index = i32(index)}) }
+		}
+	}
+	result.tiles = tiles[:]
+	return result, true
+}
+
+text_renderer_from_json :: proc(data: json.Value) -> (TextRenderer, bool) {
+	object, ok := data.(json.Object)
+	if !ok { return {}, false }
+	result := TextRenderer{font_size = 20, color = {255, 255, 255, 255}}
+	text, has_text := object["text"]
+	font, has_font := object["font"]
+	if !has_text || !has_font { return {}, false }
+	result.text, ok = text.(json.String)
+	if !ok { return {}, false }
+	result.font, ok = font.(json.String)
+	if !ok || len(result.font) == 0 { return {}, false }
+	if value, found := object["font_size"]; found { result.font_size, ok = read_number(value); if !ok || result.font_size <= 0 { return {}, false } }
+	if value, found := object["spacing"]; found { result.spacing, ok = read_number(value); if !ok { return {}, false } }
+	if value, found := object["color"]; found && !read_color(value, &result.color) { return {}, false }
+	if value, found := object["origin"]; found && !read_vector2(value, &result.origin) { return {}, false }
 	return result, true
 }
 

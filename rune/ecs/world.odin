@@ -25,7 +25,12 @@ World :: struct {
 	mesh_renderers:   map[Entity]MeshRenderer,
 	sphere_renderers: map[Entity]SphereRenderer,
 	model_renderers:  map[Entity]ModelRenderer,
+	tilemap_renderers: map[Entity]TilemapRenderer,
+	text_renderers:    map[Entity]TextRenderer,
+	tilemap_colliders: map[Entity]TilemapCollider,
+	top_down_controllers: map[Entity]TopDownController,
 	box_colliders:    map[Entity]BoxCollider,
+	sphere_colliders: map[Entity]SphereCollider,
 	character_controllers: map[Entity]CharacterController,
 	orbits:           map[Entity]Orbit,
 	rotators:         map[Entity]Rotator,
@@ -51,7 +56,12 @@ init :: proc() -> World {
 		mesh_renderers = make(map[Entity]MeshRenderer),
 		sphere_renderers = make(map[Entity]SphereRenderer),
 		model_renderers = make(map[Entity]ModelRenderer),
+		tilemap_renderers = make(map[Entity]TilemapRenderer),
+		text_renderers = make(map[Entity]TextRenderer),
+		tilemap_colliders = make(map[Entity]TilemapCollider),
+		top_down_controllers = make(map[Entity]TopDownController),
 		box_colliders = make(map[Entity]BoxCollider),
+		sphere_colliders = make(map[Entity]SphereCollider),
 		character_controllers = make(map[Entity]CharacterController),
 		orbits = make(map[Entity]Orbit),
 		rotators = make(map[Entity]Rotator),
@@ -203,7 +213,12 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 	mesh_renderer: MeshRenderer
 	sphere_renderer: SphereRenderer
 	model_renderer: ModelRenderer
+	tilemap_renderer: TilemapRenderer
+	text_renderer: TextRenderer
+	tilemap_collider: TilemapCollider
+	top_down_controller: TopDownController
 	box_collider: BoxCollider
+	sphere_collider: SphereCollider
 	character_controller: CharacterController
 	orbit: Orbit
 	rotator: Rotator
@@ -222,7 +237,12 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 	if name == "MeshRenderer" { mesh_renderer, parse_ok = mesh_renderer_from_json(data); if !parse_ok { return false } }
 	if name == "SphereRenderer" { sphere_renderer, parse_ok = sphere_renderer_from_json(data); if !parse_ok { return false } }
 	if name == "ModelRenderer" { model_renderer, parse_ok = model_renderer_from_json(data); if !parse_ok { return false } }
+	if name == "TilemapRenderer" { tilemap_renderer, parse_ok = tilemap_renderer_from_json(data); if !parse_ok { return false } }
+	if name == "TextRenderer" { text_renderer, parse_ok = text_renderer_from_json(data); if !parse_ok { return false } }
+	if name == "TilemapCollider" { tilemap_collider, parse_ok = tilemap_collider_from_json(data); if !parse_ok { return false } }
+	if name == "TopDownController" { top_down_controller, parse_ok = top_down_controller_from_json(data); if !parse_ok { return false } }
 	if name == "BoxCollider" { box_collider, parse_ok = box_collider_from_json(data); if !parse_ok { return false } }
+	if name == "SphereCollider" { sphere_collider, parse_ok = sphere_collider_from_json(data); if !parse_ok { return false } }
 	if name == "CharacterController" { character_controller, parse_ok = character_controller_from_json(data); if !parse_ok { return false } }
 	if name == "Orbit" { orbit, parse_ok = orbit_from_json(data); if !parse_ok { return false } }
 	if name == "Rotator" { rotator, parse_ok = rotator_from_json(data); if !parse_ok { return false } }
@@ -245,7 +265,12 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 	if name == "MeshRenderer" { world.mesh_renderers[entity] = mesh_renderer }
 	if name == "SphereRenderer" { world.sphere_renderers[entity] = sphere_renderer }
 	if name == "ModelRenderer" { world.model_renderers[entity] = model_renderer }
+	if name == "TilemapRenderer" { world.tilemap_renderers[entity] = tilemap_renderer }
+	if name == "TextRenderer" { world.text_renderers[entity] = text_renderer }
+	if name == "TilemapCollider" { world.tilemap_colliders[entity] = tilemap_collider }
+	if name == "TopDownController" { world.top_down_controllers[entity] = top_down_controller }
 	if name == "BoxCollider" { world.box_colliders[entity] = box_collider }
+	if name == "SphereCollider" { world.sphere_colliders[entity] = sphere_collider }
 	if name == "CharacterController" { world.character_controllers[entity] = character_controller }
 	if name == "Orbit" { world.orbits[entity] = orbit }
 	if name == "Rotator" { world.rotators[entity] = rotator }
@@ -275,7 +300,12 @@ remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
 	if name == "MeshRenderer" { delete_key(&world.mesh_renderers, entity) }
 	if name == "SphereRenderer" { delete_key(&world.sphere_renderers, entity) }
 	if name == "ModelRenderer" { delete_key(&world.model_renderers, entity) }
+	if name == "TilemapRenderer" { delete_key(&world.tilemap_renderers, entity) }
+	if name == "TextRenderer" { delete_key(&world.text_renderers, entity) }
+	if name == "TilemapCollider" { delete_key(&world.tilemap_colliders, entity) }
+	if name == "TopDownController" { delete_key(&world.top_down_controllers, entity) }
 	if name == "BoxCollider" { delete_key(&world.box_colliders, entity) }
+	if name == "SphereCollider" { delete_key(&world.sphere_colliders, entity) }
 	if name == "CharacterController" { delete_key(&world.character_controllers, entity) }
 	if name == "Orbit" { delete_key(&world.orbits, entity) }
 	if name == "Rotator" { delete_key(&world.rotators, entity) }
@@ -341,8 +371,18 @@ get_sphere_renderer :: proc(world: ^World, entity: Entity) -> (SphereRenderer, b
 set_sphere_renderer :: proc(world: ^World, entity: Entity, value: SphereRenderer) -> bool { if !has_component_data(world, entity, "SphereRenderer") { return false }; world.sphere_renderers[entity] = value; return true }
 get_model_renderer :: proc(world: ^World, entity: Entity) -> (ModelRenderer, bool) { value, found := world.model_renderers[entity]; return value, found }
 set_model_renderer :: proc(world: ^World, entity: Entity, value: ModelRenderer) -> bool { if !has_component_data(world, entity, "ModelRenderer") { return false }; world.model_renderers[entity] = value; return true }
+get_tilemap_renderer :: proc(world: ^World, entity: Entity) -> (TilemapRenderer, bool) { value, found := world.tilemap_renderers[entity]; return value, found }
+set_tilemap_renderer :: proc(world: ^World, entity: Entity, value: TilemapRenderer) -> bool { if !has_component_data(world, entity, "TilemapRenderer") { return false }; world.tilemap_renderers[entity] = value; return true }
+get_text_renderer :: proc(world: ^World, entity: Entity) -> (TextRenderer, bool) { value, found := world.text_renderers[entity]; return value, found }
+set_text_renderer :: proc(world: ^World, entity: Entity, value: TextRenderer) -> bool { if !has_component_data(world, entity, "TextRenderer") { return false }; world.text_renderers[entity] = value; return true }
+get_tilemap_collider :: proc(world: ^World, entity: Entity) -> (TilemapCollider, bool) { value, found := world.tilemap_colliders[entity]; return value, found }
+set_tilemap_collider :: proc(world: ^World, entity: Entity, value: TilemapCollider) -> bool { if !has_component_data(world, entity, "TilemapCollider") { return false }; world.tilemap_colliders[entity] = value; return true }
+get_top_down_controller :: proc(world: ^World, entity: Entity) -> (TopDownController, bool) { value, found := world.top_down_controllers[entity]; return value, found }
+set_top_down_controller :: proc(world: ^World, entity: Entity, value: TopDownController) -> bool { if !has_component_data(world, entity, "TopDownController") { return false }; world.top_down_controllers[entity] = value; return true }
 get_box_collider :: proc(world: ^World, entity: Entity) -> (BoxCollider, bool) { value, found := world.box_colliders[entity]; return value, found }
 set_box_collider :: proc(world: ^World, entity: Entity, value: BoxCollider) -> bool { if !has_component_data(world, entity, "BoxCollider") { return false }; world.box_colliders[entity] = value; return true }
+get_sphere_collider :: proc(world: ^World, entity: Entity) -> (SphereCollider, bool) { value, found := world.sphere_colliders[entity]; return value, found }
+set_sphere_collider :: proc(world: ^World, entity: Entity, value: SphereCollider) -> bool { if !has_component_data(world, entity, "SphereCollider") { return false }; world.sphere_colliders[entity] = value; return true }
 get_character_controller :: proc(world: ^World, entity: Entity) -> (CharacterController, bool) { value, found := world.character_controllers[entity]; return value, found }
 set_character_controller :: proc(world: ^World, entity: Entity, value: CharacterController) -> bool { if !has_component_data(world, entity, "CharacterController") { return false }; world.character_controllers[entity] = value; return true }
 get_orbit :: proc(world: ^World, entity: Entity) -> (Orbit, bool) { value, found := world.orbits[entity]; return value, found }

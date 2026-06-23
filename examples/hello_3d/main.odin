@@ -34,6 +34,7 @@ on_draw :: proc(game: ^rune.Engine) {
 }
 
 main :: proc() {
+
 	game, ok := rune.init("examples/hello_3d/project.json")
 	if !ok {
 		fmt.eprintln("Could not load examples/hello_3d/project.json")
@@ -47,6 +48,7 @@ main :: proc() {
 		rune.shutdown(&game)
 		return
 	}
+
 	found: bool
 	cube, found = ecs.find_entity_by_id(&world, "cube")
 	if !found {
@@ -56,4 +58,5 @@ main :: proc() {
 	}
 
 	rune.run(&game, on_update, on_draw)
+	
 }

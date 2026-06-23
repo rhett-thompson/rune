@@ -1,0 +1,13 @@
+{
+  "name": "Rune Runtime Scene Transition",
+  "startup_scene": "scenes/blue.scene.json",
+  "background_color": [22, 24, 32, 255],
+  "window": {
+    "width": 960,
+    "height": 540,
+    "title": "Rune - Runtime Scene Transition",
+    "fullscreen": false,
+    "vsync": true
+  },
+  "input": "input/default.input.json"
+}

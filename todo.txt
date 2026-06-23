@@ -1,0 +1,4 @@
+advanced 3d
+gizmos
+physics
+built-in debug console

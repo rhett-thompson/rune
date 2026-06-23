@@ -1,0 +1,18 @@
+{
+  "actions": {
+    "move_forward": [{ "type": "keyboard", "key": "W" }],
+    "move_back": [{ "type": "keyboard", "key": "S" }],
+    "move_left": [{ "type": "keyboard", "key": "A" }],
+    "move_right": [{ "type": "keyboard", "key": "D" }],
+    "jump": [{ "type": "keyboard", "key": "SPACE" }],
+    "orbit_camera": [{ "type": "mouse_button", "button": "LEFT" }],
+    "orbit_with_character": [{ "type": "mouse_button", "button": "RIGHT" }]
+  },
+  "axes": {
+    "move_x": { "negative": "move_left", "positive": "move_right" },
+    "move_z": { "negative": "move_back", "positive": "move_forward" },
+    "look_x": { "type": "mouse_delta", "axis": "x" },
+    "look_y": { "type": "mouse_delta", "axis": "y" },
+    "zoom": { "type": "mouse_wheel", "scale": 1.0 }
+  }
+}

@@ -54,6 +54,10 @@ validate_mappings :: proc(mappings: Mappings) -> bool {
 			if axis_data.axis != "x" && axis_data.axis != "y" { return false }
 			continue
 		}
+		if axis_data.type == "mouse_wheel" {
+			if len(axis_data.axis) != 0 { return false }
+			continue
+		}
 		if len(axis_data.type) != 0 { return false }
 		if _, found := mappings.actions[axis_data.negative]; !found { return false }
 		if _, found := mappings.actions[axis_data.positive]; !found { return false }
@@ -76,9 +80,17 @@ update :: proc(input: ^Input) {
 		input.actions[action_name] = state
 	}
 	mouse_delta := rl.GetMouseDelta()
+	mouse_wheel := rl.GetMouseWheelMove()
 	for axis_name, axis_data in input.mappings.axes {
 		if axis_data.type == "mouse_delta" {
 			value := mouse_delta.x if axis_data.axis == "x" else mouse_delta.y
+			scale := axis_data.scale
+			if scale == 0 { scale = 1 }
+			value *= scale
+			if axis_data.invert { value = -value }
+			input.axes[axis_name] = value
+		} else if axis_data.type == "mouse_wheel" {
+			value := mouse_wheel
 			scale := axis_data.scale
 			if scale == 0 { scale = 1 }
 			value *= scale
@@ -107,7 +119,7 @@ strength :: proc(input: ^Input, name: string) -> f32 { return action(input, name
 axis :: proc(input: ^Input, name: string) -> f32 {
 	axis_data, found := input.mappings.axes[name]
 	if !found { return 0 }
-	if axis_data.type == "mouse_delta" { return input.axes[name] }
+	if len(axis_data.type) != 0 { return input.axes[name] }
 	value := strength(input, axis_data.positive) - strength(input, axis_data.negative)
 	if axis_data.invert { value = -value }
 	return value

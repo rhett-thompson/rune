@@ -1,0 +1,50 @@
+{
+  "name": "Tilemap Collision",
+  "entities": [
+    { "id": "camera", "components": { "Transform": { "position": [0, 0, 0] }, "Camera2D": { "offset": [0, 0], "zoom": 1, "active": true } } },
+    {
+      "id": "dungeon",
+      "layers": ["Default"],
+      "components": {
+        "Transform": { "position": [0, 0, 0], "scale": [3, 3, 1] },
+        "TilemapRenderer": {
+          "texture": "../sprite_scene_2d/assets/wallDark.png", "tile_size": [16, 16],
+          "grid": [
+            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0],
+            [0,-1,0,0,0,-1,-1,-1,0,0,0,-1,-1,-1,0,0,0,-1,-1,0],
+            [0,-1,-1,-1,0,-1,-1,-1,0,-1,-1,-1,-1,-1,0,-1,-1,-1,-1,0],
+            [0,-1,0,-1,0,0,0,-1,0,-1,0,0,0,-1,0,-1,0,0,-1,0],
+            [0,-1,0,-1,-1,-1,0,-1,-1,-1,0,-1,-1,-1,0,-1,-1,-1,-1,0],
+            [0,-1,0,0,0,-1,0,0,0,-1,0,-1,0,0,0,0,0,0,-1,0],
+            [0,-1,-1,-1,0,-1,-1,-1,0,-1,-1,-1,0,-1,-1,-1,-1,0,-1,0],
+            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+          ]
+        },
+        "TilemapCollider": { "solid_tiles": [0] }
+      }
+    },
+    {
+      "id": "player",
+      "components": {
+        "Transform": { "position": [72, 72, 0], "scale": [2, 2, 1] },
+        "SpriteRenderer": { "texture": "../sprite_scene_2d/assets/skeletonWarrior.png", "origin": [0.5, 0.5] },
+        "TopDownController": { "size": [24, 24], "speed": 180 }
+      }
+    },
+    {
+      "id": "instructions",
+      "components": {
+        "Transform": { "position": [24, 470, 0] },
+        "TextRenderer": {
+          "text": "WASD: move through the dungeon walls",
+          "font": "../hello_world/assets/fonts/mecha.png",
+          "font_size": 18,
+          "spacing": 1,
+          "color": [255, 255, 255, 255],
+          "origin": [0, 0]
+        }
+      }
+    }
+  ]
+}

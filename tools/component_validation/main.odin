@@ -26,8 +26,12 @@ main :: proc() {
 	assert(ecs.set_transform(&world, greeting, transform))
 	validate_mesh_renderer()
 	validate_sphere_renderer()
+	validate_sphere_collider()
 	validate_model_renderer()
 	validate_character_collision()
+	validate_tilemap_renderer()
+	validate_tilemap_collision()
+	validate_text_renderer()
 	validate_motion_components()
 	validate_camera_components()
 	validate_audio_components()
@@ -142,6 +146,28 @@ validate_motion_components :: proc() {
 	assert(transform_found && earth_transform.rotation[1] == 24)
 }
 
+validate_sphere_collider :: proc() {
+	project, project_loaded := rune.load_project("examples/third_person_3d/project.json")
+	assert(project_loaded)
+	registry := ecs.init_registry()
+	assert(ecs.register_builtin_components(&registry))
+	world, loaded := scene.load_with_layers("examples/third_person_3d/scenes/main.scene.json", &registry, project.layers)
+	assert(loaded)
+	target, found := ecs.find_entity_by_id(&world, "look_target")
+	assert(found)
+	collider, has_collider := ecs.get_sphere_collider(&world, target)
+	assert(has_collider && collider.radius == 0.75 && collider.is_static)
+	player, player_found := ecs.find_entity_by_id(&world, "player")
+	assert(player_found)
+	transform, has_transform := ecs.get_transform(&world, player)
+	assert(has_transform)
+	transform.position = {0, 0.75, -7.5}
+	assert(ecs.set_transform(&world, player, transform))
+	assert(ecs.move_character(&world, player, {0, -1}, false, 0.016))
+	transform, has_transform = ecs.get_transform(&world, player)
+	assert(has_transform && transform.position[2] == -7.5)
+}
+
 validate_model_renderer :: proc() {
 	registry := ecs.init_registry()
 	assert(ecs.register_builtin_components(&registry))
@@ -177,4 +203,48 @@ validate_character_collision :: proc() {
 	assert(ecs.move_character(&world, player, {}, true, 0.1))
 	player_transform, has_transform = ecs.get_transform(&world, player)
 	assert(has_transform && player_transform.position[1] > 1.6)
+}
+
+validate_tilemap_renderer :: proc() {
+	registry := ecs.init_registry()
+	assert(ecs.register_builtin_components(&registry))
+	world, loaded := scene.load("examples/tilemap_2d/scenes/main.scene.json", &registry)
+	assert(loaded)
+	tilemap_entity, found := ecs.find_entity_by_id(&world, "dungeon")
+	assert(found)
+	tilemap, has_tilemap := ecs.get_tilemap_renderer(&world, tilemap_entity)
+	assert(has_tilemap)
+	assert(tilemap.texture == "../sprite_scene_2d/assets/wallDark.png")
+	assert(tilemap.tile_size == [2]f32{16, 16})
+	assert(len(tilemap.tiles) > 0)
+}
+
+validate_tilemap_collision :: proc() {
+	registry := ecs.init_registry()
+	assert(ecs.register_builtin_components(&registry))
+	world, loaded := scene.load("examples/tilemap_collision_2d/scenes/main.scene.json", &registry)
+	assert(loaded)
+	player, found := ecs.find_entity_by_id(&world, "player")
+	assert(found)
+	_, has_controller := ecs.get_top_down_controller(&world, player)
+	assert(has_controller)
+	dungeon, dungeon_found := ecs.find_entity_by_id(&world, "dungeon")
+	assert(dungeon_found)
+	_, has_collider := ecs.get_tilemap_collider(&world, dungeon)
+	assert(has_collider)
+	assert(ecs.move_top_down(&world, player, {-30, 0}))
+	transform, has_transform := ecs.get_transform(&world, player)
+	assert(has_transform && transform.position[0] == 72)
+}
+
+validate_text_renderer :: proc() {
+	registry := ecs.init_registry()
+	assert(ecs.register_builtin_components(&registry))
+	world, loaded := scene.load("examples/tilemap_collision_2d/scenes/main.scene.json", &registry)
+	assert(loaded)
+	instructions, found := ecs.find_entity_by_id(&world, "instructions")
+	assert(found)
+	text, has_text := ecs.get_text_renderer(&world, instructions)
+	assert(has_text && text.text == "WASD: move through the dungeon walls")
+	assert(text.font == "../hello_world/assets/fonts/mecha.png" && text.font_size == 18)
 }

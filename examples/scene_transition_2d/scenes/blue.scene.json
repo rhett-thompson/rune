@@ -1,0 +1,16 @@
+{
+  "name": "Blue Scene",
+  "entities": [
+    {
+      "id": "scene_orb",
+      "name": "Blue Orb",
+      "components": {
+        "Transform": {
+          "position": [480, 270, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      }
+    }
+  ]
+}

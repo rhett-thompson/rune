@@ -1,5 +1,6 @@
 package render
 
+import "core:strings"
 import "rune:ecs"
 import "rune:assets"
 import rl "vendor:raylib"
@@ -96,10 +97,49 @@ draw_sprite_tree :: proc(world: ^ecs.World, asset_manager: ^assets.Asset_Manager
 		origin := rl.Vector2{destination.width * sprite.origin[0], destination.height * sprite.origin[1]}
 		rl.DrawTexturePro(texture, source, destination, origin, rotation, rl.WHITE)
 	}
+	if tilemap, found := ecs.get_tilemap_renderer(world, entity); found {
+		draw_tilemap(asset_manager, tilemap, position, scale, rotation)
+	}
+	if text, found := ecs.get_text_renderer(world, entity); found {
+		draw_text(asset_manager, text, position, scale, rotation)
+	}
 
 	for child in ecs.child_entities(world, entity) {
 		draw_sprite_tree(world, asset_manager, child, position, scale, rotation)
 	}
+}
+
+draw_tilemap :: proc(asset_manager: ^assets.Asset_Manager, tilemap: ecs.TilemapRenderer, position, scale: [2]f32, rotation: f32) {
+	texture, loaded := assets.texture(asset_manager, tilemap.texture)
+	if !loaded { return }
+	columns := i32(f32(texture.width) / tilemap.tile_size[0])
+	rows := i32(f32(texture.height) / tilemap.tile_size[1])
+	if columns <= 0 || rows <= 0 { return }
+	for tile in tilemap.tiles {
+		if tile.index >= columns * rows { continue }
+		source := rl.Rectangle{
+			f32(tile.index % columns) * tilemap.tile_size[0],
+			f32(tile.index / columns) * tilemap.tile_size[1],
+			tilemap.tile_size[0], tilemap.tile_size[1],
+		}
+		destination := rl.Rectangle{
+			position[0] + f32(tile.x) * source.width * scale[0],
+			position[1] + f32(tile.y) * source.height * scale[1],
+			source.width * scale[0], source.height * scale[1],
+		}
+		rl.DrawTexturePro(texture, source, destination, {}, rotation, rl.WHITE)
+	}
+}
+
+draw_text :: proc(asset_manager: ^assets.Asset_Manager, text: ecs.TextRenderer, position, scale: [2]f32, rotation: f32) {
+	font, loaded := assets.font(asset_manager, text.font)
+	if !loaded { return }
+	content, _ := strings.clone_to_cstring(text.text)
+	font_size := text.font_size * scale[0]
+	spacing := text.spacing * scale[0]
+	measured := rl.MeasureTextEx(font, content, font_size, spacing)
+	origin := rl.Vector2{measured.x * text.origin[0], measured.y * text.origin[1]}
+	rl.DrawTextPro(font, content, position, origin, rotation, font_size, spacing, to_raylib_color(text.color))
 }
 
 // draw_world owns render dispatch for scene entities. Each entity gets an
@@ -154,7 +194,7 @@ to_raylib_color :: proc(color: ecs.Color) -> rl.Color {
 	return rl.Color{color.r, color.g, color.b, color.a}
 }
 
-// draw_collision_debug renders BoxCollider bounds in the active 3D mode.
+// draw_collision_debug renders built-in collision bounds in the active 3D mode.
 draw_collision_debug :: proc(world: ^ecs.World) {
 	for entity in ecs.entities_with_component(world, "BoxCollider") {
 		collider, has_collider := ecs.get_box_collider(world, entity)
@@ -167,5 +207,14 @@ draw_collision_debug :: proc(world: ^ecs.World) {
 		}
 		box := rl.BoundingBox{min = transform.position - half, max = transform.position + half}
 		rl.DrawBoundingBox(box, rl.LIME if collider.is_static else rl.YELLOW)
+	}
+	for entity in ecs.entities_with_component(world, "SphereCollider") {
+		collider, has_collider := ecs.get_sphere_collider(world, entity)
+		transform, has_transform := ecs.get_transform(world, entity)
+		if !has_collider || !has_transform { continue }
+		scale := transform.scale[0]
+		if transform.scale[1] > scale { scale = transform.scale[1] }
+		if transform.scale[2] > scale { scale = transform.scale[2] }
+		rl.DrawSphereWires(transform.position, collider.radius * scale, 12, 8, rl.LIME if collider.is_static else rl.YELLOW)
 	}
 }

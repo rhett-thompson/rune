@@ -1,0 +1,13 @@
+{
+  "name": "Rune Tweening",
+  "startup_scene": "scenes/main.scene.json",
+  "background_color": [24, 28, 42, 255],
+  "window": {
+    "width": 960,
+    "height": 540,
+    "title": "Rune - Tweening",
+    "fullscreen": false,
+    "vsync": true
+  },
+  "input": "input/default.input.json"
+}

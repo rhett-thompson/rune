@@ -12,7 +12,7 @@
         },
         "MeshRenderer": {
           "primitive": "cube",
-          "color": [102, 191, 255, 255]
+          "color": [100, 191, 255, 255]
         }
       }
     },

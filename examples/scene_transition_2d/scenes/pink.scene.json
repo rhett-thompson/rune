@@ -1,0 +1,16 @@
+{
+  "name": "Pink Scene",
+  "entities": [
+    {
+      "id": "scene_orb",
+      "name": "Pink Orb",
+      "components": {
+        "Transform": {
+          "position": [480, 270, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      }
+    }
+  ]
+}

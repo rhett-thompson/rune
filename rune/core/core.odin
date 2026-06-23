@@ -77,6 +77,11 @@ Engine :: struct {
 Update_Proc :: #type proc(engine: ^Engine)
 Draw_Proc   :: #type proc(engine: ^Engine)
 
+// Native window dragging can pause the game loop for seconds. Simulation uses
+// a capped delta so a resumed frame cannot throw moving entities through the
+// world or off screen.
+Max_Simulation_Delta : f32 : 0.1
+
 load_project :: proc(path: string) -> (Project, bool) {
 	data, read_error := os.read_entire_file(path, context.allocator)
 	if read_error != nil {
@@ -302,6 +307,9 @@ run_scene_reload_systems :: proc(engine: ^Engine, world: ^ecs.World) {
 
 begin_frame :: proc(engine: ^Engine) {
 	engine.delta_time = rl.GetFrameTime()
+	if engine.delta_time > Max_Simulation_Delta {
+		engine.delta_time = Max_Simulation_Delta
+	}
 	engine.hot_reload_due = hot_reload_poll_due(engine)
 	if engine.hot_reload_due && engine.project.hot_reload.enabled && engine.project.hot_reload.textures {
 		assets.refresh(&engine.assets)

@@ -15,5 +15,9 @@ main :: proc() {
 	assert(input.has_action(&mover_input, "move_left"))
 	assert(input.has_axis(&mover_input, "move_x"))
 
+	third_person_input, third_person_loaded := input.load("examples/third_person_3d/input/default.input.json")
+	assert(third_person_loaded)
+	assert(input.has_axis(&third_person_input, "zoom"))
+
 	fmt.println("Input mapping validation passed")
 }

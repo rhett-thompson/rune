@@ -1,0 +1,7 @@
+{
+  "name": "Rune Tilemap Collision 2D",
+  "startup_scene": "scenes/main.scene.json",
+  "window": { "width": 960, "height": 540, "title": "Rune - Tilemap Collision 2D", "fullscreen": false, "vsync": true, "msaa_4x": true },
+  "input": "input/default.input.json",
+  "background_color": [25, 28, 34, 255]
+}

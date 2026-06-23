@@ -1,0 +1,16 @@
+{
+  "name": "Tweening Scene",
+  "entities": [
+    {
+      "id": "orb",
+      "name": "Tweened Orb",
+      "components": {
+        "Transform": {
+          "position": [140, 280, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      }
+    }
+  ]
+}

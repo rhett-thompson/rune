@@ -7,6 +7,7 @@ import "rune:jsonutil"
 // mover_system is game code. Mover stays declarative JSON data, while this Odin
 // system gives it behaviour by updating the entity's typed Transform component.
 mover_system :: proc(world: ^ecs.World, entity: ecs.Entity, move_x: f32, dt: f32) {
+
 	mover_data, has_mover := ecs.get_component(world, entity, "Mover")
 	if !has_mover {
 		return
@@ -16,6 +17,7 @@ mover_system :: proc(world: ^ecs.World, entity: ecs.Entity, move_x: f32, dt: f32
 	if !mover_ok {
 		return
 	}
+	
 	speed_data, has_speed := mover["speed"]
 	if !has_speed {
 		return
@@ -31,5 +33,7 @@ mover_system :: proc(world: ^ecs.World, entity: ecs.Entity, move_x: f32, dt: f32
 	if transform.position[0] > 760 {
 		transform.position[0] = 40
 	}
+
 	ecs.set_transform(world, entity, transform)
+
 }

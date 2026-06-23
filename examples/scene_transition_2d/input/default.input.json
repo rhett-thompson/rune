@@ -1,0 +1,8 @@
+{
+  "actions": {
+    "change_scene": [
+      { "type": "mouse_button", "button": "LEFT" }
+    ]
+  },
+  "axes": {}
+}

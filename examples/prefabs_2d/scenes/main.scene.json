@@ -15,7 +15,7 @@
       "tag": "enemy",
       "prefab": "../prefabs/skeleton.prefab.json",
       "components": {
-        "Transform": { "position": [180, 270, 0], "scale": [5, 5, 1] }
+        "Transform": { "position": [180, 270, 0], "scale": [20, 20, 1] }
       }
     },
     {

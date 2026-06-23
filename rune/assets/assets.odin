@@ -16,11 +16,17 @@ Model_Asset :: struct {
 	modified_time: i64,
 }
 
+Font_Asset :: struct {
+	font:          rl.Font,
+	modified_time: i64,
+}
+
 // Asset paths are the first asset identifiers. Stable IDs can be layered on later.
 Asset_Manager :: struct {
 	root:             string,
 	textures:         map[string]Texture_Asset,
 	models:           map[string]Model_Asset,
+	fonts:            map[string]Font_Asset,
 	missing_textures: map[string]bool,
 	missing_texture:  rl.Texture2D,
 }
@@ -34,9 +40,21 @@ init :: proc(root: string) -> Asset_Manager {
 		root = root,
 		textures = make(map[string]Texture_Asset),
 		models = make(map[string]Model_Asset),
+		fonts = make(map[string]Font_Asset),
 		missing_textures = make(map[string]bool),
 		missing_texture = rl.LoadTextureFromImage(missing_image),
 	}
+}
+
+font :: proc(manager: ^Asset_Manager, path: string) -> (rl.Font, bool) {
+	if len(path) == 0 { return {}, false }
+	if asset, found := manager.fonts[path]; found { return asset.font, true }
+	full_path := resolve_path(manager, path)
+	path_cstring, _ := strings.clone_to_cstring(full_path)
+	loaded := rl.LoadFont(path_cstring)
+	if !rl.IsFontValid(loaded) { return {}, false }
+	manager.fonts[path] = Font_Asset{font = loaded, modified_time = modified_time(full_path)}
+	return loaded, true
 }
 
 // model returns a cached model loaded from a project-relative path.
@@ -92,6 +110,19 @@ refresh :: proc(manager: ^Asset_Manager) {
 		updated_asset.modified_time = current_time
 		manager.textures[path] = updated_asset
 	}
+	for path, asset in manager.fonts {
+		full_path := resolve_path(manager, path)
+		current_time := modified_time(full_path)
+		if current_time == asset.modified_time { continue }
+		path_cstring, _ := strings.clone_to_cstring(full_path)
+		replacement := rl.LoadFont(path_cstring)
+		if !rl.IsFontValid(replacement) { continue }
+		rl.UnloadFont(asset.font)
+		updated_asset := asset
+		updated_asset.font = replacement
+		updated_asset.modified_time = current_time
+		manager.fonts[path] = updated_asset
+	}
 }
 
 refresh_models :: proc(manager: ^Asset_Manager) {
@@ -128,6 +159,9 @@ shutdown :: proc(manager: ^Asset_Manager) {
 	}
 	for _, asset in manager.models {
 		rl.UnloadModel(asset.model)
+	}
+	for _, asset in manager.fonts {
+		rl.UnloadFont(asset.font)
 	}
 	if rl.IsTextureValid(manager.missing_texture) {
 		rl.UnloadTexture(manager.missing_texture)

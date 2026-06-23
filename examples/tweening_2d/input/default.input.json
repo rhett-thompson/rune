@@ -1,0 +1,8 @@
+{
+  "actions": {
+    "cycle_easing": [
+      { "type": "mouse_button", "button": "LEFT" }
+    ]
+  },
+  "axes": {}
+}

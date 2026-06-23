@@ -1,0 +1,15 @@
+{
+  "name": "Rune Third Person 3D",
+  "startup_scene": "scenes/main.scene.json",
+  "background_color": [135, 186, 235, 255],
+  "window": {
+    "width": 1280,
+    "height": 720,
+    "title": "Rune - Third Person 3D",
+    "fullscreen": false,
+    "vsync": true,
+    "msaa_4x": true
+  },
+  "input": "input/default.input.json",
+  "layers": { "Gameplay": 1, "Player": 2 }
+}

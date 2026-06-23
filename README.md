@@ -26,6 +26,11 @@ rune.run(&game, on_update, on_draw)
 components. Their behavior stays in Odin systems, rather than turning scene
 JSON into scripts.
 
+The engine caps simulation delta time at 0.1 seconds. Native window dragging
+can pause a raylib frame loop; capping the resumed frame prevents movement and
+physics from jumping across the world. Rendering still pauses while the OS owns
+the window-drag operation.
+
 ## Optional registered systems
 
 Games can register ordered Odin systems and run an instantiated world through
@@ -48,6 +53,62 @@ dedicated registered-system example is available at:
 
 ```powershell
 odin run examples/registered_systems -collection:rune=rune
+```
+
+## Tweening and easing
+
+`rune:tween` is a small code-only utility for transient interpolation such as
+camera motion, UI fades, and gameplay feedback. It is not a scene component:
+JSON continues to describe initial state, while Odin systems decide when a
+tween begins. Create and update tween instances from a game's update callback
+or registered update system.
+
+```odin
+import "rune:tween"
+
+move := tween.make(0.35, tween.ease_out_cubic)
+
+// In an update callback:
+tween.update(&move, game.delta_time)
+position := tween.value_vec2(&move, {0, 0}, {300, 120})
+```
+
+The package supplies linear, sine, quad, cubic, quart, back, bounce, and
+elastic easing functions, along with scalar, 2D-vector, 3D-vector, and float
+RGBA color interpolation. Set `mode` to `.Restart` or `.Ping_Pong` and
+`repeat` to the number of additional passes (`-1` repeats indefinitely) when
+needed. Run its non-windowed validation with:
+
+```powershell
+odin run tools/tween_validation -collection:rune=rune
+```
+
+The runnable [`tweening_2d`](examples/tweening_2d) example loads an orb from
+scene JSON, then uses a ping-pong tween to animate its position and color.
+Left-click to cycle through easing equations:
+
+```powershell
+odin run examples/tweening_2d -collection:rune=rune
+```
+
+[`scene_transition_2d`](examples/scene_transition_2d) demonstrates replacing
+the runtime `World` with another JSON scene. A left click fades to black,
+loads the next scene, then fades back in:
+
+```powershell
+odin run examples/scene_transition_2d -collection:rune=rune
+```
+
+[`third_person_3d`](examples/third_person_3d) demonstrates a code-driven
+third-person controller: the player and active camera are separate JSON
+entities, while Odin moves the player relative to camera yaw and updates the
+follow camera. The JSON scene supplies `CharacterController`, static
+`BoxCollider`, and `SphereCollider` components. Use WASD to move, Space to
+jump, use the mouse wheel to zoom, hold the left mouse button to orbit only
+the camera, or hold the right mouse button to orbit and turn the player.
+
+```powershell
+odin run examples/third_person_3d -collection:rune=rune
 ```
 
 ## Project display settings
@@ -113,6 +174,10 @@ Mouse motion can be exposed as an axis using `"type": "mouse_delta"` and
 current frame; optional `scale` and `invert` fields may be provided. For
 example, `{ "type": "mouse_delta", "axis": "y", "invert": true }`
 reverses vertical mouse movement.
+
+Mouse-wheel input is available as `{ "type": "mouse_wheel" }`; it returns
+the wheel movement sampled for the current frame and also supports `scale` and
+`invert`. The third-person example uses it to zoom its follow camera.
 
 `third_party/r3d` is pinned to r3d `v0.10.0` and is reserved for the engine's later 3D renderer. The first example deliberately uses the bundled Odin raylib binding so the 2D foundation stays small.
 
@@ -378,13 +443,18 @@ odin run examples/model_scene_3d -collection:rune=rune
 
 ## Basic 3D collision
 
-`BoxCollider` provides static axis-aligned world collision. `CharacterController`
-adds gravity, grounded state, and jumping while keeping its entity Transform at
-the camera eye position. Colliders only interact when their entity layer masks
-overlap.
+`BoxCollider` provides static axis-aligned world collision. `SphereCollider`
+provides a conservative sphere-shaped static volume whose radius follows the
+largest Transform scale axis. `CharacterController` adds gravity, grounded
+state, and jumping while keeping its entity Transform at the camera eye
+position. Colliders only interact when their entity layer masks overlap.
 
 ```json
 "BoxCollider": { "size": [1, 1, 1], "is_static": true }
+```
+
+```json
+"SphereCollider": { "radius": 0.75, "is_static": true }
 ```
 
 ```json
@@ -400,6 +470,49 @@ overlap.
 The first-person example now has collidable blockout geometry. Use WASD to
 move, Space to jump, and Escape to release/capture the cursor. Green outlines
 show static collision boxes.
+
+## 2D tilemaps
+
+`TilemapRenderer` draws a JSON grid from a texture atlas. Each non-negative
+cell selects an atlas tile; `-1` leaves that cell empty.
+
+```json
+"TilemapRenderer": {
+  "texture": "assets/tiles/dungeon.png",
+  "tile_size": [16, 16],
+  "grid": [[0, 0, -1], [0, 1, 0]]
+}
+```
+
+Run the example with:
+
+```powershell
+odin run examples/tilemap_2d -collection:rune=rune
+```
+
+`TilemapCollider` uses the same grid and blocks indices in `solid_tiles`.
+`TopDownController` gives an entity a 2D collision size and movement speed;
+game code supplies input deltas to `ecs.move_top_down`, which resolves X and Y
+separately for wall sliding. Run the collision example with:
+
+```powershell
+odin run examples/tilemap_collision_2d -collection:rune=rune
+```
+
+## Scene text
+
+`TextRenderer` draws font-backed text through an entity `Transform` and the
+active `Camera2D`. Fonts are cached with textures and refresh when their file
+changes.
+
+```json
+"TextRenderer": {
+  "text": "WASD: move",
+  "font": "assets/fonts/mecha.png",
+  "font_size": 18,
+  "color": [255, 255, 255, 255]
+}
+```
 
 ## Multiple camera switching
 

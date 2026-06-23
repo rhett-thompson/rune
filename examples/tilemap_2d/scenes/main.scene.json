@@ -1,0 +1,39 @@
+{
+  "name": "Tilemap Scene",
+  "entities": [
+    {
+      "id": "camera",
+      "components": {
+        "Transform": { "position": [0, 0, 0] },
+        "Camera2D": { "offset": [0, 0], "zoom": 1, "active": true }
+      }
+    },
+    {
+      "id": "dungeon",
+      "name": "Dungeon Tilemap",
+      "components": {
+        "Transform": { "position": [0, 0, 0], "scale": [3, 3, 1] },
+        "TilemapRenderer": {
+          "texture": "../sprite_scene_2d/assets/wallDark.png",
+          "tile_size": [16, 16],
+          "grid": [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0],
+            [0, -1, 0, 0, -1, -1, 0, 0, -1, -1, 0, 0, -1, -1, 0, 0, -1, -1, -1, 0],
+            [0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0],
+            [0, -1, -1, -1, 0, 0, 0, -1, -1, -1, -1, -1, 0, 0, 0, -1, -1, -1, -1, 0],
+            [0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+          ]
+        }
+      }
+    },
+    {
+      "id": "skeleton",
+      "components": {
+        "Transform": { "position": [480, 270, 0], "scale": [2, 2, 1] },
+        "SpriteRenderer": { "texture": "../sprite_scene_2d/assets/skeletonWarrior.png", "origin": [0.5, 0.5] }
+      }
+    }
+  ]
+}
