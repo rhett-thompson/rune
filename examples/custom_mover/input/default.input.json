@@ -1,3 +1,15 @@
 {
-  "actions": {}
+  "actions": {
+    "move_left": [
+      { "type": "keyboard", "key": "A" },
+      { "type": "keyboard", "key": "LEFT" }
+    ],
+    "move_right": [
+      { "type": "keyboard", "key": "D" },
+      { "type": "keyboard", "key": "RIGHT" }
+    ]
+  },
+  "axes": {
+    "move_x": { "negative": "move_left", "positive": "move_right" }
+  }
 }

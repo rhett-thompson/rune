@@ -1,0 +1,7 @@
+{
+  "name": "Rune Model Scene 3D",
+  "startup_scene": "scenes/main.scene.json",
+  "window": { "width": 960, "height": 540, "title": "Rune - Model Scene 3D", "fullscreen": false, "vsync": true, "msaa_4x": true },
+  "input": "input/default.input.json",
+  "background_color": [32, 36, 44, 255]
+}

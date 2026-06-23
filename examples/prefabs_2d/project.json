@@ -1,0 +1,21 @@
+{
+  "name": "Rune Prefabs 2D",
+  "startup_scene": "scenes/main.scene.json",
+  "window": {
+    "width": 960,
+    "height": 540,
+    "title": "Rune - Prefabs 2D",
+    "fullscreen": false,
+    "vsync": true
+  },
+  "input": "input/default.input.json",
+  "hot_reload": {
+    "enabled": true,
+    "poll_interval_ms": 250,
+    "scenes": true,
+    "prefabs": true,
+    "textures": true,
+    "models": true
+  },
+  "background_color": [48, 48, 48, 255]
+}

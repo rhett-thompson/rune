@@ -15,6 +15,21 @@
           "color": [102, 191, 255, 255]
         }
       }
+    },
+    {
+      "id": "main_camera",
+      "name": "Main Camera",
+      "components": {
+        "Transform": {
+          "position": [4.5, 3.0, 4.5]
+        },
+        "Camera3D": {
+          "target": [0, 0.5, 0],
+          "up": [0, 1, 0],
+          "fovy": 45,
+          "active": true
+        }
+      }
     }
   ]
 }

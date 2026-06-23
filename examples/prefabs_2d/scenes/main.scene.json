@@ -1,0 +1,40 @@
+{
+  "name": "Prefab Instances",
+  "entities": [
+    {
+      "id": "camera",
+      "name": "Camera",
+      "components": {
+        "Transform": { "position": [0, 0, 0] },
+        "Camera2D": { "offset": [0, 0], "zoom": 1, "active": true }
+      }
+    },
+    {
+      "id": "skeleton_left",
+      "name": "Left Skeleton",
+      "tag": "enemy",
+      "prefab": "../prefabs/skeleton.prefab.json",
+      "components": {
+        "Transform": { "position": [180, 270, 0], "scale": [5, 5, 1] }
+      }
+    },
+    {
+      "id": "skeleton_center",
+      "name": "Center Skeleton",
+      "tag": "enemy",
+      "prefab": "../prefabs/skeleton.prefab.json",
+      "components": {
+        "Transform": { "position": [480, 270, 0], "scale": [4, 4, 1] }
+      }
+    },
+    {
+      "id": "skeleton_right",
+      "name": "Right Skeleton",
+      "tag": "enemy",
+      "prefab": "../prefabs/skeleton.prefab.json",
+      "components": {
+        "Transform": { "position": [780, 270, 0], "scale": [3, 3, 1] }
+      }
+    }
+  ]
+}

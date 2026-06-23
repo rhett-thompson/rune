@@ -1,0 +1,12 @@
+{
+  "name": "Rune Sprite Scene",
+  "startup_scene": "scenes/main.scene.json",
+  "window": {
+    "width": 960,
+    "height": 540,
+    "title": "Rune - Sprite Scene 2D",
+    "fullscreen": false,
+    "vsync": true
+  },
+  "input": "input/default.input.json"
+}

@@ -1,0 +1,8 @@
+{
+  "actions": {
+    "camera_one": [{ "type": "keyboard", "key": "1" }],
+    "camera_two": [{ "type": "keyboard", "key": "2" }],
+    "camera_three": [{ "type": "keyboard", "key": "3" }]
+  },
+  "axes": {}
+}

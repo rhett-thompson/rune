@@ -1,0 +1,74 @@
+{
+  "name": "First Person Blockout",
+  "entities": [
+    {
+      "id": "floor",
+      "name": "Floor",
+	  "layers": ["Gameplay"],
+      "components": {
+        "Transform": { "position": [0, -0.25, 0], "scale": [24, 0.5, 24] },
+        "MeshRenderer": { "primitive": "cube", "color": [90, 100, 115, 255] },
+        "BoxCollider": { "size": [1, 1, 1], "is_static": true }
+      }
+    },
+    {
+      "id": "wall_north",
+      "name": "North Wall",
+	  "layers": ["Gameplay"],
+      "components": {
+        "Transform": { "position": [0, 2, -12], "scale": [24, 4, 0.5] },
+        "MeshRenderer": { "primitive": "cube", "color": [130, 140, 155, 255] },
+        "BoxCollider": { "size": [1, 1, 1], "is_static": true }
+      }
+    },
+    {
+      "id": "wall_west",
+      "name": "West Wall",
+	  "layers": ["Gameplay"],
+      "components": {
+        "Transform": { "position": [-12, 2, 0], "scale": [0.5, 4, 24] },
+        "MeshRenderer": { "primitive": "cube", "color": [130, 140, 155, 255] },
+        "BoxCollider": { "size": [1, 1, 1], "is_static": true }
+      }
+    },
+    {
+      "id": "blue_block",
+      "name": "Blue Block",
+	  "layers": ["Gameplay"],
+      "components": {
+        "Transform": { "position": [3, 1, -4], "scale": [2, 2, 2] },
+        "MeshRenderer": { "primitive": "cube", "color": [102, 191, 255, 255] },
+        "BoxCollider": { "size": [1, 1, 1], "is_static": true }
+      }
+    },
+    {
+      "id": "orange_block",
+      "name": "Orange Block",
+	  "layers": ["Gameplay"],
+      "components": {
+        "Transform": { "position": [-4, 0.75, -7], "scale": [1.5, 1.5, 1.5] },
+        "MeshRenderer": { "primitive": "cube", "color": [255, 161, 0, 255] },
+        "BoxCollider": { "size": [1, 1, 1], "is_static": true }
+      }
+    },
+    {
+      "id": "marker",
+      "name": "Target Marker",
+      "components": {
+        "Transform": { "position": [0, 0.5, -8] },
+        "SphereRenderer": { "radius": 0.5, "color": [230, 41, 55, 255] }
+      }
+    },
+    {
+      "id": "player",
+      "name": "Player",
+	  "layers": ["Gameplay", "Player"],
+      "components": {
+        "Transform": { "position": [0, 1.6, 5] },
+        "Camera3D": { "target": [0, 1.6, 4], "up": [0, 1, 0], "fovy": 70, "active": true },
+        "FirstPersonController": { "move_speed": 5.0, "sprint_multiplier": 1.8, "mouse_sensitivity": 0.15 },
+        "CharacterController": { "radius": 0.35, "height": 1.8, "eye_height": 1.6, "gravity": 24, "jump_speed": 8 }
+      }
+    }
+  ]
+}

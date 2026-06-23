@@ -1,0 +1,32 @@
+{
+  "name": "Audio Component Validation",
+  "entities": [
+    {
+      "id": "main_camera",
+      "name": "Main Camera",
+      "components": {
+        "Transform": { "position": [0, 1.6, 5] },
+        "Camera3D": { "target": [16, 1.6, 5], "up": [0, 1, 0], "fovy": 50, "active": true },
+        "AudioListener": { "active": true }
+      }
+    },
+    {
+      "id": "bell_sphere",
+      "name": "Moving Bell Sphere",
+      "components": {
+        "Transform": { "position": [2, 1.6, 5] },
+        "SphereRenderer": { "radius": 0.6, "color": [255, 161, 0, 255] },
+        "AudioPlayer": {
+          "sound": "assets/bell.wav",
+          "volume": 0.35,
+          "pitch": 1.25,
+          "looping": false,
+          "spatial": true,
+          "min_distance": 2,
+          "max_distance": 32,
+          "play_on_start": false
+        }
+      }
+    }
+  ]
+}

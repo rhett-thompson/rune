@@ -1,0 +1,53 @@
+{
+  "name": "Multiple Camera Scene",
+  "entities": [
+    {
+      "id": "center_cube",
+      "name": "Center Cube",
+      "components": {
+        "Transform": { "position": [0, 0.5, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
+        "MeshRenderer": { "primitive": "cube", "color": [102, 191, 255, 255] }
+      }
+    },
+    {
+      "id": "side_sphere",
+      "name": "Side Sphere",
+      "components": {
+        "Transform": { "position": [2.5, 0.75, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
+        "SphereRenderer": { "radius": 0.75, "color": [255, 161, 0, 255] }
+      }
+    },
+    {
+      "id": "wide_camera",
+      "name": "Wide Camera",
+      "components": {
+        "Transform": { "position": [6, 4, 6] },
+        "Camera3D": { "target": [0, 0.5, 0], "up": [0, 1, 0], "fovy": 45, "active": true }
+      }
+    },
+    {
+      "id": "front_camera",
+      "name": "Front Camera",
+      "components": {
+        "Transform": { "position": [0, 1.5, 8] },
+        "Camera3D": { "target": [0, 0.5, 0], "up": [0, 1, 0], "fovy": 38, "active": false }
+      }
+    },
+    {
+      "id": "side_camera",
+      "name": "Side Camera",
+      "components": {
+        "Transform": { "position": [8, 2.5, 0] },
+        "Camera3D": { "target": [0, 0.5, 0], "up": [0, 1, 0], "fovy": 42, "active": false }
+      }
+    },
+    {
+      "id": "minimap_camera",
+      "name": "Minimap Camera Configuration",
+      "components": {
+        "Transform": { "position": [0, 12, 0] },
+        "Camera2D": { "offset": [1120, 120], "zoom": 0.2, "rotation": 0, "active": false }
+      }
+    }
+  ]
+}

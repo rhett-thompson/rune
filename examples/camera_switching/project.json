@@ -1,0 +1,12 @@
+{
+  "name": "Camera Switching",
+  "startup_scene": "scenes/main.scene.json",
+  "window": {
+    "width": 1280,
+    "height": 720,
+    "title": "Rune - Camera Switching",
+    "fullscreen": false,
+    "vsync": true
+  },
+  "input": "input/default.input.json"
+}

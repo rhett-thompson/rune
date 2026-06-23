@@ -1,0 +1,21 @@
+{
+  "name": "Model Scene",
+  "entities": [
+    {
+      "id": "camera",
+      "name": "Camera",
+      "components": {
+        "Transform": { "position": [4, 3, 6] },
+        "Camera3D": { "target": [0, 0.8, 0], "up": [0, 1, 0], "fovy": 45, "active": true }
+      }
+    },
+    {
+      "id": "pyramid",
+      "name": "Pyramid",
+      "components": {
+        "Transform": { "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
+        "ModelRenderer": { "model": "assets/models/pyramid.obj", "tint": [210, 220, 255, 255] }
+      }
+    }
+  ]
+}

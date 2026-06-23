@@ -1,0 +1,38 @@
+{
+  "name": "Sprite Scene 2D",
+  "entities": [
+    {
+      "id": "background",
+      "name": "Tiled Wall Background",
+      "components": {
+        "TiledWall": {
+          "texture": "assets/wallDark.png",
+          "tile_scale": 5
+        }
+      }
+    },
+    {
+      "id": "camera",
+      "name": "Camera",
+      "components": {
+        "Transform": { "position": [0, 0, 0] },
+        "Camera2D": { "offset": [0, 0], "zoom": 1, "active": true }
+      }
+    },
+    {
+      "id": "skeleton",
+      "name": "Skeleton Warrior",
+      "components": {
+        "Transform": {
+          "position": [480, 270, 0],
+          "rotation": [0, 0, 0],
+          "scale": [2, 2, 1]
+        },
+        "SpriteRenderer": {
+          "texture": "assets/skeletonWarrior.png",
+          "origin": [0.5, 0.5]
+        }
+      }
+    }
+  ]
+}

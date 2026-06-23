@@ -65,7 +65,7 @@ Do not attempt to build a full Unity clone. Build a lightweight, data-driven eng
   AGENTS.md
   README.md
 
-  engine/
+  rune/
     core/
     ecs/
     assets/
@@ -630,6 +630,15 @@ When making architecture decisions, prefer:
 ---
 
 ## Testing / Validation Expectations
+
+### Build Output
+
+Place generated executables in the repository `build/` directory. When using
+the Odin compiler, provide an explicit output path, for example:
+
+```powershell
+odin build examples/hello_world -collection:rune=rune -out:build/hello_world.exe
+```
 
 When possible, add small validation examples or test programs for:
 - Loading `project.json`

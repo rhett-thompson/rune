@@ -1,0 +1,42 @@
+{
+  "name": "Orbit Camera Scene",
+  "entities": [
+    {
+      "id": "target_marker",
+      "name": "Orbit Target",
+      "components": {
+        "Transform": { "position": [0, 0.15, 0] },
+        "SphereRenderer": { "radius": 0.15, "color": [230, 41, 55, 255] }
+      }
+    },
+    {
+      "id": "center_cube",
+      "name": "Center Cube",
+      "components": {
+        "Transform": { "position": [0, 0.75, 0], "scale": [1.5, 1.5, 1.5] },
+        "MeshRenderer": { "primitive": "cube", "color": [102, 191, 255, 255] }
+      }
+    },
+    {
+      "id": "reference_sphere",
+      "name": "Reference Sphere",
+      "components": {
+        "Transform": { "position": [3, 0.75, 0] },
+        "SphereRenderer": { "radius": 0.75, "color": [255, 161, 0, 255] }
+      }
+    },
+    {
+      "id": "orbit_camera",
+      "name": "Orbit Camera",
+      "components": {
+        "Transform": { "position": [8, 4.5, 0] },
+        "Camera3D": {
+          "target": [0, 0.75, 0],
+          "up": [0, 1, 0],
+          "fovy": 45,
+          "active": true
+        }
+      }
+    }
+  ]
+}

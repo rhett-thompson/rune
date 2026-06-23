@@ -1,0 +1,12 @@
+{
+  "name": "Rune Orbit Camera",
+  "startup_scene": "scenes/main.scene.json",
+  "window": {
+    "width": 960,
+    "height": 540,
+    "title": "Rune - Orbit Camera",
+    "fullscreen": false,
+    "vsync": true
+  },
+  "input": "input/default.input.json"
+}

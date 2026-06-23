@@ -1,0 +1,8 @@
+{
+  "actions": {
+    "play_bell": [
+      { "type": "mouse_button", "button": "LEFT" }
+    ]
+  },
+  "axes": {}
+}

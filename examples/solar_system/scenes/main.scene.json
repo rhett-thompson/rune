@@ -43,6 +43,23 @@
           ]
         }
       ]
+    },
+    {
+      "id": "main_camera",
+      "name": "Main Camera",
+      "components": {
+        "Transform": {
+          "position": [11, 9, 11],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        },
+        "Camera3D": {
+          "target": [0, 0, 0],
+          "up": [0, 1, 0],
+          "fovy": 45,
+          "active": true
+        }
+      }
     }
   ]
 }

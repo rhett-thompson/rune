@@ -1,0 +1,12 @@
+{
+  "name": "Rune Audio Components",
+  "startup_scene": "scenes/main.scene.json",
+  "window": {
+    "width": 800,
+    "height": 360,
+    "title": "Rune - Audio Components",
+    "fullscreen": false,
+    "vsync": true
+  },
+  "input": "input/default.input.json"
+}
