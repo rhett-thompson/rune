@@ -1,0 +1,11 @@
+{
+  "name": "Runtime Rebinding",
+  "window": {
+    "width": 960,
+    "height": 360,
+    "title": "Rune - Runtime Rebinding",
+    "fullscreen": false,
+    "vsync": true
+  },
+  "input": "input/default.input.json"
+}

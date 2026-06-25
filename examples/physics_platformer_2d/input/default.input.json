@@ -1,0 +1,10 @@
+{
+  "actions": {
+    "move_left": [{ "type": "keyboard", "key": "A" }],
+    "move_right": [{ "type": "keyboard", "key": "D" }],
+    "jump": [{ "type": "keyboard", "key": "SPACE" }]
+  },
+  "axes": {
+    "move_x": { "negative": "move_left", "positive": "move_right" }
+  }
+}

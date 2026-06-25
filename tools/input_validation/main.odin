@@ -19,5 +19,21 @@ main :: proc() {
 	assert(third_person_loaded)
 	assert(input.has_axis(&third_person_input, "zoom"))
 
+	rebinding_input, rebinding_loaded := input.load("examples/runtime_rebinding/input/default.input.json")
+	assert(rebinding_loaded)
+	assert(input.rebind_keyboard(&rebinding_input, "move_left", "LEFT"))
+	assert(input.rebind_keyboard(&rebinding_input, "move_right", "RIGHT"))
+	assert(!input.rebind_keyboard(&rebinding_input, "missing", "A"))
+	assert(!input.rebind_keyboard(&rebinding_input, "move_left", "NOT_A_KEY"))
+	assert(input.rebind_keyboard(&rebinding_input, "move_left", "A"))
+	assert(input.rebind_keyboard(&rebinding_input, "move_right", "D"))
+	assert(input.save(&rebinding_input))
+	saved_rebinding_input, saved_rebinding_loaded := input.load("examples/runtime_rebinding/input/default.input.json")
+	assert(saved_rebinding_loaded)
+	left_key, left_key_found := input.keyboard_binding(&saved_rebinding_input, "move_left")
+	right_key, right_key_found := input.keyboard_binding(&saved_rebinding_input, "move_right")
+	assert(left_key_found && left_key == "A")
+	assert(right_key_found && right_key == "D")
+
 	fmt.println("Input mapping validation passed")
 }

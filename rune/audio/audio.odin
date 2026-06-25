@@ -7,9 +7,11 @@ import "rune:ecs"
 import rl "vendor:raylib"
 
 Audio_Instance :: struct {
-	sound:    rl.Sound,
-	path:     string,
-	started:  bool,
+	sound:                rl.Sound,
+	path:                 string,
+	started:              bool,
+	settings_initialized: bool,
+	volume, pitch, pan:   f32,
 }
 
 // Audio_System owns one raylib Sound instance per AudioPlayer entity. Separate
@@ -43,6 +45,7 @@ shutdown :: proc(system: ^Audio_System) {
 update :: proc(system: ^Audio_System, world: ^ecs.World) {
 	if !system.available { return }
 	remove_missing_instances(system, world)
+	listener_entity, _, listener_found := ecs.active_audio_listener(world)
 	for entity in ecs.entities_with_component(world, "AudioPlayer") {
 		player, found := ecs.get_audio_player(world, entity)
 		if !found { continue }
@@ -51,7 +54,7 @@ update :: proc(system: ^Audio_System, world: ^ecs.World) {
 		// work and repeated missing-file attempts for dormant scene emitters.
 		if !instance_exists && !player.play_on_start { continue }
 		if !ensure_instance(system, entity, player.sound) { continue }
-		apply_settings(system, world, entity, player)
+		apply_settings(system, world, entity, player, listener_entity, listener_found)
 		instance := system.instances[entity]
 		if player.play_on_start && !instance.started {
 			rl.PlaySound(instance.sound)
@@ -67,7 +70,8 @@ play :: proc(system: ^Audio_System, world: ^ecs.World, entity: ecs.Entity) -> bo
 	if !system.available { return false }
 	player, found := ecs.get_audio_player(world, entity)
 	if !found || !ensure_instance(system, entity, player.sound) { return false }
-	apply_settings(system, world, entity, player)
+	listener_entity, _, listener_found := ecs.active_audio_listener(world)
+	apply_settings(system, world, entity, player, listener_entity, listener_found)
 	instance := system.instances[entity]
 	rl.PlaySound(instance.sound)
 	instance.started = true
@@ -113,12 +117,12 @@ remove_missing_instances :: proc(system: ^Audio_System, world: ^ecs.World) {
 	}
 }
 
-apply_settings :: proc(system: ^Audio_System, world: ^ecs.World, entity: ecs.Entity, player: ecs.AudioPlayer) {
+apply_settings :: proc(system: ^Audio_System, world: ^ecs.World, entity: ecs.Entity, player: ecs.AudioPlayer, listener_entity: ecs.Entity, listener_found: bool) {
 	instance := system.instances[entity]
 	volume := player.volume
 	pan: f32 = 0.5
 	if player.spatial {
-		if listener_entity, _, listener_found := ecs.active_audio_listener(world); listener_found {
+		if listener_found {
 			listener_transform, listener_has_transform := ecs.get_transform(world, listener_entity)
 			player_transform, player_has_transform := ecs.get_transform(world, entity)
 			if listener_has_transform && player_has_transform {
@@ -133,9 +137,15 @@ apply_settings :: proc(system: ^Audio_System, world: ^ecs.World, entity: ecs.Ent
 			}
 		}
 	}
+	if instance.settings_initialized && instance.volume == volume && instance.pitch == player.pitch && instance.pan == pan { return }
 	rl.SetSoundVolume(instance.sound, volume)
 	rl.SetSoundPitch(instance.sound, player.pitch)
 	rl.SetSoundPan(instance.sound, pan)
+	instance.settings_initialized = true
+	instance.volume = volume
+	instance.pitch = player.pitch
+	instance.pan = pan
+	system.instances[entity] = instance
 }
 
 attenuation :: proc(distance, min_distance, max_distance: f32) -> f32 {

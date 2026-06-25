@@ -1,6 +1,7 @@
 package ecs
 
 import "core:encoding/json"
+import b2 "vendor:box2d"
 
 Entity :: distinct u64
 
@@ -19,6 +20,11 @@ World :: struct {
 	entity_tags:     map[Entity]string,
 	layer_masks:     map[Entity]u64,
 	parents:         map[Entity]Entity,
+	// Hierarchy indexes are rebuilt only when parenting changes. Rendering can
+	// then walk direct child lists instead of repeatedly scanning every parent.
+	roots:           [dynamic]Entity,
+	children_by_parent: map[Entity][dynamic]Entity,
+	hierarchy_dirty: bool,
 	component_data:  map[string]map[Entity]json.Value,
 	transforms:       map[Entity]Transform,
 	sprite_renderers: map[Entity]SpriteRenderer,
@@ -29,6 +35,12 @@ World :: struct {
 	text_renderers:    map[Entity]TextRenderer,
 	tilemap_colliders: map[Entity]TilemapCollider,
 	top_down_controllers: map[Entity]TopDownController,
+	rigid_bodies_2d: map[Entity]RigidBody2D,
+	box_colliders_2d: map[Entity]BoxCollider2D,
+	circle_colliders_2d: map[Entity]CircleCollider2D,
+	physics_2d_accumulator: f32,
+	box2d_world: b2.WorldId,
+	box2d_bodies: map[Entity]b2.BodyId,
 	box_colliders:    map[Entity]BoxCollider,
 	sphere_colliders: map[Entity]SphereCollider,
 	character_controllers: map[Entity]CharacterController,
@@ -50,6 +62,9 @@ init :: proc() -> World {
 		entity_tags = make(map[Entity]string),
 		layer_masks = make(map[Entity]u64),
 		parents = make(map[Entity]Entity),
+		roots = make([dynamic]Entity),
+		children_by_parent = make(map[Entity][dynamic]Entity),
+		hierarchy_dirty = true,
 		component_data = make(map[string]map[Entity]json.Value),
 		transforms = make(map[Entity]Transform),
 		sprite_renderers = make(map[Entity]SpriteRenderer),
@@ -60,6 +75,10 @@ init :: proc() -> World {
 		text_renderers = make(map[Entity]TextRenderer),
 		tilemap_colliders = make(map[Entity]TilemapCollider),
 		top_down_controllers = make(map[Entity]TopDownController),
+		rigid_bodies_2d = make(map[Entity]RigidBody2D),
+		box_colliders_2d = make(map[Entity]BoxCollider2D),
+		circle_colliders_2d = make(map[Entity]CircleCollider2D),
+		box2d_bodies = make(map[Entity]b2.BodyId),
 		box_colliders = make(map[Entity]BoxCollider),
 		sphere_colliders = make(map[Entity]SphereCollider),
 		character_controllers = make(map[Entity]CharacterController),
@@ -83,6 +102,7 @@ set_parent :: proc(world: ^World, child, parent: Entity) -> bool {
 	} else {
 		world.parents[child] = parent
 	}
+	world.hierarchy_dirty = true
 	return true
 }
 
@@ -91,26 +111,38 @@ get_parent :: proc(world: ^World, entity: Entity) -> (Entity, bool) {
 	return parent, found
 }
 
-// root_entities and child_entities expose the scene hierarchy to render systems
-// without allowing them to mutate World storage.
+// root_entities and child_entities expose cached hierarchy indexes to render
+// systems. The indexes are rebuilt only when entities are created or reparented.
 root_entities :: proc(world: ^World) -> []Entity {
-	result := make([dynamic]Entity, context.temp_allocator)
-	for entity in world.entities {
-		if _, has_parent := world.parents[entity]; !has_parent {
-			append(&result, entity)
-		}
-	}
-	return result[:]
+	ensure_hierarchy_indexes(world)
+	return world.roots[:]
 }
 
 child_entities :: proc(world: ^World, parent: Entity) -> []Entity {
-	result := make([dynamic]Entity, context.temp_allocator)
-	for entity, entity_parent in world.parents {
-		if entity_parent == parent {
-			append(&result, entity)
+	ensure_hierarchy_indexes(world)
+	children, found := world.children_by_parent[parent]
+	if !found { return nil }
+	return children[:]
+}
+
+ensure_hierarchy_indexes :: proc(world: ^World) {
+	if !world.hierarchy_dirty { return }
+	// Reparenting is uncommon. Replacing these compact indexes keeps the hot
+	// rendering path allocation-free and avoids a full parent-map scan per node.
+	world.roots = make([dynamic]Entity)
+	world.children_by_parent = make(map[Entity][dynamic]Entity)
+	for entity in world.entities {
+		parent, has_parent := world.parents[entity]
+		if !has_parent {
+			append(&world.roots, entity)
+			continue
 		}
+		children, found := world.children_by_parent[parent]
+		if !found { children = make([dynamic]Entity) }
+		append(&children, entity)
+		world.children_by_parent[parent] = children
 	}
-	return result[:]
+	world.hierarchy_dirty = false
 }
 
 create_entity :: proc(world: ^World) -> Entity {
@@ -118,6 +150,7 @@ create_entity :: proc(world: ^World) -> Entity {
 	world.next_entity += 1
 	world.entity_count += 1
 	world.entities[entity] = true
+	world.hierarchy_dirty = true
 	// Every entity starts in the Default layer (bit 0).
 	world.layer_masks[entity] = Default_Layer_Mask
 	return entity
@@ -217,6 +250,9 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 	text_renderer: TextRenderer
 	tilemap_collider: TilemapCollider
 	top_down_controller: TopDownController
+	rigid_body_2d: RigidBody2D
+	box_collider_2d: BoxCollider2D
+	circle_collider_2d: CircleCollider2D
 	box_collider: BoxCollider
 	sphere_collider: SphereCollider
 	character_controller: CharacterController
@@ -241,6 +277,9 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 	if name == "TextRenderer" { text_renderer, parse_ok = text_renderer_from_json(data); if !parse_ok { return false } }
 	if name == "TilemapCollider" { tilemap_collider, parse_ok = tilemap_collider_from_json(data); if !parse_ok { return false } }
 	if name == "TopDownController" { top_down_controller, parse_ok = top_down_controller_from_json(data); if !parse_ok { return false } }
+	if name == "RigidBody2D" { rigid_body_2d, parse_ok = rigid_body_2d_from_json(data); if !parse_ok { return false } }
+	if name == "BoxCollider2D" { box_collider_2d, parse_ok = box_collider_2d_from_json(data); if !parse_ok { return false } }
+	if name == "CircleCollider2D" { circle_collider_2d, parse_ok = circle_collider_2d_from_json(data); if !parse_ok { return false } }
 	if name == "BoxCollider" { box_collider, parse_ok = box_collider_from_json(data); if !parse_ok { return false } }
 	if name == "SphereCollider" { sphere_collider, parse_ok = sphere_collider_from_json(data); if !parse_ok { return false } }
 	if name == "CharacterController" { character_controller, parse_ok = character_controller_from_json(data); if !parse_ok { return false } }
@@ -269,6 +308,9 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 	if name == "TextRenderer" { world.text_renderers[entity] = text_renderer }
 	if name == "TilemapCollider" { world.tilemap_colliders[entity] = tilemap_collider }
 	if name == "TopDownController" { world.top_down_controllers[entity] = top_down_controller }
+	if name == "RigidBody2D" { world.rigid_bodies_2d[entity] = rigid_body_2d }
+	if name == "BoxCollider2D" { world.box_colliders_2d[entity] = box_collider_2d }
+	if name == "CircleCollider2D" { world.circle_colliders_2d[entity] = circle_collider_2d }
 	if name == "BoxCollider" { world.box_colliders[entity] = box_collider }
 	if name == "SphereCollider" { world.sphere_colliders[entity] = sphere_collider }
 	if name == "CharacterController" { world.character_controllers[entity] = character_controller }
@@ -304,6 +346,9 @@ remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
 	if name == "TextRenderer" { delete_key(&world.text_renderers, entity) }
 	if name == "TilemapCollider" { delete_key(&world.tilemap_colliders, entity) }
 	if name == "TopDownController" { delete_key(&world.top_down_controllers, entity) }
+	if name == "RigidBody2D" { delete_key(&world.rigid_bodies_2d, entity) }
+	if name == "BoxCollider2D" { delete_key(&world.box_colliders_2d, entity) }
+	if name == "CircleCollider2D" { delete_key(&world.circle_colliders_2d, entity) }
 	if name == "BoxCollider" { delete_key(&world.box_colliders, entity) }
 	if name == "SphereCollider" { delete_key(&world.sphere_colliders, entity) }
 	if name == "CharacterController" { delete_key(&world.character_controllers, entity) }
@@ -379,6 +424,10 @@ get_tilemap_collider :: proc(world: ^World, entity: Entity) -> (TilemapCollider,
 set_tilemap_collider :: proc(world: ^World, entity: Entity, value: TilemapCollider) -> bool { if !has_component_data(world, entity, "TilemapCollider") { return false }; world.tilemap_colliders[entity] = value; return true }
 get_top_down_controller :: proc(world: ^World, entity: Entity) -> (TopDownController, bool) { value, found := world.top_down_controllers[entity]; return value, found }
 set_top_down_controller :: proc(world: ^World, entity: Entity, value: TopDownController) -> bool { if !has_component_data(world, entity, "TopDownController") { return false }; world.top_down_controllers[entity] = value; return true }
+get_rigid_body_2d :: proc(world: ^World, entity: Entity) -> (RigidBody2D, bool) { value, found := world.rigid_bodies_2d[entity]; return value, found }
+set_rigid_body_2d :: proc(world: ^World, entity: Entity, value: RigidBody2D) -> bool { if !has_component_data(world, entity, "RigidBody2D") { return false }; world.rigid_bodies_2d[entity] = value; return true }
+get_box_collider_2d :: proc(world: ^World, entity: Entity) -> (BoxCollider2D, bool) { value, found := world.box_colliders_2d[entity]; return value, found }
+get_circle_collider_2d :: proc(world: ^World, entity: Entity) -> (CircleCollider2D, bool) { value, found := world.circle_colliders_2d[entity]; return value, found }
 get_box_collider :: proc(world: ^World, entity: Entity) -> (BoxCollider, bool) { value, found := world.box_colliders[entity]; return value, found }
 set_box_collider :: proc(world: ^World, entity: Entity, value: BoxCollider) -> bool { if !has_component_data(world, entity, "BoxCollider") { return false }; world.box_colliders[entity] = value; return true }
 get_sphere_collider :: proc(world: ^World, entity: Entity) -> (SphereCollider, bool) { value, found := world.sphere_colliders[entity]; return value, found }

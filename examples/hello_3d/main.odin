@@ -28,8 +28,8 @@ on_draw :: proc(game: ^rune.Engine) {
 		rl.DrawText("No active Camera3D entity", 24, 24, 28, rl.MAROON)
 		return
 	}
-	rl.DrawText("Rune 3D Hello World", 24, 24, 28, rl.DARKGRAY)
-	rl.DrawText("A JSON scene with a rotating cube", 24, 60, 18, rl.GRAY)
+	rl.DrawText("Rune 3D Hello World", 24, 24, 28, rl.RAYWHITE)
+	rl.DrawText("A JSON scene with a rotating cube", 24, 60, 18, rl.LIGHTGRAY)
 	rl.DrawFPS(24, 94)
 }
 

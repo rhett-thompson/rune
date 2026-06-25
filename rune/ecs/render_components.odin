@@ -27,9 +27,11 @@ ModelRenderer :: struct {
 Tilemap_Tile :: struct { x, y, index: i32 }
 
 TilemapRenderer :: struct {
-	texture:   string,
-	tile_size: [2]f32,
-	tiles:     []Tilemap_Tile,
+	texture:      string,
+	tile_size:    [2]f32,
+	grid_size:    [2]i32,
+	tiles:        []Tilemap_Tile,
+	tile_indices: map[[2]i32]i32,
 }
 
 TextRenderer :: struct {
@@ -104,13 +106,20 @@ tilemap_renderer_from_json :: proc(data: json.Value) -> (TilemapRenderer, bool) 
 	rows, rows_ok := grid.(json.Array)
 	if !rows_ok { return {}, false }
 	tiles := make([dynamic]Tilemap_Tile, context.allocator)
+	result.tile_indices = make(map[[2]i32]i32)
 	for row_value, y in rows {
 		row, row_ok := row_value.(json.Array)
 		if !row_ok { return {}, false }
+		if i32(len(row)) > result.grid_size[0] { result.grid_size[0] = i32(len(row)) }
+		result.grid_size[1] += 1
 		for cell_value, x in row {
 			index, index_ok := read_number(cell_value)
 			if !index_ok || index != f32(i32(index)) || index < -1 { return {}, false }
-			if index >= 0 { append(&tiles, Tilemap_Tile{x = i32(x), y = i32(y), index = i32(index)}) }
+			if index >= 0 {
+				tile := Tilemap_Tile{x = i32(x), y = i32(y), index = i32(index)}
+				append(&tiles, tile)
+				result.tile_indices[{tile.x, tile.y}] = tile.index
+			}
 		}
 	}
 	result.tiles = tiles[:]

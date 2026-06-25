@@ -7,9 +7,11 @@ import "core:strings"
 import "core:time"
 import "rune:audio"
 import "rune:assets"
+import "rune:console"
 import "rune:ecs"
 import "rune:input"
 import "rune:scene"
+import "rune:validation"
 import rl "vendor:raylib"
 
 Window_Settings :: struct {
@@ -63,6 +65,7 @@ Engine :: struct {
 	project:    Project,
 	registry:   ecs.Component_Registry,
 	assets:     assets.Asset_Manager,
+	console:    console.Console,
 	audio:      audio.Audio_System,
 	input:      input.Input,
 	systems:    [dynamic]System,
@@ -83,6 +86,8 @@ Draw_Proc   :: #type proc(engine: ^Engine)
 Max_Simulation_Delta : f32 : 0.1
 
 load_project :: proc(path: string) -> (Project, bool) {
+	validation_report := validation.validate_project(path)
+	if !validation.is_valid(&validation_report) { return {}, false }
 	data, read_error := os.read_entire_file(path, context.allocator)
 	if read_error != nil {
 		return {}, false
@@ -148,11 +153,15 @@ init :: proc(project_path: string) -> (Engine, bool) {
 
 	asset_manager := assets.init(project_directory)
 	audio_system := audio.init(project_directory)
-	return Engine{project = project, registry = registry, assets = asset_manager, audio = audio_system, input = input_data, systems = make([dynamic]System), scene_watches = make(map[string]map[string]i64), is_running = true}, true
+	return Engine{project = project, registry = registry, assets = asset_manager, audio = audio_system, console = console.init(), input = input_data, systems = make([dynamic]System), scene_watches = make(map[string]map[string]i64), is_running = true}, true
 }
 
 // input_state exposes project-defined input actions and axes to game systems.
 input_state :: proc(engine: ^Engine) -> ^input.Input { return &engine.input }
+
+// developer_console exposes the engine-owned runtime console. Register
+// project-specific commands and write diagnostic messages through this value.
+developer_console :: proc(engine: ^Engine) -> ^console.Console { return &engine.console }
 
 // component_registry exposes the engine-initialized registry. Built-in
 // components are ready after init; games only register their own components.
@@ -215,6 +224,7 @@ reload_scene_if_changed :: proc(engine: ^Engine, world: ^ecs.World, path: string
 	if !engine.project.hot_reload.enabled || !engine.project.hot_reload.scenes || !engine.hot_reload_due || !scene_changed(engine, path) { return false }
 	reloaded, loaded := scene.load_with_layers(path, &engine.registry, engine.project.layers)
 	if !loaded { return false }
+	ecs.physics_2d_shutdown(world)
 	world^ = reloaded
 	watch_scene(engine, path)
 	return true
@@ -262,6 +272,7 @@ run :: proc(engine: ^Engine, on_update: Update_Proc, on_draw: Draw_Proc) {
 		rl.BeginDrawing()
 		clear_background(engine)
 		on_draw(engine)
+		console.draw(&engine.console)
 		rl.EndDrawing()
 	}
 }
@@ -270,6 +281,7 @@ run :: proc(engine: ^Engine, on_update: Update_Proc, on_draw: Draw_Proc) {
 // callback-based run API for small programs while providing the normal ECS
 // lifecycle for games. Scene reload notifications happen before update systems.
 run_scene :: proc(engine: ^Engine, world: ^ecs.World) {
+	defer ecs.physics_2d_shutdown(world)
 	defer shutdown(engine)
 
 	for !rl.WindowShouldClose() {
@@ -283,6 +295,7 @@ run_scene :: proc(engine: ^Engine, world: ^ecs.World) {
 		rl.BeginDrawing()
 		clear_background(engine)
 		run_draw_systems(engine, world)
+		console.draw(&engine.console)
 		rl.EndDrawing()
 	}
 }
@@ -318,6 +331,7 @@ begin_frame :: proc(engine: ^Engine) {
 		assets.refresh_models(&engine.assets)
 	}
 	input.update(&engine.input)
+	console.update(&engine.console)
 }
 
 clear_background :: proc(engine: ^Engine) {

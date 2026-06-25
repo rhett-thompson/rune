@@ -5,6 +5,7 @@ import "core:os"
 import "core:path/filepath"
 import "rune:ecs"
 import "rune:prefab"
+import "rune:validation"
 
 Entity_Data :: struct {
 	id:         string,
@@ -80,6 +81,8 @@ load :: proc(path: string, registry: ^ecs.Component_Registry) -> (ecs.World, boo
 // project's layer table. Passing nil supports standalone scenes that only use
 // the implicit Default layer.
 load_with_layers :: proc(path: string, registry: ^ecs.Component_Registry, layer_names: map[string]u8) -> (ecs.World, bool) {
+	validation_report := validation.validate_scene_with_layers(path, layer_names)
+	if !validation.is_valid(&validation_report) { return {}, false }
 	data, read_error := os.read_entire_file(path, context.allocator)
 	if read_error != nil {
 		return {}, false

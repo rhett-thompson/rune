@@ -15,17 +15,27 @@ Action_State :: struct {
 	strength: f32,
 }
 
-Binding :: struct { type: string, key: string, button: string, gamepad: i32 }
+Binding :: struct {
+	type:    string,
+	key:     string `json:"key,omitempty"`,
+	button:  string `json:"button,omitempty"`,
+	gamepad: i32    `json:"gamepad,omitempty"`,
+}
 Axis :: struct {
-	type:     string,
-	axis:     string,
-	negative: string,
-	positive: string,
-	scale:    f32,
-	invert:   bool,
+	type:     string `json:"type,omitempty"`,
+	axis:     string `json:"axis,omitempty"`,
+	negative: string `json:"negative,omitempty"`,
+	positive: string `json:"positive,omitempty"`,
+	scale:    f32    `json:"scale,omitempty"`,
+	invert:   bool   `json:"invert,omitempty"`,
 }
 Mappings :: struct { actions: map[string][]Binding, axes: map[string]Axis }
-Input :: struct { mappings: Mappings, actions: map[string]Action_State, axes: map[string]f32 }
+Input :: struct {
+	mappings: Mappings,
+	actions:  map[string]Action_State,
+	axes:     map[string]f32,
+	path:     string,
+}
 
 // load reads the declarative project input document. Invalid documents or
 // unknown binding types are rejected so a project never silently loses input.
@@ -34,7 +44,18 @@ load :: proc(path: string) -> (Input, bool) {
 	if read_error != nil { return {}, false }
 	mappings: Mappings
 	if json.unmarshal(data, &mappings) != nil || !validate_mappings(mappings) { return {}, false }
-	return Input{mappings = mappings, actions = make(map[string]Action_State), axes = make(map[string]f32)}, true
+	return Input{mappings = mappings, actions = make(map[string]Action_State), axes = make(map[string]f32), path = path}, true
+}
+
+// save writes the current mappings to the same JSON file originally loaded.
+// It emits canonical, pretty-printed JSON so a runtime rebind persists across
+// the next launch.
+save :: proc(input: ^Input) -> bool {
+	if len(input.path) == 0 || !validate_mappings(input.mappings) { return false }
+	data, marshal_error := json.marshal(input.mappings, json.Marshal_Options{pretty = true, use_spaces = true, spaces = 2, sort_maps_by_key = true})
+	if marshal_error != nil { return false }
+	defer delete(data)
+	return os.write_entire_file(input.path, data) == nil
 }
 
 validate_mappings :: proc(mappings: Mappings) -> bool {
@@ -105,13 +126,44 @@ update :: proc(input: ^Input) {
 }
 
 action :: proc(input: ^Input, name: string) -> Action_State {
-	state := input.actions[name]
-	state.is_down = binding_is_down(input, name)
-	if state.is_down { state.strength = 1 } else { state.strength = 0 }
-	return state
+	// update samples every binding once per frame. Queries must only read that
+	// cached state so systems do not rescan bindings or allocate uppercase names.
+	return input.actions[name]
 }
 has_action :: proc(input: ^Input, name: string) -> bool { _, found := input.mappings.actions[name]; return found }
 has_axis :: proc(input: ^Input, name: string) -> bool { _, found := input.mappings.axes[name]; return found }
+
+// rebind_keyboard replaces an action's first keyboard binding. Existing mouse
+// and gamepad bindings remain available. The action must already define a
+// keyboard binding in its input JSON.
+//
+// The change is applied to subsequent input updates; callers normally invoke
+// this from an update callback after testing a separate action.
+rebind_keyboard :: proc(input: ^Input, action_name, key: string) -> bool {
+	if !has_action(input, action_name) || !key_from_name(key).valid { return false }
+
+	bindings := input.mappings.actions[action_name]
+	for binding_index in 0..<len(bindings) {
+		if bindings[binding_index].type == "keyboard" {
+			bindings[binding_index] = Binding{type = "keyboard", key = key}
+			input.mappings.actions[action_name] = bindings
+			return true
+		}
+	}
+
+	return false
+}
+
+// keyboard_binding returns the first configured keyboard binding for an action.
+keyboard_binding :: proc(input: ^Input, action_name: string) -> (string, bool) {
+	bindings, found := input.mappings.actions[action_name]
+	if !found { return "", false }
+	for binding in bindings {
+		if binding.type == "keyboard" { return binding.key, true }
+	}
+	return "", false
+}
+
 is_down :: proc(input: ^Input, name: string) -> bool { return action(input, name).is_down }
 pressed :: proc(input: ^Input, name: string) -> bool { return action(input, name).pressed }
 released :: proc(input: ^Input, name: string) -> bool { return action(input, name).released }
@@ -123,17 +175,6 @@ axis :: proc(input: ^Input, name: string) -> f32 {
 	value := strength(input, axis_data.positive) - strength(input, axis_data.negative)
 	if axis_data.invert { value = -value }
 	return value
-}
-
-binding_is_down :: proc(input: ^Input, action_name: string) -> bool {
-	bindings, found := input.mappings.actions[action_name]
-	if !found { return false }
-	for binding in bindings {
-		if binding.type == "keyboard" && rl.IsKeyDown(key_from_name(binding.key).key) { return true }
-		if binding.type == "mouse_button" && rl.IsMouseButtonDown(mouse_button_from_name(binding.button).button) { return true }
-		if binding.type == "gamepad_button" && rl.IsGamepadButtonDown(binding.gamepad, button_from_name(binding.button).button) { return true }
-	}
-	return false
 }
 
 binding_state :: proc(binding: Binding) -> (bool, bool, bool) {

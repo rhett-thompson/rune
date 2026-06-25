@@ -1,0 +1,21 @@
+{
+  "name": "Physics Platformer",
+  "entities": [
+    { "id": "camera", "components": { "Transform": {}, "Camera2D": { "offset": [0, 0], "zoom": 1, "active": true } } },
+    {
+      "id": "player", "layers": ["Gameplay"],
+      "components": {
+        "Transform": { "position": [100, 120, 0], "scale": [2, 2, 1] },
+        "SpriteRenderer": { "texture": "../sprite_scene_2d/assets/skeletonWarrior.png", "origin": [0.5, 0.5] },
+        "PlayerController": { "jump_height": 150 },
+        "RigidBody2D": { "gravity_scale": 1.0 }, "BoxCollider2D": { "size": [26, 30] }
+      }
+    },
+    { "id": "floor", "layers": ["Gameplay"], "components": { "Transform": { "position": [480, 500, 0] }, "BoxCollider2D": { "size": [960, 40] } } },
+    { "id": "platform_left", "layers": ["Gameplay"], "components": { "Transform": { "position": [280, 390, 0] }, "BoxCollider2D": { "size": [220, 28] } } },
+    { "id": "platform_right", "layers": ["Gameplay"], "components": { "Transform": { "position": [620, 290, 0] }, "BoxCollider2D": { "size": [180, 28] } } },
+    { "id": "circle_ball", "layers": ["Gameplay"], "components": { "Transform": { "position": [810, 100, 0] }, "RigidBody2D": { "gravity_scale": 1.0 }, "CircleCollider2D": { "radius": 12 } } },
+    { "id": "circle_pedestal", "layers": ["Gameplay"], "components": { "Transform": { "position": [820, 400, 0] }, "CircleCollider2D": { "radius": 28 } } },
+    { "id": "instructions", "components": { "Transform": { "position": [20, 20, 0] }, "TextRenderer": { "text": "A/D: move    SPACE: jump    Fixed-step BoxCollider2D physics", "font": "../hello_world/assets/fonts/mecha.png", "font_size": 18, "color": [235, 240, 255, 255], "origin": [0, 0] } } }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "actions": {
+    "move_left": [
+      {
+        "type": "keyboard",
+        "key": "A",
+        "gamepad": 0
+      }
+    ],
+    "move_right": [
+      {
+        "type": "keyboard",
+        "key": "D",
+        "gamepad": 0
+      }
+    ],
+    "toggle_bindings": [
+      {
+        "type": "keyboard",
+        "key": "R",
+        "gamepad": 0
+      }
+    ]
+  },
+  "axes": {
+    "move_x": {
+      "negative": "move_left",
+      "positive": "move_right",
+      "scale": 0.00000000,
+      "invert": false
+    }
+  }
+}

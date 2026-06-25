@@ -110,10 +110,11 @@ move_character_axis :: proc(world: ^World, entity: Entity, controller: Character
 	if delta == 0 { return position[axis] }
 	candidate := position
 	candidate[axis] += delta
-	for collider_entity in entities_with_component(world, "BoxCollider") {
+	// Typed collider maps are the query index. Iterating them directly avoids
+	// allocating an entity slice for each resolved movement axis.
+	for collider_entity, collider in world.box_colliders {
 		if collider_entity == entity || !collides_by_layer(world, entity, collider_entity) { continue }
-		collider, found := get_box_collider(world, collider_entity)
-		if !found || !collider.is_static { continue }
+		if !collider.is_static { continue }
 		if !character_intersects_box(world, controller, candidate, collider_entity, collider) { continue }
 		if axis != 1 { return position[axis] }
 		box_min, box_max, bounds_ok := box_bounds(world, collider_entity, collider)
@@ -121,10 +122,9 @@ move_character_axis :: proc(world: ^World, entity: Entity, controller: Character
 		if delta < 0 { return box_max[1] + controller.eye_height }
 		return box_min[1] - (controller.height - controller.eye_height)
 	}
-	for collider_entity in entities_with_component(world, "SphereCollider") {
+	for collider_entity, collider in world.sphere_colliders {
 		if collider_entity == entity || !collides_by_layer(world, entity, collider_entity) { continue }
-		collider, found := get_sphere_collider(world, collider_entity)
-		if !found || !collider.is_static || !character_intersects_sphere(world, controller, candidate, collider_entity, collider) { continue }
+		if !collider.is_static || !character_intersects_sphere(world, controller, candidate, collider_entity, collider) { continue }
 		if axis != 1 { return position[axis] }
 		center, radius, bounds_ok := sphere_bounds(world, collider_entity, collider)
 		if !bounds_ok { continue }

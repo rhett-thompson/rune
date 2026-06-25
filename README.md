@@ -55,6 +55,35 @@ dedicated registered-system example is available at:
 odin run examples/registered_systems -collection:rune=rune
 ```
 
+## Runtime console
+
+Every Rune engine instance includes a lightweight developer console. Press the
+grave/backtick key (`` ` ``) to open it, `Esc` to close it, and use the up/down
+arrows to navigate command history. The built-in `help` and `clear` commands
+are always available. The console is rendered after game draw callbacks and
+registered draw systems, so it remains visible over both 2D and 3D scenes.
+
+Register game-specific commands from Odin. Command handlers own the game
+behavior; the JSON formats remain declarative.
+
+```odin
+import "rune:console"
+
+spawn_command :: proc(dev_console: ^console.Console, arguments: string) {
+    console.info(dev_console, "Spawn requested")
+    // Create game entities here.
+}
+
+dev_console := rune.developer_console(&game)
+console.register(dev_console, "spawn", "Spawn a test entity.", spawn_command)
+console.info(dev_console, "Game initialized")
+```
+
+The overlay handles text entry, but it does not automatically suppress project
+input actions. A gameplay system that needs exclusive controls should check
+`console.is_open(rune.developer_console(game))` and skip its input handling
+while the console is open.
+
 ## Tweening and easing
 
 `rune:tween` is a small code-only utility for transient interpolation such as
@@ -169,6 +198,29 @@ Keyboard names currently include letters, digits, arrows, `SPACE`, `ESCAPE`,
 `RIGHT`, or `MIDDLE`. Gamepad buttons use readable names such as `A`, `B`,
 `X`, `Y`, `DPAD_UP`, `LEFT_BUMPER`, and `START`.
 
+## Runtime key rebinding
+
+Game code can replace an action's keyboard binding at runtime. This preserves
+any mouse or gamepad bindings declared for that action, and axes automatically
+use the new action state on the next input update.
+
+```odin
+controls := rune.input_state(game)
+if input.rebind_keyboard(controls, "move_left", "LEFT") &&
+   input.rebind_keyboard(controls, "move_right", "RIGHT") {
+    input.save(controls) // Writes the JSON input file loaded by the project.
+}
+```
+
+The runnable [`runtime_rebinding`](examples/runtime_rebinding) sample starts
+with `A`/`D` movement. Press `R` to switch it to Left/Right arrows and press
+`R` again to restore `A`/`D`; each change is saved to
+`input/default.input.json`:
+
+```powershell
+odin run examples/runtime_rebinding -collection:rune=rune
+```
+
 Mouse motion can be exposed as an axis using `"type": "mouse_delta"` and
 `"axis": "x"` or `"y"`. Its value is the mouse movement sampled for the
 current frame; optional `scale` and `invert` fields may be provided. For
@@ -190,6 +242,21 @@ odin run examples/hello_world -collection:rune=rune
 ```
 
 The example loads `project.json`; `scene.load` then reads `scenes/main.scene.json` and returns its populated runtime `World`.
+
+## Project validation
+
+Use the non-windowed validator before running a project or in CI. It follows
+the startup scene and its prefabs, checks entity IDs and layers, confirms
+referenced input and asset files exist, and reports failures as
+`file: $.json.path: message`.
+
+```powershell
+odin run tools/project_validator -collection:rune=rune -- examples/hello_world/project.json
+```
+
+The project path is optional and defaults to the hello-world example. Runtime
+project and scene loading use the same structural validation before creating a
+window or world.
 
 ## Custom components
 
@@ -497,6 +564,28 @@ separately for wall sliding. Run the collision example with:
 
 ```powershell
 odin run examples/tilemap_collision_2d -collection:rune=rune
+```
+
+## Fixed-step 2D physics
+
+`RigidBody2D` is an engine-owned JSON component backed by Odin's `vendor:box2d`
+package.
+The runtime synchronizes its velocity and Transform at a fixed 60 Hz, while
+Box2D handles dynamic contacts, friction, and continuous collision. An entity
+with a collider but no `RigidBody2D` becomes static collision geometry.
+
+```json
+"RigidBody2D": { "gravity_scale": 1.0 },
+"BoxCollider2D": { "size": [26, 30] }
+```
+
+Call `ecs.physics_2d_update(&world, game.delta_time)` after game code updates
+the body's velocity. `grounded` is set after a body lands, which makes jumping
+an explicit game-code decision. Run the example and non-windowed validation:
+
+```powershell
+odin run examples/physics_platformer_2d -collection:rune=rune
+odin run tools/physics_2d_validation -collection:rune=rune
 ```
 
 ## Scene text

@@ -1,0 +1,8 @@
+{
+  "name": "Rune Physics Platformer 2D",
+  "startup_scene": "scenes/main.scene.json",
+  "window": { "width": 960, "height": 540, "title": "Rune - Physics Platformer 2D", "fullscreen": false, "vsync": true },
+  "input": "input/default.input.json",
+  "background_color": [24, 30, 48, 255],
+  "layers": { "Gameplay": 1 }
+}

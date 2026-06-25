@@ -1,6 +1,7 @@
 {
   "name": "Rune 3D Hello World",
   "startup_scene": "scenes/main.scene.json",
+  "background_color": [24, 28, 36, 255],
   "window": {
     "width": 960,
     "height": 540,
