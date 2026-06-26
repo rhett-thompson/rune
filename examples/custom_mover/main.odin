@@ -22,6 +22,7 @@ on_draw :: proc(game: ^rune.Engine) {
 	rl.DrawText("Custom Mover updates a typed Transform", 32, 32, 28, rl.DARKGRAY)
 	rl.DrawText("Use A/D or Left/Right. Input comes from input/default.input.json.", 32, 72, 18, rl.GRAY)
 	rl.DrawCircle(i32(transform.position[0]), i32(transform.position[1]), 28, rl.MAROON)
+	rune.draw_gizmos(game, &world)
 	rl.DrawFPS(32, 112)
 }
 

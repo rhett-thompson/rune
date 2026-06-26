@@ -8,6 +8,16 @@
     "fullscreen": false,
     "vsync": true
   },
+  "gizmos": {
+    "enabled": true,
+    "transforms": true,
+    "cameras": true,
+    "physics_2d": true,
+    "physics_3d": true,
+    "tilemaps": true,
+    "audio": true,
+    "transform_size": 24
+  },
   "input": "input/default.input.json",
   "layers": {
     "Gameplay": 1,

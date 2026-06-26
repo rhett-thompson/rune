@@ -10,6 +10,16 @@
     "vsync": true,
     "msaa_4x": true
   },
+  "gizmos": {
+    "enabled": true,
+    "transforms": true,
+    "cameras": true,
+    "physics_2d": true,
+    "physics_3d": true,
+    "tilemaps": true,
+    "audio": true,
+    "transform_size": 24
+  },
   "input": "input/default.input.json",
   "layers": { "Gameplay": 1, "Player": 2 }
 }

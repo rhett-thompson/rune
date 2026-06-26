@@ -202,6 +202,13 @@ gizmo_settings :: proc(engine: ^Engine) -> ^gizmos.Settings {
 	return &engine.gizmos
 }
 
+// draw_gizmos renders the runtime debug overlay for callback-based programs
+// using rune.run. Programs using rune.run_scene get this call automatically
+// after registered draw systems.
+draw_gizmos :: proc(engine: ^Engine, world: ^ecs.World) {
+	gizmos.draw_scene(world, engine.gizmos)
+}
+
 // play_audio and stop_audio are the runtime commands for AudioPlayer entities.
 // The engine owns the audio device and per-entity raylib sound instances.
 play_audio :: proc(engine: ^Engine, world: ^ecs.World, entity: ecs.Entity) -> bool {

@@ -31,6 +31,7 @@ on_draw :: proc(game: ^rune.Engine) {
 		rl.DrawText("No active Camera3D entity", 24, 24, 28, rl.MAROON)
 		return
 	}
+	rune.draw_gizmos(game, &world)
 	rl.DrawText("Rune First Person Controller", 24, 24, 28, rl.DARKGRAY)
 	rl.DrawText("WASD: move   Space: jump   Shift: sprint   Escape: release/capture mouse", 24, 60, 18, rl.DARKGRAY)
 	rl.DrawText("Static box collision and gravity use the Gameplay layer.", 24, 86, 18, rl.GRAY)

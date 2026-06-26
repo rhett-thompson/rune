@@ -96,7 +96,7 @@ Projects can set the startup defaults in `project.json`:
 
 ```json
 "gizmos": {
-  "enabled": false,
+  "enabled": true,
   "transforms": true,
   "cameras": true,
   "physics_2d": true,
@@ -110,9 +110,7 @@ Projects can set the startup defaults in `project.json`:
 Callback-based examples can draw the same overlay explicitly:
 
 ```odin
-import "rune:gizmos"
-
-gizmos.draw_scene(&world, rune.gizmo_settings(game)^)
+rune.draw_gizmos(game, &world)
 ```
 
 ## Tweening and easing

@@ -26,6 +26,7 @@ on_update :: proc(game: ^rune.Engine) {
 
 on_draw :: proc(game: ^rune.Engine) {
 	render.draw_scene_2d(&world, rune.asset_manager(game))
+	rune.draw_gizmos(game, &world)
 }
 
 main :: proc() {

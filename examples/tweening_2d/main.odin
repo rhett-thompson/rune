@@ -61,6 +61,7 @@ on_draw :: proc(game: ^rune.Engine) {
 	rl.DrawText("A JSON-loaded entity is animated by Odin code.", 32, 68, 20, rl.LIGHTGRAY)
 	rl.DrawText("Left-click to change the easing equation.", 32, 100, 18, rl.LIGHTGRAY)
 	rl.DrawText(easing_options[easing_index].name, 32, 132, 22, rl.SKYBLUE)
+	rune.draw_gizmos(game, &world)
 }
 
 main :: proc() {

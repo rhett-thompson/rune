@@ -16,7 +16,7 @@ Settings :: struct {
 
 default_settings :: proc() -> Settings {
 	return Settings{
-		enabled = false,
+		enabled = true,
 		transforms = true,
 		cameras = true,
 		physics_2d = true,
@@ -32,8 +32,11 @@ default_settings :: proc() -> Settings {
 // scene rendering without tracking whether the scene is 2D or 3D.
 draw_scene :: proc(world: ^ecs.World, settings: Settings) {
 	if !settings.enabled { return }
-	draw_scene_2d(world, settings)
-	draw_scene_3d(world, settings)
+	drew_2d := draw_scene_2d(world, settings)
+	drew_3d := draw_scene_3d(world, settings)
+	if !drew_2d && !drew_3d {
+		draw_scene_screen_2d(world, settings)
+	}
 }
 
 draw_scene_2d :: proc(world: ^ecs.World, settings: Settings) -> bool {
@@ -80,6 +83,14 @@ draw_scene_3d :: proc(world: ^ecs.World, settings: Settings) -> bool {
 	if settings.transforms { draw_transforms_3d(world, normalized_transform_size(settings) / 24) }
 	rl.EndMode3D()
 	return true
+}
+
+draw_scene_screen_2d :: proc(world: ^ecs.World, settings: Settings) {
+	if settings.tilemaps { draw_tilemap_colliders_2d(world) }
+	if settings.physics_2d { draw_physics_2d(world) }
+	if settings.cameras { draw_cameras_2d(world) }
+	if settings.audio { draw_audio_2d(world) }
+	if settings.transforms { draw_transforms_2d(world, normalized_transform_size(settings)) }
 }
 
 draw_transforms_2d :: proc(world: ^ecs.World, size: f32) {

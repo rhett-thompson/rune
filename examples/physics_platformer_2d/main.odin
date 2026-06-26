@@ -70,6 +70,7 @@ on_draw :: proc(game: ^rune.Engine) {
 		rl.DrawRectangleLines(i32(transform.position[0]) - width / 2, i32(transform.position[1]) - height / 2, width, height, rl.SKYBLUE)
 	}
 	render.draw_scene_2d(&world, rune.asset_manager(game))
+	rune.draw_gizmos(game, &world)
 }
 
 main :: proc() {

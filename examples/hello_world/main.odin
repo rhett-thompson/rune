@@ -16,6 +16,7 @@ on_draw :: proc(game: ^rune.Engine) {
 	rl.DrawTextEx(mecha_font, "One entity loaded from JSON", {64, 142}, 20, 1, rl.GRAY)
 	rl.DrawCircle(100, 215, 32, rl.SKYBLUE)
 	rl.DrawTextEx(mecha_font, "Close the window when you are done exploring.", {64, 280}, 18, 1, rl.DARKGRAY)
+	rune.draw_gizmos(game, &world)
 }
 
 main :: proc() {

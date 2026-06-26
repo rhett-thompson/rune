@@ -58,6 +58,7 @@ on_draw :: proc(game: ^rune.Engine) {
 		rl.DrawText("No active Camera3D entity", 24, 24, 28, rl.MAROON)
 		return
 	}
+	rune.draw_gizmos(game, &world)
 
 	rl.DrawText("Camera3D Orbit", 24, 24, 28, rl.DARKGRAY)
 	rl.DrawText("The Camera3D entity's Transform orbits its JSON target.", 24, 60, 18, rl.GRAY)

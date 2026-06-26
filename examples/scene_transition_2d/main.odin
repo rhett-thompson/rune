@@ -67,6 +67,7 @@ on_draw :: proc(game: ^rune.Engine) {
 	rl.DrawText("Runtime scene transition", 32, 28, 30, rl.RAYWHITE)
 	rl.DrawText(scene_names[scene_index], 32, 72, 24, scene_colors[scene_index])
 	rl.DrawText("Left-click to fade to black and load the next JSON scene.", 32, 108, 18, rl.LIGHTGRAY)
+	rune.draw_gizmos(game, &world)
 
 	if transition_state != .Idle {
 		alpha := tween.value_f32(&fade, 0, 1)

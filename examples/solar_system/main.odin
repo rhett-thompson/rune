@@ -21,6 +21,7 @@ on_update :: proc(game: ^rune.Engine) {
 
 on_draw :: proc(game: ^rune.Engine) {
 	render.draw_scene_3d(&world, scene_view)
+	rune.draw_gizmos(game, &world)
 	rl.DrawText("Rune Solar System", 24, 24, 28, rl.DARKGRAY)
 	rl.DrawText("Earth orbits at 12°/s, spins at 48°/s; Moon orbits at 160°/s", 24, 60, 18, rl.GRAY)
 	rl.DrawFPS(24, 94)

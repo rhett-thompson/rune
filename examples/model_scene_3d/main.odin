@@ -25,6 +25,7 @@ on_draw :: proc(game: ^rune.Engine) {
 		rl.DrawText("No active Camera3D entity", 24, 24, 28, rl.MAROON)
 		return
 	}
+	rune.draw_gizmos(game, &world)
 	rl.DrawText("Rune Model Scene 3D", 24, 24, 28, rl.DARKGRAY)
 	rl.DrawText("An OBJ model loaded from scene JSON", 24, 60, 18, rl.GRAY)
 	rl.DrawFPS(24, 94)
