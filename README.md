@@ -84,6 +84,37 @@ input actions. A gameplay system that needs exclusive controls should check
 `console.is_open(rune.developer_console(game))` and skip its input handling
 while the console is open.
 
+## Runtime gizmos
+
+Rune includes a small debug visualization layer for scene data. In projects
+using `rune.run_scene`, press `F3` to toggle gizmos at runtime. The overlay can
+draw transform axes, active and inactive cameras, 2D and 3D collision bounds,
+tilemap solid cells, and audio listener/player ranges. It renders after
+registered draw systems and before the developer console.
+
+Projects can set the startup defaults in `project.json`:
+
+```json
+"gizmos": {
+  "enabled": false,
+  "transforms": true,
+  "cameras": true,
+  "physics_2d": true,
+  "physics_3d": true,
+  "tilemaps": true,
+  "audio": true,
+  "transform_size": 24
+}
+```
+
+Callback-based examples can draw the same overlay explicitly:
+
+```odin
+import "rune:gizmos"
+
+gizmos.draw_scene(&world, rune.gizmo_settings(game)^)
+```
+
 ## Tweening and easing
 
 `rune:tween` is a small code-only utility for transient interpolation such as

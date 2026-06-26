@@ -78,9 +78,10 @@ on_draw :: proc(game: ^rune.Engine) {
 main :: proc() {
 	game, ok := rune.init("examples/scene_transition_2d/project.json")
 	if !ok { fmt.eprintln("Could not load examples/scene_transition_2d/project.json"); return }
+	defer rune.shutdown(&game)
 
 	scene_ok: bool
 	world, scene_ok = rune.load_scene(&game, scene_paths[scene_index])
-	if !scene_ok { fmt.eprintln("Could not load the initial transition scene"); rune.shutdown(&game); return }
+	if !scene_ok { fmt.eprintln("Could not load the initial transition scene"); return }
 	rune.run(&game, on_update, on_draw)
 }

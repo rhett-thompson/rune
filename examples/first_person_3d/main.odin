@@ -43,19 +43,18 @@ main :: proc() {
 		fmt.eprintln("Could not load examples/first_person_3d/project.json")
 		return
 	}
+	defer rune.shutdown(&game)
 
 	scene_ok: bool
 	world, scene_ok = rune.load_scene(&game, "examples/first_person_3d/scenes/main.scene.json")
 	if !scene_ok {
 		fmt.eprintln("Could not load and instantiate the first-person scene")
-		rune.shutdown(&game)
 		return
 	}
 	found: bool
 	player, found = ecs.find_entity_by_id(&world, "player")
 	if !found {
 		fmt.eprintln("Scene is missing entity ID: player")
-		rune.shutdown(&game)
 		return
 	}
 

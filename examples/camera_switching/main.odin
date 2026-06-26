@@ -39,12 +39,12 @@ main :: proc() {
 		fmt.eprintln("Could not load examples/camera_switching/project.json")
 		return
 	}
+	defer rune.shutdown(&game)
 
 	scene_ok: bool
 	world, scene_ok = rune.load_scene(&game, "examples/camera_switching/scenes/main.scene.json")
 	if !scene_ok {
 		fmt.eprintln("Could not load and instantiate the camera-switching scene")
-		rune.shutdown(&game)
 		return
 	}
 	wide_found, front_found, side_found: bool
@@ -53,7 +53,6 @@ main :: proc() {
 	side_camera, side_found = ecs.find_entity_by_id(&world, "side_camera")
 	if !wide_found || !front_found || !side_found {
 		fmt.eprintln("Scene is missing a required camera entity ID")
-		rune.shutdown(&game)
 		return
 	}
 	rune.run(&game, on_update, on_draw)

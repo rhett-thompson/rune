@@ -31,12 +31,12 @@ main :: proc() {
 		fmt.eprintln("Could not load the custom-mover project")
 		return
 	}
+	defer rune.shutdown(&game)
 
 	scene_ok: bool
 	world, scene_ok = rune.load_scene(&game, "examples/custom_mover/scenes/main.scene.json")
 	if !scene_ok {
 		fmt.eprintln("Could not load and instantiate the custom-mover scene")
-		rune.shutdown(&game)
 		return
 	}
 
@@ -44,7 +44,6 @@ main :: proc() {
 	moving_ball, found = ecs.find_entity_by_id(&world, "moving_ball")
 	if !found {
 		fmt.eprintln("Scene is missing entity ID: moving_ball")
-		rune.shutdown(&game)
 		return
 	}
 	rune.run(&game, on_update, on_draw)

@@ -75,10 +75,14 @@ on_draw :: proc(game: ^rune.Engine) {
 main :: proc() {
 	game, ok := rune.init("examples/physics_platformer_2d/project.json")
 	if !ok { fmt.eprintln("Could not load physics platformer project"); return }
+	defer rune.shutdown(&game)
+
 	world, ok = rune.load_scene(&game, "examples/physics_platformer_2d/scenes/main.scene.json")
-	if !ok { fmt.eprintln("Could not load physics platformer scene"); rune.shutdown(&game); return }
+	if !ok { fmt.eprintln("Could not load physics platformer scene"); return }
+	defer ecs.physics_2d_shutdown(&world)
+
 	player, ok = ecs.find_entity_by_id(&world, "player")
-	if !ok { fmt.eprintln("Physics platformer scene is missing player"); rune.shutdown(&game); return }
-	if !load_player_controller() { fmt.eprintln("PlayerController must be an object with positive jump_height"); rune.shutdown(&game); return }
+	if !ok { fmt.eprintln("Physics platformer scene is missing player"); return }
+	if !load_player_controller() { fmt.eprintln("PlayerController must be an object with positive jump_height"); return }
 	rune.run(&game, on_update, on_draw)
 }

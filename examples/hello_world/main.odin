@@ -24,13 +24,15 @@ main :: proc() {
 		fmt.eprintln("Could not load examples/hello_world/project.json")
 		return
 	}
+	defer rune.shutdown(&game)
+
 	mecha_font = rl.LoadFont("examples/hello_world/assets/fonts/mecha.png")
+	defer rl.UnloadFont(mecha_font)
 
 	scene_ok: bool
 	world, scene_ok = rune.load_scene(&game, "examples/hello_world/scenes/main.scene.json")
 	if !scene_ok {
 		fmt.eprintln("Could not load and instantiate the hello_world scene")
-		rune.shutdown(&game)
 		return
 	}
 

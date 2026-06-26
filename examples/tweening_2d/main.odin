@@ -66,12 +66,13 @@ on_draw :: proc(game: ^rune.Engine) {
 main :: proc() {
 	game, ok := rune.init("examples/tweening_2d/project.json")
 	if !ok { fmt.eprintln("Could not load examples/tweening_2d/project.json"); return }
+	defer rune.shutdown(&game)
 
 	scene_ok: bool
 	world, scene_ok = rune.load_scene(&game, "examples/tweening_2d/scenes/main.scene.json")
-	if !scene_ok { fmt.eprintln("Could not load the tweening scene"); rune.shutdown(&game); return }
+	if !scene_ok { fmt.eprintln("Could not load the tweening scene"); return }
 	orb, scene_ok = ecs.find_entity_by_id(&world, "orb")
-	if !scene_ok { fmt.eprintln("Scene is missing entity ID: orb"); rune.shutdown(&game); return }
+	if !scene_ok { fmt.eprintln("Scene is missing entity ID: orb"); return }
 
 	start_motion()
 	rune.run(&game, on_update, on_draw)

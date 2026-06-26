@@ -60,6 +60,8 @@ main :: proc() {
 		fmt.eprintln("Could not load examples/runtime_rebinding/project.json")
 		return
 	}
+	defer rune.shutdown(&game)
+
 	left_binding, found := input.keyboard_binding(rune.input_state(&game), "move_left")
 	using_arrow_keys = found && left_binding == "LEFT"
 	rune.run(&game, on_update, on_draw)

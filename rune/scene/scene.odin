@@ -92,9 +92,14 @@ load_with_layers :: proc(path: string, registry: ^ecs.Component_Registry, layer_
 	if json.unmarshal(data, &scene) != nil {
 		return {}, false
 	}
+	root_json: json.Value
+	if json.unmarshal(data, &root_json) != nil {
+		return {}, false
+	}
 
 	scene_directory, _ := filepath.split(path)
 	world := ecs.init()
+	ecs.set_scene_json(&world, root_json)
 	if !instantiate_with_layers_at(&world, registry, scene, layer_names, scene_directory) {
 		return {}, false
 	}

@@ -61,18 +61,17 @@ main :: proc() {
 		fmt.eprintln("Could not load examples/sprite_scene_2d/project.json")
 		return
 	}
+	defer rune.shutdown(&game)
 
 	scene_ok: bool
 	world, scene_ok = rune.load_scene(&game, "examples/sprite_scene_2d/scenes/main.scene.json")
 	if !scene_ok {
 		fmt.eprintln("Could not load and instantiate the sprite scene")
-		rune.shutdown(&game)
 		return
 	}
 	skeleton, scene_ok = ecs.find_entity_by_id(&world, "skeleton")
 	if !scene_ok {
 		fmt.eprintln("Could not find the skeleton entity")
-		rune.shutdown(&game)
 		return
 	}
 	movement_direction = {1, 1}

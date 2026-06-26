@@ -21,12 +21,12 @@ main :: proc() {
 		fmt.eprintln("Could not load examples/prefabs_2d/project.json")
 		return
 	}
+	defer rune.shutdown(&game)
 
 	scene_ok: bool
 	world, scene_ok = rune.load_scene(&game, "examples/prefabs_2d/scenes/main.scene.json")
 	if !scene_ok {
 		fmt.eprintln("Could not load and instantiate the prefab scene")
-		rune.shutdown(&game)
 		return
 	}
 	rune.run(&game, on_update, on_draw)

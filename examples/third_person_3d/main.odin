@@ -103,14 +103,15 @@ on_draw :: proc(game: ^rune.Engine) {
 main :: proc() {
 	game, ok := rune.init("examples/third_person_3d/project.json")
 	if !ok { fmt.eprintln("Could not load examples/third_person_3d/project.json"); return }
+	defer rune.shutdown(&game)
 
 	scene_ok: bool
 	world, scene_ok = rune.load_scene(&game, "examples/third_person_3d/scenes/main.scene.json")
-	if !scene_ok { fmt.eprintln("Could not load the third-person scene"); rune.shutdown(&game); return }
+	if !scene_ok { fmt.eprintln("Could not load the third-person scene"); return }
 	player, scene_ok = ecs.find_entity_by_id(&world, "player")
-	if !scene_ok { fmt.eprintln("Scene is missing entity ID: player"); rune.shutdown(&game); return }
+	if !scene_ok { fmt.eprintln("Scene is missing entity ID: player"); return }
 	follow_camera, scene_ok = ecs.find_entity_by_id(&world, "follow_camera")
-	if !scene_ok { fmt.eprintln("Scene is missing entity ID: follow_camera"); rune.shutdown(&game); return }
+	if !scene_ok { fmt.eprintln("Scene is missing entity ID: follow_camera"); return }
 
 	update_follow_camera()
 	rune.run(&game, on_update, on_draw)

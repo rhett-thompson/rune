@@ -10,10 +10,11 @@ main :: proc() {
 		fmt.eprintln("Could not load examples/registered_systems/project.json")
 		return
 	}
+	defer rune.shutdown(&game)
+
 	world, scene_ok := rune.load_scene(&game, "examples/registered_systems/scenes/main.scene.json")
 	if !scene_ok {
 		fmt.eprintln("Could not load and instantiate the registered-systems scene")
-		rune.shutdown(&game)
 		return
 	}
 	reacquire_demo_entities(&game, &world)
@@ -21,7 +22,6 @@ main :: proc() {
 		!rune.register_system(&game, rune.System{name = "skeleton_movement", update = skeleton_movement_system, on_scene_reloaded = reacquire_demo_entities}) ||
 		!rune.register_system(&game, rune.System{name = "scene_draw", draw = scene_draw_system}) {
 		fmt.eprintln("Could not initialize registered systems")
-		rune.shutdown(&game)
 		return
 	}
 	rune.run_scene(&game, &world)

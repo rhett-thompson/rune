@@ -71,19 +71,18 @@ main :: proc() {
 		fmt.eprintln("Could not load examples/orbit_camera/project.json")
 		return
 	}
+	defer rune.shutdown(&game)
 
 	scene_ok: bool
 	world, scene_ok = rune.load_scene(&game, "examples/orbit_camera/scenes/main.scene.json")
 	if !scene_ok {
 		fmt.eprintln("Could not load and instantiate the orbit-camera scene")
-		rune.shutdown(&game)
 		return
 	}
 	found: bool
 	orbit_camera, found = ecs.find_entity_by_id(&world, "orbit_camera")
 	if !found {
 		fmt.eprintln("Scene is missing entity ID: orbit_camera")
-		rune.shutdown(&game)
 		return
 	}
 

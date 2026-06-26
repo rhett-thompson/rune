@@ -36,17 +36,17 @@ main :: proc() {
 		fmt.eprintln("Could not load examples/model_scene_3d/project.json")
 		return
 	}
+	defer rune.shutdown(&game)
+
 	scene_ok: bool
 	world, scene_ok = rune.load_scene(&game, "examples/model_scene_3d/scenes/main.scene.json")
 	if !scene_ok {
 		fmt.eprintln("Could not load and instantiate the model scene")
-		rune.shutdown(&game)
 		return
 	}
 	pyramid, _ = ecs.find_entity_by_id(&world, "pyramid")
 	if pyramid == ecs.Entity(0) {
 		fmt.eprintln("Scene is missing entity ID: pyramid")
-		rune.shutdown(&game)
 		return
 	}
 	rune.run(&game, on_update, on_draw)

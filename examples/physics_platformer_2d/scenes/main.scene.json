@@ -1,5 +1,6 @@
 {
   "name": "Physics Platformer",
+  "scene_settings": { "spawn_label": "training" },
   "entities": [
     { "id": "camera", "components": { "Transform": {}, "Camera2D": { "offset": [0, 0], "zoom": 1, "active": true } } },
     {

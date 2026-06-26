@@ -31,10 +31,12 @@ on_draw :: proc(game: ^rune.Engine) {
 main :: proc() {
 	game, ok := rune.init("examples/tilemap_collision_2d/project.json")
 	if !ok { fmt.eprintln("Could not load examples/tilemap_collision_2d/project.json"); return }
+	defer rune.shutdown(&game)
+
 	scene_ok: bool
 	world, scene_ok = rune.load_scene(&game, "examples/tilemap_collision_2d/scenes/main.scene.json")
-	if !scene_ok { fmt.eprintln("Could not load the tilemap collision scene"); rune.shutdown(&game); return }
+	if !scene_ok { fmt.eprintln("Could not load the tilemap collision scene"); return }
 	player, _ = ecs.find_entity_by_id(&world, "player")
-	if player == ecs.Entity(0) { fmt.eprintln("Scene is missing entity ID: player"); rune.shutdown(&game); return }
+	if player == ecs.Entity(0) { fmt.eprintln("Scene is missing entity ID: player"); return }
 	rune.run(&game, on_update, on_draw)
 }

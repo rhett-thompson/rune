@@ -61,32 +61,29 @@ main :: proc() {
 		fmt.eprintln("Could not load examples/audio_components/project.json")
 		return
 	}
+	defer rune.shutdown(&game)
 
 	scene_ok: bool
 	world, scene_ok = rune.load_scene(&game, "examples/audio_components/scenes/main.scene.json")
 	if !scene_ok {
 		fmt.eprintln("Could not load and instantiate the audio-components scene")
-		rune.shutdown(&game)
 		return
 	}
 
 	listener_entity, ok = ecs.find_entity_by_id(&world, "main_camera")
 	if !ok {
 		fmt.eprintln("Scene is missing entity ID: main_camera")
-		rune.shutdown(&game)
 		return
 	}
 	player_entity, ok = ecs.find_entity_by_id(&world, "bell_sphere")
 	if !ok {
 		fmt.eprintln("Scene is missing entity ID: bell_sphere")
-		rune.shutdown(&game)
 		return
 	}
 
 	if !rune.register_system(&game, rune.System{name = "play_bell_on_click", update = play_bell_on_click}) ||
 		!rune.register_system(&game, rune.System{name = "draw_audio_components", draw = draw_audio_components}) {
 		fmt.eprintln("Could not register the audio-components draw system")
-		rune.shutdown(&game)
 		return
 	}
 	rune.run_scene(&game, &world)

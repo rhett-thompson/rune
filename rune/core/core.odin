@@ -9,6 +9,7 @@ import "rune:audio"
 import "rune:assets"
 import "rune:console"
 import "rune:ecs"
+import "rune:gizmos"
 import "rune:input"
 import "rune:scene"
 import "rune:validation"
@@ -42,10 +43,12 @@ Project :: struct {
 	window:           Window_Settings,
 	background_color: [4]u8,
 	hot_reload:       Hot_Reload_Settings,
+	gizmos:           gizmos.Settings,
 	input:            string,
 	// Layer names map to project-defined bit positions from 1 through 63.
 	// Default is always engine-defined at bit 0 and does not need an entry.
 	layers:        map[string]u8,
+	raw_json:      json.Value,
 }
 
 System_Update_Proc :: #type proc(engine: ^Engine, world: ^ecs.World)
@@ -67,6 +70,7 @@ Engine :: struct {
 	assets:     assets.Asset_Manager,
 	console:    console.Console,
 	audio:      audio.Audio_System,
+	gizmos:     gizmos.Settings,
 	input:      input.Input,
 	systems:    [dynamic]System,
 	scene_watches: map[string]map[string]i64,
@@ -93,8 +97,11 @@ load_project :: proc(path: string) -> (Project, bool) {
 		return {}, false
 	}
 
-	project := Project{hot_reload = default_hot_reload_settings()}
+	project := Project{hot_reload = default_hot_reload_settings(), gizmos = gizmos.default_settings()}
 	if json.unmarshal(data, &project) != nil {
+		return {}, false
+	}
+	if json.unmarshal(data, &project.raw_json) != nil {
 		return {}, false
 	}
 	for layer_name, layer_index in project.layers {
@@ -153,11 +160,24 @@ init :: proc(project_path: string) -> (Engine, bool) {
 
 	asset_manager := assets.init(project_directory)
 	audio_system := audio.init(project_directory)
-	return Engine{project = project, registry = registry, assets = asset_manager, audio = audio_system, console = console.init(), input = input_data, systems = make([dynamic]System), scene_watches = make(map[string]map[string]i64), is_running = true}, true
+	return Engine{project = project, registry = registry, assets = asset_manager, audio = audio_system, gizmos = project.gizmos, console = console.init(), input = input_data, systems = make([dynamic]System), scene_watches = make(map[string]map[string]i64), is_running = true}, true
 }
 
 // input_state exposes project-defined input actions and axes to game systems.
 input_state :: proc(engine: ^Engine) -> ^input.Input { return &engine.input }
+
+// project_json exposes the full root project.json document, including
+// game-defined fields that are not part of Rune's typed Project settings.
+project_json :: proc(engine: ^Engine) -> json.Value { return engine.project.raw_json }
+
+// project_value returns a top-level project.json value by key. Use this for
+// game-owned global settings while keeping Rune's required settings typed.
+project_value :: proc(engine: ^Engine, key: string) -> (json.Value, bool) {
+	object, ok := engine.project.raw_json.(json.Object)
+	if !ok { return {}, false }
+	value, found := object[key]
+	return value, found
+}
 
 // developer_console exposes the engine-owned runtime console. Register
 // project-specific commands and write diagnostic messages through this value.
@@ -173,6 +193,13 @@ component_registry :: proc(engine: ^Engine) -> ^ecs.Component_Registry {
 // render systems. Asset paths in scene JSON resolve from the project directory.
 asset_manager :: proc(engine: ^Engine) -> ^assets.Asset_Manager {
 	return &engine.assets
+}
+
+// gizmo_settings exposes runtime debug visualization flags. F3 toggles the
+// overlay while a game is running; projects may also configure the default
+// category flags in project.json.
+gizmo_settings :: proc(engine: ^Engine) -> ^gizmos.Settings {
+	return &engine.gizmos
 }
 
 // play_audio and stop_audio are the runtime commands for AudioPlayer entities.
@@ -295,6 +322,7 @@ run_scene :: proc(engine: ^Engine, world: ^ecs.World) {
 		rl.BeginDrawing()
 		clear_background(engine)
 		run_draw_systems(engine, world)
+		gizmos.draw_scene(world, engine.gizmos)
 		console.draw(&engine.console)
 		rl.EndDrawing()
 	}
@@ -329,6 +357,14 @@ begin_frame :: proc(engine: ^Engine) {
 	}
 	if engine.hot_reload_due && engine.project.hot_reload.enabled && engine.project.hot_reload.models {
 		assets.refresh_models(&engine.assets)
+	}
+	if rl.IsKeyPressed(.F3) {
+		engine.gizmos.enabled = !engine.gizmos.enabled
+		if engine.gizmos.enabled {
+			console.info(&engine.console, "Gizmos enabled")
+		} else {
+			console.info(&engine.console, "Gizmos disabled")
+		}
 	}
 	input.update(&engine.input)
 	console.update(&engine.console)

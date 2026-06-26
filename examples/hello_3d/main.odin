@@ -40,12 +40,12 @@ main :: proc() {
 		fmt.eprintln("Could not load examples/hello_3d/project.json")
 		return
 	}
+	defer rune.shutdown(&game)
 
 	scene_ok: bool
 	world, scene_ok = rune.load_scene(&game, "examples/hello_3d/scenes/main.scene.json")
 	if !scene_ok {
 		fmt.eprintln("Could not load and instantiate the 3D hello-world scene")
-		rune.shutdown(&game)
 		return
 	}
 
@@ -53,7 +53,6 @@ main :: proc() {
 	cube, found = ecs.find_entity_by_id(&world, "cube")
 	if !found {
 		fmt.eprintln("Scene is missing entity ID: cube")
-		rune.shutdown(&game)
 		return
 	}
 

@@ -25,6 +25,7 @@ World :: struct {
 	roots:           [dynamic]Entity,
 	children_by_parent: map[Entity][dynamic]Entity,
 	hierarchy_dirty: bool,
+	scene_json:       json.Value,
 	component_data:  map[string]map[Entity]json.Value,
 	transforms:       map[Entity]Transform,
 	sprite_renderers: map[Entity]SpriteRenderer,
@@ -104,6 +105,12 @@ set_parent :: proc(world: ^World, child, parent: Entity) -> bool {
 	}
 	world.hierarchy_dirty = true
 	return true
+}
+
+// set_scene_json stores the full root scene JSON document on the World. Scene
+// loading calls this so game code can access scene-owned global settings.
+set_scene_json :: proc(world: ^World, value: json.Value) {
+	world.scene_json = value
 }
 
 get_parent :: proc(world: ^World, entity: Entity) -> (Entity, bool) {
@@ -390,6 +397,18 @@ get_component :: proc(world: ^World, entity: Entity, name: string) -> (json.Valu
 
 	component, component_found := components[entity]
 	return component, component_found
+}
+
+// get_scene_json exposes the full root scene JSON document used to create this
+// World, including game-defined fields outside the entity list.
+get_scene_json :: proc(world: ^World) -> json.Value { return world.scene_json }
+
+// get_scene_value returns a top-level scene JSON value by key.
+get_scene_value :: proc(world: ^World, key: string) -> (json.Value, bool) {
+	object, ok := world.scene_json.(json.Object)
+	if !ok { return {}, false }
+	value, found := object[key]
+	return value, found
 }
 
 // get_transform gives game systems typed Transform data for an entity. Call

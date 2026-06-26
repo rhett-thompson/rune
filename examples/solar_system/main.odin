@@ -32,12 +32,12 @@ main :: proc() {
 		fmt.eprintln("Could not load examples/solar_system/project.json")
 		return
 	}
+	defer rune.shutdown(&game)
 
 	scene_ok: bool
 	world, scene_ok = rune.load_scene(&game, "examples/solar_system/scenes/main.scene.json")
 	if !scene_ok {
 		fmt.eprintln("Could not load and instantiate the solar-system scene")
-		rune.shutdown(&game)
 		return
 	}
 
