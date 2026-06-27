@@ -1,0 +1,35 @@
+{
+  "actions": {
+    "left_up": [
+      { "type": "keyboard", "key": "W" }
+    ],
+    "left_down": [
+      { "type": "keyboard", "key": "S" }
+    ],
+    "right_up": [
+      { "type": "keyboard", "key": "UP" }
+    ],
+    "right_down": [
+      { "type": "keyboard", "key": "DOWN" }
+    ],
+    "serve": [
+      { "type": "keyboard", "key": "SPACE" }
+    ],
+    "toggle_players": [
+      { "type": "keyboard", "key": "P" }
+    ],
+    "restart": [
+      { "type": "keyboard", "key": "R" }
+    ]
+  },
+  "axes": {
+    "left_move": {
+      "negative": "left_up",
+      "positive": "left_down"
+    },
+    "right_move": {
+      "negative": "right_up",
+      "positive": "right_down"
+    }
+  }
+}

@@ -2,6 +2,14 @@
 
 Rune is a small, code-first game engine written in Odin. Projects, scenes, and later prefabs are readable JSON files; gameplay behavior remains Odin code.
 
+## JSON editing
+
+Rune schemas in `schemas/` provide completion, hover documentation, and
+validation for project, scene, prefab, input, and built-in component data.
+The checked-in VS Code settings associate each Rune JSON filename pattern with
+its schema automatically. Custom Odin component blocks remain valid, although
+their game-specific fields are not completed by the built-in schemas.
+
 ## Current slice
 
 The initial scaffold provides:

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "prefab.schema.json",
+  "title": "Rune prefab",
+  "type": "object",
+  "required": ["name", "components"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "name": { "type": "string" },
+    "components": { "$ref": "components.schema.json" },
+    "children": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/child" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "child": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "components": { "$ref": "components.schema.json" },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/child" }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

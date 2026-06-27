@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "components.schema.json",
+  "title": "Rune component map",
+  "type": "object",
+  "description": "Components attached to an entity. Custom Odin components are allowed.",
+  "properties": {
+    "Transform": { "$ref": "#/$defs/transform" },
+    "SpriteRenderer": { "$ref": "#/$defs/spriteRenderer" },
+    "MeshRenderer": { "$ref": "#/$defs/meshRenderer" },
+    "SphereRenderer": { "$ref": "#/$defs/sphereRenderer" },
+    "ModelRenderer": { "$ref": "#/$defs/modelRenderer" },
+    "TilemapRenderer": { "$ref": "#/$defs/tilemapRenderer" },
+    "TextRenderer": { "$ref": "#/$defs/textRenderer" },
+    "Camera2D": { "$ref": "#/$defs/camera2D" },
+    "Camera3D": { "$ref": "#/$defs/camera3D" },
+    "RigidBody2D": { "$ref": "#/$defs/rigidBody2D" },
+    "BoxCollider2D": { "$ref": "#/$defs/boxCollider2D" },
+    "CircleCollider2D": { "$ref": "#/$defs/circleCollider2D" },
+    "BoxCollider": { "$ref": "#/$defs/boxCollider" },
+    "SphereCollider": { "$ref": "#/$defs/sphereCollider" },
+    "CharacterController": { "$ref": "#/$defs/characterController" },
+    "TilemapCollider": { "$ref": "#/$defs/tilemapCollider" },
+    "TopDownController": { "$ref": "#/$defs/topDownController" },
+    "AudioListener": { "$ref": "#/$defs/audioListener" },
+    "AudioPlayer": { "$ref": "#/$defs/audioPlayer" },
+    "Orbit": { "$ref": "#/$defs/orbit" },
+    "Rotator": { "$ref": "#/$defs/rotator" }
+  },
+  "additionalProperties": {
+    "type": "object",
+    "description": "Data for a custom component registered by game code."
+  },
+  "$defs": {
+    "vec2": {
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "vec3": {
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "color": {
+      "type": "array",
+      "description": "RGBA color with channels from 0 through 255.",
+      "items": { "type": "integer", "minimum": 0, "maximum": 255 },
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false
+    },
+    "transform": {
+      "type": "object",
+      "properties": {
+        "position": { "$ref": "#/$defs/vec3", "default": [0, 0, 0] },
+        "rotation": { "$ref": "#/$defs/vec3", "default": [0, 0, 0] },
+        "scale": { "$ref": "#/$defs/vec3", "default": [1, 1, 1] }
+      },
+      "additionalProperties": false
+    },
+    "spriteRenderer": {
+      "type": "object",
+      "properties": {
+        "texture": { "type": "string" },
+        "origin": { "$ref": "#/$defs/vec2", "default": [0.5, 0.5] }
+      },
+      "additionalProperties": false
+    },
+    "meshRenderer": {
+      "type": "object",
+      "properties": {
+        "primitive": { "type": "string", "enum": ["cube"] },
+        "color": { "$ref": "#/$defs/color" }
+      },
+      "additionalProperties": false
+    },
+    "sphereRenderer": {
+      "type": "object",
+      "properties": {
+        "radius": { "type": "number", "exclusiveMinimum": 0, "default": 1 },
+        "color": { "$ref": "#/$defs/color" }
+      },
+      "additionalProperties": false
+    },
+    "modelRenderer": {
+      "type": "object",
+      "required": ["model"],
+      "properties": {
+        "model": { "type": "string", "minLength": 1 },
+        "tint": { "$ref": "#/$defs/color" }
+      },
+      "additionalProperties": false
+    },
+    "tilemapRenderer": {
+      "type": "object",
+      "required": ["texture", "tile_size", "grid"],
+      "properties": {
+        "texture": { "type": "string", "minLength": 1 },
+        "tile_size": { "$ref": "#/$defs/vec2" },
+        "grid": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": { "type": "integer", "minimum": -1 }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "textRenderer": {
+      "type": "object",
+      "required": ["text", "font"],
+      "properties": {
+        "text": { "type": "string" },
+        "font": { "type": "string", "minLength": 1 },
+        "font_size": { "type": "number", "exclusiveMinimum": 0, "default": 20 },
+        "spacing": { "type": "number", "default": 0 },
+        "color": { "$ref": "#/$defs/color" },
+        "origin": { "$ref": "#/$defs/vec2" }
+      },
+      "additionalProperties": false
+    },
+    "camera2D": {
+      "type": "object",
+      "properties": {
+        "offset": { "$ref": "#/$defs/vec2" },
+        "zoom": { "type": "number", "exclusiveMinimum": 0, "default": 1 },
+        "rotation": { "type": "number", "default": 0 },
+        "active": { "type": "boolean", "default": false }
+      },
+      "additionalProperties": false
+    },
+    "camera3D": {
+      "type": "object",
+      "properties": {
+        "target": { "$ref": "#/$defs/vec3" },
+        "up": { "$ref": "#/$defs/vec3", "default": [0, 1, 0] },
+        "fovy": { "type": "number", "exclusiveMinimum": 0, "default": 45 },
+        "active": { "type": "boolean", "default": false }
+      },
+      "additionalProperties": false
+    },
+    "rigidBody2D": {
+      "type": "object",
+      "properties": {
+        "velocity": { "$ref": "#/$defs/vec2" },
+        "gravity_scale": { "type": "number", "minimum": 0, "default": 1 },
+        "type": { "type": "string", "enum": ["dynamic", "kinematic", "static"], "default": "dynamic" }
+      },
+      "additionalProperties": false
+    },
+    "boxCollider2D": {
+      "type": "object",
+      "properties": { "size": { "$ref": "#/$defs/vec2", "default": [16, 16] } },
+      "additionalProperties": false
+    },
+    "circleCollider2D": {
+      "type": "object",
+      "properties": { "radius": { "type": "number", "exclusiveMinimum": 0 } },
+      "additionalProperties": false
+    },
+    "boxCollider": {
+      "type": "object",
+      "properties": {
+        "size": { "$ref": "#/$defs/vec3", "default": [1, 1, 1] },
+        "is_static": { "type": "boolean", "default": true }
+      },
+      "additionalProperties": false
+    },
+    "sphereCollider": {
+      "type": "object",
+      "properties": {
+        "radius": { "type": "number", "exclusiveMinimum": 0, "default": 0.5 },
+        "is_static": { "type": "boolean", "default": true }
+      },
+      "additionalProperties": false
+    },
+    "characterController": {
+      "type": "object",
+      "properties": {
+        "radius": { "type": "number", "exclusiveMinimum": 0, "default": 0.35 },
+        "height": { "type": "number", "exclusiveMinimum": 0, "default": 1.8 },
+        "eye_height": { "type": "number", "exclusiveMinimum": 0, "default": 1.6 },
+        "gravity": { "type": "number", "exclusiveMinimum": 0, "default": 24 },
+        "jump_speed": { "type": "number", "exclusiveMinimum": 0, "default": 8 }
+      },
+      "additionalProperties": false
+    },
+    "tilemapCollider": {
+      "type": "object",
+      "required": ["solid_tiles"],
+      "properties": {
+        "solid_tiles": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 0 },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "topDownController": {
+      "type": "object",
+      "properties": {
+        "size": { "$ref": "#/$defs/vec2", "default": [16, 16] },
+        "speed": { "type": "number", "exclusiveMinimum": 0, "default": 180 }
+      },
+      "additionalProperties": false
+    },
+    "audioListener": {
+      "type": "object",
+      "properties": { "active": { "type": "boolean", "default": true } },
+      "additionalProperties": false
+    },
+    "audioPlayer": {
+      "type": "object",
+      "required": ["sound"],
+      "properties": {
+        "sound": { "type": "string", "minLength": 1 },
+        "volume": { "type": "number", "minimum": 0, "default": 1 },
+        "pitch": { "type": "number", "exclusiveMinimum": 0, "default": 1 },
+        "looping": { "type": "boolean", "default": false },
+        "play_on_start": { "type": "boolean", "default": false },
+        "spatial": { "type": "boolean", "default": false },
+        "min_distance": { "type": "number", "minimum": 0 },
+        "max_distance": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "orbit": {
+      "type": "object",
+      "required": ["degrees_per_second"],
+      "properties": {
+        "degrees_per_second": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "rotator": {
+      "type": "object",
+      "required": ["degrees_per_second"],
+      "properties": { "degrees_per_second": { "type": "number" } },
+      "additionalProperties": false
+    }
+  }
+}

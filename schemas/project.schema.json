@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "project.schema.json",
+  "title": "Rune project",
+  "type": "object",
+  "required": ["name", "window", "input"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "name": { "type": "string", "minLength": 1 },
+    "startup_scene": { "type": "string", "minLength": 1 },
+    "input": { "type": "string", "minLength": 1 },
+    "background_color": { "$ref": "#/$defs/color" },
+    "window": {
+      "type": "object",
+      "properties": {
+        "width": { "type": "integer", "exclusiveMinimum": 0, "default": 1280 },
+        "height": { "type": "integer", "exclusiveMinimum": 0, "default": 720 },
+        "title": { "type": "string" },
+        "fullscreen": { "type": "boolean", "default": false },
+        "vsync": { "type": "boolean", "default": true },
+        "msaa_4x": { "type": "boolean", "default": false }
+      },
+      "additionalProperties": false
+    },
+    "hot_reload": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "poll_interval_ms": { "type": "integer", "exclusiveMinimum": 0, "default": 250 },
+        "scenes": { "type": "boolean", "default": true },
+        "prefabs": { "type": "boolean", "default": true },
+        "textures": { "type": "boolean", "default": true },
+        "models": { "type": "boolean", "default": true }
+      },
+      "additionalProperties": false
+    },
+    "gizmos": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "transforms": { "type": "boolean", "default": true },
+        "cameras": { "type": "boolean", "default": true },
+        "physics_2d": { "type": "boolean", "default": true },
+        "physics_3d": { "type": "boolean", "default": true },
+        "tilemaps": { "type": "boolean", "default": true },
+        "audio": { "type": "boolean", "default": true },
+        "transform_size": { "type": "number", "exclusiveMinimum": 0, "default": 24 }
+      },
+      "additionalProperties": false
+    },
+    "layers": {
+      "type": "object",
+      "description": "Custom layer names mapped to bit positions 1 through 63.",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 63
+      }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "color": {
+      "type": "array",
+      "items": { "type": "integer", "minimum": 0, "maximum": 255 },
+      "minItems": 4,
+      "maxItems": 4
+    }
+  }
+}

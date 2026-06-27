@@ -7,11 +7,10 @@ import "rune:ecs"
 import "rune:input"
 import "rune:render"
 
-world: ecs.World
 player: ecs.Entity
 
-on_update :: proc(game: ^rune.Engine) {
-	controller, has_controller := ecs.get_top_down_controller(&world, player)
+move_player :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	controller, has_controller := ecs.get_top_down_controller(world, player)
 	if !has_controller { return }
 	controls := rune.input_state(game)
 	move_x := input.axis(controls, "move_x")
@@ -21,12 +20,15 @@ on_update :: proc(game: ^rune.Engine) {
 		move_x /= length
 		move_y /= length
 	}
-	ecs.move_top_down(&world, player, {move_x * controller.speed * game.delta_time, move_y * controller.speed * game.delta_time})
+	ecs.move_top_down(world, player, {move_x * controller.speed * game.delta_time, move_y * controller.speed * game.delta_time})
 }
 
-on_draw :: proc(game: ^rune.Engine) {
-	render.draw_scene_2d(&world, rune.asset_manager(game))
-	rune.draw_gizmos(game, &world)
+draw_tilemap :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	render.draw_scene_2d(world, rune.asset_manager(game))
+}
+
+reacquire_player :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	player, _ = ecs.find_entity_by_id(world, "player")
 }
 
 main :: proc() {
@@ -34,10 +36,14 @@ main :: proc() {
 	if !ok { fmt.eprintln("Could not load examples/tilemap_collision_2d/project.json"); return }
 	defer rune.shutdown(&game)
 
-	scene_ok: bool
-	world, scene_ok = rune.load_scene(&game, "examples/tilemap_collision_2d/scenes/main.scene.json")
+	world, scene_ok := rune.load_scene(&game, "examples/tilemap_collision_2d/scenes/main.scene.json")
 	if !scene_ok { fmt.eprintln("Could not load the tilemap collision scene"); return }
-	player, _ = ecs.find_entity_by_id(&world, "player")
+	reacquire_player(&game, &world)
 	if player == ecs.Entity(0) { fmt.eprintln("Scene is missing entity ID: player"); return }
-	rune.run(&game, on_update, on_draw)
+	if !rune.register_system(&game, {name = "move_player", update = move_player, on_scene_reloaded = reacquire_player}) ||
+	   !rune.register_system(&game, {name = "draw_tilemap", draw = draw_tilemap}) {
+		fmt.eprintln("Could not register tilemap collision systems")
+		return
+	}
+	rune.run_scene(&game, &world)
 }

@@ -17,12 +17,16 @@
 
 # Editor and OS files
 .vscode/
+!/.vscode/
+/.vscode/*
+!/.vscode/settings.json
 .idea/
 .vs/
 *.code-workspace
 .DS_Store
 Thumbs.db
 Desktop.ini
+.VSCodeCounter/
 
 # Temporary files and logs
 *.log

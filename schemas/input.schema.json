@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "input.schema.json",
+  "title": "Rune input mappings",
+  "type": "object",
+  "required": ["actions", "axes"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "actions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "$ref": "#/$defs/binding" },
+        "minItems": 1
+      }
+    },
+    "axes": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/axis" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "binding": {
+      "oneOf": [
+        {
+          "title": "Keyboard binding",
+          "type": "object",
+          "required": ["type", "key"],
+          "properties": {
+            "type": { "const": "keyboard" },
+            "key": {
+              "type": "string",
+              "examples": ["W", "SPACE", "LEFT_SHIFT"]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "title": "Mouse button binding",
+          "type": "object",
+          "required": ["type", "button"],
+          "properties": {
+            "type": { "const": "mouse_button" },
+            "button": {
+              "type": "string",
+              "enum": ["LEFT", "RIGHT", "MIDDLE", "SIDE", "EXTRA", "FORWARD", "BACK"]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "title": "Gamepad button binding",
+          "type": "object",
+          "required": ["type", "button"],
+          "properties": {
+            "type": { "const": "gamepad_button" },
+            "button": {
+              "type": "string",
+              "enum": ["A", "B", "X", "Y", "DPAD_UP", "DPAD_RIGHT", "DPAD_DOWN", "DPAD_LEFT", "LEFT_BUMPER", "RIGHT_BUMPER", "BACK", "START", "LEFT_THUMB", "RIGHT_THUMB"]
+            },
+            "gamepad": { "type": "integer", "minimum": 0, "default": 0 }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "axis": {
+      "oneOf": [
+        {
+          "title": "Action axis",
+          "type": "object",
+          "required": ["negative", "positive"],
+          "properties": {
+            "negative": { "type": "string" },
+            "positive": { "type": "string" },
+            "invert": { "type": "boolean", "default": false }
+          },
+          "additionalProperties": false
+        },
+        {
+          "title": "Mouse delta axis",
+          "type": "object",
+          "required": ["type", "axis"],
+          "properties": {
+            "type": { "const": "mouse_delta" },
+            "axis": { "type": "string", "enum": ["x", "y"] },
+            "scale": { "type": "number", "default": 1 },
+            "invert": { "type": "boolean", "default": false }
+          },
+          "additionalProperties": false
+        },
+        {
+          "title": "Mouse wheel axis",
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": { "const": "mouse_wheel" },
+            "scale": { "type": "number", "default": 1 },
+            "invert": { "type": "boolean", "default": false }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "json.schemas": [
+    {
+      "fileMatch": ["**/project.json"],
+      "url": "./schemas/project.schema.json"
+    },
+    {
+      "fileMatch": ["**/*.scene.json"],
+      "url": "./schemas/scene.schema.json"
+    },
+    {
+      "fileMatch": ["**/*.prefab.json"],
+      "url": "./schemas/prefab.schema.json"
+    },
+    {
+      "fileMatch": ["**/*.input.json"],
+      "url": "./schemas/input.schema.json"
+    }
+  ]
+}

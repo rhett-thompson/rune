@@ -5,15 +5,8 @@ import rune "rune:core"
 import "rune:ecs"
 import "rune:render"
 
-world: ecs.World
-
-on_update :: proc(game: ^rune.Engine) {
-	rune.reload_scene_if_changed(game, &world, "examples/prefabs_2d/scenes/main.scene.json")
-}
-
-on_draw :: proc(game: ^rune.Engine) {
-	render.draw_scene_2d(&world, rune.asset_manager(game))
-	rune.draw_gizmos(game, &world)
+draw_prefabs :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	render.draw_scene_2d(world, rune.asset_manager(game))
 }
 
 main :: proc() {
@@ -24,11 +17,14 @@ main :: proc() {
 	}
 	defer rune.shutdown(&game)
 
-	scene_ok: bool
-	world, scene_ok = rune.load_scene(&game, "examples/prefabs_2d/scenes/main.scene.json")
+	world, scene_ok := rune.load_scene(&game, "examples/prefabs_2d/scenes/main.scene.json")
 	if !scene_ok {
 		fmt.eprintln("Could not load and instantiate the prefab scene")
 		return
 	}
-	rune.run(&game, on_update, on_draw)
+	if !rune.register_system(&game, {name = "prefab_scene_draw", draw = draw_prefabs}) {
+		fmt.eprintln("Could not register the prefab draw system")
+		return
+	}
+	rune.run_scene(&game, &world)
 }
