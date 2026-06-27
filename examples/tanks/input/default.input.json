@@ -1,0 +1,22 @@
+{
+  "actions": {
+    "left_forward": [{"type": "keyboard", "key": "W"}],
+    "left_back": [{"type": "keyboard", "key": "S"}],
+    "left_turn_left": [{"type": "keyboard", "key": "A"}],
+    "left_turn_right": [{"type": "keyboard", "key": "D"}],
+    "left_fire": [{"type": "keyboard", "key": "SPACE"}],
+    "right_forward": [{"type": "keyboard", "key": "UP"}],
+    "right_back": [{"type": "keyboard", "key": "DOWN"}],
+    "right_turn_left": [{"type": "keyboard", "key": "LEFT"}],
+    "right_turn_right": [{"type": "keyboard", "key": "RIGHT"}],
+    "right_fire": [{"type": "keyboard", "key": "ENTER"}],
+    "toggle_players": [{"type": "keyboard", "key": "P"}],
+    "restart": [{"type": "keyboard", "key": "R"}]
+  },
+  "axes": {
+    "left_move": {"negative": "left_back", "positive": "left_forward"},
+    "left_turn": {"negative": "left_turn_left", "positive": "left_turn_right"},
+    "right_move": {"negative": "right_back", "positive": "right_forward"},
+    "right_turn": {"negative": "right_turn_left", "positive": "right_turn_right"}
+  }
+}
