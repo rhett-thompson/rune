@@ -1,0 +1,47 @@
+{
+  "name": "Asteroids Arena",
+  "entities": [
+    {
+      "id": "arena",
+      "components": {
+        "AsteroidsArena": {
+          "width": 960,
+          "height": 640,
+          "star_count": 90,
+          "line_color": [218, 232, 255, 255],
+          "accent_color": [72, 202, 228, 255],
+          "muted_color": [112, 137, 173, 255]
+        }
+      }
+    },
+    {
+      "id": "player",
+      "components": {
+        "AsteroidsShip": {
+          "position": [480, 320],
+          "radius": 15,
+          "thrust": 320,
+          "turn_speed": 3.8,
+          "drag": 0.62,
+          "max_speed": 360,
+          "bullet_speed": 560,
+          "bullet_life": 1.15,
+          "fire_delay": 0.16
+        }
+      }
+    },
+    {
+      "id": "asteroid_spawner",
+      "name": "Asteroid Spawner",
+      "components": {
+        "AsteroidSpawner": {
+          "starting_lives": 3,
+          "starting_count": 4,
+          "max_wave_count": 12,
+          "respawn_delay": 1.25,
+          "invulnerable_time": 2.0
+        }
+      }
+    }
+  ]
+}

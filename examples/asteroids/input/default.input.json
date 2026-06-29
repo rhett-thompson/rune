@@ -1,0 +1,28 @@
+{
+  "actions": {
+    "turn_left": [
+      { "type": "keyboard", "key": "A" },
+      { "type": "keyboard", "key": "LEFT" }
+    ],
+    "turn_right": [
+      { "type": "keyboard", "key": "D" },
+      { "type": "keyboard", "key": "RIGHT" }
+    ],
+    "thrust": [
+      { "type": "keyboard", "key": "W" },
+      { "type": "keyboard", "key": "UP" }
+    ],
+    "fire": [
+      { "type": "keyboard", "key": "SPACE" }
+    ],
+    "restart": [
+      { "type": "keyboard", "key": "R" }
+    ]
+  },
+  "axes": {
+    "turn": {
+      "negative": "turn_left",
+      "positive": "turn_right"
+    }
+  }
+}

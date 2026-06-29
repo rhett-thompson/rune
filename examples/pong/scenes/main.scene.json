@@ -1,27 +1,78 @@
 {
   "name": "Pong Arena",
   "entities": [
-    {"id": "arena", "components": {"PongArena": {
-      "width": 960, "height": 540, "border": 8,
-      "background_color": [8, 12, 24, 255], "line_color": [42, 58, 87, 255],
-      "left_color": [72, 202, 228, 255], "right_color": [246, 166, 35, 255],
-      "text_color": [245, 245, 245, 255], "muted_text_color": [151, 168, 198, 255]
-    }}},
-    {"id": "left_paddle", "components": {"PongPaddle": {
-      "x": 42, "y": 270, "width": 18, "height": 104, "speed": 430,
-      "ai_speed": 0, "input_axis": "left_move", "computer": false
-    }}},
-    {"id": "right_paddle", "components": {"PongPaddle": {
-      "x": 918, "y": 270, "width": 18, "height": 104, "speed": 430,
-      "ai_speed": 330, "input_axis": "right_move", "computer": true
-    }}},
-    {"id": "ball", "components": {"PongBall": {
-      "position": [480, 270], "velocity": [0, 0], "radius": 10,
-      "start_speed": 380, "max_speed": 720, "speed_increase": 24
-    }}},
-    {"id": "match", "components": {"PongMatch": {
-      "left_score": 0, "right_score": 0, "win_score": 7, "serving": true,
-      "game_over": false, "two_player": false, "serve_to_left": false
-    }}}
+    {
+      "id": "arena",
+      "components": {
+        "PongArena": {
+          "width": 960,
+          "height": 540,
+          "border": 8,
+          "background_color": [8, 12, 24, 255],
+          "line_color": [42, 58, 87, 255],
+          "left_color": [72, 202, 228, 255],
+          "right_color": [246, 166, 35, 255],
+          "text_color": [245, 245, 245, 255],
+          "muted_text_color": [151, 168, 198, 255]
+        }
+      }
+    },
+    {
+      "id": "left_paddle",
+      "components": {
+        "PongPaddle": {
+          "x": 42,
+          "y": 270,
+          "width": 18,
+          "height": 104,
+          "speed": 430,
+          "ai_speed": 0,
+          "input_axis": "left_move",
+          "computer": false
+        }
+      }
+    },
+    {
+      "id": "right_paddle",
+      "components": {
+        "PongPaddle": {
+          "x": 918,
+          "y": 270,
+          "width": 18,
+          "height": 104,
+          "speed": 430,
+          "ai_speed": 330,
+          "input_axis": "right_move",
+          "computer": true
+        }
+      }
+    },
+    {
+      "id": "ball",
+      "components": {
+        "PongBall": {
+          "position": [480, 270],
+          "velocity": [0, 0],
+          "radius": 10,
+          "start_speed": 380,
+          "max_speed": 720,
+          "speed_increase": 24
+        }
+      }
+    },
+    {
+      "id": "match",
+      "components": {
+        "PongMatch": {
+          "left_score": 0,
+          "right_score": 0,
+          "win_score": 7,
+          "serving": true,
+          "game_over": false,
+          "two_player": false,
+          "serve_to_left": false
+        }
+      }
+    }
   ]
 }

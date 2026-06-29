@@ -1,0 +1,20 @@
+{
+  "name": "Rune Asteroids",
+  "startup_scene": "scenes/main.scene.json",
+  "window": {
+    "width": 960,
+    "height": 640,
+    "title": "Rune Asteroids",
+    "fullscreen": false,
+    "vsync": true,
+    "msaa_4x": true
+  },
+  "input": "input/default.input.json",
+  "background_color": [5, 8, 18, 255],
+  "hot_reload": {
+    "enabled": false
+  },
+  "gizmos": {
+    "enabled": false
+  }
+}
