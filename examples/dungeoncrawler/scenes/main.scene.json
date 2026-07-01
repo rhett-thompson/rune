@@ -1,4 +1,80 @@
 {
-  "name": "Main Scene",
-  "entities": []
+  "name": "Procedural Dungeon",
+  "entities": [
+    {
+      "id": "dungeon",
+      "name": "Dungeon Generator",
+      "components": {
+        "DungeonGenerator": {
+          "map_size": 31,
+          "starting_enemies": 13,
+          "enemies_per_level": 3,
+          "room_count": 5,
+          "wall_height": 1
+        },
+        "DungeonPresentation": {
+          "wall_textures": [
+            "assets/textures/wall.png",
+            "assets/textures/wallCracked.png",
+            "assets/textures/wallDark.png",
+            "assets/textures/wallVines.png"
+          ],
+          "enemy_textures": [
+            "assets/textures/skeletonWarrior.png",
+            "assets/textures/ogre.png",
+            "assets/textures/flameSkull.png"
+          ],
+          "weapon_texture": "assets/textures/swordUI.png"
+        }
+      }
+    },
+    {
+      "id": "player",
+      "name": "Player",
+      "components": {
+        "Transform": { "position": [2, 0.58, 2] },
+        "Camera3D": { "target": [3, 0.58, 2], "up": [0, 1, 0], "fovy": 68, "active": true },
+        "AudioListener": {},
+        "DungeonPlayer": {
+          "health": 100,
+          "walk_speed": 3.0,
+          "sprint_speed": 4.5,
+          "attack_range": 2.2,
+          "attack_damage": 1
+        }
+      }
+    },
+    {
+      "id": "music",
+      "name": "Dungeon Music",
+      "components": {
+        "AudioPlayer": { "sound": "assets/music/music_1.mp3", "looping": true, "play_on_start": true, "volume": 0.4 }
+      }
+    },
+    {
+      "id": "hit_audio",
+      "name": "Hit Audio",
+      "components": { "AudioPlayer": { "sound": "assets/sounds/hit_2.mp3", "volume": 1.0 } }
+    },
+    {
+      "id": "swing_audio",
+      "name": "Swing Audio",
+      "components": { "AudioPlayer": { "sound": "assets/sounds/blade_2.mp3", "volume": 1.0 } }
+    },
+    {
+      "id": "death_audio",
+      "name": "Death Audio",
+      "components": { "AudioPlayer": { "sound": "assets/sounds/death_3.mp3", "volume": 1.0 } }
+    },
+    {
+      "id": "footstep_audio",
+      "name": "Footstep Audio",
+      "components": { "AudioPlayer": { "sound": "assets/sounds/footstep.mp3", "volume": 0.55 } }
+    },
+    {
+      "id": "level_audio",
+      "name": "Level Complete Audio",
+      "components": { "AudioPlayer": { "sound": "assets/sounds/potion.mp3", "volume": 1.0 } }
+    }
+  ]
 }

@@ -25,7 +25,7 @@
     "hot_reload": {
       "type": "object",
       "properties": {
-        "enabled": { "type": "boolean", "default": true },
+        "enabled": { "type": "boolean", "default": false },
         "poll_interval_ms": { "type": "integer", "exclusiveMinimum": 0, "default": 250 },
         "scenes": { "type": "boolean", "default": true },
         "prefabs": { "type": "boolean", "default": true },

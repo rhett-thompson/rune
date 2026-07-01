@@ -95,7 +95,8 @@ while the console is open.
 ## Runtime gizmos
 
 Rune includes a small debug visualization layer for scene data. In projects
-using `rune.run_scene`, press `F3` to toggle gizmos at runtime. The overlay can
+using `rune.run_scene`, gizmos are disabled by default; press `F3` to toggle
+them at runtime. The overlay can
 draw transform axes, active and inactive cameras, 2D and 3D collision bounds,
 tilemap solid cells, and audio listener/player ranges. It renders after
 registered draw systems and before the developer console.
@@ -104,7 +105,7 @@ Projects can set the startup defaults in `project.json`:
 
 ```json
 "gizmos": {
-  "enabled": true,
+  "enabled": false,
   "transforms": true,
   "cameras": true,
   "physics_2d": true,

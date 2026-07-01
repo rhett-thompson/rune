@@ -1,16 +1,39 @@
 package main
 
+import "core:encoding/json"
 import "core:fmt"
 import "core:math"
-import "core:path/filepath"
-import "core:strings"
 import rune "rune:core"
 import "rune:assets"
+import "rune:ecs"
 import rl "vendor:raylib"
+import rlgl "vendor:raylib/rlgl"
 
 MAP :: 31
 MAX_ENEMIES :: 32
 FOV :: f32(math.PI / 3)
+
+Dungeon_Generator :: struct {
+	map_size: i32,
+	starting_enemies: i32,
+	enemies_per_level: i32,
+	room_count: i32,
+	wall_height: f32,
+}
+
+Dungeon_Presentation :: struct {
+	wall_textures: [4]string,
+	enemy_textures: [3]string,
+	weapon_texture: string,
+}
+
+Dungeon_Player :: struct {
+	health: i32,
+	walk_speed: f32,
+	sprint_speed: f32,
+	attack_range: f32,
+	attack_damage: i32,
+}
 
 Enemy :: struct {
 	x, y: f32,
@@ -30,11 +53,14 @@ Dungeon :: struct {
 	walls: [4]rl.Texture2D,
 	monsters: [3]rl.Texture2D,
 	weapon: rl.Texture2D,
-	hit, swing, death, footstep, clear: rl.Sound,
-	music: rl.Music,
 }
 
 game: Dungeon
+generator: Dungeon_Generator
+presentation: Dungeon_Presentation
+player_settings: Dungeon_Player
+player_entity: ecs.Entity
+hit_audio, swing_audio, death_audio, footstep_audio, level_audio: ecs.Entity
 
 get_texture :: proc(engine: ^rune.Engine, path: string) -> rl.Texture2D {
 	value, _ := assets.texture(&engine.assets, path)
@@ -42,48 +68,56 @@ get_texture :: proc(engine: ^rune.Engine, path: string) -> rl.Texture2D {
 	return value
 }
 
-get_sound :: proc(path: string) -> rl.Sound {
-	c, _ := strings.clone_to_cstring(path)
-	return rl.LoadSound(c)
+component_into :: proc(world: ^ecs.World, name: string, result: ^$T) -> bool {
+	entities := ecs.entities_with_component(world, name)
+	if len(entities) != 1 { return false }
+	value, found := ecs.get_component(world, entities[0], name)
+	if !found { return false }
+	data, err := json.marshal(value)
+	if err != nil { return false }
+	defer delete(data)
+	return json.unmarshal(data, result) == nil
 }
 
-load_assets :: proc(engine: ^rune.Engine, project_directory: string) {
+load_assets :: proc(engine: ^rune.Engine) {
 	game.walls = {
-		get_texture(engine, "assets/textures/wall.png"),
-		get_texture(engine, "assets/textures/wallCracked.png"),
-		get_texture(engine, "assets/textures/wallDark.png"),
-		get_texture(engine, "assets/textures/wallVines.png"),
+		get_texture(engine, presentation.wall_textures[0]),
+		get_texture(engine, presentation.wall_textures[1]),
+		get_texture(engine, presentation.wall_textures[2]),
+		get_texture(engine, presentation.wall_textures[3]),
 	}
 	game.monsters = {
-		get_texture(engine, "assets/textures/skeletonWarrior.png"),
-		get_texture(engine, "assets/textures/ogre.png"),
-		get_texture(engine, "assets/textures/flameSkull.png"),
+		get_texture(engine, presentation.enemy_textures[0]),
+		get_texture(engine, presentation.enemy_textures[1]),
+		get_texture(engine, presentation.enemy_textures[2]),
 	}
-	game.weapon = get_texture(engine, "assets/textures/swordUI.png")
-	hit_path, _ := filepath.join({project_directory, "assets", "sounds", "hit_2.mp3"})
-	swing_path, _ := filepath.join({project_directory, "assets", "sounds", "blade_2.mp3"})
-	death_path, _ := filepath.join({project_directory, "assets", "sounds", "death_3.mp3"})
-	step_path, _ := filepath.join({project_directory, "assets", "sounds", "footstep.mp3"})
-	clear_path, _ := filepath.join({project_directory, "assets", "sounds", "potion.mp3"})
-	music_path, _ := filepath.join({project_directory, "assets", "music", "music_1.mp3"})
-	game.hit = get_sound(hit_path)
-	game.swing = get_sound(swing_path)
-	game.death = get_sound(death_path)
-	game.footstep = get_sound(step_path)
-	game.clear = get_sound(clear_path)
-	c, _ := strings.clone_to_cstring(music_path)
-	game.music = rl.LoadMusicStream(c)
-	rl.SetMusicVolume(game.music, .4)
-	rl.PlayMusicStream(game.music)
+	game.weapon = get_texture(engine, presentation.weapon_texture)
 }
 
-unload_audio :: proc() {
-	rl.UnloadSound(game.hit)
-	rl.UnloadSound(game.swing)
-	rl.UnloadSound(game.death)
-	rl.UnloadSound(game.footstep)
-	rl.UnloadSound(game.clear)
-	rl.UnloadMusicStream(game.music)
+initialize_dungeon :: proc(engine: ^rune.Engine, world: ^ecs.World) -> bool {
+	ok: bool
+	player_entity, ok = ecs.find_entity_by_id(world, "player"); if !ok { return false }
+	hit_audio, ok = ecs.find_entity_by_id(world, "hit_audio"); if !ok { return false }
+	swing_audio, ok = ecs.find_entity_by_id(world, "swing_audio"); if !ok { return false }
+	death_audio, ok = ecs.find_entity_by_id(world, "death_audio"); if !ok { return false }
+	footstep_audio, ok = ecs.find_entity_by_id(world, "footstep_audio"); if !ok { return false }
+	level_audio, ok = ecs.find_entity_by_id(world, "level_audio"); if !ok { return false }
+	if !component_into(world, "DungeonGenerator", &generator) ||
+	   !component_into(world, "DungeonPresentation", &presentation) ||
+	   !component_into(world, "DungeonPlayer", &player_settings) {
+		return false
+	}
+	load_assets(engine)
+	reset_game(true)
+	return true
+}
+
+dungeon_reload_system :: proc(engine: ^rune.Engine, world: ^ecs.World) {
+	initialize_dungeon(engine, world)
+}
+
+play_audio :: proc(engine: ^rune.Engine, world: ^ecs.World, entity: ecs.Entity) {
+	rune.play_audio(engine, world, entity)
 }
 
 open :: proc(x, y: f32) -> bool {
@@ -122,7 +156,7 @@ generate :: proc() {
 		x, y := rl.GetRandomValue(2, MAP-3), rl.GetRandomValue(2, MAP-3)
 		game.tiles[y][x] = 0
 	}
-	for _ in 0..<5 {
+	for _ in 0..<max(1, generator.room_count) {
 		cx, cy := rl.GetRandomValue(3, MAP-4), rl.GetRandomValue(3, MAP-4)
 		for y in cy-1..=cy+1 { for x in cx-1..=cx+1 { game.tiles[y][x] = 0 } }
 	}
@@ -141,10 +175,10 @@ visible :: proc(x1,y1,x2,y2: f32) -> bool {
 }
 
 reset_game :: proc(full: bool) {
-	if full { game.level,game.health,game.kills = 1,100,0 } else { game.level += 1 }
+	if full { game.level,game.health,game.kills = 1,player_settings.health,0 } else { game.level += 1 }
 	generate()
 	game.x,game.y,game.angle = 2,2,0
-	game.enemy_count = min(MAX_ENEMIES, 10+game.level*3)
+	game.enemy_count = min(MAX_ENEMIES, generator.starting_enemies+(game.level-1)*generator.enemies_per_level)
 	for i in 0..<game.enemy_count {
 		for {
 			x,y := rl.GetRandomValue(3,MAP-2),rl.GetRandomValue(3,MAP-2)
@@ -158,12 +192,12 @@ reset_game :: proc(full: bool) {
 	}
 }
 
-strike :: proc() {
+strike :: proc(engine: ^rune.Engine, world: ^ecs.World) {
 	if game.attack > 0 { return }
 	game.attack = .34
-	rl.PlaySound(game.swing)
+	play_audio(engine, world, swing_audio)
 	best: i32 = -1
-	best_d := f32(2.2)
+	best_d := player_settings.attack_range
 	for i in 0..<game.enemy_count {
 		e := &game.enemies[i]
 		if !e.alive { continue }
@@ -176,16 +210,26 @@ strike :: proc() {
 	}
 	if best >= 0 {
 		e := &game.enemies[best]
-		e.hp -= 1; rl.PlaySound(game.hit)
-		if e.hp <= 0 { e.alive=false; game.kills+=1; rl.PlaySound(game.death) }
+		e.hp -= player_settings.attack_damage; play_audio(engine, world, hit_audio)
+		if e.hp <= 0 { e.alive=false; game.kills+=1; play_audio(engine, world, death_audio) }
 	}
 }
 
-update_game :: proc(engine: ^rune.Engine) {
+dungeon_update_system :: proc(engine: ^rune.Engine, world: ^ecs.World) {
 	dt := engine.delta_time
-	rl.UpdateMusicStream(game.music)
+	player_transform, found := ecs.get_transform(world, player_entity)
+	if !found { return }
+	game.x = player_transform.position[0]
+	game.y = player_transform.position[2]
 	game.attack=max(0,game.attack-dt); game.hurt=max(0,game.hurt-dt)
-	if game.health <= 0 { if rl.IsKeyPressed(.R) { reset_game(true) }; return }
+	if game.health <= 0 {
+		if rl.IsKeyPressed(.R) {
+			reset_game(true)
+			player_transform.position = {game.x, .58, game.y}
+			ecs.set_transform(world, player_entity, player_transform)
+		}
+		return
+	}
 	game.angle += rl.GetMouseDelta().x*.0024
 	if rl.IsKeyDown(.LEFT) { game.angle-=1.8*dt }
 	if rl.IsKeyDown(.RIGHT) { game.angle+=1.8*dt }
@@ -194,63 +238,98 @@ update_game :: proc(engine: ^rune.Engine) {
 	if rl.IsKeyDown(.D) { s+=1 }; if rl.IsKeyDown(.A) { s-=1 }
 	if f != 0 || s != 0 {
 		l := f32(math.sqrt(f64(f*f+s*s))); f/=l; s/=l
-		speed:f32=3; if rl.IsKeyDown(.LEFT_SHIFT) { speed=4.5 }
+		speed:=player_settings.walk_speed; if rl.IsKeyDown(.LEFT_SHIFT) { speed=player_settings.sprint_speed }
 		c,sn := f32(math.cos(f64(game.angle))),f32(math.sin(f64(game.angle)))
 		dx,dy := (c*f-sn*s)*speed*dt,(sn*f+c*s)*speed*dt
 		if open(game.x+dx,game.y) { game.x+=dx }; if open(game.x,game.y+dy) { game.y+=dy }
-		game.step-=dt; if game.step<=0 { rl.PlaySound(game.footstep); game.step=.42 }
+		game.step-=dt; if game.step<=0 { play_audio(engine, world, footstep_audio); game.step=.42 }
 	}
-	if rl.IsMouseButtonPressed(.LEFT) || rl.IsKeyPressed(.SPACE) { strike() }
+	if rl.IsMouseButtonPressed(.LEFT) || rl.IsKeyPressed(.SPACE) { strike(engine, world) }
 	alive := 0
 	for i in 0..<game.enemy_count {
 		e := &game.enemies[i]; if !e.alive { continue }; alive+=1
 		e.cooldown=max(0,e.cooldown-dt)
 		dx,dy:=game.x-e.x,game.y-e.y; d:=f32(math.sqrt(f64(dx*dx+dy*dy)))
-		if d<.7 && e.cooldown<=0 { game.health-=5+game.level;game.hurt=.25;e.cooldown=.9;rl.PlaySound(game.hit)
+		if d<.7 && e.cooldown<=0 { game.health-=5+game.level;game.hurt=.25;e.cooldown=.9;play_audio(engine, world, hit_audio)
 		} else if d<8 && visible(e.x,e.y,game.x,game.y) {
 			v:=(.6+f32(game.level)*.04)*dt
 			nx,ny:=e.x+dx/d*v,e.y+dy/d*v
 			if open(nx,e.y){e.x=nx};if open(e.x,ny){e.y=ny}
 		}
 	}
-	if alive==0 { rl.PlaySound(game.clear);game.health=min(100,game.health+25);reset_game(false) }
+	if alive==0 { play_audio(engine, world, level_audio);game.health=min(player_settings.health,game.health+25);reset_game(false) }
+	player_transform.position = {game.x, .58, game.y}
+	ecs.set_transform(world, player_entity, player_transform)
+	camera, has_camera := ecs.get_camera_3d(world, player_entity)
+	if has_camera {
+		camera.target = {
+			game.x + f32(math.cos(f64(game.angle))),
+			.58,
+			game.y + f32(math.sin(f64(game.angle))),
+		}
+		ecs.set_camera_3d(world, player_entity, camera)
+	}
 }
 
-draw_world :: proc() {
-	w,h:=rl.GetScreenWidth(),rl.GetScreenHeight(); mid:=h/2
-	rl.DrawRectangle(0,0,w,mid,{12,9,17,255})
-	rl.DrawRectangleGradientV(0,mid,w,h-mid,{48,37,31,255},{10,8,8,255})
-	z:=make([]f32,w);defer delete(z)
-	for col in 0..<w {
-		a:=game.angle-FOV/2+FOV*f32(col)/f32(w);rx:=f32(math.cos(f64(a)));ry:=f32(math.sin(f64(a)))
-		mx,my:=i32(game.x),i32(game.y);ddx,ddy:=abs(1/rx),abs(1/ry)
-		sx,sy:i32;dx,dy:f32
-		if rx<0{sx=-1;dx=(game.x-f32(mx))*ddx}else{sx=1;dx=(f32(mx+1)-game.x)*ddx}
-		if ry<0{sy=-1;dy=(game.y-f32(my))*ddy}else{sy=1;dy=(f32(my+1)-game.y)*ddy}
-		side:=0
-		for {if dx<dy{dx+=ddx;mx+=sx;side=0}else{dy+=ddy;my+=sy;side=1};if game.tiles[my][mx]!=0{break}}
-		d:=dx-ddx;if side==1{d=dy-ddy};d*=f32(math.cos(f64(a-game.angle)));d=max(.02,d);z[col]=d
-		lh:=min(h*2,i32(f32(h)/d));top:=mid-lh/2
-		wx:=game.y+d*ry;if side==1{wx=game.x+d*rx};wx-=f32(math.floor(f64(wx)))
-		t:=game.walls[(mx*7+my*13)&3];tint:=rl.WHITE;if side==1{tint={170,170,180,255}}
-		rl.DrawTexturePro(t,{f32(i32(wx*f32(t.width))%t.width),0,1,f32(t.height)},
-			{f32(col),f32(top),1,f32(lh)},{},0,tint)
+draw_wall_plane :: proc(texture: rl.Texture2D, a, b, c, d: rl.Vector3, tint: rl.Color) {
+	rlgl.SetTexture(u32(texture.id))
+	rlgl.Begin(rlgl.QUADS)
+	rlgl.Color4ub(tint.r, tint.g, tint.b, tint.a)
+	rlgl.TexCoord2f(0, 1); rlgl.Vertex3f(a.x, a.y, a.z)
+	rlgl.TexCoord2f(1, 1); rlgl.Vertex3f(b.x, b.y, b.z)
+	rlgl.TexCoord2f(1, 0); rlgl.Vertex3f(c.x, c.y, c.z)
+	rlgl.TexCoord2f(0, 0); rlgl.Vertex3f(d.x, d.y, d.z)
+	rlgl.End()
+	rlgl.SetTexture(0)
+}
+
+draw_world :: proc(world: ^ecs.World) {
+	transform, has_transform := ecs.get_transform(world, player_entity)
+	camera_component, has_camera := ecs.get_camera_3d(world, player_entity)
+	if !has_transform || !has_camera { return }
+	camera := rl.Camera3D{
+		position = transform.position,
+		target = camera_component.target,
+		up = camera_component.up,
+		fovy = camera_component.fovy,
+		projection = .PERSPECTIVE,
 	}
+
+	rl.BeginMode3D(camera)
+	rl.DrawPlane({f32(MAP) / 2, 0, f32(MAP) / 2}, {f32(MAP), f32(MAP)}, {62, 48, 40, 255})
+	rlgl.DisableBackfaceCulling()
+	for y in 0..<MAP {
+		for x in 0..<MAP {
+			if game.tiles[y][x] == 0 { continue }
+			fx, fz := f32(x), f32(y)
+			tex := game.walls[(x * 7 + y * 13) & 3]
+			if y == 0 || game.tiles[y-1][x] == 0 {
+				draw_wall_plane(tex, {fx,0,fz},{fx+1,0,fz},{fx+1,generator.wall_height,fz},{fx,generator.wall_height,fz}, {185,185,195,255})
+			}
+			if y == MAP-1 || game.tiles[y+1][x] == 0 {
+				draw_wall_plane(tex, {fx+1,0,fz+1},{fx,0,fz+1},{fx,generator.wall_height,fz+1},{fx+1,generator.wall_height,fz+1}, {165,165,175,255})
+			}
+			if x == 0 || game.tiles[y][x-1] == 0 {
+				draw_wall_plane(tex, {fx,0,fz+1},{fx,0,fz},{fx,generator.wall_height,fz},{fx,generator.wall_height,fz+1}, {150,150,160,255})
+			}
+			if x == MAP-1 || game.tiles[y][x+1] == 0 {
+				draw_wall_plane(tex, {fx+1,0,fz},{fx+1,0,fz+1},{fx+1,generator.wall_height,fz+1},{fx+1,generator.wall_height,fz}, {175,175,185,255})
+			}
+		}
+	}
+	rlgl.EnableBackfaceCulling()
 	for i in 0..<game.enemy_count {
-		e:=game.enemies[i];if !e.alive{continue}
-		dx,dy:=e.x-game.x,e.y-game.y;d:=f32(math.sqrt(f64(dx*dx+dy*dy)))
-		a:=f32(math.atan2(f64(dy),f64(dx)))-game.angle
-		for a>f32(math.PI){a-=f32(math.PI*2)};for a< -f32(math.PI){a+=f32(math.PI*2)}
-		if abs(a)>FOV*.7||d<.2{continue}
-		size:=min(h*2,i32(f32(h)/d));left:=i32((.5+a/FOV)*f32(w))-size/2;top:=mid-size/2;t:=game.monsters[e.kind]
-		for stripe in 0..<size {x:=left+stripe;if x<0||x>=w||d>=z[x]{continue}
-			rl.DrawTexturePro(t,{f32(stripe)*f32(t.width)/f32(size),0,1,f32(t.height)},
-				{f32(x),f32(top),1,f32(size)},{},0,rl.WHITE)}
+		e := game.enemies[i]
+		if !e.alive { continue }
+		tex := game.monsters[e.kind]
+		rl.DrawBillboardRec(camera, tex, {0,0,f32(tex.width),f32(tex.height)},
+			{e.x,.5,e.y}, {.9,.9}, rl.WHITE)
 	}
+	rl.EndMode3D()
 }
 
-draw_game :: proc(engine: ^rune.Engine) {
-	draw_world();w,h:=rl.GetScreenWidth(),rl.GetScreenHeight()
+dungeon_draw_system :: proc(engine: ^rune.Engine, world: ^ecs.World) {
+	draw_world(world);w,h:=rl.GetScreenWidth(),rl.GetScreenHeight()
 	scale:f32=7;ww:=f32(game.weapon.width)*scale;wh:=f32(game.weapon.height)*scale
 	bob:=f32(math.sin(rl.GetTime()*8))*3;if game.attack>0{bob-=f32(math.sin(f64(game.attack/.34*f32(math.PI))))*38}
 	rl.DrawTexturePro(game.weapon,{0,0,f32(game.weapon.width),f32(game.weapon.height)},

@@ -16,7 +16,7 @@ Settings :: struct {
 
 default_settings :: proc() -> Settings {
 	return Settings{
-		enabled = true,
+		enabled = false,
 		transforms = true,
 		cameras = true,
 		physics_2d = true,

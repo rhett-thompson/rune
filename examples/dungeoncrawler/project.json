@@ -9,5 +9,8 @@
     "fullscreen": false,
     "vsync": true
   },
+  "gizmos": {
+    "enabled": false
+  },
   "background_color": [30, 30, 30, 255]
 }
