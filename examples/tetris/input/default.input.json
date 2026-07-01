@@ -1,0 +1,33 @@
+{
+  "actions": {
+    "move_left": [
+      { "type": "keyboard", "key": "LEFT" },
+      { "type": "keyboard", "key": "A" }
+    ],
+    "move_right": [
+      { "type": "keyboard", "key": "RIGHT" },
+      { "type": "keyboard", "key": "D" }
+    ],
+    "soft_drop": [
+      { "type": "keyboard", "key": "DOWN" },
+      { "type": "keyboard", "key": "S" }
+    ],
+    "hard_drop": [
+      { "type": "keyboard", "key": "SPACE" }
+    ],
+    "rotate_cw": [
+      { "type": "keyboard", "key": "UP" },
+      { "type": "keyboard", "key": "X" }
+    ],
+    "rotate_ccw": [
+      { "type": "keyboard", "key": "Z" }
+    ],
+    "pause": [
+      { "type": "keyboard", "key": "P" }
+    ],
+    "restart": [
+      { "type": "keyboard", "key": "R" }
+    ]
+  },
+  "axes": {}
+}

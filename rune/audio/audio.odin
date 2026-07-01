@@ -8,14 +8,16 @@ import rl "vendor:raylib"
 
 Audio_Instance :: struct {
 	sound:                rl.Sound,
+	music:                rl.Music,
+	streaming:            bool,
 	path:                 string,
 	started:              bool,
 	settings_initialized: bool,
 	volume, pitch, pan:   f32,
 }
 
-// Audio_System owns one raylib Sound instance per AudioPlayer entity. Separate
-// instances let different entities use the same source sound independently.
+// Audio_System owns one raylib playback instance per AudioPlayer entity. Short
+// clips are buffered Sounds; music formats are streamed automatically.
 Audio_System :: struct {
 	root:      string,
 	instances: map[ecs.Entity]Audio_Instance,
@@ -33,7 +35,7 @@ init :: proc(project_root: string) -> Audio_System {
 
 shutdown :: proc(system: ^Audio_System) {
 	for _, instance in system.instances {
-		if rl.IsSoundValid(instance.sound) { rl.UnloadSound(instance.sound) }
+		unload_instance(instance)
 	}
 	delete(system.instances)
 	if system.available && rl.IsAudioDeviceReady() { rl.CloseAudioDevice() }
@@ -57,11 +59,16 @@ update :: proc(system: ^Audio_System, world: ^ecs.World) {
 		apply_settings(system, world, entity, player, listener_entity, listener_found)
 		instance := system.instances[entity]
 		if player.play_on_start && !instance.started {
-			rl.PlaySound(instance.sound)
+			play_instance(instance)
 			instance.started = true
 			system.instances[entity] = instance
-		} else if player.looping && instance.started && !rl.IsSoundPlaying(instance.sound) {
+		} else if !instance.streaming && player.looping && instance.started && !rl.IsSoundPlaying(instance.sound) {
 			rl.PlaySound(instance.sound)
+		}
+		if instance.streaming && instance.started {
+			instance.music.looping = player.looping
+			rl.UpdateMusicStream(instance.music)
+			system.instances[entity] = instance
 		}
 	}
 }
@@ -73,7 +80,7 @@ play :: proc(system: ^Audio_System, world: ^ecs.World, entity: ecs.Entity) -> bo
 	listener_entity, _, listener_found := ecs.active_audio_listener(world)
 	apply_settings(system, world, entity, player, listener_entity, listener_found)
 	instance := system.instances[entity]
-	rl.PlaySound(instance.sound)
+	play_instance(instance)
 	instance.started = true
 	system.instances[entity] = instance
 	return true
@@ -83,7 +90,7 @@ stop :: proc(system: ^Audio_System, entity: ecs.Entity) -> bool {
 	if !system.available { return false }
 	instance, found := system.instances[entity]
 	if !found { return false }
-	rl.StopSound(instance.sound)
+	if instance.streaming { rl.StopMusicStream(instance.music) } else { rl.StopSound(instance.sound) }
 	instance.started = false
 	system.instances[entity] = instance
 	return true
@@ -91,28 +98,35 @@ stop :: proc(system: ^Audio_System, entity: ecs.Entity) -> bool {
 
 is_playing :: proc(system: ^Audio_System, entity: ecs.Entity) -> bool {
 	instance, found := system.instances[entity]
-	return system.available && found && rl.IsSoundPlaying(instance.sound)
+	if !system.available || !found { return false }
+	return rl.IsMusicStreamPlaying(instance.music) if instance.streaming else rl.IsSoundPlaying(instance.sound)
 }
 
 ensure_instance :: proc(system: ^Audio_System, entity: ecs.Entity, path: string) -> bool {
 	if instance, found := system.instances[entity]; found {
 		if instance.path == path { return true }
-		if rl.IsSoundValid(instance.sound) { rl.UnloadSound(instance.sound) }
+		unload_instance(instance)
 		delete_key(&system.instances, entity)
 	}
 	full_path := path
 	if !filepath.is_abs(full_path) { full_path, _ = filepath.join({system.root, path}) }
 	path_cstring, _ := strings.clone_to_cstring(full_path)
-	sound := rl.LoadSound(path_cstring)
-	if !rl.IsSoundValid(sound) { return false }
-	system.instances[entity] = Audio_Instance{sound = sound, path = path}
+	if is_streaming_path(path) {
+		music := rl.LoadMusicStream(path_cstring)
+		if !rl.IsMusicValid(music) { return false }
+		system.instances[entity] = Audio_Instance{music = music, streaming = true, path = path}
+	} else {
+		sound := rl.LoadSound(path_cstring)
+		if !rl.IsSoundValid(sound) { return false }
+		system.instances[entity] = Audio_Instance{sound = sound, path = path}
+	}
 	return true
 }
 
 remove_missing_instances :: proc(system: ^Audio_System, world: ^ecs.World) {
 	for entity, instance in system.instances {
 		if ecs.has_component_data(world, entity, "AudioPlayer") { continue }
-		if rl.IsSoundValid(instance.sound) { rl.UnloadSound(instance.sound) }
+		unload_instance(instance)
 		delete_key(&system.instances, entity)
 	}
 }
@@ -138,9 +152,15 @@ apply_settings :: proc(system: ^Audio_System, world: ^ecs.World, entity: ecs.Ent
 		}
 	}
 	if instance.settings_initialized && instance.volume == volume && instance.pitch == player.pitch && instance.pan == pan { return }
-	rl.SetSoundVolume(instance.sound, volume)
-	rl.SetSoundPitch(instance.sound, player.pitch)
-	rl.SetSoundPan(instance.sound, pan)
+	if instance.streaming {
+		rl.SetMusicVolume(instance.music, volume)
+		rl.SetMusicPitch(instance.music, player.pitch)
+		rl.SetMusicPan(instance.music, pan)
+	} else {
+		rl.SetSoundVolume(instance.sound, volume)
+		rl.SetSoundPitch(instance.sound, player.pitch)
+		rl.SetSoundPan(instance.sound, pan)
+	}
 	instance.settings_initialized = true
 	instance.volume = volume
 	instance.pitch = player.pitch
@@ -154,8 +174,21 @@ attenuation :: proc(distance, min_distance, max_distance: f32) -> f32 {
 	return 1 - (distance - min_distance) / (max_distance - min_distance)
 }
 
-clamp :: proc(value, minimum, maximum: f32) -> f32 {
-	if value < minimum { return minimum }
-	if value > maximum { return maximum }
-	return value
+is_streaming_path :: proc(path: string) -> bool {
+	lower := strings.to_lower(path, context.temp_allocator)
+	return strings.has_suffix(lower, ".mp3") || strings.has_suffix(lower, ".ogg") ||
+	       strings.has_suffix(lower, ".flac") || strings.has_suffix(lower, ".xm") ||
+	       strings.has_suffix(lower, ".mod") || strings.has_suffix(lower, ".qoa")
+}
+
+play_instance :: proc(instance: Audio_Instance) {
+	if instance.streaming { rl.PlayMusicStream(instance.music) } else { rl.PlaySound(instance.sound) }
+}
+
+unload_instance :: proc(instance: Audio_Instance) {
+	if instance.streaming {
+		if rl.IsMusicValid(instance.music) { rl.UnloadMusicStream(instance.music) }
+	} else if rl.IsSoundValid(instance.sound) {
+		rl.UnloadSound(instance.sound)
+	}
 }

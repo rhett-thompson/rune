@@ -12,7 +12,12 @@
   "input": "input/default.input.json",
   "background_color": [5, 8, 18, 255],
   "hot_reload": {
-    "enabled": false
+    "enabled": true,
+    "poll_interval_ms": 250,
+    "scenes": true,
+    "prefabs": false,
+    "textures": false,
+    "models": false
   },
   "gizmos": {
     "enabled": false

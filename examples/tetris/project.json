@@ -1,0 +1,20 @@
+{
+  "name": "Rune Blocks",
+  "startup_scene": "scenes/main.scene.json",
+  "window": {
+    "width": 760,
+    "height": 632,
+    "title": "Rune Blocks - Tetris Example",
+    "fullscreen": false,
+    "vsync": true,
+    "msaa_4x": true
+  },
+  "input": "input/default.input.json",
+  "background_color": [7, 10, 20, 255],
+  "hot_reload": {
+    "enabled": false
+  },
+  "gizmos": {
+    "enabled": false
+  }
+}

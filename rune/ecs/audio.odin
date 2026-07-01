@@ -9,8 +9,8 @@ AudioListener :: struct {
 	active: bool,
 }
 
-// AudioPlayer describes a sound emitted by an entity. Playback is controlled
-// by Odin systems; this component intentionally contains no behavior.
+// AudioPlayer describes audio emitted by an entity. Music formats such as MP3,
+// OGG, and FLAC stream automatically; short clips remain buffered sounds.
 AudioPlayer :: struct {
 	sound:         string,
 	volume:        f32,

@@ -1,0 +1,13 @@
+{
+  "name": "Rune: Dungeon Crawler",
+  "startup_scene": "scenes/main.scene.json",
+  "input": "input/default.input.json",
+  "window": {
+    "width": 1280,
+    "height": 720,
+    "title": "Rune: Dungeon Crawler",
+    "fullscreen": false,
+    "vsync": true
+  },
+  "background_color": [30, 30, 30, 255]
+}

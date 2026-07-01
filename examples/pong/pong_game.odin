@@ -13,6 +13,7 @@ Pong_Game :: struct {
 	left, right: Pong_Paddle,
 	ball: Pong_Ball,
 	match: Pong_Match,
+	hit_audio, start_audio, goal_audio, music_audio: ecs.Entity,
 }
 
 load_pong_game :: proc(game: ^Pong_Game, world: ^ecs.World) -> bool {
@@ -29,7 +30,11 @@ load_pong_game :: proc(game: ^Pong_Game, world: ^ecs.World) -> bool {
 	second, ok_2 := paddle_from_entity(world, paddles[1])
 	if !ok_a || !ok_b || !ok_m || !ok_1 || !ok_2 || first.computer == second.computer { return false }
 	if first.computer { game.right, game.left = first, second } else { game.left, game.right = first, second }
-	return true
+	game.hit_audio, ok_1 = ecs.find_entity_by_id(world, "hit_audio")
+	game.start_audio, ok_2 = ecs.find_entity_by_id(world, "start_audio")
+	game.goal_audio, ok_a = ecs.find_entity_by_id(world, "goal_audio")
+	game.music_audio, ok_b = ecs.find_entity_by_id(world, "music_audio")
+	return ok_1 && ok_2 && ok_a && ok_b
 }
 
 reset_ball :: proc(game: ^Pong_Game) {
@@ -65,18 +70,27 @@ bounce :: proc(game: ^Pong_Game, paddle: Pong_Paddle, right: bool) {
 	game.ball.position.x = paddle.x + (f32(paddle.width) / 2 + game.ball.radius + 1) * direction
 }
 
-update_ball :: proc(game: ^Pong_Game, dt: f32) {
+update_ball :: proc(game: ^Pong_Game, engine: ^rune.Engine, dt: f32) {
 	game.ball.position += game.ball.velocity * dt
 	top, bottom := f32(game.arena.border), f32(game.arena.height - game.arena.border)
 	if game.ball.position.y - game.ball.radius <= top {
 		game.ball.position.y, game.ball.velocity.y = top + game.ball.radius, math.abs(game.ball.velocity.y)
+		rune.play_audio(engine, &world, game.hit_audio)
 	} else if game.ball.position.y + game.ball.radius >= bottom {
 		game.ball.position.y, game.ball.velocity.y = bottom - game.ball.radius, -math.abs(game.ball.velocity.y)
+		rune.play_audio(engine, &world, game.hit_audio)
 	}
-	if game.ball.velocity.x < 0 && paddle_hit(game, game.left, true) { bounce(game, game.left, true) }
-	if game.ball.velocity.x > 0 && paddle_hit(game, game.right, false) { bounce(game, game.right, false) }
+	if game.ball.velocity.x < 0 && paddle_hit(game, game.left, true) {
+		bounce(game, game.left, true)
+		rune.play_audio(engine, &world, game.hit_audio)
+	}
+	if game.ball.velocity.x > 0 && paddle_hit(game, game.right, false) {
+		bounce(game, game.right, false)
+		rune.play_audio(engine, &world, game.hit_audio)
+	}
 	if game.ball.position.x < -game.ball.radius {
 		game.match.right_score += 1
+		rune.play_audio(engine, &world, game.goal_audio)
 		game.match.serve_to_left = true
 		game.match.goal_side = -1
 		game.match.goal_flash_time = .75
@@ -84,6 +98,7 @@ update_ball :: proc(game: ^Pong_Game, dt: f32) {
 		reset_ball(game)
 	} else if game.ball.position.x > f32(game.arena.width) + game.ball.radius {
 		game.match.left_score += 1
+		rune.play_audio(engine, &world, game.goal_audio)
 		game.match.serve_to_left = false
 		game.match.goal_side = 1
 		game.match.goal_flash_time = .75
@@ -119,9 +134,10 @@ update_pong :: proc(game: ^Pong_Game, engine: ^rune.Engine) {
 	if game.match.serving {
 		if input.pressed(controls, "serve") {
 			launch_ball(&game.ball, game.match.serve_to_left)
+			rune.play_audio(engine, &world, game.start_audio)
 			game.match.serving = false
 		}
-	} else { update_ball(game, engine.delta_time) }
+	} else { update_ball(game, engine, engine.delta_time) }
 }
 
 center_text :: proc(text: string, width, y, size: i32, tint: rl.Color) {

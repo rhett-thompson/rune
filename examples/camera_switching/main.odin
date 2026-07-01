@@ -28,7 +28,7 @@ on_draw :: proc(game: ^rune.Engine) {
 		return
 	}
 	rune.draw_gizmos(game, &world)
-	rl.DrawText("Multiple Camera Switching balls", 24, 24, 28, rl.DARKGRAY)
+	rl.DrawText("Multiple Camera Switching", 24, 24, 28, rl.DARKGRAY)
 	rl.DrawText("[1] Wide  [2] Front  [3] Side", 24, 60, 20, rl.GRAY)
 	rl.DrawText("The selected Camera3D component is active.", 24, 88, 18, rl.DARKGRAY)
 	rl.DrawFPS(24, 118)

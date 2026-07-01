@@ -690,3 +690,13 @@ entity's typed `Transform` every frame.
 ```powershell
 odin run examples/custom_mover -collection:rune=rune
 ```
+
+## Tetris
+
+The `tetris` example is a complete code-driven game using Rune's project,
+scene, system, and input APIs. It includes all seven tetrominoes, scoring,
+levels, next-piece and ghost previews, pause, and restart:
+
+```powershell
+odin run examples/tetris -collection:rune=rune
+```

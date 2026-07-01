@@ -27,6 +27,7 @@ Bullet :: struct {
 Particle :: struct {
 	position, velocity: rl.Vector2,
 	life, max_life, size: f32,
+	thrust: bool,
 }
 
 Game :: struct {
@@ -37,6 +38,7 @@ Game :: struct {
 	asteroids: [dynamic]Asteroid_Instance,
 	bullets: [dynamic]Bullet,
 	particles: [dynamic]Particle,
+	thruster_audio, destroy_audio, laser_audio, music_audio, ship_explode_audio: ecs.Entity,
 	score, lives, wave: i32,
 	game_over: bool,
 }
@@ -122,16 +124,17 @@ emit_particles :: proc(game: ^Game, position: rl.Vector2, count: i32, speed: f32
 	}
 }
 
-destroy_ship :: proc(game: ^Game) {
+destroy_ship :: proc(game: ^Game, engine: ^rune.Engine) {
 	if !game.ship.alive || game.ship.invulnerable > 0 { return }
 	emit_particles(game, game.ship.position, 24, 190)
+	rune.play_audio(engine, &world, game.ship_explode_audio)
 	game.ship.alive = false
 	game.ship.respawn_timer = game.spawner.respawn_delay
 	game.lives -= 1
 	if game.lives <= 0 { game.game_over = true }
 }
 
-fire :: proc(game: ^Game) {
+fire :: proc(game: ^Game, engine: ^rune.Engine) {
 	if game.ship.fire_timer > 0 || len(game.bullets) >= MAX_BULLETS { return }
 	dir := direction(game.ship.angle)
 	append(&game.bullets, Bullet{
@@ -140,6 +143,7 @@ fire :: proc(game: ^Game) {
 		life = game.ship_config.bullet_life,
 	})
 	game.ship.fire_timer = game.ship_config.fire_delay
+	rune.play_audio(engine, &world, game.laser_audio)
 }
 
 update_particles :: proc(game: ^Game, dt: f32) {
@@ -153,7 +157,7 @@ update_particles :: proc(game: ^Game, dt: f32) {
 	}
 }
 
-update_ship :: proc(game: ^Game, controls: ^input.Input, dt: f32) {
+update_ship :: proc(game: ^Game, engine: ^rune.Engine, controls: ^input.Input, dt: f32) {
 	ship := &game.ship
 	ship.fire_timer = max(0, ship.fire_timer - dt)
 	ship.invulnerable = max(0, ship.invulnerable - dt)
@@ -172,6 +176,7 @@ update_ship :: proc(game: ^Game, controls: ^input.Input, dt: f32) {
 				position = ship.position - dir * game.ship_config.radius,
 				velocity = ship.velocity - dir * f32(rl.GetRandomValue(80, 150)),
 				life = .25, max_life = .25, size = 2,
+				thrust = true,
 			})
 		}
 	}
@@ -182,10 +187,10 @@ update_ship :: proc(game: ^Game, controls: ^input.Input, dt: f32) {
 	}
 	ship.position += ship.velocity * dt
 	wrap_position(&ship.position, f32(game.arena.width), f32(game.arena.height))
-	if input.is_down(controls, "fire") { fire(game) }
+	if input.is_down(controls, "fire") { fire(game, engine) }
 }
 
-update_asteroids :: proc(game: ^Game, dt: f32) {
+update_asteroids :: proc(game: ^Game, engine: ^rune.Engine, dt: f32) {
 	for &instance in game.asteroids {
 		asteroid := &instance.component
 		asteroid.position += asteroid.velocity * dt
@@ -194,12 +199,12 @@ update_asteroids :: proc(game: ^Game, dt: f32) {
 		if game.ship.alive && game.ship.invulnerable <= 0 {
 			d := wrapped_delta(asteroid.position, game.ship.position, f32(game.arena.width), f32(game.arena.height))
 			r := asteroid.radius * .82 + game.ship_config.radius
-			if length_squared(d) < r * r { destroy_ship(game) }
+			if length_squared(d) < r * r { destroy_ship(game, engine) }
 		}
 	}
 }
 
-update_bullets :: proc(game: ^Game, dt: f32) {
+update_bullets :: proc(game: ^Game, engine: ^rune.Engine, dt: f32) {
 	for i := len(game.bullets) - 1; i >= 0; i -= 1 {
 		bullet := &game.bullets[i]
 		bullet.life -= dt
@@ -215,6 +220,7 @@ update_bullets :: proc(game: ^Game, dt: f32) {
 			asteroid := game.asteroids[hit].component
 			game.score += 25 * (4 - asteroid.tier)
 			emit_particles(game, asteroid.position, 5 + asteroid.tier * 3, 120)
+			rune.play_audio(engine, &world, game.destroy_audio)
 			remove_asteroid(game, hit)
 			if asteroid.tier > 1 {
 				spawn_asteroid(game, asteroid.position + {-5, 3}, asteroid.tier - 1)
@@ -227,13 +233,28 @@ update_bullets :: proc(game: ^Game, dt: f32) {
 	}
 }
 
-update_game :: proc(engine: ^rune.Engine) {
+update_game :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 	controls := rune.input_state(engine)
-	if input.pressed(controls, "restart") { reset_game(&game); return }
-	if game.game_over { return }
-	update_ship(&game, controls, engine.delta_time)
-	update_asteroids(&game, engine.delta_time)
-	update_bullets(&game, engine.delta_time)
+	if input.pressed(controls, "restart") {
+		rune.stop_audio(engine, game.thruster_audio)
+		reset_game(&game)
+		return
+	}
+	if game.game_over {
+		rune.stop_audio(engine, game.thruster_audio)
+		return
+	}
+	update_ship(&game, engine, controls, engine.delta_time)
+	thrusting := game.ship.alive && input.is_down(controls, "thrust")
+	if thrusting {
+		if !rune.audio_is_playing(engine, game.thruster_audio) {
+			rune.play_audio(engine, &world, game.thruster_audio)
+		}
+	} else if rune.audio_is_playing(engine, game.thruster_audio) {
+		rune.stop_audio(engine, game.thruster_audio)
+	}
+	update_asteroids(&game, engine, engine.delta_time)
+	update_bullets(&game, engine, engine.delta_time)
 	update_particles(&game, engine.delta_time)
 	if len(game.asteroids) == 0 { spawn_wave(&game) }
 }
@@ -260,16 +281,47 @@ draw_ship :: proc(game: ^Game) {
 	draw_wrapped_line(right, nose, tint)
 }
 
-draw_asteroid :: proc(asteroid: Asteroid_Component, tint: rl.Color) {
+draw_asteroid_at :: proc(asteroid: Asteroid_Component, position: rl.Vector2, tint: rl.Color) {
 	vertex_count := 10
 	previous: rl.Vector2
 	for i in 0 ..= vertex_count {
 		index := i % vertex_count
 		noise := f32(((asteroid.seed + i32(index) * 47) % 29) - 14) / 100
 		angle := asteroid.angle + f32(index) / f32(vertex_count) * TAU
-		point := asteroid.position + direction(angle) * asteroid.radius * (1 + noise)
+		point := position + direction(angle) * asteroid.radius * (1 + noise)
 		if i > 0 { rl.DrawLineEx(previous, point, 2, tint) }
 		previous = point
+	}
+}
+
+draw_asteroid :: proc(asteroid: Asteroid_Component, arena: Arena_Config, tint: rl.Color) {
+	draw_asteroid_at(asteroid, asteroid.position, tint)
+
+	// Draw mirrored copies while the shape overlaps an edge. The simulation
+	// wraps its center, so these copies make crossing the playfield continuous.
+	x_offsets: [3]f32
+	y_offsets: [3]f32
+	x_count, y_count := 1, 1
+	if asteroid.position.x < asteroid.radius {
+		x_offsets[x_count] = f32(arena.width)
+		x_count += 1
+	} else if asteroid.position.x > f32(arena.width) - asteroid.radius {
+		x_offsets[x_count] = -f32(arena.width)
+		x_count += 1
+	}
+	if asteroid.position.y < asteroid.radius {
+		y_offsets[y_count] = f32(arena.height)
+		y_count += 1
+	} else if asteroid.position.y > f32(arena.height) - asteroid.radius {
+		y_offsets[y_count] = -f32(arena.height)
+		y_count += 1
+	}
+	for x_index in 0 ..< x_count {
+		for y_index in 0 ..< y_count {
+			if x_index == 0 && y_index == 0 { continue }
+			position := asteroid.position + rl.Vector2{x_offsets[x_index], y_offsets[y_index]}
+			draw_asteroid_at(asteroid, position, tint)
+		}
 	}
 }
 
@@ -278,7 +330,7 @@ draw_centered :: proc(text: string, y, size, width: i32, tint: rl.Color) {
 	rl.DrawText(c_text, (width - rl.MeasureText(c_text, size)) / 2, y, size, tint)
 }
 
-draw_game :: proc(engine: ^rune.Engine) {
+draw_game :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 	line := color(game.arena.line_color)
 	accent := color(game.arena.accent_color)
 	muted := color(game.arena.muted_color)
@@ -288,14 +340,16 @@ draw_game :: proc(engine: ^rune.Engine) {
 		brightness := u8(45 + (i * 37) % 75)
 		rl.DrawPixel(x, y, {line.r, line.g, line.b, brightness})
 	}
-	for asteroid in game.asteroids { draw_asteroid(asteroid.component, line) }
+	for asteroid in game.asteroids { draw_asteroid(asteroid.component, game.arena, line) }
 	for bullet in game.bullets {
 		rl.DrawCircleV(bullet.position, 2.5, accent)
 		rl.DrawCircleV(bullet.position, 6, {accent.r, accent.g, accent.b, 36})
 	}
 	for particle in game.particles {
 		alpha := u8(clamp(particle.life / particle.max_life * 220, 0, 220))
-		rl.DrawCircleV(particle.position, particle.size, {accent.r, accent.g, accent.b, alpha})
+		particle_color := rl.Color{accent.r, accent.g, accent.b, alpha}
+		if particle.thrust { particle_color = {239, 55, 72, alpha} }
+		rl.DrawCircleV(particle.position, particle.size, particle_color)
 	}
 	draw_ship(&game)
 	score_text := fmt.tprintf("SCORE  %06d", game.score)

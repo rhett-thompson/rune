@@ -1,0 +1,34 @@
+{
+  "name": "Tetris",
+  "entities": [
+    {
+      "id": "drop_audio",
+      "components": {
+        "AudioPlayer": {
+          "sound": "assets/drop.wav",
+          "volume": 0.7
+        }
+      }
+    },
+    {
+      "id": "clear_audio",
+      "components": {
+        "AudioPlayer": {
+          "sound": "assets/clear.wav",
+          "volume": 0.85
+        }
+      }
+    },
+    {
+      "id": "music_audio",
+      "components": {
+        "AudioPlayer": {
+          "sound": "assets/music.mp3",
+          "volume": 0.8,
+          "looping": true,
+          "play_on_start": true
+        }
+      }
+    }
+  ]
+}

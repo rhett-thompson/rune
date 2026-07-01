@@ -31,6 +31,31 @@ main :: proc() {
 		fmt.eprintln("Asteroids scene requires arena, ship, and asteroid spawner entities")
 		return
 	}
+	game.thruster_audio, ok = ecs.find_entity_by_id(&world, "thruster_audio")
+	if !ok {
+		fmt.eprintln("Asteroids scene is missing the thruster_audio entity")
+		return
+	}
+	game.destroy_audio, ok = ecs.find_entity_by_id(&world, "asteroid_destroy_audio")
+	if !ok {
+		fmt.eprintln("Asteroids scene is missing the asteroid_destroy_audio entity")
+		return
+	}
+	game.laser_audio, ok = ecs.find_entity_by_id(&world, "laser_audio")
+	if !ok {
+		fmt.eprintln("Asteroids scene is missing the laser_audio entity")
+		return
+	}
+	game.music_audio, ok = ecs.find_entity_by_id(&world, "music_audio")
+	if !ok {
+		fmt.eprintln("Asteroids scene is missing the music_audio entity")
+		return
+	}
+	game.ship_explode_audio, ok = ecs.find_entity_by_id(&world, "ship_explode_audio")
+	if !ok {
+		fmt.eprintln("Asteroids scene is missing the ship_explode_audio entity")
+		return
+	}
 
 	game.asteroids = make([dynamic]Asteroid_Instance)
 	game.bullets = make([dynamic]Bullet)
@@ -39,5 +64,13 @@ main :: proc() {
 	defer delete(game.bullets)
 	defer delete(game.particles)
 	reset_game(&game)
-	rune.run(&engine, update_game, draw_game)
+	if !rune.register_system(&engine, {
+		name = "asteroids",
+		update = update_game,
+		draw = draw_game,
+	}) {
+		fmt.eprintln("Could not register Asteroids system")
+		return
+	}
+	rune.run_scene(&engine, &world)
 }

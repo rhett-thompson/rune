@@ -1,0 +1,12 @@
+{
+  "name": "Blank Rune Project",
+  "startup_scene": "scenes/main.scene.json",
+  "window": {
+    "width": 1280,
+    "height": 720,
+    "title": "Blank Rune Project",
+    "fullscreen": false,
+    "vsync": true
+  },
+  "background_color": [30, 30, 30, 255]
+}

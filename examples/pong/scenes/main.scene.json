@@ -73,6 +73,44 @@
           "serve_to_left": false
         }
       }
+    },
+    {
+      "id": "hit_audio",
+      "components": {
+        "AudioPlayer": {
+          "sound": "assets/pong.wav",
+          "volume": 0.8
+        }
+      }
+    },
+    {
+      "id": "start_audio",
+      "components": {
+        "AudioPlayer": {
+          "sound": "assets/start.wav",
+          "volume": 0.8
+        }
+      }
+    },
+    {
+      "id": "goal_audio",
+      "components": {
+        "AudioPlayer": {
+          "sound": "assets/goal.wav",
+          "volume": 0.9
+        }
+      }
+    },
+    {
+      "id": "music_audio",
+      "components": {
+        "AudioPlayer": {
+          "sound": "assets/music.mp3",
+          "volume": 0.2,
+          "looping": true,
+          "play_on_start": true
+        }
+      }
     }
   ]
 }
