@@ -21,7 +21,7 @@
             "sound": "assets/bell.wav",
             "volume": 0.35,
             "pitch": 1.25,
-            "random_volume": 0.1,
+            "random_volume": 0,
             "random_pitch": 0.05,
             "max_voices": 3,
             "looping": false,

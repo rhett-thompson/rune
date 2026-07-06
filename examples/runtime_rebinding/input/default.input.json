@@ -3,14 +3,14 @@
     "move_left": [
       {
         "type": "keyboard",
-        "key": "A",
+        "key": "LEFT",
         "gamepad": 0
       }
     ],
     "move_right": [
       {
         "type": "keyboard",
-        "key": "D",
+        "key": "RIGHT",
         "gamepad": 0
       }
     ],
