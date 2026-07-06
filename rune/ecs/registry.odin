@@ -3,6 +3,7 @@ package ecs
 Component_Descriptor :: struct {
 	name:        string,
 	description: string,
+	allow_multiple: bool,
 }
 
 Component_Registry :: struct {
@@ -37,8 +38,10 @@ register_builtin_components :: proc(registry: ^Component_Registry) -> bool {
 	camera_2d_registered := register_component(registry, Component_Descriptor{name = "Camera2D", description = "2D view controlled by an entity Transform"})
 	camera_3d_registered := register_component(registry, Component_Descriptor{name = "Camera3D", description = "3D view controlled by an entity Transform"})
 	audio_listener_registered := register_component(registry, Component_Descriptor{name = "AudioListener", description = "Scene audio reference point, normally attached to the active camera"})
-	audio_player_registered := register_component(registry, Component_Descriptor{name = "AudioPlayer", description = "Entity sound playback settings"})
-	return transform_registered && sprite_registered && mesh_registered && sphere_registered && model_registered && tilemap_registered && text_registered && tilemap_collider_registered && top_down_controller_registered && rigid_body_2d_registered && box_collider_2d_registered && circle_collider_2d_registered && box_collider_registered && sphere_collider_registered && character_controller_registered && orbit_registered && rotator_registered && camera_2d_registered && camera_3d_registered && audio_listener_registered && audio_player_registered
+	audio_player_registered := register_component(registry, Component_Descriptor{name = "AudioPlayer", description = "Named entity sound playback settings", allow_multiple = true})
+	nav_grid_2d_registered := register_component(registry, Component_Descriptor{name = "NavGrid2D", description = "Scene-wide 2D navigation grid settings"})
+	nav_agent_2d_registered := register_component(registry, Component_Descriptor{name = "NavAgent2D", description = "2D pathfinding agent settings"})
+	return transform_registered && sprite_registered && mesh_registered && sphere_registered && model_registered && tilemap_registered && text_registered && tilemap_collider_registered && top_down_controller_registered && rigid_body_2d_registered && box_collider_2d_registered && circle_collider_2d_registered && box_collider_registered && sphere_collider_registered && character_controller_registered && orbit_registered && rotator_registered && camera_2d_registered && camera_3d_registered && audio_listener_registered && audio_player_registered && nav_grid_2d_registered && nav_agent_2d_registered
 }
 
 // register_component makes a component name available to a World. The component's
@@ -56,4 +59,9 @@ register_component :: proc(registry: ^Component_Registry, descriptor: Component_
 has_component :: proc(registry: ^Component_Registry, name: string) -> bool {
 	_, found := registry.components[name]
 	return found
+}
+
+component_descriptor :: proc(registry: ^Component_Registry, name: string) -> (Component_Descriptor, bool) {
+	descriptor, found := registry.components[name]
+	return descriptor, found
 }

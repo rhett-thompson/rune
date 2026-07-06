@@ -122,8 +122,8 @@ lock_piece :: proc(g: ^Game, engine: ^rune.Engine) {
 		}
 	}
 	if g.game_over { return }
-	rune.play_audio(engine, &world, drop_audio)
-	if clear_lines(g) > 0 { rune.play_audio(engine, &world, clear_audio) }
+	rune.play_audio(engine, &world, drop_audio, "default")
+	if clear_lines(g) > 0 { rune.play_audio(engine, &world, clear_audio, "default") }
 	spawn_piece(g)
 }
 

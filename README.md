@@ -20,6 +20,19 @@ The initial scaffold provides:
 - cached texture assets and scene-owned 2D sprite rendering;
 - a runnable hello-world example.
 
+## Example launcher
+
+Browse, build, and run the examples from one small launcher:
+
+```powershell
+odin run examples/launcher
+```
+
+Use the arrow keys and Enter, or the mouse, to choose an example. Each example
+remains an independent Odin program and can still be run directly with its
+usual `odin run examples/<name> -collection:rune=rune` command. Launcher
+entries and descriptions live in `examples/examples.json`.
+
 ## Runtime lifecycle
 
 The engine separates simulation from presentation using Unity-like callback
@@ -338,7 +351,7 @@ if ok {
 the active camera entity. `AudioPlayer` belongs on entities that emit sounds.
 The sound path is project-relative; Odin audio systems own playback commands.
 The runtime initializes raylib audio, loads one independent sound instance per
-player entity, honors `play_on_start`, and restarts looping sounds. Spatial
+named player component, honors `play_on_start`, and restarts looping sounds. Spatial
 players use listener-relative distance attenuation and world-X panning as an
 initial simple mixer; orientation-aware 3D audio can replace this later.
 
@@ -348,16 +361,29 @@ initial simple mixer; orientation-aware 3D audio can replace this later.
 
 ```json
 "AudioPlayer": {
-  "sound": "assets/audio/bell.wav",
-  "volume": 0.75,
-  "pitch": 1.0,
-  "looping": false,
-  "spatial": true,
-  "min_distance": 1.0,
-  "max_distance": 20.0,
-  "play_on_start": false
+  "bell": {
+    "sound": "assets/audio/bell.wav",
+    "volume": 0.75,
+    "pitch": 1.0,
+    "random_volume": 0.1,
+    "random_pitch": 0.05,
+    "max_voices": 4,
+    "looping": false,
+    "spatial": true,
+    "min_distance": 1.0,
+    "max_distance": 20.0,
+    "play_on_start": false
+  }
 }
 ```
+
+`AudioPlayer` is repeatable: every instance requires a unique name such as
+`bell`, `shoot`, or `explode`. Pass that name to the playback API.
+`random_volume` and `random_pitch` independently sample a variation in the
+inclusive range `-amount` to `+amount` whenever playback starts. Final volume
+is clamped to zero and final pitch remains positive. Buffered one-shots use up
+to `max_voices` simultaneous voices (default 4), preferring an idle voice and
+otherwise replacing the oldest. Looping sounds and streamed music use one voice.
 
 Use `ecs.active_audio_listener` and `ecs.set_active_audio_listener` to manage
 the selected listener. Scenes should declare one active listener; the ECS does
@@ -371,8 +397,8 @@ odin run examples/audio_components -collection:rune=rune
 
 When using `rune.run_scene`, the engine updates audio automatically. Odin
 systems can trigger a configured player explicitly with
-`rune.play_audio(game, world, entity)` and stop it with
-`rune.stop_audio(game, entity)`.
+`rune.play_audio(game, world, entity, "bell")` and stop it with
+`rune.stop_audio(game, entity, "bell")`.
 
 ## Entity tags and layers
 
@@ -525,6 +551,23 @@ if rune.reload_scene_if_changed(game, &world, "scenes/main.scene.json") {
 
 The helper respects `enabled`, `scenes`, and `prefabs`, and watches the scene
 JSON plus directly referenced prefab files when configured to do so.
+
+`Entity` values are generation-checked runtime handles. A handle from the old
+world is therefore safely rejected after scene reload instead of accidentally
+referring to a different entity at the same numeric index. For references that
+must survive reload, give the entity a stable JSON `id` and retain an
+`ecs.Entity_Ref`:
+
+```odin
+player, _ := ecs.find_entity_by_id(&world, "player")
+player_ref, _ := ecs.entity_ref(&world, player)
+
+// After a scene reload:
+player, found := ecs.resolve_entity_ref(&world, player_ref)
+```
+
+Readable IDs such as `"player"` are suitable for hand-authored projects.
+Editor tooling may generate UUID-shaped IDs later without changing this API.
 
 ## Asset-backed 3D models
 

@@ -4,7 +4,6 @@
     "left_back": [{"type": "keyboard", "key": "S"}],
     "left_turn_left": [{"type": "keyboard", "key": "A"}],
     "left_turn_right": [{"type": "keyboard", "key": "D"}],
-    "left_fire": [{"type": "keyboard", "key": "SPACE"}],
     "right_forward": [{"type": "keyboard", "key": "UP"}],
     "right_back": [{"type": "keyboard", "key": "DOWN"}],
     "right_turn_left": [{"type": "keyboard", "key": "LEFT"}],

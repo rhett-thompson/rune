@@ -49,33 +49,33 @@
       "id": "music",
       "name": "Dungeon Music",
       "components": {
-        "AudioPlayer": { "sound": "assets/music/music_1.mp3", "looping": true, "play_on_start": true, "volume": 0.4 }
+        "AudioPlayer": { "default": { "sound": "assets/music/music_1.mp3", "looping": true, "play_on_start": true, "volume": 0.4 } }
       }
     },
     {
       "id": "hit_audio",
       "name": "Hit Audio",
-      "components": { "AudioPlayer": { "sound": "assets/sounds/hit_2.mp3", "volume": 1.0 } }
+      "components": { "AudioPlayer": { "default": { "sound": "assets/sounds/hit_2.mp3", "volume": 1.0 } } }
     },
     {
       "id": "swing_audio",
       "name": "Swing Audio",
-      "components": { "AudioPlayer": { "sound": "assets/sounds/blade_2.mp3", "volume": 1.0 } }
+      "components": { "AudioPlayer": { "default": { "sound": "assets/sounds/blade_2.mp3", "volume": 1.0 } } }
     },
     {
       "id": "death_audio",
       "name": "Death Audio",
-      "components": { "AudioPlayer": { "sound": "assets/sounds/death_3.mp3", "volume": 1.0 } }
+      "components": { "AudioPlayer": { "default": { "sound": "assets/sounds/death_3.mp3", "volume": 1.0 } } }
     },
     {
       "id": "footstep_audio",
       "name": "Footstep Audio",
-      "components": { "AudioPlayer": { "sound": "assets/sounds/footstep.mp3", "volume": 0.55 } }
+      "components": { "AudioPlayer": { "default": { "sound": "assets/sounds/footstep.mp3", "volume": 0.55 } } }
     },
     {
       "id": "level_audio",
       "name": "Level Complete Audio",
-      "components": { "AudioPlayer": { "sound": "assets/sounds/potion.mp3", "volume": 1.0 } }
+      "components": { "AudioPlayer": { "default": { "sound": "assets/sounds/potion.mp3", "volume": 1.0 } } }
     }
   ]
 }

@@ -48,12 +48,14 @@
       "name": "Thruster Audio",
       "components": {
         "AudioPlayer": {
-          "sound": "assets/thruster.wav",
-          "volume": 0.4,
-          "pitch": 1.0,
-          "looping": true,
-          "spatial": false,
-          "play_on_start": false
+          "default": {
+            "sound": "assets/thruster.wav",
+            "volume": 0.4,
+            "pitch": 1.0,
+            "looping": true,
+            "spatial": false,
+            "play_on_start": false
+          }
         }
       }
     },
@@ -62,12 +64,14 @@
       "name": "Asteroid Destroy Audio",
       "components": {
         "AudioPlayer": {
-          "sound": "assets/asteroid_destroy.wav",
-          "volume": 0.55,
-          "pitch": 1.0,
-          "looping": false,
-          "spatial": false,
-          "play_on_start": false
+          "default": {
+            "sound": "assets/asteroid_destroy.wav",
+            "volume": 0.55,
+            "pitch": 1.0,
+            "looping": false,
+            "spatial": false,
+            "play_on_start": false
+          }
         }
       }
     },
@@ -76,12 +80,14 @@
       "name": "Laser Audio",
       "components": {
         "AudioPlayer": {
-          "sound": "assets/laser.wav",
-          "volume": 0.45,
-          "pitch": 1.0,
-          "looping": false,
-          "spatial": false,
-          "play_on_start": false
+          "default": {
+            "sound": "assets/laser.wav",
+            "volume": 0.45,
+            "pitch": 1.0,
+            "looping": false,
+            "spatial": false,
+            "play_on_start": false
+          }
         }
       }
     },
@@ -90,12 +96,14 @@
       "name": "Background Music",
       "components": {
         "AudioPlayer": {
-          "sound": "assets/music.mp3",
-          "volume": 0.25,
-          "pitch": 1.0,
-          "looping": true,
-          "spatial": false,
-          "play_on_start": true
+          "default": {
+            "sound": "assets/music.mp3",
+            "volume": 0.25,
+            "pitch": 1.0,
+            "looping": true,
+            "spatial": false,
+            "play_on_start": true
+          }
         }
       }
     },
@@ -104,12 +112,14 @@
       "name": "Ship Explosion Audio",
       "components": {
         "AudioPlayer": {
-          "sound": "assets/explode.wav",
-          "volume": 0.65,
-          "pitch": 1.0,
-          "looping": false,
-          "spatial": false,
-          "play_on_start": false
+          "default": {
+            "sound": "assets/explode.wav",
+            "volume": 0.65,
+            "pitch": 1.0,
+            "looping": false,
+            "spatial": false,
+            "play_on_start": false
+          }
         }
       }
     }

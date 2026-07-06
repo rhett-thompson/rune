@@ -26,13 +26,13 @@ play_bell_on_click :: proc(game: ^rune.Engine, scene_world: ^ecs.World) {
 		ecs.set_transform(scene_world, player_entity, transform)
 	}
 	if input.pressed(rune.input_state(game), "play_bell") {
-		last_play_succeeded = rune.play_audio(game, scene_world, player_entity)
+		last_play_succeeded = rune.play_audio(game, scene_world, player_entity, "bell")
 	}
 }
 
 draw_audio_components :: proc(game: ^rune.Engine, scene_world: ^ecs.World) {
 	listener, listener_found := ecs.get_audio_listener(scene_world, listener_entity)
-	player, player_found := ecs.get_audio_player(scene_world, player_entity)
+	player, player_found := ecs.get_audio_player(scene_world, player_entity, "bell")
 	if !listener_found || !player_found {
 		rl.DrawText("Audio component data is missing", 24, 24, 28, rl.MAROON)
 		return

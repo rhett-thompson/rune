@@ -15,6 +15,9 @@ AudioPlayer :: struct {
 	sound:         string,
 	volume:        f32,
 	pitch:         f32,
+	random_volume: f32,
+	random_pitch:  f32,
+	max_voices:    i32,
 	looping:       bool,
 	spatial:       bool,
 	min_distance:  f32,
@@ -27,7 +30,7 @@ default_audio_listener :: proc() -> AudioListener {
 }
 
 default_audio_player :: proc() -> AudioPlayer {
-	return AudioPlayer{volume = 1, pitch = 1, min_distance = 1, max_distance = 20}
+	return AudioPlayer{volume = 1, pitch = 1, max_voices = 4, min_distance = 1, max_distance = 20}
 }
 
 audio_listener_from_json :: proc(data: json.Value) -> (AudioListener, bool) {
@@ -58,6 +61,19 @@ audio_player_from_json :: proc(data: json.Value) -> (AudioPlayer, bool) {
 	if value, found := object["pitch"]; found {
 		result.pitch, ok = read_number(value)
 		if !ok || result.pitch <= 0 { return {}, false }
+	}
+	if value, found := object["random_volume"]; found {
+		result.random_volume, ok = read_number(value)
+		if !ok || result.random_volume < 0 { return {}, false }
+	}
+	if value, found := object["random_pitch"]; found {
+		result.random_pitch, ok = read_number(value)
+		if !ok || result.random_pitch < 0 { return {}, false }
+	}
+	if value, found := object["max_voices"]; found {
+		number, number_ok := read_number(value)
+		if !number_ok || number < 1 || number != f32(i32(number)) { return {}, false }
+		result.max_voices = i32(number)
 	}
 	if value, found := object["looping"]; found { result.looping, ok = value.(json.Boolean); if !ok { return {}, false } }
 	if value, found := object["spatial"]; found { result.spatial, ok = value.(json.Boolean); if !ok { return {}, false } }

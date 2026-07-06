@@ -3,7 +3,22 @@ package ecs
 import "core:encoding/json"
 import b2 "vendor:box2d"
 
+// Entity is a compact runtime handle. The low 32 bits identify an entity
+// within a World and the high 32 bits identify the World generation. This
+// prevents a handle cached before scene hot reload from aliasing an entity in
+// the replacement World.
 Entity :: distinct u64
+
+Entity_Ref :: struct {
+	id: string,
+}
+
+Component_Instance :: struct {
+	entity: Entity,
+	name:   string,
+}
+
+next_world_generation: u32 = 1
 
 // Default is the only universally named layer. Projects may define additional
 // names for bits 1 through 63 in project.json.
@@ -11,7 +26,8 @@ Default_Layer      : u8  : 0
 Default_Layer_Mask : u64 : u64(1) << Default_Layer
 
 World :: struct {
-	next_entity:     Entity,
+	generation:      u32,
+	next_entity:     u32,
 	entity_count:    int,
 	entities:        map[Entity]bool,
 	entity_ids:      map[Entity]string,
@@ -27,6 +43,7 @@ World :: struct {
 	hierarchy_dirty: bool,
 	scene_json:       json.Value,
 	component_data:  map[string]map[Entity]json.Value,
+	component_instance_data: map[string]map[Component_Instance]json.Value,
 	transforms:       map[Entity]Transform,
 	sprite_renderers: map[Entity]SpriteRenderer,
 	mesh_renderers:   map[Entity]MeshRenderer,
@@ -50,12 +67,20 @@ World :: struct {
 	cameras_2d:       map[Entity]Camera2D,
 	cameras_3d:       map[Entity]Camera3D,
 	audio_listeners:  map[Entity]AudioListener,
-	audio_players:    map[Entity]AudioPlayer,
+	audio_players:    map[Component_Instance]AudioPlayer,
+	nav_grids_2d:     map[Entity]NavGrid2D,
+	nav_agents_2d:    map[Entity]NavAgent2D,
 }
 
 init :: proc() -> World {
+	generation := next_world_generation
+	next_world_generation += 1
+	if next_world_generation == 0 {
+		next_world_generation = 1
+	}
 	return World{
-		next_entity = Entity(1),
+		generation = generation,
+		next_entity = 1,
 		entities = make(map[Entity]bool),
 		entity_ids = make(map[Entity]string),
 		entities_by_id = make(map[string]Entity),
@@ -67,6 +92,7 @@ init :: proc() -> World {
 		children_by_parent = make(map[Entity][dynamic]Entity),
 		hierarchy_dirty = true,
 		component_data = make(map[string]map[Entity]json.Value),
+		component_instance_data = make(map[string]map[Component_Instance]json.Value),
 		transforms = make(map[Entity]Transform),
 		sprite_renderers = make(map[Entity]SpriteRenderer),
 		mesh_renderers = make(map[Entity]MeshRenderer),
@@ -88,7 +114,9 @@ init :: proc() -> World {
 		cameras_2d = make(map[Entity]Camera2D),
 		cameras_3d = make(map[Entity]Camera3D),
 		audio_listeners = make(map[Entity]AudioListener),
-		audio_players = make(map[Entity]AudioPlayer),
+		audio_players = make(map[Component_Instance]AudioPlayer),
+		nav_grids_2d = make(map[Entity]NavGrid2D),
+		nav_agents_2d = make(map[Entity]NavAgent2D),
 	}
 }
 
@@ -153,7 +181,10 @@ ensure_hierarchy_indexes :: proc(world: ^World) {
 }
 
 create_entity :: proc(world: ^World) -> Entity {
-	entity := world.next_entity
+	if world.next_entity == 0 {
+		return Entity(0)
+	}
+	entity := make_entity(world.generation, world.next_entity)
 	world.next_entity += 1
 	world.entity_count += 1
 	world.entities[entity] = true
@@ -163,8 +194,22 @@ create_entity :: proc(world: ^World) -> Entity {
 	return entity
 }
 
+make_entity :: proc(generation, index: u32) -> Entity {
+	return Entity((u64(generation) << 32) | u64(index))
+}
+
+entity_index :: proc(entity: Entity) -> u32 {
+	return u32(u64(entity) & 0xffffffff)
+}
+
+entity_generation :: proc(entity: Entity) -> u32 {
+	return u32(u64(entity) >> 32)
+}
+
 is_alive :: proc(world: ^World, entity: Entity) -> bool {
-	return world.entities[entity]
+	return entity != Entity(0) &&
+	       entity_generation(entity) == world.generation &&
+	       world.entities[entity]
 }
 
 // set_entity_metadata assigns scene-owned identity and filtering data. Non-empty
@@ -202,6 +247,28 @@ find_entity_by_id :: proc(world: ^World, id: string) -> (Entity, bool) {
 	}
 	entity, found := world.entities_by_id[id]
 	return entity, found
+}
+
+// entity_ref returns a persistent, JSON-facing reference for a scene entity.
+// Unlike Entity, this value can be resolved again after the World is replaced.
+// Runtime-only entities without an ID cannot produce a persistent reference.
+entity_ref :: proc(world: ^World, entity: Entity) -> (Entity_Ref, bool) {
+	id, found := entity_id(world, entity)
+	if !found || id == "" {
+		return {}, false
+	}
+	return Entity_Ref{id = id}, true
+}
+
+entity_ref_from_id :: proc(id: string) -> (Entity_Ref, bool) {
+	if id == "" {
+		return {}, false
+	}
+	return Entity_Ref{id = id}, true
+}
+
+resolve_entity_ref :: proc(world: ^World, ref: Entity_Ref) -> (Entity, bool) {
+	return find_entity_by_id(world, ref.id)
 }
 
 entity_name :: proc(world: ^World, entity: Entity) -> (string, bool) {
@@ -247,6 +314,36 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 	if !is_alive(world, entity) || !has_component(registry, name) {
 		return false
 	}
+	descriptor, _ := component_descriptor(registry, name)
+	if descriptor.allow_multiple {
+		instances, ok := data.(json.Object)
+		if !ok || len(instances) == 0 { return false }
+
+		parsed_audio := make(map[Component_Instance]AudioPlayer, context.temp_allocator)
+		for instance_name, instance_data in instances {
+			if len(instance_name) == 0 { return false }
+			key := Component_Instance{entity = entity, name = instance_name}
+			if name == "AudioPlayer" {
+				value, parsed := audio_player_from_json(instance_data)
+				if !parsed { return false }
+				parsed_audio[key] = value
+			}
+		}
+
+		values, values_found := world.component_instance_data[name]
+		if !values_found { values = make(map[Component_Instance]json.Value) }
+		for instance_name, instance_data in instances {
+			key := Component_Instance{entity = entity, name = instance_name}
+			values[key] = instance_data
+			if name == "AudioPlayer" { world.audio_players[key] = parsed_audio[key] }
+		}
+		world.component_instance_data[name] = values
+		components, components_found := world.component_data[name]
+		if !components_found { components = make(map[Entity]json.Value) }
+		components[entity] = data
+		world.component_data[name] = components
+		return true
+	}
 
 	transform: Transform
 	sprite_renderer: SpriteRenderer
@@ -268,7 +365,8 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 	camera_2d: Camera2D
 	camera_3d: Camera3D
 	audio_listener: AudioListener
-	audio_player: AudioPlayer
+	nav_grid_2d: NavGrid2D
+	nav_agent_2d: NavAgent2D
 	parse_ok: bool
 	if name == "Transform" {
 		transform, parse_ok = transform_from_json(data)
@@ -295,7 +393,8 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 	if name == "Camera2D" { camera_2d, parse_ok = camera_2d_from_json(data); if !parse_ok { return false } }
 	if name == "Camera3D" { camera_3d, parse_ok = camera_3d_from_json(data); if !parse_ok { return false } }
 	if name == "AudioListener" { audio_listener, parse_ok = audio_listener_from_json(data); if !parse_ok { return false } }
-	if name == "AudioPlayer" { audio_player, parse_ok = audio_player_from_json(data); if !parse_ok { return false } }
+	if name == "NavGrid2D" { nav_grid_2d, parse_ok = nav_grid_2d_from_json(data); if !parse_ok { return false } }
+	if name == "NavAgent2D" { nav_agent_2d, parse_ok = nav_agent_2d_from_json(data); if !parse_ok { return false } }
 
 	components, component_type_found := world.component_data[name]
 	if !component_type_found {
@@ -326,7 +425,8 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 	if name == "Camera2D" { world.cameras_2d[entity] = camera_2d }
 	if name == "Camera3D" { world.cameras_3d[entity] = camera_3d }
 	if name == "AudioListener" { world.audio_listeners[entity] = audio_listener }
-	if name == "AudioPlayer" { world.audio_players[entity] = audio_player }
+	if name == "NavGrid2D" { world.nav_grids_2d[entity] = nav_grid_2d }
+	if name == "NavAgent2D" { world.nav_agents_2d[entity] = nav_agent_2d }
 	return true
 }
 
@@ -364,7 +464,19 @@ remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
 	if name == "Camera2D" { delete_key(&world.cameras_2d, entity) }
 	if name == "Camera3D" { delete_key(&world.cameras_3d, entity) }
 	if name == "AudioListener" { delete_key(&world.audio_listeners, entity) }
-	if name == "AudioPlayer" { delete_key(&world.audio_players, entity) }
+	if name == "AudioPlayer" {
+		for key in world.audio_players {
+			if key.entity == entity { delete_key(&world.audio_players, key) }
+		}
+	}
+	if instances, instances_found := world.component_instance_data[name]; instances_found {
+		for key in instances {
+			if key.entity == entity { delete_key(&instances, key) }
+		}
+		world.component_instance_data[name] = instances
+	}
+	if name == "NavGrid2D" { delete_key(&world.nav_grids_2d, entity) }
+	if name == "NavAgent2D" { delete_key(&world.nav_agents_2d, entity) }
 	return true
 }
 
@@ -397,6 +509,44 @@ get_component :: proc(world: ^World, entity: Entity, name: string) -> (json.Valu
 
 	component, component_found := components[entity]
 	return component, component_found
+}
+
+get_component_instance :: proc(world: ^World, entity: Entity, component_name, instance_name: string) -> (json.Value, bool) {
+	instances, found := world.component_instance_data[component_name]
+	if !found { return {}, false }
+	value, instance_found := instances[Component_Instance{entity = entity, name = instance_name}]
+	return value, instance_found
+}
+
+component_instance_names :: proc(world: ^World, entity: Entity, component_name: string) -> []string {
+	instances, found := world.component_instance_data[component_name]
+	if !found { return nil }
+	result := make([dynamic]string, context.temp_allocator)
+	for key in instances {
+		if key.entity == entity { append(&result, key.name) }
+	}
+	return result[:]
+}
+
+remove_component_instance :: proc(world: ^World, entity: Entity, component_name, instance_name: string) -> bool {
+	instances, found := world.component_instance_data[component_name]
+	if !found { return false }
+	key := Component_Instance{entity = entity, name = instance_name}
+	if _, instance_found := instances[key]; !instance_found { return false }
+	delete_key(&instances, key)
+	world.component_instance_data[component_name] = instances
+	if component_name == "AudioPlayer" { delete_key(&world.audio_players, key) }
+	has_remaining := false
+	for candidate in instances {
+		if candidate.entity == entity { has_remaining = true; break }
+	}
+	if !has_remaining {
+		if components, components_found := world.component_data[component_name]; components_found {
+			delete_key(&components, entity)
+			world.component_data[component_name] = components
+		}
+	}
+	return true
 }
 
 // get_scene_json exposes the full root scene JSON document used to create this
@@ -463,8 +613,20 @@ get_camera_3d :: proc(world: ^World, entity: Entity) -> (Camera3D, bool) { value
 set_camera_3d :: proc(world: ^World, entity: Entity, value: Camera3D) -> bool { if !has_component_data(world, entity, "Camera3D") { return false }; world.cameras_3d[entity] = value; return true }
 get_audio_listener :: proc(world: ^World, entity: Entity) -> (AudioListener, bool) { value, found := world.audio_listeners[entity]; return value, found }
 set_audio_listener :: proc(world: ^World, entity: Entity, value: AudioListener) -> bool { if !has_component_data(world, entity, "AudioListener") { return false }; world.audio_listeners[entity] = value; return true }
-get_audio_player :: proc(world: ^World, entity: Entity) -> (AudioPlayer, bool) { value, found := world.audio_players[entity]; return value, found }
-set_audio_player :: proc(world: ^World, entity: Entity, value: AudioPlayer) -> bool { if !has_component_data(world, entity, "AudioPlayer") { return false }; world.audio_players[entity] = value; return true }
+get_audio_player :: proc(world: ^World, entity: Entity, instance_name: string) -> (AudioPlayer, bool) {
+	value, found := world.audio_players[Component_Instance{entity = entity, name = instance_name}]
+	return value, found
+}
+set_audio_player :: proc(world: ^World, entity: Entity, instance_name: string, value: AudioPlayer) -> bool {
+	key := Component_Instance{entity = entity, name = instance_name}
+	if _, found := world.audio_players[key]; !found { return false }
+	world.audio_players[key] = value
+	return true
+}
+get_nav_grid_2d :: proc(world: ^World, entity: Entity) -> (NavGrid2D, bool) { value, found := world.nav_grids_2d[entity]; return value, found }
+set_nav_grid_2d :: proc(world: ^World, entity: Entity, value: NavGrid2D) -> bool { if !has_component_data(world, entity, "NavGrid2D") { return false }; world.nav_grids_2d[entity] = value; return true }
+get_nav_agent_2d :: proc(world: ^World, entity: Entity) -> (NavAgent2D, bool) { value, found := world.nav_agents_2d[entity]; return value, found }
+set_nav_agent_2d :: proc(world: ^World, entity: Entity, value: NavAgent2D) -> bool { if !has_component_data(world, entity, "NavAgent2D") { return false }; world.nav_agents_2d[entity] = value; return true }
 
 active_camera_2d :: proc(world: ^World) -> (Entity, Camera2D, bool) {
 	for entity, camera in world.cameras_2d {

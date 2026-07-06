@@ -19,6 +19,39 @@
             [410, 235, 140, 45],
             [410, 410, 140, 45]
           ]
+        },
+        "NavGrid2D": {
+          "cell_size": 20,
+          "algorithm": "theta_star"
+        },
+        "AudioPlayer": {
+          "music": {
+            "sound": "assets/music.mp3",
+            "volume": 0.35,
+            "looping": true,
+            "play_on_start": true
+          },
+          "ricochet": {
+            "sound": "assets/ricochet.wav",
+            "volume": 0.7,
+            "random_pitch": 0.06
+          },
+          "tank_explode": {
+            "sound": "assets/tank_explode.wav",
+            "volume": 0.85,
+            "random_pitch": 0.04
+          },
+          "bullet_explode": {
+            "sound": "assets/bullet_explode.wav",
+            "volume": 0.7,
+            "random_pitch": 0.08
+          },
+          "shoot": {
+            "sound": "assets/shoot.wav",
+            "volume": 0.75,
+            "random_pitch": 0.05,
+            "random_volume": 0.05
+          }
         }
       }
     },
@@ -59,6 +92,11 @@
           "computer": true,
           "body_color": [246, 166, 35, 255],
           "tread_color": [139, 82, 17, 255]
+        },
+        "NavAgent2D": {
+          "radius": 23,
+          "repath_interval": 0.25,
+          "arrival_distance": 8
         }
       }
     },

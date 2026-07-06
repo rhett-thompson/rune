@@ -131,7 +131,7 @@ dungeon_reload_system :: proc(engine: ^rune.Engine, world: ^ecs.World) {
 }
 
 play_audio :: proc(engine: ^rune.Engine, world: ^ecs.World, entity: ecs.Entity) {
-	rune.play_audio(engine, world, entity)
+	rune.play_audio(engine, world, entity, "default")
 }
 
 open :: proc(x, y: f32) -> bool {

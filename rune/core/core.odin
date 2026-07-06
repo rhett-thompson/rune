@@ -209,18 +209,19 @@ draw_gizmos :: proc(engine: ^Engine, world: ^ecs.World) {
 	gizmos.draw_scene(world, engine.gizmos)
 }
 
-// play_audio and stop_audio are the runtime commands for AudioPlayer entities.
+// AudioPlayer is repeatable, so playback commands address an entity and its
+// stable component instance name.
 // The engine owns the audio device and per-entity raylib sound instances.
-play_audio :: proc(engine: ^Engine, world: ^ecs.World, entity: ecs.Entity) -> bool {
-	return audio.play(&engine.audio, world, entity)
+play_audio :: proc(engine: ^Engine, world: ^ecs.World, entity: ecs.Entity, instance_name: string) -> bool {
+	return audio.play(&engine.audio, world, entity, instance_name)
 }
 
-stop_audio :: proc(engine: ^Engine, entity: ecs.Entity) -> bool {
-	return audio.stop(&engine.audio, entity)
+stop_audio :: proc(engine: ^Engine, entity: ecs.Entity, instance_name: string) -> bool {
+	return audio.stop(&engine.audio, entity, instance_name)
 }
 
-audio_is_playing :: proc(engine: ^Engine, entity: ecs.Entity) -> bool {
-	return audio.is_playing(&engine.audio, entity)
+audio_is_playing :: proc(engine: ^Engine, entity: ecs.Entity, instance_name: string) -> bool {
+	return audio.is_playing(&engine.audio, entity, instance_name)
 }
 
 // register_system appends a game system to the deterministic lifecycle order.

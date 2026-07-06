@@ -14,8 +14,8 @@ register_tanks_components :: proc(game: ^rune.Engine) -> bool {
 	       ecs.register_component(registry, {name = "TanksMatch", description = "Tank match scoring and round state"})
 }
 
-on_update :: proc(engine: ^rune.Engine) { update_tanks(&game_state, engine) }
-on_draw :: proc(engine: ^rune.Engine) { draw_tanks(&game_state) }
+on_update :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) { update_tanks(&game_state, engine, scene_world) }
+on_draw :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) { draw_tanks(&game_state) }
 
 main :: proc() {
 	engine, ok := rune.init("examples/tanks/project.json")
@@ -30,6 +30,15 @@ main :: proc() {
 		fmt.eprintln("Tanks scene requires one arena, one match, and two tanks")
 		return
 	}
+	defer destroy_tanks_game(&game_state)
+	if !rune.register_system(&engine, {
+		name = "tanks",
+		update = on_update,
+		draw = on_draw,
+	}) {
+		fmt.eprintln("Could not register the Tanks system")
+		return
+	}
 	reset_match(&game_state)
-	rune.run(&engine, on_update, on_draw)
+	rune.run_scene(&engine, &world)
 }

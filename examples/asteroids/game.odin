@@ -127,7 +127,7 @@ emit_particles :: proc(game: ^Game, position: rl.Vector2, count: i32, speed: f32
 destroy_ship :: proc(game: ^Game, engine: ^rune.Engine) {
 	if !game.ship.alive || game.ship.invulnerable > 0 { return }
 	emit_particles(game, game.ship.position, 24, 190)
-	rune.play_audio(engine, &world, game.ship_explode_audio)
+	rune.play_audio(engine, &world, game.ship_explode_audio, "default")
 	game.ship.alive = false
 	game.ship.respawn_timer = game.spawner.respawn_delay
 	game.lives -= 1
@@ -143,7 +143,7 @@ fire :: proc(game: ^Game, engine: ^rune.Engine) {
 		life = game.ship_config.bullet_life,
 	})
 	game.ship.fire_timer = game.ship_config.fire_delay
-	rune.play_audio(engine, &world, game.laser_audio)
+	rune.play_audio(engine, &world, game.laser_audio, "default")
 }
 
 update_particles :: proc(game: ^Game, dt: f32) {
@@ -220,7 +220,7 @@ update_bullets :: proc(game: ^Game, engine: ^rune.Engine, dt: f32) {
 			asteroid := game.asteroids[hit].component
 			game.score += 25 * (4 - asteroid.tier)
 			emit_particles(game, asteroid.position, 5 + asteroid.tier * 3, 120)
-			rune.play_audio(engine, &world, game.destroy_audio)
+			rune.play_audio(engine, &world, game.destroy_audio, "default")
 			remove_asteroid(game, hit)
 			if asteroid.tier > 1 {
 				spawn_asteroid(game, asteroid.position + {-5, 3}, asteroid.tier - 1)
@@ -236,22 +236,22 @@ update_bullets :: proc(game: ^Game, engine: ^rune.Engine, dt: f32) {
 update_game :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 	controls := rune.input_state(engine)
 	if input.pressed(controls, "restart") {
-		rune.stop_audio(engine, game.thruster_audio)
+		rune.stop_audio(engine, game.thruster_audio, "default")
 		reset_game(&game)
 		return
 	}
 	if game.game_over {
-		rune.stop_audio(engine, game.thruster_audio)
+		rune.stop_audio(engine, game.thruster_audio, "default")
 		return
 	}
 	update_ship(&game, engine, controls, engine.delta_time)
 	thrusting := game.ship.alive && input.is_down(controls, "thrust")
 	if thrusting {
-		if !rune.audio_is_playing(engine, game.thruster_audio) {
-			rune.play_audio(engine, &world, game.thruster_audio)
+		if !rune.audio_is_playing(engine, game.thruster_audio, "default") {
+			rune.play_audio(engine, &world, game.thruster_audio, "default")
 		}
-	} else if rune.audio_is_playing(engine, game.thruster_audio) {
-		rune.stop_audio(engine, game.thruster_audio)
+	} else if rune.audio_is_playing(engine, game.thruster_audio, "default") {
+		rune.stop_audio(engine, game.thruster_audio, "default")
 	}
 	update_asteroids(&game, engine, engine.delta_time)
 	update_bullets(&game, engine, engine.delta_time)

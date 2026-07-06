@@ -231,10 +231,13 @@ draw_audio_2d :: proc(world: ^ecs.World) {
 	}
 	for entity in ecs.entities_with_component(world, "AudioPlayer") {
 		transform, has_transform := ecs.get_transform(world, entity)
-		player, has_player := ecs.get_audio_player(world, entity)
-		if !has_transform || !has_player { continue }
-		rl.DrawCircleLines(i32(transform.position[0]), i32(transform.position[1]), player.min_distance, rl.PINK)
-		if player.spatial { rl.DrawCircleLines(i32(transform.position[0]), i32(transform.position[1]), player.max_distance, rl.MAROON) }
+		if !has_transform { continue }
+		for instance_name in ecs.component_instance_names(world, entity, "AudioPlayer") {
+			player, has_player := ecs.get_audio_player(world, entity, instance_name)
+			if !has_player { continue }
+			rl.DrawCircleLines(i32(transform.position[0]), i32(transform.position[1]), player.min_distance, rl.PINK)
+			if player.spatial { rl.DrawCircleLines(i32(transform.position[0]), i32(transform.position[1]), player.max_distance, rl.MAROON) }
+		}
 	}
 }
 
@@ -247,10 +250,13 @@ draw_audio_3d :: proc(world: ^ecs.World) {
 	}
 	for entity in ecs.entities_with_component(world, "AudioPlayer") {
 		transform, has_transform := ecs.get_transform(world, entity)
-		player, has_player := ecs.get_audio_player(world, entity)
-		if !has_transform || !has_player { continue }
-		rl.DrawSphereWires(transform.position, player.min_distance, 12, 6, rl.PINK)
-		if player.spatial { rl.DrawSphereWires(transform.position, player.max_distance, 16, 8, rl.MAROON) }
+		if !has_transform { continue }
+		for instance_name in ecs.component_instance_names(world, entity, "AudioPlayer") {
+			player, has_player := ecs.get_audio_player(world, entity, instance_name)
+			if !has_player { continue }
+			rl.DrawSphereWires(transform.position, player.min_distance, 12, 6, rl.PINK)
+			if player.spatial { rl.DrawSphereWires(transform.position, player.max_distance, 16, 8, rl.MAROON) }
+		}
 	}
 }
 

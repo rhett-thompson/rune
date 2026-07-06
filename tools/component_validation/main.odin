@@ -35,6 +35,7 @@ main :: proc() {
 	validate_motion_components()
 	validate_camera_components()
 	validate_audio_components()
+	validate_named_audio_instances()
 	fmt.println("Typed built-in component validation passed")
 }
 
@@ -49,9 +50,13 @@ validate_audio_components :: proc() {
 	assert(active_found && active_entity == listener_entity && listener.active)
 	player_entity, player_found := ecs.find_entity_by_id(&world, "bell_sphere")
 	assert(player_found)
-	player, has_player := ecs.get_audio_player(&world, player_entity)
+	player_names := ecs.component_instance_names(&world, player_entity, "AudioPlayer")
+	assert(len(player_names) == 1 && player_names[0] == "bell")
+	player, has_player := ecs.get_audio_player(&world, player_entity, "bell")
 	assert(has_player && player.sound == "assets/bell.wav" && player.spatial && !player.looping)
 	assert(player.volume == 0.35 && player.pitch == 1.25 && player.min_distance == 2 && player.max_distance == 32)
+	assert(player.random_volume == 0.1 && player.random_pitch == 0.05)
+	assert(player.max_voices == 3)
 	assert(!player.play_on_start)
 	assert(ecs.set_active_audio_listener(&world, listener_entity))
 }
@@ -83,6 +88,38 @@ validate_entity_id_index :: proc() {
 	assert(!ecs.set_entity_metadata(&world, second, "player", "Other Player", "", ecs.Default_Layer_Mask))
 	_, empty_found := ecs.find_entity_by_id(&world, "")
 	assert(!empty_found)
+
+	player_ref, ref_found := ecs.entity_ref(&world, first)
+	assert(ref_found && player_ref.id == "player")
+
+	reloaded_world := ecs.init()
+	reloaded_player := ecs.create_entity(&reloaded_world)
+	assert(ecs.set_entity_metadata(&reloaded_world, reloaded_player, "player", "Player", "", ecs.Default_Layer_Mask))
+	assert(!ecs.is_alive(&reloaded_world, first))
+	assert(ecs.entity_index(first) == ecs.entity_index(reloaded_player))
+	assert(ecs.entity_generation(first) != ecs.entity_generation(reloaded_player))
+	resolved_after_reload, resolved_after_reload_found := ecs.resolve_entity_ref(&reloaded_world, player_ref)
+	assert(resolved_after_reload_found && resolved_after_reload == reloaded_player)
+}
+
+validate_named_audio_instances :: proc() {
+	registry := ecs.init_registry()
+	assert(ecs.register_builtin_components(&registry))
+	world, loaded := scene.load("examples/tanks/scenes/main.scene.json", &registry)
+	assert(loaded)
+	arena, found := ecs.find_entity_by_id(&world, "arena")
+	assert(found)
+	names := ecs.component_instance_names(&world, arena, "AudioPlayer")
+	assert(len(names) == 5)
+	expected_names := [5]string{"music", "ricochet", "tank_explode", "bullet_explode", "shoot"}
+	for name in expected_names {
+		player, instance_found := ecs.get_audio_player(&world, arena, name)
+		assert(instance_found)
+		assert(player.max_voices == 4)
+	}
+	assert(ecs.remove_component_instance(&world, arena, "AudioPlayer", "shoot"))
+	_, shoot_found := ecs.get_audio_player(&world, arena, "shoot")
+	assert(!shoot_found && ecs.has_component_data(&world, arena, "AudioPlayer"))
 }
 
 validate_camera_components :: proc() {

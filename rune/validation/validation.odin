@@ -242,6 +242,19 @@ validate_components :: proc(report: ^Report, file, path: string, components: jso
 	for name, value in components {
 		component, ok := value.(json.Object)
 		if !ok { add(report, file, field_path(path, name), "component data must be an object"); continue }
+		if name == "AudioPlayer" {
+			if len(component) == 0 { add(report, file, field_path(path, name), "must define at least one named instance"); continue }
+			for instance_name, instance_value in component {
+				instance, instance_ok := instance_value.(json.Object)
+				instance_path := field_path(field_path(path, name), instance_name)
+				if len(instance_name) == 0 || !instance_ok {
+					add(report, file, instance_path, "named component instance must be an object")
+					continue
+				}
+				validate_component_assets(report, file, instance_path, instance, project_directory)
+			}
+			continue
+		}
 		validate_component_assets(report, file, field_path(path, name), component, project_directory)
 	}
 }

@@ -23,7 +23,7 @@
     "TilemapCollider": { "$ref": "#/$defs/tilemapCollider" },
     "TopDownController": { "$ref": "#/$defs/topDownController" },
     "AudioListener": { "$ref": "#/$defs/audioListener" },
-    "AudioPlayer": { "$ref": "#/$defs/audioPlayer" },
+    "AudioPlayer": { "$ref": "#/$defs/audioPlayers" },
     "Orbit": { "$ref": "#/$defs/orbit" },
     "Rotator": { "$ref": "#/$defs/rotator" }
   },
@@ -218,6 +218,12 @@
       "properties": { "active": { "type": "boolean", "default": true } },
       "additionalProperties": false
     },
+    "audioPlayers": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "minLength": 1 },
+      "additionalProperties": { "$ref": "#/$defs/audioPlayer" }
+    },
     "audioPlayer": {
       "type": "object",
       "required": ["sound"],
@@ -225,6 +231,9 @@
         "sound": { "type": "string", "minLength": 1 },
         "volume": { "type": "number", "minimum": 0, "default": 1 },
         "pitch": { "type": "number", "exclusiveMinimum": 0, "default": 1 },
+        "random_volume": { "type": "number", "minimum": 0, "default": 0 },
+        "random_pitch": { "type": "number", "minimum": 0, "default": 0 },
+        "max_voices": { "type": "integer", "minimum": 1, "default": 4 },
         "looping": { "type": "boolean", "default": false },
         "play_on_start": { "type": "boolean", "default": false },
         "spatial": { "type": "boolean", "default": false },
