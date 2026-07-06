@@ -29,6 +29,7 @@ Dungeon_Presentation :: struct {
 
 Dungeon_Player :: struct {
 	health: i32,
+	player_height: f32,
 	walk_speed: f32,
 	sprint_speed: f32,
 	attack_range: f32,
@@ -43,9 +44,14 @@ Enemy :: struct {
 	kind: i32,
 }
 
+Room :: struct {
+	x, y, width, height: i32,
+}
+
 Dungeon :: struct {
 	tiles: [MAP][MAP]u8,
 	x, y, angle: f32,
+	spawn_x, spawn_y: f32,
 	health, level, kills: i32,
 	attack, hurt, step: f32,
 	enemies: [MAX_ENEMIES]Enemy,
@@ -109,6 +115,14 @@ initialize_dungeon :: proc(engine: ^rune.Engine, world: ^ecs.World) -> bool {
 	}
 	load_assets(engine)
 	reset_game(true)
+	player_transform, has_transform := ecs.get_transform(world, player_entity)
+	if !has_transform { return false }
+	player_transform.position = {game.spawn_x, player_settings.player_height, game.spawn_y}
+	ecs.set_transform(world, player_entity, player_transform)
+	camera, has_camera := ecs.get_camera_3d(world, player_entity)
+	if !has_camera { return false }
+	camera.target = {game.spawn_x + 1, player_settings.player_height, game.spawn_y}
+	ecs.set_camera_3d(world, player_entity, camera)
 	return true
 }
 
@@ -129,38 +143,97 @@ open :: proc(x, y: f32) -> bool {
 		game.tiles[i32(y+r)][i32(x+r)] == 0
 }
 
+room_center :: proc(room: Room) -> [2]i32 {
+	return {room.x + room.width / 2, room.y + room.height / 2}
+}
+
+rooms_overlap :: proc(a, b: Room) -> bool {
+	return a.x - 1 <= b.x + b.width &&
+		a.x + a.width + 1 >= b.x &&
+		a.y - 1 <= b.y + b.height &&
+		a.y + a.height + 1 >= b.y
+}
+
+carve_corridor :: proc(from, to: [2]i32, horizontal_first: bool) {
+	if horizontal_first {
+		for x := min(from[0], to[0]); x <= max(from[0], to[0]); x += 1 {
+			game.tiles[from[1]][x] = 0
+		}
+		for y := min(from[1], to[1]); y <= max(from[1], to[1]); y += 1 {
+			game.tiles[y][to[0]] = 0
+		}
+	} else {
+		for y := min(from[1], to[1]); y <= max(from[1], to[1]); y += 1 {
+			game.tiles[y][from[0]] = 0
+		}
+		for x := min(from[0], to[0]); x <= max(from[0], to[0]); x += 1 {
+			game.tiles[to[1]][x] = 0
+		}
+	}
+}
+
 generate :: proc() {
 	for y in 0..<MAP { for x in 0..<MAP { game.tiles[y][x] = 1 } }
-	stack: [MAP*MAP][2]i32
-	count := 1
-	stack[0] = {1, 1}
-	game.tiles[1][1] = 0
-	dirs := [4][2]i32{{2,0},{-2,0},{0,2},{0,-2}}
-	for count > 0 {
-		at := stack[count-1]
-		options: [4][2]i32
-		n := 0
-		for d in dirs {
-			x, y := at[0]+d[0], at[1]+d[1]
-			if x > 0 && y > 0 && x < MAP-1 && y < MAP-1 && game.tiles[y][x] != 0 {
-				options[n] = {x,y}; n += 1
-			}
+
+	rooms: [24]Room
+	room_count := 0
+	target := clamp(int(generator.room_count), 6, len(rooms))
+	attempts := target * 30
+	for _ in 0..<attempts {
+		if room_count >= target { break }
+		width := rl.GetRandomValue(4, 8)
+		height := rl.GetRandomValue(4, 8)
+		room := Room{
+			x = rl.GetRandomValue(1, MAP - width - 2),
+			y = rl.GetRandomValue(1, MAP - height - 2),
+			width = width,
+			height = height,
 		}
-		if n == 0 { count -= 1; continue }
-		next := options[rl.GetRandomValue(0, i32(n-1))]
-		game.tiles[(at[1]+next[1])/2][(at[0]+next[0])/2] = 0
-		game.tiles[next[1]][next[0]] = 0
-		stack[count] = next; count += 1
+		blocked := false
+		for i in 0..<room_count {
+			if rooms_overlap(room, rooms[i]) { blocked = true; break }
+		}
+		if blocked { continue }
+
+		for y in room.y..<room.y+room.height {
+			for x in room.x..<room.x+room.width { game.tiles[y][x] = 0 }
+		}
+
+		// Connect each accepted room to its nearest predecessor. This creates a
+		// guaranteed connected backbone without maze-like one-cell branching.
+		if room_count > 0 {
+			center := room_center(room)
+			nearest := 0
+			nearest_distance := i32(1 << 30)
+			for i in 0..<room_count {
+				other := room_center(rooms[i])
+				distance := abs(center[0]-other[0]) + abs(center[1]-other[1])
+				if distance < nearest_distance { nearest, nearest_distance = i, distance }
+			}
+			carve_corridor(center, room_center(rooms[nearest]), rl.GetRandomValue(0, 1) == 0)
+		}
+		rooms[room_count] = room
+		room_count += 1
 	}
-	for _ in 0..<36 {
-		x, y := rl.GetRandomValue(2, MAP-3), rl.GetRandomValue(2, MAP-3)
-		game.tiles[y][x] = 0
+
+	if room_count == 0 {
+		rooms[0] = {1, 1, 5, 5}
+		room_count = 1
+		for y in 1..<6 { for x in 1..<6 { game.tiles[y][x] = 0 } }
 	}
-	for _ in 0..<max(1, generator.room_count) {
-		cx, cy := rl.GetRandomValue(3, MAP-4), rl.GetRandomValue(3, MAP-4)
-		for y in cy-1..=cy+1 { for x in cx-1..=cx+1 { game.tiles[y][x] = 0 } }
+
+	// Add cross-links between non-neighbor rooms for loops and alternate routes.
+	extra_links := max(2, room_count / 2)
+	for _ in 0..<extra_links {
+		a := rl.GetRandomValue(0, i32(room_count-1))
+		b := rl.GetRandomValue(0, i32(room_count-1))
+		if a == b { continue }
+		carve_corridor(room_center(rooms[a]), room_center(rooms[b]), rl.GetRandomValue(0, 1) == 0)
 	}
-	for y in 1..=3 { for x in 1..=3 { game.tiles[y][x] = 0 } }
+
+	spawn := room_center(rooms[0])
+	game.spawn_x = f32(spawn[0]) + .5
+	game.spawn_y = f32(spawn[1]) + .5
 }
 
 visible :: proc(x1,y1,x2,y2: f32) -> bool {
@@ -177,7 +250,7 @@ visible :: proc(x1,y1,x2,y2: f32) -> bool {
 reset_game :: proc(full: bool) {
 	if full { game.level,game.health,game.kills = 1,player_settings.health,0 } else { game.level += 1 }
 	generate()
-	game.x,game.y,game.angle = 2,2,0
+	game.x,game.y,game.angle = game.spawn_x,game.spawn_y,0
 	game.enemy_count = min(MAX_ENEMIES, generator.starting_enemies+(game.level-1)*generator.enemies_per_level)
 	for i in 0..<game.enemy_count {
 		for {
@@ -225,7 +298,7 @@ dungeon_update_system :: proc(engine: ^rune.Engine, world: ^ecs.World) {
 	if game.health <= 0 {
 		if rl.IsKeyPressed(.R) {
 			reset_game(true)
-			player_transform.position = {game.x, .58, game.y}
+			player_transform.position = {game.x, player_settings.player_height, game.y}
 			ecs.set_transform(world, player_entity, player_transform)
 		}
 		return
@@ -258,13 +331,13 @@ dungeon_update_system :: proc(engine: ^rune.Engine, world: ^ecs.World) {
 		}
 	}
 	if alive==0 { play_audio(engine, world, level_audio);game.health=min(player_settings.health,game.health+25);reset_game(false) }
-	player_transform.position = {game.x, .58, game.y}
+	player_transform.position = {game.x, player_settings.player_height, game.y}
 	ecs.set_transform(world, player_entity, player_transform)
 	camera, has_camera := ecs.get_camera_3d(world, player_entity)
 	if has_camera {
 		camera.target = {
 			game.x + f32(math.cos(f64(game.angle))),
-			.58,
+			player_settings.player_height,
 			game.y + f32(math.sin(f64(game.angle))),
 		}
 		ecs.set_camera_3d(world, player_entity, camera)
@@ -297,27 +370,29 @@ draw_world :: proc(world: ^ecs.World) {
 
 	rl.BeginMode3D(camera)
 	rl.DrawPlane({f32(MAP) / 2, 0, f32(MAP) / 2}, {f32(MAP), f32(MAP)}, {62, 48, 40, 255})
-	rlgl.DisableBackfaceCulling()
 	for y in 0..<MAP {
 		for x in 0..<MAP {
 			if game.tiles[y][x] == 0 { continue }
 			fx, fz := f32(x), f32(y)
 			tex := game.walls[(x * 7 + y * 13) & 3]
 			if y == 0 || game.tiles[y-1][x] == 0 {
-				draw_wall_plane(tex, {fx,0,fz},{fx+1,0,fz},{fx+1,generator.wall_height,fz},{fx,generator.wall_height,fz}, {185,185,195,255})
+				// North face: front points toward -Z into the open cell.
+				draw_wall_plane(tex, {fx+1,0,fz},{fx,0,fz},{fx,generator.wall_height,fz},{fx+1,generator.wall_height,fz}, {185,185,195,255})
 			}
 			if y == MAP-1 || game.tiles[y+1][x] == 0 {
-				draw_wall_plane(tex, {fx+1,0,fz+1},{fx,0,fz+1},{fx,generator.wall_height,fz+1},{fx+1,generator.wall_height,fz+1}, {165,165,175,255})
+				// South face: front points toward +Z.
+				draw_wall_plane(tex, {fx,0,fz+1},{fx+1,0,fz+1},{fx+1,generator.wall_height,fz+1},{fx,generator.wall_height,fz+1}, {165,165,175,255})
 			}
 			if x == 0 || game.tiles[y][x-1] == 0 {
-				draw_wall_plane(tex, {fx,0,fz+1},{fx,0,fz},{fx,generator.wall_height,fz},{fx,generator.wall_height,fz+1}, {150,150,160,255})
+				// West face: front points toward -X.
+				draw_wall_plane(tex, {fx,0,fz},{fx,0,fz+1},{fx,generator.wall_height,fz+1},{fx,generator.wall_height,fz}, {150,150,160,255})
 			}
 			if x == MAP-1 || game.tiles[y][x+1] == 0 {
-				draw_wall_plane(tex, {fx+1,0,fz},{fx+1,0,fz+1},{fx+1,generator.wall_height,fz+1},{fx+1,generator.wall_height,fz}, {175,175,185,255})
+				// East face: front points toward +X.
+				draw_wall_plane(tex, {fx+1,0,fz+1},{fx+1,0,fz},{fx+1,generator.wall_height,fz},{fx+1,generator.wall_height,fz+1}, {175,175,185,255})
 			}
 		}
 	}
-	rlgl.EnableBackfaceCulling()
 	for i in 0..<game.enemy_count {
 		e := game.enemies[i]
 		if !e.alive { continue }

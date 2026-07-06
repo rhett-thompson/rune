@@ -9,7 +9,7 @@
           "map_size": 31,
           "starting_enemies": 13,
           "enemies_per_level": 3,
-          "room_count": 5,
+          "room_count": 12,
           "wall_height": 1
         },
         "DungeonPresentation": {
@@ -32,11 +32,12 @@
       "id": "player",
       "name": "Player",
       "components": {
-        "Transform": { "position": [2, 0.58, 2] },
-        "Camera3D": { "target": [3, 0.58, 2], "up": [0, 1, 0], "fovy": 68, "active": true },
+        "Transform": { "position": [2, 0.5, 2] },
+        "Camera3D": { "target": [3, 0.5, 2], "up": [0, 1, 0], "fovy": 68, "active": true },
         "AudioListener": {},
         "DungeonPlayer": {
           "health": 100,
+          "player_height": 0.5,
           "walk_speed": 3.0,
           "sprint_speed": 4.5,
           "attack_range": 2.2,
