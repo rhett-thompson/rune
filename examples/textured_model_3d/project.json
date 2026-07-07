@@ -1,0 +1,8 @@
+{
+  "$schema": "../../schemas/project.schema.json",
+  "name": "Rune Textured Model 3D",
+  "startup_scene": "scenes/main.scene.json",
+  "window": { "width": 960, "height": 540, "title": "Rune - Textured Model 3D", "fullscreen": false, "vsync": true, "msaa_4x": true },
+  "input": "input/default.input.json",
+  "background_color": [8, 10, 14, 255]
+}

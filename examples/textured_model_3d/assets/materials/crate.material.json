@@ -1,0 +1,15 @@
+{
+  "$schema": "../../../../schemas/material.schema.json",
+  "base_color": [255, 255, 255, 255],
+  "albedo": "assets/textures/basecolor.jpg",
+  "normal": "assets/textures/normal.jpg",
+  "roughness_texture": "assets/textures/roughness.jpg",
+  "ao_texture": "assets/textures/ambientOcclusion.jpg",
+  "height_texture": "assets/textures/height.png",
+  "height_scale": 0.015,
+  "filter": "anisotropic_16x",
+  "mipmaps": true,
+  "lighting": true,
+  "roughness": 0.58,
+  "metallic": 0
+}

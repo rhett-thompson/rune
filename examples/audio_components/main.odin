@@ -5,16 +5,17 @@ import "core:math"
 import rune "rune:core"
 import "rune:ecs"
 import "rune:input"
-import "rune:render"
+import "rune:r3d_bridge"
 import rl "vendor:raylib"
 
 world: ecs.World
+bridge: r3d_bridge.Context
 listener_entity: ecs.Entity
 player_entity: ecs.Entity
 last_play_succeeded: bool
 bell_phase: f32
 
-scene_view := render.Scene3D_Settings{grid_slices = 40, grid_spacing = 1}
+scene_view := r3d_bridge.Scene3D_Settings{grid_slices = 40, grid_spacing = 1}
 
 play_bell_on_click :: proc(game: ^rune.Engine, scene_world: ^ecs.World) {
 	// Move the emitting sphere from two to thirty units away from the listener,
@@ -38,7 +39,7 @@ draw_audio_components :: proc(game: ^rune.Engine, scene_world: ^ecs.World) {
 		return
 	}
 
-	render.draw_scene_3d(scene_world, scene_view)
+	r3d_bridge.draw_scene_ex(&bridge, scene_world, rune.asset_manager(game), scene_view)
 	rl.DrawText("Rune Audio Components", 24, 24, 30, rl.DARKGRAY)
 	rl.DrawText("AudioListener is attached to the Camera3D entity.", 24, 78, 20, rl.GRAY)
 	rl.DrawText("AudioPlayer is attached to the moving orange sphere.", 24, 108, 20, rl.GRAY)
@@ -62,6 +63,14 @@ main :: proc() {
 		return
 	}
 	defer rune.shutdown(&game)
+
+	bridge_ok: bool
+	bridge, bridge_ok = r3d_bridge.init("examples/audio_components", rl.GetScreenWidth(), rl.GetScreenHeight())
+	if !bridge_ok {
+		fmt.eprintln("Could not initialize r3d")
+		return
+	}
+	defer r3d_bridge.shutdown(&bridge)
 
 	scene_ok: bool
 	world, scene_ok = rune.load_scene(&game, "examples/audio_components/scenes/main.scene.json")

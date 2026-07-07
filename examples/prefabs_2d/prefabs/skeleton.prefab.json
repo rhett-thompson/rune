@@ -1,4 +1,5 @@
 {
+  "$schema": "../../../schemas/prefab.schema.json",
   "name": "Skeleton Warrior",
   "components": {
     "Transform": {

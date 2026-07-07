@@ -111,7 +111,8 @@ Rune includes a small debug visualization layer for scene data. In projects
 using `rune.run_scene`, gizmos are disabled by default; press `F3` to toggle
 them at runtime. The overlay can
 draw transform axes, active and inactive cameras, 2D and 3D collision bounds,
-tilemap solid cells, and audio listener/player ranges. It renders after
+tilemap solid cells, audio listener/player ranges, and light positions,
+directions, ranges, and spot cones. It renders after
 registered draw systems and before the developer console.
 
 Projects can set the startup defaults in `project.json`:
@@ -125,6 +126,7 @@ Projects can set the startup defaults in `project.json`:
   "physics_3d": true,
   "tilemaps": true,
   "audio": true,
+  "lights": true,
   "transform_size": 24
 }
 ```
@@ -188,7 +190,7 @@ jump, use the mouse wheel to zoom, hold the left mouse button to orbit only
 the camera, or hold the right mouse button to orbit and turn the player.
 
 ```powershell
-odin run examples/third_person_3d -collection:rune=rune
+odin run examples/third_person_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin
 ```
 
 ## Project display settings
@@ -282,7 +284,9 @@ Mouse-wheel input is available as `{ "type": "mouse_wheel" }`; it returns
 the wheel movement sampled for the current frame and also supports `scale` and
 `invert`. The third-person example uses it to zoom its follow camera.
 
-`third_party/r3d` is pinned to r3d `v0.10.0` and is reserved for the engine's later 3D renderer. The first example deliberately uses the bundled Odin raylib binding so the 2D foundation stays small.
+`third_party/r3d-odin` is pinned to r3d `v0.10.0`. Rune uses the bundled Odin
+raylib binding for windowing, input, audio, 2D rendering, and debug overlays;
+3D examples now render scene data through `rune/r3d_bridge`.
 
 ## Run the example
 
@@ -392,7 +396,7 @@ not require that listener to carry a camera component.
 The runnable component-loading example is available at:
 
 ```powershell
-odin run examples/audio_components -collection:rune=rune
+odin run examples/audio_components -collection:rune=rune -collection:r3d=third_party/r3d-odin
 ```
 
 When using `rune.run_scene`, the engine updates audio automatically. Odin
@@ -447,19 +451,18 @@ are suitable for later render, camera, collision, and editor filtering.
 
 ## Scene-owned rendering
 
-The scene renderer walks the entity hierarchy. For every entity, it pushes a
-matrix, applies its `Transform`, draws its supported render component, draws
-its children in that transformed space, then pops the matrix. A normal game
-system therefore only changes component data; it does not call `rlgl.PushMatrix`,
-`rlgl.PopMatrix`, or draw a `MeshRenderer`/`SphereRenderer` itself.
+r3d-backed scene rendering walks the entity hierarchy, combines parent and child
+`Transform` data, and draws supported 3D render components through
+`rune:r3d_bridge`. A normal game system therefore only changes component data;
+it does not draw a `MeshRenderer`/`SphereRenderer` itself.
 
 ```odin
-render.draw_scene_3d(&world, scene_view)
+r3d_bridge.draw_scene_ex(&bridge, &world, rune.asset_manager(game), scene_view)
 ```
 
 `MeshRenderer` currently draws the `cube` primitive and `SphereRenderer` draws
-a sphere. `SpriteRenderer` loads a project-relative texture path through the
-asset cache and draws it through the active `Camera2D`:
+a sphere through r3d. `SpriteRenderer` loads a project-relative texture path
+through the asset cache and draws it through the active `Camera2D`:
 
 ```odin
 render.draw_scene_2d(&world, rune.asset_manager(game))
@@ -479,7 +482,7 @@ odin run tools/component_validation -collection:rune=rune
 The 3D sample loads a JSON scene and shows a rotating cube with a perspective camera:
 
 ```powershell
-odin run examples/hello_3d -collection:rune=rune
+odin run examples/hello_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin
 ```
 
 ## JSON sprite scene
@@ -577,17 +580,116 @@ with the entity `Transform` through the active `Camera3D`:
 ```json
 "ModelRenderer": {
   "model": "assets/models/pyramid.obj",
-  "tint": [210, 220, 255, 255]
+  "material": "assets/materials/pyramid.material.json"
 }
 ```
 
-`hot_reload.models` controls modified-time model refresh. The built-in
-`MeshRenderer` and `SphereRenderer` remain useful debug primitives. Run the
-self-contained OBJ example with:
+Material files are project-relative JSON assets. `base_color` tints primitives
+and models; `albedo` applies a diffuse texture; `normal` applies a tangent-space
+normal map; and scalar `roughness`/`metallic` values map into r3d materials.
+The older `texture` field remains an alias for `albedo`:
+
+```json
+{
+  "base_color": [230, 190, 92, 255],
+  "albedo": "assets/textures/stone.png",
+  "normal": "assets/textures/stone_normal.png",
+  "roughness_texture": "assets/textures/stone_roughness.png",
+  "ao_texture": "assets/textures/stone_ao.png",
+  "height_texture": "assets/textures/stone_height.png",
+  "filter": "anisotropic_8x",
+  "mipmaps": true,
+  "lod_bias": 0.5
+}
+```
+
+Material textures default to mipmaps plus `anisotropic_8x` filtering, which is
+the normal choice for 3D models viewed at oblique angles. Use `"filter":
+"point"` and `"mipmaps": false` only for deliberately pixelated assets. If a
+high-frequency texture still shimmers in motion, use a small positive
+`lod_bias` value to sample a softer mip level.
+
+Set `"lighting": true` for normal r3d lighting, or `"lighting": false` for
+unlit materials. The current r3d bridge maps `albedo`, `normal`,
+`base_color`, `roughness`, and `metallic`. Separate roughness, metallic, AO,
+and height textures remain in the material format for asset authoring, but the
+r3d bridge needs a follow-up ORM/height migration step before those maps affect
+rendering:
+
+```json
+{
+  "base_color": [230, 190, 92, 255],
+  "lighting": true,
+  "roughness": 0.42,
+  "metallic": 0.08,
+  "roughness_texture": "assets/textures/stone_roughness.png",
+  "ao_texture": "assets/textures/stone_ao.png",
+  "height_texture": "assets/textures/stone_height.png",
+  "height_scale": 0.035
+}
+```
+
+Imported models with UVs and normals render through r3d's material pipeline.
+
+Scenes provide light data with JSON components:
+
+```json
+"AmbientLight": { "color": [120, 150, 210, 255], "intensity": 0.18 },
+"DirectionalLight": {
+  "direction": [-0.45, -1, -0.35],
+  "color": [255, 238, 205, 255],
+  "intensity": 1.15
+},
+"PointLight": { "color": [255, 165, 90, 255], "intensity": 2.2, "range": 5 },
+"SpotLight": {
+  "direction": [0.62, -0.53, -0.59],
+  "color": [130, 190, 255, 255],
+  "intensity": 3,
+  "range": 7,
+  "inner_angle": 16,
+  "outer_angle": 30
+}
+```
+
+r3d owns the active light budget and shading path. `PointLight` and
+`SpotLight` positions come from the entity `Transform`; `SpotLight.direction`
+points from the light toward the center of its cone.
+
+`MeshRenderer`, `SphereRenderer`, and `ModelRenderer` can reference materials
+with a `material` field. `hot_reload.models` controls modified-time model
+refresh, and `hot_reload.materials` controls material JSON refresh. The
+built-in `MeshRenderer` and `SphereRenderer` remain useful debug primitives.
+For imported models with multiple material slots, `ModelRenderer.material` acts
+as the fallback and `ModelRenderer.materials` can override individual zero-based
+r3d material slots:
+
+```json
+"ModelRenderer": {
+  "model": "assets/models/room.obj",
+  "material": "assets/materials/default.material.json",
+  "materials": {
+    "0": "assets/materials/walls.material.json",
+    "1": "assets/materials/floor.material.json"
+  }
+}
+```
+
+Run the self-contained OBJ example with:
 
 ```powershell
-odin run examples/model_scene_3d -collection:rune=rune
+odin run examples/model_scene_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin
 ```
+
+The `textured_model_3d` example adds a UV-mapped cube model and a textured,
+lit material:
+
+```powershell
+odin run examples/textured_model_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin
+```
+
+The bridge is intentionally small for now. Rune scene loading, ECS, input,
+orbit camera controls, hot reload, light gizmos, and JSON authoring remain the
+engine layer; r3d owns the heavier 3D drawing path.
 
 ## Basic 3D collision
 
@@ -690,17 +792,36 @@ The camera-switching sample has three `Camera3D` entities loaded from JSON.
 Press `1`, `2`, or `3` to select the wide, front, or side camera:
 
 ```powershell
-odin run examples/camera_switching -collection:rune=rune
+odin run examples/camera_switching -collection:rune=rune -collection:r3d=third_party/r3d-odin
 ```
 
 ## Orbit camera
 
-This example updates the `Transform` of an active `Camera3D` entity, orbiting
-the camera around the `target` stored in its scene component. It orbits
-automatically; hold the left mouse button and drag to control the orbit:
+`OrbitCamera3D` is a JSON-backed controller for an entity that also has
+`Transform` and `Camera3D`. It updates the camera position around a target,
+optionally auto-orbits when the manual action is not held, and can read input
+axes for yaw, pitch, and zoom:
+
+```json
+"OrbitCamera3D": {
+  "target": [0, 0.75, 0],
+  "distance": 8,
+  "pitch": 27,
+  "auto_yaw_speed": 35,
+  "manual_action": "orbit_camera",
+  "yaw_axis": "orbit_x",
+  "pitch_axis": "orbit_y",
+  "zoom_axis": "zoom"
+}
+```
+
+Projects using `rune.run_scene` update orbit cameras automatically before
+registered systems run. Callback-based programs can call
+`rune.update_orbit_cameras_3d(game, &world)`. Hold the left mouse button and
+drag in the orbit-camera example to control the orbit:
 
 ```powershell
-odin run examples/orbit_camera -collection:rune=rune
+odin run examples/orbit_camera -collection:rune=rune -collection:r3d=third_party/r3d-odin
 ```
 
 ## First-person controller
@@ -710,7 +831,7 @@ component declared in scene JSON. Its Odin system reads project input actions,
 updates the camera entity's `Transform`, and updates its `Camera3D.target`.
 
 ```powershell
-odin run examples/first_person_3d -collection:rune=rune
+odin run examples/first_person_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin
 ```
 
 Use WASD to move, Shift to sprint, and mouse movement to look. Escape releases
@@ -722,7 +843,7 @@ deferred until a physics/collision slice exists.
 This sample shows nested scene entities and transform inheritance: `Sun > Earth > Moon`.
 
 ```powershell
-odin run examples/solar_system -collection:rune=rune
+odin run examples/solar_system -collection:rune=rune -collection:r3d=third_party/r3d-odin
 ```
 
 ## Custom component updating a Transform

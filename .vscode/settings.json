@@ -15,6 +15,10 @@
     {
       "fileMatch": ["**/*.input.json"],
       "url": "./schemas/input.schema.json"
+    },
+    {
+      "fileMatch": ["**/*.material.json"],
+      "url": "./schemas/material.schema.json"
     }
   ]
 }

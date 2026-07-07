@@ -9,6 +9,12 @@ Example :: struct {
 	name:        string,
 	path:        string,
 	description: string,
+	collections: []Collection,
+}
+
+Collection :: struct {
+	name: string,
+	path: string,
 }
 
 Manifest :: struct {
@@ -39,14 +45,16 @@ run_example :: proc(example: Example) -> int {
 	rl.CloseWindow()
 	fmt.printf("Building and running %s...\n", example.name)
 
-	command := []string{
-		"odin",
-		"run",
-		fmt.tprintf("examples/%s", example.path),
-		"-collection:rune=rune",
+	command := make([dynamic]string)
+	append(&command, "odin")
+	append(&command, "run")
+	append(&command, fmt.tprintf("examples/%s", example.path))
+	append(&command, "-collection:rune=rune")
+	for collection in example.collections {
+		append(&command, fmt.tprintf("-collection:%s=%s", collection.name, collection.path))
 	}
 	process, start_error := os.process_start({
-		command = command,
+		command = command[:],
 		stdin = os.stdin,
 		stdout = os.stdout,
 		stderr = os.stderr,

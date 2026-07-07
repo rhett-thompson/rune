@@ -1,4 +1,5 @@
 {
+  "$schema": "../../../schemas/scene.schema.json",
   "name": "Tilemap Collision",
   "entities": [
     { "id": "camera", "components": { "Transform": { "position": [0, 0, 0] }, "Camera2D": { "offset": [0, 0], "zoom": 1, "active": true } } },

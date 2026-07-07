@@ -1,4 +1,5 @@
 {
+  "$schema": "../../../schemas/input.schema.json",
   "actions": {
     "change_scene": [
       { "type": "mouse_button", "button": "LEFT" }

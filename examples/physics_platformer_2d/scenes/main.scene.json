@@ -1,4 +1,5 @@
 {
+  "$schema": "../../../schemas/scene.schema.json",
   "name": "Physics Platformer",
   "scene_settings": { "spawn_label": "training" },
   "entities": [

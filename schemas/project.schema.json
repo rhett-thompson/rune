@@ -30,7 +30,8 @@
         "scenes": { "type": "boolean", "default": true },
         "prefabs": { "type": "boolean", "default": true },
         "textures": { "type": "boolean", "default": true },
-        "models": { "type": "boolean", "default": true }
+        "models": { "type": "boolean", "default": true },
+        "materials": { "type": "boolean", "default": true }
       },
       "additionalProperties": false
     },
@@ -44,6 +45,7 @@
         "physics_3d": { "type": "boolean", "default": true },
         "tilemaps": { "type": "boolean", "default": true },
         "audio": { "type": "boolean", "default": true },
+        "lights": { "type": "boolean", "default": true },
         "transform_size": { "type": "number", "exclusiveMinimum": 0, "default": 24 }
       },
       "additionalProperties": false

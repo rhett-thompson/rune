@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "material.schema.json",
+  "title": "Rune material",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string" },
+    "base_color": {
+      "type": "array",
+      "description": "RGBA color multiplied into the rendered model or primitive.",
+      "items": { "type": "integer", "minimum": 0, "maximum": 255 },
+      "minItems": 4,
+      "maxItems": 4,
+      "default": [255, 255, 255, 255]
+    },
+    "texture": {
+      "type": "string",
+      "description": "Project-relative diffuse/albedo texture path. Kept as an alias for albedo."
+    },
+    "albedo": {
+      "type": "string",
+      "description": "Project-relative diffuse/albedo texture path."
+    },
+    "normal": {
+      "type": "string",
+      "description": "Project-relative tangent-space normal map path."
+    },
+    "orm_texture": {
+      "type": "string",
+      "description": "Project-relative packed occlusion/roughness/metallic texture path. R=AO, G=roughness, B=metallic."
+    },
+    "orm": {
+      "type": "string",
+      "description": "Alias for orm_texture."
+    },
+    "roughness_texture": {
+      "type": "string",
+      "description": "Project-relative roughness texture path. The red channel is sampled."
+    },
+    "metallic_texture": {
+      "type": "string",
+      "description": "Project-relative metallic texture path. The red channel is sampled."
+    },
+    "ao_texture": {
+      "type": "string",
+      "description": "Project-relative ambient occlusion texture path. The red channel darkens ambient light."
+    },
+    "occlusion": {
+      "type": "string",
+      "description": "Alias for ao_texture."
+    },
+    "height_texture": {
+      "type": "string",
+      "description": "Project-relative height texture path for parallax mapping. The red channel is sampled."
+    },
+    "height": {
+      "type": "string",
+      "description": "Alias for height_texture."
+    },
+    "filter": {
+      "type": "string",
+      "description": "Sampling filter for material textures.",
+      "enum": ["point", "bilinear", "trilinear", "anisotropic_4x", "anisotropic_8x", "anisotropic_16x"],
+      "default": "anisotropic_8x"
+    },
+    "mipmaps": {
+      "type": "boolean",
+      "description": "Generate mipmaps before applying the texture filter.",
+      "default": true
+    },
+    "lod_bias": {
+      "type": "number",
+      "description": "Positive mip LOD bias for noisy textures; higher values sample softer mip levels.",
+      "minimum": 0,
+      "maximum": 4,
+      "default": 0
+    },
+    "lighting": {
+      "type": "boolean",
+      "description": "Whether the material participates in r3d lighting.",
+      "default": false
+    },
+    "roughness": {
+      "type": "number",
+      "description": "Lit material roughness from 0 to 1.",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5
+    },
+    "metallic": {
+      "type": "number",
+      "description": "Lit material metallic response from 0 to 1.",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0
+    },
+    "height_scale": {
+      "type": "number",
+      "description": "Parallax height scale from 0 to 0.2. Small values around 0.02-0.05 are recommended.",
+      "minimum": 0,
+      "maximum": 0.2,
+      "default": 0.03
+    }
+  },
+  "additionalProperties": false
+}

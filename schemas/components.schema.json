@@ -10,10 +10,15 @@
     "MeshRenderer": { "$ref": "#/$defs/meshRenderer" },
     "SphereRenderer": { "$ref": "#/$defs/sphereRenderer" },
     "ModelRenderer": { "$ref": "#/$defs/modelRenderer" },
+    "AmbientLight": { "$ref": "#/$defs/ambientLight" },
+    "DirectionalLight": { "$ref": "#/$defs/directionalLight" },
+    "PointLight": { "$ref": "#/$defs/pointLight" },
+    "SpotLight": { "$ref": "#/$defs/spotLight" },
     "TilemapRenderer": { "$ref": "#/$defs/tilemapRenderer" },
     "TextRenderer": { "$ref": "#/$defs/textRenderer" },
     "Camera2D": { "$ref": "#/$defs/camera2D" },
     "Camera3D": { "$ref": "#/$defs/camera3D" },
+    "OrbitCamera3D": { "$ref": "#/$defs/orbitCamera3D" },
     "RigidBody2D": { "$ref": "#/$defs/rigidBody2D" },
     "BoxCollider2D": { "$ref": "#/$defs/boxCollider2D" },
     "CircleCollider2D": { "$ref": "#/$defs/circleCollider2D" },
@@ -76,7 +81,8 @@
       "type": "object",
       "properties": {
         "primitive": { "type": "string", "enum": ["cube"] },
-        "color": { "$ref": "#/$defs/color" }
+        "color": { "$ref": "#/$defs/color" },
+        "material": { "type": "string", "minLength": 1 }
       },
       "additionalProperties": false
     },
@@ -84,7 +90,8 @@
       "type": "object",
       "properties": {
         "radius": { "type": "number", "exclusiveMinimum": 0, "default": 1 },
-        "color": { "$ref": "#/$defs/color" }
+        "color": { "$ref": "#/$defs/color" },
+        "material": { "type": "string", "minLength": 1 }
       },
       "additionalProperties": false
     },
@@ -93,7 +100,54 @@
       "required": ["model"],
       "properties": {
         "model": { "type": "string", "minLength": 1 },
-        "tint": { "$ref": "#/$defs/color" }
+        "tint": { "$ref": "#/$defs/color" },
+        "material": { "type": "string", "minLength": 1 },
+        "materials": {
+          "type": "object",
+          "description": "Material overrides keyed by zero-based raylib material slot index.",
+          "patternProperties": {
+            "^[0-9]+$": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "ambientLight": {
+      "type": "object",
+      "properties": {
+        "color": { "$ref": "#/$defs/color" },
+        "intensity": { "type": "number", "minimum": 0, "default": 0.2 }
+      },
+      "additionalProperties": false
+    },
+    "directionalLight": {
+      "type": "object",
+      "properties": {
+        "direction": { "$ref": "#/$defs/vec3", "default": [-0.35, -1, -0.45] },
+        "color": { "$ref": "#/$defs/color" },
+        "intensity": { "type": "number", "minimum": 0, "default": 1 }
+      },
+      "additionalProperties": false
+    },
+    "pointLight": {
+      "type": "object",
+      "properties": {
+        "color": { "$ref": "#/$defs/color" },
+        "intensity": { "type": "number", "minimum": 0, "default": 1 },
+        "range": { "type": "number", "exclusiveMinimum": 0, "default": 5 }
+      },
+      "additionalProperties": false
+    },
+    "spotLight": {
+      "type": "object",
+      "properties": {
+        "direction": { "$ref": "#/$defs/vec3", "default": [0, -1, 0] },
+        "color": { "$ref": "#/$defs/color" },
+        "intensity": { "type": "number", "minimum": 0, "default": 1 },
+        "range": { "type": "number", "exclusiveMinimum": 0, "default": 8 },
+        "inner_angle": { "type": "number", "exclusiveMinimum": 0, "default": 18 },
+        "outer_angle": { "type": "number", "exclusiveMinimum": 0, "default": 32 }
       },
       "additionalProperties": false
     },
@@ -143,6 +197,27 @@
         "up": { "$ref": "#/$defs/vec3", "default": [0, 1, 0] },
         "fovy": { "type": "number", "exclusiveMinimum": 0, "default": 45 },
         "active": { "type": "boolean", "default": false }
+      },
+      "additionalProperties": false
+    },
+    "orbitCamera3D": {
+      "type": "object",
+      "properties": {
+        "target": { "$ref": "#/$defs/vec3", "default": [0, 0, 0] },
+        "yaw": { "type": "number", "default": 0 },
+        "pitch": { "type": "number", "default": 25 },
+        "distance": { "type": "number", "exclusiveMinimum": 0, "default": 8 },
+        "min_pitch": { "type": "number", "default": -80 },
+        "max_pitch": { "type": "number", "default": 80 },
+        "min_distance": { "type": "number", "exclusiveMinimum": 0, "default": 1 },
+        "max_distance": { "type": "number", "exclusiveMinimum": 0, "default": 100 },
+        "auto_yaw_speed": { "type": "number", "default": 0 },
+        "manual_action": { "type": "string", "default": "orbit_camera" },
+        "yaw_axis": { "type": "string", "default": "orbit_x" },
+        "pitch_axis": { "type": "string", "default": "orbit_y" },
+        "zoom_axis": { "type": "string", "default": "zoom" },
+        "orbit_sensitivity": { "type": "number", "exclusiveMinimum": 0, "default": 0.35 },
+        "zoom_sensitivity": { "type": "number", "exclusiveMinimum": 0, "default": 1 }
       },
       "additionalProperties": false
     },

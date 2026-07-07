@@ -1,4 +1,5 @@
 {
+  "$schema": "../../../schemas/input.schema.json",
   "actions": {
     "orbit_camera": [
       { "type": "mouse_button", "button": "LEFT" }

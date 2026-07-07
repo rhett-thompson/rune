@@ -1,4 +1,5 @@
 {
+  "$schema": "../../../schemas/input.schema.json",
   "actions": {
     "move_forward": [{ "type": "keyboard", "key": "W" }],
     "move_back": [{ "type": "keyboard", "key": "S" }],

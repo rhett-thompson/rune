@@ -1,0 +1,72 @@
+{
+  "$schema": "../../../schemas/scene.schema.json",
+  "name": "Textured Model Scene",
+  "entities": [
+    {
+      "id": "camera",
+      "name": "Camera",
+      "components": {
+        "Transform": { "position": [4, 3, 6] },
+        "Camera3D": { "target": [0, 0.8, 0], "up": [0, 1, 0], "fovy": 45, "active": true },
+        "OrbitCamera3D": {
+          "target": [0, 0.8, 0],
+          "yaw": 52,
+          "pitch": 25,
+          "distance": 7,
+          "min_distance": 3,
+          "max_distance": 14,
+          "manual_action": "orbit_camera",
+          "yaw_axis": "orbit_x",
+          "pitch_axis": "orbit_y",
+          "zoom_axis": "zoom",
+          "orbit_sensitivity": 0.35,
+          "zoom_sensitivity": 1
+        }
+      }
+    },
+    {
+      "id": "scene_light",
+      "name": "Scene Light",
+      "components": {
+        "AmbientLight": { "color": [28, 34, 48, 255], "intensity": 0.05 },
+        "DirectionalLight": { "direction": [-0.45, -1, -0.35], "color": [255, 228, 190, 255], "intensity": 0.25 }
+      }
+    },
+    {
+      "id": "warm_point_light",
+      "name": "Warm Point Light",
+      "components": {
+        "Transform": { "position": [1.55, 1.75, 1.25] },
+        "PointLight": { "color": [255, 158, 76, 255], "intensity": 20, "range": 4.5 },
+        "SphereRenderer": { "radius": 0.08, "color": [255, 180, 90, 255] }
+      }
+    },
+    {
+      "id": "crate_spot_light",
+      "name": "Crate Spot Light",
+      "components": {
+        "Transform": { "position": [-2.2, 2.7, 2] },
+        "SpotLight": {
+          "direction": [0.58, -0.5, -0.64],
+          "color": [130, 190, 255, 255],
+          "intensity": 11,
+          "range": 6.5,
+          "inner_angle": 14,
+          "outer_angle": 26
+        },
+        "SphereRenderer": { "radius": 0.08, "color": [130, 190, 255, 255] }
+      }
+    },
+    {
+      "id": "crate",
+      "name": "Textured Crate",
+      "components": {
+        "Transform": { "position": [0, 1.25, 0], "scale": [1.1, 1.1, 1.1] },
+        "ModelRenderer": {
+          "model": "assets/models/crate.obj",
+          "material": "assets/materials/crate.material.json"
+        }
+      }
+    }
+  ]
+}

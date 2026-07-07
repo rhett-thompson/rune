@@ -1,4 +1,5 @@
 {
+  "$schema": "../../schemas/project.schema.json",
   "name": "Rune Runtime Scene Transition",
   "startup_scene": "scenes/blue.scene.json",
   "background_color": [22, 24, 32, 255],

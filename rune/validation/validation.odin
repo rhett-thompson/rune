@@ -270,4 +270,93 @@ validate_component_assets :: proc(report: ^Report, file, path: string, component
 			add(report, file, field_path(path, field), fmt.tprint("referenced asset does not exist: ", asset))
 		}
 	}
+	if material_path, found := component["material"]; found {
+		material, ok := material_path.(json.String)
+		if !ok || len(material) == 0 { add(report, file, field_path(path, "material"), "must be a non-empty material path"); return }
+		if len(project_directory) > 0 {
+			resolved := path_from(project_directory, material)
+			if !file_exists(resolved) {
+				add(report, file, field_path(path, "material"), fmt.tprint("referenced material does not exist: ", material))
+				return
+			}
+			validate_material(report, resolved, project_directory)
+		}
+	}
+}
+
+validate_material :: proc(report: ^Report, material_path, project_directory: string) {
+	material, ok := read_json_object(material_path, report)
+	if !ok { return }
+	if color_value, found := material["base_color"]; found {
+		color, color_ok := color_value.(json.Array)
+		if !color_ok || len(color) != 4 {
+			add(report, material_path, "$.base_color", "must be an RGBA array with four integer channels")
+		} else {
+			for channel, index in color {
+				number, number_ok := jsonutil.number(channel)
+				if !number_ok || number < 0 || number > 255 || number != f32(i32(number)) {
+					add(report, material_path, index_path("$.base_color", index), "must be an integer from 0 through 255")
+				}
+			}
+		}
+	}
+	material_asset_fields := [11]string{"texture", "albedo", "normal", "orm_texture", "orm", "roughness_texture", "metallic_texture", "ao_texture", "occlusion", "height_texture", "height"}
+	for field in material_asset_fields {
+		asset_path, found := material[field]
+		if !found { continue }
+		asset, asset_ok := asset_path.(json.String)
+		if !asset_ok || len(asset) == 0 {
+			add(report, material_path, field_path("$", field), "must be a non-empty asset path")
+			continue
+		}
+		if len(project_directory) > 0 && !file_exists(path_from(project_directory, asset)) {
+			add(report, material_path, field_path("$", field), fmt.tprint("referenced asset does not exist: ", asset))
+		}
+	}
+	if lighting_value, found := material["lighting"]; found {
+		if _, ok := lighting_value.(json.Boolean); !ok {
+			add(report, material_path, "$.lighting", "must be a boolean")
+		}
+	}
+	if mipmaps_value, found := material["mipmaps"]; found {
+		if _, ok := mipmaps_value.(json.Boolean); !ok {
+			add(report, material_path, "$.mipmaps", "must be a boolean")
+		}
+	}
+	if filter_value, found := material["filter"]; found {
+		filter, filter_ok := filter_value.(json.String)
+		if !filter_ok || !valid_texture_filter(filter) {
+			add(report, material_path, "$.filter", "must be one of point, bilinear, trilinear, anisotropic_4x, anisotropic_8x, anisotropic_16x")
+		}
+	}
+	if lod_bias_value, found := material["lod_bias"]; found {
+		lod_bias, lod_bias_ok := jsonutil.number(lod_bias_value)
+		if !lod_bias_ok || lod_bias < 0 || lod_bias > 4 {
+			add(report, material_path, "$.lod_bias", "must be a number from 0 through 4")
+		}
+	}
+	material_unit_fields := [2]string{"roughness", "metallic"}
+	for field in material_unit_fields {
+		value, found := material[field]
+		if !found { continue }
+		number, number_ok := jsonutil.number(value)
+		if !number_ok || number < 0 || number > 1 {
+			add(report, material_path, field_path("$", field), "must be a number from 0 through 1")
+		}
+	}
+	if height_scale_value, found := material["height_scale"]; found {
+		height_scale, height_scale_ok := jsonutil.number(height_scale_value)
+		if !height_scale_ok || height_scale < 0 || height_scale > 0.2 {
+			add(report, material_path, "$.height_scale", "must be a number from 0 through 0.2")
+		}
+	}
+}
+
+valid_texture_filter :: proc(name: string) -> bool {
+	return name == "point" ||
+	       name == "bilinear" ||
+	       name == "trilinear" ||
+	       name == "anisotropic_4x" ||
+	       name == "anisotropic_8x" ||
+	       name == "anisotropic_16x"
 }

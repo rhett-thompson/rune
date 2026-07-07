@@ -1,4 +1,5 @@
 {
+  "$schema": "../../schemas/project.schema.json",
   "name": "Runtime Rebinding",
   "window": {
     "width": 960,

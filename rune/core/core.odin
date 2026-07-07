@@ -31,10 +31,11 @@ Hot_Reload_Settings :: struct {
 	prefabs:          bool,
 	textures:         bool,
 	models:           bool,
+	materials:        bool,
 }
 
 default_hot_reload_settings :: proc() -> Hot_Reload_Settings {
-	return Hot_Reload_Settings{enabled = true, poll_interval_ms = 250, scenes = true, prefabs = true, textures = true, models = true}
+	return Hot_Reload_Settings{enabled = true, poll_interval_ms = 250, scenes = true, prefabs = true, textures = true, models = true, materials = true}
 }
 
 Project :: struct {
@@ -324,6 +325,7 @@ run_scene :: proc(engine: ^Engine, world: ^ecs.World) {
 		if len(engine.active_scene_path) > 0 && reload_scene_if_changed(engine, world, engine.active_scene_path) {
 			run_scene_reload_systems(engine, world)
 		}
+		update_orbit_cameras_3d(engine, world)
 		run_update_systems(engine, world)
 		audio.update(&engine.audio, world)
 
@@ -354,6 +356,19 @@ run_scene_reload_systems :: proc(engine: ^Engine, world: ^ecs.World) {
 	}
 }
 
+update_orbit_cameras_3d :: proc(engine: ^Engine, world: ^ecs.World) {
+	for entity in ecs.entities_with_component(world, "OrbitCamera3D") {
+		orbit, has_orbit := ecs.get_orbit_camera_3d(world, entity)
+		camera, has_camera := ecs.get_camera_3d(world, entity)
+		if !has_orbit || !has_camera { continue }
+		transform := ecs.update_orbit_camera_3d(&orbit, &engine.input, engine.delta_time)
+		camera.target = orbit.target
+		ecs.set_orbit_camera_3d(world, entity, orbit)
+		ecs.set_transform(world, entity, transform)
+		ecs.set_camera_3d(world, entity, camera)
+	}
+}
+
 begin_frame :: proc(engine: ^Engine) {
 	engine.delta_time = rl.GetFrameTime()
 	if engine.delta_time > Max_Simulation_Delta {
@@ -365,6 +380,9 @@ begin_frame :: proc(engine: ^Engine) {
 	}
 	if engine.hot_reload_due && engine.project.hot_reload.enabled && engine.project.hot_reload.models {
 		assets.refresh_models(&engine.assets)
+	}
+	if engine.hot_reload_due && engine.project.hot_reload.enabled && engine.project.hot_reload.materials {
+		assets.refresh_materials(&engine.assets)
 	}
 	if rl.IsKeyPressed(.F3) {
 		engine.gizmos.enabled = !engine.gizmos.enabled

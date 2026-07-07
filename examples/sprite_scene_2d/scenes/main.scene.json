@@ -1,4 +1,5 @@
 {
+  "$schema": "../../../schemas/scene.schema.json",
   "name": "Sprite Scene 2D",
   "entities": [
     {

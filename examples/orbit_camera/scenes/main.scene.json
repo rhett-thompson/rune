@@ -1,4 +1,5 @@
 {
+  "$schema": "../../../schemas/scene.schema.json",
   "name": "Orbit Camera Scene",
   "entities": [
     {
@@ -35,6 +36,16 @@
           "up": [0, 1, 0],
           "fovy": 45,
           "active": true
+        },
+        "OrbitCamera3D": {
+          "target": [0, 0.75, 0],
+          "distance": 8,
+          "pitch": 27,
+          "auto_yaw_speed": 35,
+          "manual_action": "orbit_camera",
+          "yaw_axis": "orbit_x",
+          "pitch_axis": "orbit_y",
+          "orbit_sensitivity": 0.35
         }
       }
     }

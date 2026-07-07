@@ -1,4 +1,5 @@
 {
+  "$schema": "../../../schemas/input.schema.json",
   "actions": {
     "turn_left": [
       { "type": "keyboard", "key": "A" },

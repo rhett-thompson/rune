@@ -1,1 +1,2 @@
-{ "actions": {}, "axes": {} }
+{
+  "$schema": "../../../schemas/input.schema.json", "actions": {}, "axes": {} }

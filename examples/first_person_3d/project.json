@@ -1,4 +1,5 @@
 {
+  "$schema": "../../schemas/project.schema.json",
   "name": "Rune First Person",
   "startup_scene": "scenes/main.scene.json",
   "window": {

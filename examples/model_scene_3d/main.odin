@@ -3,17 +3,19 @@ package main
 import "core:fmt"
 import rune "rune:core"
 import "rune:ecs"
-import "rune:render"
+import "rune:r3d_bridge"
 import rl "vendor:raylib"
 
-scene_view := render.Scene3D_Settings{grid_slices = 20, grid_spacing = 1}
+scene_view := r3d_bridge.Scene3D_Settings{grid_slices = 20, grid_spacing = 1}
 world: ecs.World
+bridge: r3d_bridge.Context
 pyramid: ecs.Entity
 
 on_update :: proc(game: ^rune.Engine) {
 	if rune.reload_scene_if_changed(game, &world, "examples/model_scene_3d/scenes/main.scene.json") {
 		pyramid, _ = ecs.find_entity_by_id(&world, "pyramid")
 	}
+	rune.update_orbit_cameras_3d(game, &world)
 	transform, found := ecs.get_transform(&world, pyramid)
 	if !found { return }
 	transform.rotation[1] += 45 * game.delta_time
@@ -21,13 +23,13 @@ on_update :: proc(game: ^rune.Engine) {
 }
 
 on_draw :: proc(game: ^rune.Engine) {
-	if !render.draw_scene_3d_with_assets(&world, rune.asset_manager(game), scene_view) {
+	if !r3d_bridge.draw_scene_ex(&bridge, &world, rune.asset_manager(game), scene_view) {
 		rl.DrawText("No active Camera3D entity", 24, 24, 28, rl.MAROON)
 		return
 	}
 	rune.draw_gizmos(game, &world)
 	rl.DrawText("Rune Model Scene 3D", 24, 24, 28, rl.DARKGRAY)
-	rl.DrawText("An OBJ model loaded from scene JSON", 24, 60, 18, rl.GRAY)
+	rl.DrawText("Left mouse: orbit camera   Mouse wheel: zoom", 24, 60, 18, rl.GRAY)
 	rl.DrawFPS(24, 94)
 }
 
@@ -38,6 +40,14 @@ main :: proc() {
 		return
 	}
 	defer rune.shutdown(&game)
+
+	bridge_ok: bool
+	bridge, bridge_ok = r3d_bridge.init("examples/model_scene_3d", rl.GetScreenWidth(), rl.GetScreenHeight())
+	if !bridge_ok {
+		fmt.eprintln("Could not initialize r3d")
+		return
+	}
+	defer r3d_bridge.shutdown(&bridge)
 
 	scene_ok: bool
 	world, scene_ok = rune.load_scene(&game, "examples/model_scene_3d/scenes/main.scene.json")

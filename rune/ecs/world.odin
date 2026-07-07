@@ -49,6 +49,10 @@ World :: struct {
 	mesh_renderers:   map[Entity]MeshRenderer,
 	sphere_renderers: map[Entity]SphereRenderer,
 	model_renderers:  map[Entity]ModelRenderer,
+	ambient_lights:   map[Entity]AmbientLight,
+	directional_lights: map[Entity]DirectionalLight,
+	point_lights:      map[Entity]PointLight,
+	spot_lights:       map[Entity]SpotLight,
 	tilemap_renderers: map[Entity]TilemapRenderer,
 	text_renderers:    map[Entity]TextRenderer,
 	tilemap_colliders: map[Entity]TilemapCollider,
@@ -66,6 +70,7 @@ World :: struct {
 	rotators:         map[Entity]Rotator,
 	cameras_2d:       map[Entity]Camera2D,
 	cameras_3d:       map[Entity]Camera3D,
+	orbit_cameras_3d: map[Entity]OrbitCamera3D,
 	audio_listeners:  map[Entity]AudioListener,
 	audio_players:    map[Component_Instance]AudioPlayer,
 	nav_grids_2d:     map[Entity]NavGrid2D,
@@ -98,6 +103,10 @@ init :: proc() -> World {
 		mesh_renderers = make(map[Entity]MeshRenderer),
 		sphere_renderers = make(map[Entity]SphereRenderer),
 		model_renderers = make(map[Entity]ModelRenderer),
+		ambient_lights = make(map[Entity]AmbientLight),
+		directional_lights = make(map[Entity]DirectionalLight),
+		point_lights = make(map[Entity]PointLight),
+		spot_lights = make(map[Entity]SpotLight),
 		tilemap_renderers = make(map[Entity]TilemapRenderer),
 		text_renderers = make(map[Entity]TextRenderer),
 		tilemap_colliders = make(map[Entity]TilemapCollider),
@@ -113,6 +122,7 @@ init :: proc() -> World {
 		rotators = make(map[Entity]Rotator),
 		cameras_2d = make(map[Entity]Camera2D),
 		cameras_3d = make(map[Entity]Camera3D),
+		orbit_cameras_3d = make(map[Entity]OrbitCamera3D),
 		audio_listeners = make(map[Entity]AudioListener),
 		audio_players = make(map[Component_Instance]AudioPlayer),
 		nav_grids_2d = make(map[Entity]NavGrid2D),
@@ -350,6 +360,10 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 	mesh_renderer: MeshRenderer
 	sphere_renderer: SphereRenderer
 	model_renderer: ModelRenderer
+	ambient_light: AmbientLight
+	directional_light: DirectionalLight
+	point_light: PointLight
+	spot_light: SpotLight
 	tilemap_renderer: TilemapRenderer
 	text_renderer: TextRenderer
 	tilemap_collider: TilemapCollider
@@ -364,6 +378,7 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 	rotator: Rotator
 	camera_2d: Camera2D
 	camera_3d: Camera3D
+	orbit_camera_3d: OrbitCamera3D
 	audio_listener: AudioListener
 	nav_grid_2d: NavGrid2D
 	nav_agent_2d: NavAgent2D
@@ -378,6 +393,10 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 	if name == "MeshRenderer" { mesh_renderer, parse_ok = mesh_renderer_from_json(data); if !parse_ok { return false } }
 	if name == "SphereRenderer" { sphere_renderer, parse_ok = sphere_renderer_from_json(data); if !parse_ok { return false } }
 	if name == "ModelRenderer" { model_renderer, parse_ok = model_renderer_from_json(data); if !parse_ok { return false } }
+	if name == "AmbientLight" { ambient_light, parse_ok = ambient_light_from_json(data); if !parse_ok { return false } }
+	if name == "DirectionalLight" { directional_light, parse_ok = directional_light_from_json(data); if !parse_ok { return false } }
+	if name == "PointLight" { point_light, parse_ok = point_light_from_json(data); if !parse_ok { return false } }
+	if name == "SpotLight" { spot_light, parse_ok = spot_light_from_json(data); if !parse_ok { return false } }
 	if name == "TilemapRenderer" { tilemap_renderer, parse_ok = tilemap_renderer_from_json(data); if !parse_ok { return false } }
 	if name == "TextRenderer" { text_renderer, parse_ok = text_renderer_from_json(data); if !parse_ok { return false } }
 	if name == "TilemapCollider" { tilemap_collider, parse_ok = tilemap_collider_from_json(data); if !parse_ok { return false } }
@@ -392,6 +411,7 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 	if name == "Rotator" { rotator, parse_ok = rotator_from_json(data); if !parse_ok { return false } }
 	if name == "Camera2D" { camera_2d, parse_ok = camera_2d_from_json(data); if !parse_ok { return false } }
 	if name == "Camera3D" { camera_3d, parse_ok = camera_3d_from_json(data); if !parse_ok { return false } }
+	if name == "OrbitCamera3D" { orbit_camera_3d, parse_ok = orbit_camera_3d_from_json(data); if !parse_ok { return false } }
 	if name == "AudioListener" { audio_listener, parse_ok = audio_listener_from_json(data); if !parse_ok { return false } }
 	if name == "NavGrid2D" { nav_grid_2d, parse_ok = nav_grid_2d_from_json(data); if !parse_ok { return false } }
 	if name == "NavAgent2D" { nav_agent_2d, parse_ok = nav_agent_2d_from_json(data); if !parse_ok { return false } }
@@ -410,6 +430,10 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 	if name == "MeshRenderer" { world.mesh_renderers[entity] = mesh_renderer }
 	if name == "SphereRenderer" { world.sphere_renderers[entity] = sphere_renderer }
 	if name == "ModelRenderer" { world.model_renderers[entity] = model_renderer }
+	if name == "AmbientLight" { world.ambient_lights[entity] = ambient_light }
+	if name == "DirectionalLight" { world.directional_lights[entity] = directional_light }
+	if name == "PointLight" { world.point_lights[entity] = point_light }
+	if name == "SpotLight" { world.spot_lights[entity] = spot_light }
 	if name == "TilemapRenderer" { world.tilemap_renderers[entity] = tilemap_renderer }
 	if name == "TextRenderer" { world.text_renderers[entity] = text_renderer }
 	if name == "TilemapCollider" { world.tilemap_colliders[entity] = tilemap_collider }
@@ -424,6 +448,7 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 	if name == "Rotator" { world.rotators[entity] = rotator }
 	if name == "Camera2D" { world.cameras_2d[entity] = camera_2d }
 	if name == "Camera3D" { world.cameras_3d[entity] = camera_3d }
+	if name == "OrbitCamera3D" { world.orbit_cameras_3d[entity] = orbit_camera_3d }
 	if name == "AudioListener" { world.audio_listeners[entity] = audio_listener }
 	if name == "NavGrid2D" { world.nav_grids_2d[entity] = nav_grid_2d }
 	if name == "NavAgent2D" { world.nav_agents_2d[entity] = nav_agent_2d }
@@ -449,6 +474,10 @@ remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
 	if name == "MeshRenderer" { delete_key(&world.mesh_renderers, entity) }
 	if name == "SphereRenderer" { delete_key(&world.sphere_renderers, entity) }
 	if name == "ModelRenderer" { delete_key(&world.model_renderers, entity) }
+	if name == "AmbientLight" { delete_key(&world.ambient_lights, entity) }
+	if name == "DirectionalLight" { delete_key(&world.directional_lights, entity) }
+	if name == "PointLight" { delete_key(&world.point_lights, entity) }
+	if name == "SpotLight" { delete_key(&world.spot_lights, entity) }
 	if name == "TilemapRenderer" { delete_key(&world.tilemap_renderers, entity) }
 	if name == "TextRenderer" { delete_key(&world.text_renderers, entity) }
 	if name == "TilemapCollider" { delete_key(&world.tilemap_colliders, entity) }
@@ -463,6 +492,7 @@ remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
 	if name == "Rotator" { delete_key(&world.rotators, entity) }
 	if name == "Camera2D" { delete_key(&world.cameras_2d, entity) }
 	if name == "Camera3D" { delete_key(&world.cameras_3d, entity) }
+	if name == "OrbitCamera3D" { delete_key(&world.orbit_cameras_3d, entity) }
 	if name == "AudioListener" { delete_key(&world.audio_listeners, entity) }
 	if name == "AudioPlayer" {
 		for key in world.audio_players {
@@ -585,6 +615,14 @@ get_sphere_renderer :: proc(world: ^World, entity: Entity) -> (SphereRenderer, b
 set_sphere_renderer :: proc(world: ^World, entity: Entity, value: SphereRenderer) -> bool { if !has_component_data(world, entity, "SphereRenderer") { return false }; world.sphere_renderers[entity] = value; return true }
 get_model_renderer :: proc(world: ^World, entity: Entity) -> (ModelRenderer, bool) { value, found := world.model_renderers[entity]; return value, found }
 set_model_renderer :: proc(world: ^World, entity: Entity, value: ModelRenderer) -> bool { if !has_component_data(world, entity, "ModelRenderer") { return false }; world.model_renderers[entity] = value; return true }
+get_ambient_light :: proc(world: ^World, entity: Entity) -> (AmbientLight, bool) { value, found := world.ambient_lights[entity]; return value, found }
+set_ambient_light :: proc(world: ^World, entity: Entity, value: AmbientLight) -> bool { if !has_component_data(world, entity, "AmbientLight") { return false }; world.ambient_lights[entity] = value; return true }
+get_directional_light :: proc(world: ^World, entity: Entity) -> (DirectionalLight, bool) { value, found := world.directional_lights[entity]; return value, found }
+set_directional_light :: proc(world: ^World, entity: Entity, value: DirectionalLight) -> bool { if !has_component_data(world, entity, "DirectionalLight") { return false }; world.directional_lights[entity] = value; return true }
+get_point_light :: proc(world: ^World, entity: Entity) -> (PointLight, bool) { value, found := world.point_lights[entity]; return value, found }
+set_point_light :: proc(world: ^World, entity: Entity, value: PointLight) -> bool { if !has_component_data(world, entity, "PointLight") { return false }; world.point_lights[entity] = value; return true }
+get_spot_light :: proc(world: ^World, entity: Entity) -> (SpotLight, bool) { value, found := world.spot_lights[entity]; return value, found }
+set_spot_light :: proc(world: ^World, entity: Entity, value: SpotLight) -> bool { if !has_component_data(world, entity, "SpotLight") { return false }; world.spot_lights[entity] = value; return true }
 get_tilemap_renderer :: proc(world: ^World, entity: Entity) -> (TilemapRenderer, bool) { value, found := world.tilemap_renderers[entity]; return value, found }
 set_tilemap_renderer :: proc(world: ^World, entity: Entity, value: TilemapRenderer) -> bool { if !has_component_data(world, entity, "TilemapRenderer") { return false }; world.tilemap_renderers[entity] = value; return true }
 get_text_renderer :: proc(world: ^World, entity: Entity) -> (TextRenderer, bool) { value, found := world.text_renderers[entity]; return value, found }
@@ -611,6 +649,8 @@ get_camera_2d :: proc(world: ^World, entity: Entity) -> (Camera2D, bool) { value
 set_camera_2d :: proc(world: ^World, entity: Entity, value: Camera2D) -> bool { if !has_component_data(world, entity, "Camera2D") { return false }; world.cameras_2d[entity] = value; return true }
 get_camera_3d :: proc(world: ^World, entity: Entity) -> (Camera3D, bool) { value, found := world.cameras_3d[entity]; return value, found }
 set_camera_3d :: proc(world: ^World, entity: Entity, value: Camera3D) -> bool { if !has_component_data(world, entity, "Camera3D") { return false }; world.cameras_3d[entity] = value; return true }
+get_orbit_camera_3d :: proc(world: ^World, entity: Entity) -> (OrbitCamera3D, bool) { value, found := world.orbit_cameras_3d[entity]; return value, found }
+set_orbit_camera_3d :: proc(world: ^World, entity: Entity, value: OrbitCamera3D) -> bool { if !has_component_data(world, entity, "OrbitCamera3D") { return false }; world.orbit_cameras_3d[entity] = value; return true }
 get_audio_listener :: proc(world: ^World, entity: Entity) -> (AudioListener, bool) { value, found := world.audio_listeners[entity]; return value, found }
 set_audio_listener :: proc(world: ^World, entity: Entity, value: AudioListener) -> bool { if !has_component_data(world, entity, "AudioListener") { return false }; world.audio_listeners[entity] = value; return true }
 get_audio_player :: proc(world: ^World, entity: Entity, instance_name: string) -> (AudioPlayer, bool) {

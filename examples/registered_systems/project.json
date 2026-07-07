@@ -1,4 +1,5 @@
 {
+  "$schema": "../../schemas/project.schema.json",
   "name": "Rune Registered Systems",
   "startup_scene": "scenes/main.scene.json",
   "window": { "width": 960, "height": 540, "title": "Rune - Registered Systems", "fullscreen": false, "vsync": true },

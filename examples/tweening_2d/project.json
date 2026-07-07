@@ -1,4 +1,5 @@
 {
+  "$schema": "../../schemas/project.schema.json",
   "name": "Rune Tweening",
   "startup_scene": "scenes/main.scene.json",
   "background_color": [24, 28, 42, 255],

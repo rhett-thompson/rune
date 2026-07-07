@@ -5,7 +5,7 @@ import "core:math"
 import rune "rune:core"
 import "rune:ecs"
 import "rune:input"
-import "rune:render"
+import "rune:r3d_bridge"
 import rl "vendor:raylib"
 
 Player_Speed : f32 : 6
@@ -13,6 +13,7 @@ Camera_Height : f32 : 1.5
 Mouse_Orbit_Speed : f32 : 0.25
 
 world: ecs.World
+bridge: r3d_bridge.Context
 player: ecs.Entity
 follow_camera: ecs.Entity
 // Face the landmark side of the playground on startup.
@@ -20,7 +21,7 @@ camera_yaw: f32 = 180
 camera_pitch: f32 = 22
 camera_distance: f32 = 7
 
-scene_view := render.Scene3D_Settings{grid_slices = 30, grid_spacing = 1, draw_colliders = true}
+scene_view := r3d_bridge.Scene3D_Settings{grid_slices = 30, grid_spacing = 1, draw_colliders = true}
 
 clamp :: proc(value, minimum, maximum: f32) -> f32 {
 	if value < minimum { return minimum }
@@ -89,7 +90,7 @@ on_update :: proc(game: ^rune.Engine) {
 }
 
 on_draw :: proc(game: ^rune.Engine) {
-	if !render.draw_scene_3d(&world, scene_view) {
+	if !r3d_bridge.draw_scene_ex(&bridge, &world, rune.asset_manager(game), scene_view) {
 		rl.DrawText("No active Camera3D entity", 24, 24, 28, rl.MAROON)
 		return
 	}
@@ -105,6 +106,11 @@ main :: proc() {
 	game, ok := rune.init("examples/third_person_3d/project.json")
 	if !ok { fmt.eprintln("Could not load examples/third_person_3d/project.json"); return }
 	defer rune.shutdown(&game)
+
+	bridge_ok: bool
+	bridge, bridge_ok = r3d_bridge.init("examples/third_person_3d", rl.GetScreenWidth(), rl.GetScreenHeight())
+	if !bridge_ok { fmt.eprintln("Could not initialize r3d"); return }
+	defer r3d_bridge.shutdown(&bridge)
 
 	scene_ok: bool
 	world, scene_ok = rune.load_scene(&game, "examples/third_person_3d/scenes/main.scene.json")
