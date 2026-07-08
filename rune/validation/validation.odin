@@ -300,7 +300,20 @@ validate_material :: proc(report: ^Report, material_path, project_directory: str
 			}
 		}
 	}
-	material_asset_fields := [11]string{"texture", "albedo", "normal", "orm_texture", "orm", "roughness_texture", "metallic_texture", "ao_texture", "occlusion", "height_texture", "height"}
+	if color_value, found := material["emission_color"]; found {
+		color, color_ok := color_value.(json.Array)
+		if !color_ok || len(color) != 4 {
+			add(report, material_path, "$.emission_color", "must be an RGBA array with four integer channels")
+		} else {
+			for channel, index in color {
+				number, number_ok := jsonutil.number(channel)
+				if !number_ok || number < 0 || number > 255 || number != f32(i32(number)) {
+					add(report, material_path, index_path("$.emission_color", index), "must be an integer from 0 through 255")
+				}
+			}
+		}
+	}
+	material_asset_fields := [13]string{"texture", "albedo", "normal", "emission", "emission_texture", "orm_texture", "orm", "roughness_texture", "metallic_texture", "ao_texture", "occlusion", "height_texture", "height"}
 	for field in material_asset_fields {
 		asset_path, found := material[field]
 		if !found { continue }
@@ -335,13 +348,39 @@ validate_material :: proc(report: ^Report, material_path, project_directory: str
 			add(report, material_path, "$.lod_bias", "must be a number from 0 through 4")
 		}
 	}
-	material_unit_fields := [2]string{"roughness", "metallic"}
+	material_unit_fields := [6]string{"roughness", "metallic", "specular", "ao_strength", "alpha_cutoff", "normal_scale"}
 	for field in material_unit_fields {
 		value, found := material[field]
 		if !found { continue }
 		number, number_ok := jsonutil.number(value)
-		if !number_ok || number < 0 || number > 1 {
-			add(report, material_path, field_path("$", field), "must be a number from 0 through 1")
+		max_value: f32 = 1
+		if field == "normal_scale" { max_value = 4 }
+		if !number_ok || number < 0 || number > max_value {
+			add(report, material_path, field_path("$", field), fmt.tprint("must be a number from 0 through ", max_value))
+		}
+	}
+	if emission_energy_value, found := material["emission_energy"]; found {
+		emission_energy, emission_energy_ok := jsonutil.number(emission_energy_value)
+		if !emission_energy_ok || emission_energy < 0 {
+			add(report, material_path, "$.emission_energy", "must be a number greater than or equal to 0")
+		}
+	}
+	if transparency_value, found := material["transparency"]; found {
+		transparency, transparency_ok := transparency_value.(json.String)
+		if !transparency_ok || !valid_transparency_mode(transparency) {
+			add(report, material_path, "$.transparency", "must be one of disabled, prepass, alpha")
+		}
+	}
+	if blend_value, found := material["blend"]; found {
+		blend, blend_ok := blend_value.(json.String)
+		if !blend_ok || !valid_blend_mode(blend) {
+			add(report, material_path, "$.blend", "must be one of mix, additive, multiply, premultiplied_alpha")
+		}
+	}
+	if cull_value, found := material["cull"]; found {
+		cull, cull_ok := cull_value.(json.String)
+		if !cull_ok || !valid_cull_mode(cull) {
+			add(report, material_path, "$.cull", "must be one of back, front, none")
 		}
 	}
 	if height_scale_value, found := material["height_scale"]; found {
@@ -359,4 +398,19 @@ valid_texture_filter :: proc(name: string) -> bool {
 	       name == "anisotropic_4x" ||
 	       name == "anisotropic_8x" ||
 	       name == "anisotropic_16x"
+}
+
+valid_transparency_mode :: proc(name: string) -> bool {
+	return name == "disabled" || name == "prepass" || name == "alpha"
+}
+
+valid_blend_mode :: proc(name: string) -> bool {
+	return name == "mix" ||
+	       name == "additive" ||
+	       name == "multiply" ||
+	       name == "premultiplied_alpha"
+}
+
+valid_cull_mode :: proc(name: string) -> bool {
+	return name == "back" || name == "front" || name == "none"
 }

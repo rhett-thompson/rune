@@ -253,13 +253,19 @@ load_scene :: proc(engine: ^Engine, path: string) -> (ecs.World, bool) {
 	return world, loaded
 }
 
-// reload_scene_if_changed rebuilds a loaded World when its scene or a directly
-// referenced prefab changes. Game code must reacquire cached entity IDs after
-// this returns true because the old World handles are no longer valid.
+// reload_scene_if_changed updates a loaded World when its scene or a directly
+// referenced prefab changes. Component-value-only scene saves are applied onto
+// the existing World and return false so cached Entity handles stay valid and
+// reload callbacks do not run. Structural changes still rebuild the World and
+// return true; game code must reacquire cached entity IDs after that.
 reload_scene_if_changed :: proc(engine: ^Engine, world: ^ecs.World, path: string) -> bool {
 	if !engine.project.hot_reload.enabled || !engine.project.hot_reload.scenes || !engine.hot_reload_due || !scene_changed(engine, path) { return false }
 	reloaded, loaded := scene.load_with_layers(path, &engine.registry, engine.project.layers)
 	if !loaded { return false }
+	if ecs.apply_value_snapshot(world, &reloaded) {
+		watch_scene(engine, path)
+		return false
+	}
 	ecs.physics_2d_shutdown(world)
 	world^ = reloaded
 	watch_scene(engine, path)

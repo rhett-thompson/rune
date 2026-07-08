@@ -30,6 +30,7 @@ Material_Data :: struct {
 	base_color:      [4]u8,
 	texture:         string,
 	normal:          string,
+	emission:        string,
 	orm_texture:     string,
 	roughness_texture: string,
 	metallic_texture: string,
@@ -39,8 +40,17 @@ Material_Data :: struct {
 	mipmaps:         bool,
 	lod_bias:        f32,
 	lighting:        bool,
+	emission_color:  [4]u8,
+	emission_energy: f32,
+	normal_scale:    f32,
+	ao_strength:     f32,
 	roughness:       f32,
 	metallic:        f32,
+	specular:        f32,
+	alpha_cutoff:    f32,
+	transparency:    string,
+	blend:           string,
+	cull:            string,
 	height_scale:    f32,
 }
 
@@ -226,8 +236,8 @@ generate_orm_texture :: proc(manager: ^Asset_Manager, data: Material_Data) -> (r
 		rl.ImageResize(&metallic_image, width, height)
 	}
 	default_ao := u8(255)
-	default_roughness := scalar_to_channel(data.roughness)
-	default_metallic := scalar_to_channel(data.metallic)
+	default_roughness := u8(255)
+	default_metallic := u8(255)
 	pixel_count := int(width * height)
 	orm_pixels := make([]rl.Color, pixel_count)
 	defer delete(orm_pixels)
@@ -434,6 +444,14 @@ load_material_data :: proc(full_path: string) -> (Material_Data, bool) {
 		result.normal, ok = value.(json.String)
 		if !ok { return {}, false }
 	}
+	if value, found := object["emission"]; found {
+		result.emission, ok = value.(json.String)
+		if !ok { return {}, false }
+	}
+	if value, found := object["emission_texture"]; found {
+		result.emission, ok = value.(json.String)
+		if !ok { return {}, false }
+	}
 	if value, found := object["orm_texture"]; found {
 		result.orm_texture, ok = value.(json.String)
 		if !ok { return {}, false }
@@ -484,8 +502,46 @@ load_material_data :: proc(full_path: string) -> (Material_Data, bool) {
 		result.lighting, ok = value.(json.Boolean)
 		if !ok { return {}, false }
 	}
+	result.emission_color = {255, 255, 255, 255}
+	if value, found := object["emission_color"]; found && !read_color(value, &result.emission_color) { return {}, false }
+	result.emission_energy = 0
+	if value, found := object["emission_energy"]; found {
+		result.emission_energy, ok = jsonutil.number(value)
+		if !ok || result.emission_energy < 0 { return {}, false }
+	}
+	result.normal_scale = 1
+	if value, found := object["normal_scale"]; found {
+		result.normal_scale, ok = jsonutil.number(value)
+		if !ok || result.normal_scale < 0 || result.normal_scale > 4 { return {}, false }
+	}
+	result.ao_strength = 1
+	if value, found := object["ao_strength"]; found {
+		result.ao_strength, ok = jsonutil.number(value)
+		if !ok || result.ao_strength < 0 || result.ao_strength > 1 { return {}, false }
+	}
 	result.roughness = 0.5
 	result.metallic = 0
+	result.specular = 0.5
+	result.alpha_cutoff = 0.01
+	if value, found := object["alpha_cutoff"]; found {
+		result.alpha_cutoff, ok = jsonutil.number(value)
+		if !ok || result.alpha_cutoff < 0 || result.alpha_cutoff > 1 { return {}, false }
+	}
+	result.transparency = "disabled"
+	if value, found := object["transparency"]; found {
+		result.transparency, ok = value.(json.String)
+		if !ok || !is_transparency_mode_name(result.transparency) { return {}, false }
+	}
+	result.blend = "mix"
+	if value, found := object["blend"]; found {
+		result.blend, ok = value.(json.String)
+		if !ok || !is_blend_mode_name(result.blend) { return {}, false }
+	}
+	result.cull = "back"
+	if value, found := object["cull"]; found {
+		result.cull, ok = value.(json.String)
+		if !ok || !is_cull_mode_name(result.cull) { return {}, false }
+	}
 	result.height_scale = 0.03
 	if value, found := object["roughness"]; found {
 		result.roughness, ok = jsonutil.number(value)
@@ -494,6 +550,10 @@ load_material_data :: proc(full_path: string) -> (Material_Data, bool) {
 	if value, found := object["metallic"]; found {
 		result.metallic, ok = jsonutil.number(value)
 		if !ok || result.metallic < 0 || result.metallic > 1 { return {}, false }
+	}
+	if value, found := object["specular"]; found {
+		result.specular, ok = jsonutil.number(value)
+		if !ok || result.specular < 0 || result.specular > 1 { return {}, false }
 	}
 	if value, found := object["height_scale"]; found {
 		result.height_scale, ok = jsonutil.number(value)
@@ -549,6 +609,21 @@ is_anisotropic_filter_name :: proc(name: string) -> bool {
 	return name == "anisotropic_4x" ||
 	       name == "anisotropic_8x" ||
 	       name == "anisotropic_16x"
+}
+
+is_transparency_mode_name :: proc(name: string) -> bool {
+	return name == "disabled" || name == "prepass" || name == "alpha"
+}
+
+is_blend_mode_name :: proc(name: string) -> bool {
+	return name == "mix" ||
+	       name == "additive" ||
+	       name == "multiply" ||
+	       name == "premultiplied_alpha"
+}
+
+is_cull_mode_name :: proc(name: string) -> bool {
+	return name == "back" || name == "front" || name == "none"
 }
 
 modified_time :: proc(path: string) -> i64 {

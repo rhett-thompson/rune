@@ -14,12 +14,14 @@ MeshRenderer :: struct {
 	primitive: string,
 	color:     Color,
 	material:  string,
+	shadows:   bool,
 }
 
 SphereRenderer :: struct {
 	radius: f32,
 	color:  Color,
 	material: string,
+	shadows: bool,
 }
 
 ModelRenderer :: struct {
@@ -63,7 +65,7 @@ sprite_renderer_from_json :: proc(data: json.Value) -> (SpriteRenderer, bool) {
 mesh_renderer_from_json :: proc(data: json.Value) -> (MeshRenderer, bool) {
 	object, ok := data.(json.Object)
 	if !ok { return {}, false }
-	result := MeshRenderer{color = {255, 255, 255, 255}}
+	result := MeshRenderer{color = {255, 255, 255, 255}, shadows = true}
 	if value, found := object["primitive"]; found {
 		result.primitive, ok = value.(json.String)
 		if !ok { return {}, false }
@@ -73,13 +75,17 @@ mesh_renderer_from_json :: proc(data: json.Value) -> (MeshRenderer, bool) {
 		result.material, ok = value.(json.String)
 		if !ok { return {}, false }
 	}
+	if value, found := object["shadows"]; found {
+		result.shadows, ok = value.(json.Boolean)
+		if !ok { return {}, false }
+	}
 	return result, true
 }
 
 sphere_renderer_from_json :: proc(data: json.Value) -> (SphereRenderer, bool) {
 	object, ok := data.(json.Object)
 	if !ok { return {}, false }
-	result := SphereRenderer{radius = 1, color = {255, 255, 255, 255}}
+	result := SphereRenderer{radius = 1, color = {255, 255, 255, 255}, shadows = true}
 	if value, found := object["radius"]; found {
 		result.radius, ok = read_number(value)
 		if !ok || result.radius <= 0 { return {}, false }
@@ -87,6 +93,10 @@ sphere_renderer_from_json :: proc(data: json.Value) -> (SphereRenderer, bool) {
 	if value, found := object["color"]; found && !read_color(value, &result.color) { return {}, false }
 	if value, found := object["material"]; found {
 		result.material, ok = value.(json.String)
+		if !ok { return {}, false }
+	}
+	if value, found := object["shadows"]; found {
+		result.shadows, ok = value.(json.Boolean)
 		if !ok { return {}, false }
 	}
 	return result, true

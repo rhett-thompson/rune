@@ -80,9 +80,10 @@
     "meshRenderer": {
       "type": "object",
       "properties": {
-        "primitive": { "type": "string", "enum": ["cube"] },
+        "primitive": { "type": "string", "enum": ["cube", "plane"] },
         "color": { "$ref": "#/$defs/color" },
-        "material": { "type": "string", "minLength": 1 }
+        "material": { "type": "string", "minLength": 1 },
+        "shadows": { "type": "boolean", "default": true }
       },
       "additionalProperties": false
     },
@@ -91,7 +92,8 @@
       "properties": {
         "radius": { "type": "number", "exclusiveMinimum": 0, "default": 1 },
         "color": { "$ref": "#/$defs/color" },
-        "material": { "type": "string", "minLength": 1 }
+        "material": { "type": "string", "minLength": 1 },
+        "shadows": { "type": "boolean", "default": true }
       },
       "additionalProperties": false
     },
@@ -126,7 +128,14 @@
       "properties": {
         "direction": { "$ref": "#/$defs/vec3", "default": [-0.35, -1, -0.45] },
         "color": { "$ref": "#/$defs/color" },
-        "intensity": { "type": "number", "minimum": 0, "default": 1 }
+        "intensity": { "type": "number", "minimum": 0, "default": 1 },
+        "range": { "type": "number", "exclusiveMinimum": 0, "default": 16, "description": "Directional shadow radius around the camera." },
+        "specular": { "type": "number", "minimum": 0, "default": 1 },
+        "shadows": { "type": "boolean", "default": false },
+        "shadow_softness": { "type": "number", "minimum": 0, "default": 0 },
+        "shadow_opacity": { "type": "number", "minimum": 0, "default": 1 },
+        "shadow_depth_bias": { "type": "number", "minimum": 0, "default": 0 },
+        "shadow_slope_bias": { "type": "number", "minimum": 0, "default": 0 }
       },
       "additionalProperties": false
     },
@@ -135,7 +144,13 @@
       "properties": {
         "color": { "$ref": "#/$defs/color" },
         "intensity": { "type": "number", "minimum": 0, "default": 1 },
-        "range": { "type": "number", "exclusiveMinimum": 0, "default": 5 }
+        "range": { "type": "number", "exclusiveMinimum": 0, "default": 5 },
+        "specular": { "type": "number", "minimum": 0, "default": 1 },
+        "shadows": { "type": "boolean", "default": false },
+        "shadow_softness": { "type": "number", "minimum": 0, "default": 0 },
+        "shadow_opacity": { "type": "number", "minimum": 0, "default": 1 },
+        "shadow_depth_bias": { "type": "number", "minimum": 0, "default": 0 },
+        "shadow_slope_bias": { "type": "number", "minimum": 0, "default": 0 }
       },
       "additionalProperties": false
     },
@@ -147,7 +162,13 @@
         "intensity": { "type": "number", "minimum": 0, "default": 1 },
         "range": { "type": "number", "exclusiveMinimum": 0, "default": 8 },
         "inner_angle": { "type": "number", "exclusiveMinimum": 0, "default": 18 },
-        "outer_angle": { "type": "number", "exclusiveMinimum": 0, "default": 32 }
+        "outer_angle": { "type": "number", "exclusiveMinimum": 0, "default": 32 },
+        "specular": { "type": "number", "minimum": 0, "default": 1 },
+        "shadows": { "type": "boolean", "default": false },
+        "shadow_softness": { "type": "number", "minimum": 0, "default": 0 },
+        "shadow_opacity": { "type": "number", "minimum": 0, "default": 1 },
+        "shadow_depth_bias": { "type": "number", "minimum": 0, "default": 0 },
+        "shadow_slope_bias": { "type": "number", "minimum": 0, "default": 0 }
       },
       "additionalProperties": false
     },

@@ -1,0 +1,11 @@
+{
+  "$schema": "../../../../schemas/material.schema.json",
+  "base_color": [92, 96, 88, 255],
+  "filter": "anisotropic_16x",
+  "mipmaps": true,
+  "lighting": true,
+  "roughness": 1,
+  "metallic": 0,
+  "specular": 0.12,
+  "cull": "back"
+}

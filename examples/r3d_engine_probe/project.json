@@ -1,0 +1,15 @@
+{
+  "$schema": "../../schemas/project.schema.json",
+  "name": "r3d Engine Probe",
+  "startup_scene": "../textured_model_3d/scenes/main.scene.json",
+  "window": {
+    "width": 960,
+    "height": 540,
+    "title": "r3d Engine Probe",
+    "fullscreen": false,
+    "vsync": true,
+    "msaa_4x": true
+  },
+  "background_color": [8, 10, 14, 255],
+  "input": "../textured_model_3d/input/default.input.json"
+}

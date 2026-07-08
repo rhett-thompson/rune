@@ -25,6 +25,35 @@
       "type": "string",
       "description": "Project-relative tangent-space normal map path."
     },
+    "normal_scale": {
+      "type": "number",
+      "description": "Normal map strength multiplier from 0 to 4.",
+      "minimum": 0,
+      "maximum": 4,
+      "default": 1
+    },
+    "emission": {
+      "type": "string",
+      "description": "Project-relative emission texture path. Alias for emission_texture."
+    },
+    "emission_texture": {
+      "type": "string",
+      "description": "Project-relative emission texture path."
+    },
+    "emission_color": {
+      "type": "array",
+      "description": "RGBA color multiplied into emission.",
+      "items": { "type": "integer", "minimum": 0, "maximum": 255 },
+      "minItems": 4,
+      "maxItems": 4,
+      "default": [255, 255, 255, 255]
+    },
+    "emission_energy": {
+      "type": "number",
+      "description": "Emission strength multiplier.",
+      "minimum": 0,
+      "default": 0
+    },
     "orm_texture": {
       "type": "string",
       "description": "Project-relative packed occlusion/roughness/metallic texture path. R=AO, G=roughness, B=metallic."
@@ -45,13 +74,20 @@
       "type": "string",
       "description": "Project-relative ambient occlusion texture path. The red channel darkens ambient light."
     },
+    "ao_strength": {
+      "type": "number",
+      "description": "Ambient occlusion strength multiplier from 0 to 1.",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 1
+    },
     "occlusion": {
       "type": "string",
       "description": "Alias for ao_texture."
     },
     "height_texture": {
       "type": "string",
-      "description": "Project-relative height texture path for parallax mapping. The red channel is sampled."
+      "description": "Project-relative height texture path reserved for custom/parallax material shaders. The r3d default material does not consume this yet."
     },
     "height": {
       "type": "string",
@@ -94,9 +130,41 @@
       "maximum": 1,
       "default": 0
     },
+    "specular": {
+      "type": "number",
+      "description": "Base reflectivity multiplier for non-metal materials from 0 to 1.",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5
+    },
+    "alpha_cutoff": {
+      "type": "number",
+      "description": "Alpha cutoff threshold from 0 to 1.",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.01
+    },
+    "transparency": {
+      "type": "string",
+      "description": "Transparency rendering mode.",
+      "enum": ["disabled", "prepass", "alpha"],
+      "default": "disabled"
+    },
+    "blend": {
+      "type": "string",
+      "description": "Blend mode used when transparency is active.",
+      "enum": ["mix", "additive", "multiply", "premultiplied_alpha"],
+      "default": "mix"
+    },
+    "cull": {
+      "type": "string",
+      "description": "Face culling mode.",
+      "enum": ["back", "front", "none"],
+      "default": "back"
+    },
     "height_scale": {
       "type": "number",
-      "description": "Parallax height scale from 0 to 0.2. Small values around 0.02-0.05 are recommended.",
+      "description": "Height/parallax scale reserved for custom material shaders. The r3d default material does not consume this yet.",
       "minimum": 0,
       "maximum": 0.2,
       "default": 0.03

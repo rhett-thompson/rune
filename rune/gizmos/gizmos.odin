@@ -325,6 +325,7 @@ draw_lights_3d :: proc(world: ^ecs.World) {
 		light, has_light := ecs.get_ambient_light(world, entity)
 		if !has_transform || !has_light { continue }
 		color := light_color(light.color, light.intensity)
+		rl.DrawSphere(transform.position, 0.16, rl.Fade(color, 0.65))
 		rl.DrawSphereWires(transform.position, 0.22, 10, 5, color)
 	}
 	for entity in ecs.entities_with_component(world, "DirectionalLight") {
@@ -336,6 +337,7 @@ draw_lights_3d :: proc(world: ^ecs.World) {
 		direction := normalize3(rl.Vector3(light.direction))
 		color := light_color(light.color, light.intensity)
 		end := vec3_add(position, vec3_scale(direction, 1.5))
+		rl.DrawSphere(position, 0.13, rl.Fade(color, 0.65))
 		rl.DrawSphereWires(position, 0.18, 8, 4, color)
 		rl.DrawLine3D(position, end, color)
 		draw_arrow_head_3d(end, direction, color)
@@ -345,7 +347,8 @@ draw_lights_3d :: proc(world: ^ecs.World) {
 		light, has_light := ecs.get_point_light(world, entity)
 		if !has_transform || !has_light { continue }
 		color := light_color(light.color, light.intensity)
-		rl.DrawSphereWires(transform.position, 0.14, 8, 4, color)
+		rl.DrawSphere(transform.position, 0.14, rl.Fade(color, 0.75))
+		rl.DrawSphereWires(transform.position, 0.2, 8, 4, color)
 		rl.DrawSphereWires(transform.position, light.range, 18, 10, rl.Fade(color, 0.35))
 	}
 	for entity in ecs.entities_with_component(world, "SpotLight") {
@@ -357,7 +360,8 @@ draw_lights_3d :: proc(world: ^ecs.World) {
 		center := vec3_add(transform.position, vec3_scale(direction, light.range))
 		radius := f32(math.tan(f64(light.outer_angle * f32(math.PI / 180)))) * light.range
 		right, up := cone_basis(direction)
-		rl.DrawSphereWires(transform.position, 0.14, 8, 4, color)
+		rl.DrawSphere(transform.position, 0.16, rl.Fade(color, 0.75))
+		rl.DrawSphereWires(transform.position, 0.22, 8, 4, color)
 		rl.DrawLine3D(transform.position, center, color)
 		draw_cone_ring_3d(transform.position, center, right, up, radius, color)
 	}
