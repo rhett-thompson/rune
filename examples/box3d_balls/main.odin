@@ -1,16 +1,13 @@
 package main
 
 import "core:fmt"
+import "core:math"
 import rune "rune:core"
+import "rune:ecs"
 import b3 "vendor:box3d"
 import rl "vendor:raylib"
 
-BALL_COUNT  :: 18
-FIXED_DELTA :: 1.0 / 60.0
-
-physics_world: b3.WorldId
-balls: [BALL_COUNT]b3.BodyId
-accumulator: f32
+DEG_TO_RAD :: 0.017453292519943295
 
 camera := rl.Camera3D{
 	position   = {10, 8, 12},
@@ -20,101 +17,147 @@ camera := rl.Camera3D{
 	projection = .PERSPECTIVE,
 }
 
-ball_colors := [6]rl.Color{
-	rl.SKYBLUE,
-	rl.ORANGE,
-	rl.LIME,
-	rl.PINK,
-	rl.GOLD,
-	rl.VIOLET,
-}
-
-create_box_shape :: proc(body: b3.BodyId, half_extents: b3.Vec3) {
-	shape_def := b3.DefaultShapeDef()
-	box := b3.MakeBoxHull(half_extents.x, half_extents.y, half_extents.z)
-	_ = b3.CreateHullShape(body, shape_def, &box.base)
-}
-
-create_sphere_shape :: proc(body: b3.BodyId, radius: f32) {
-	shape_def := b3.DefaultShapeDef()
-	shape_def.density = 1
-	shape_def.baseMaterial.friction = 0.35
-	shape_def.baseMaterial.restitution = 0.65
-	sphere := b3.Sphere{radius = radius}
-	_ = b3.CreateSphereShape(body, shape_def, &sphere)
-}
-
-reset_simulation :: proc() {
-	if !b3.IS_NULL(physics_world) {
-		b3.DestroyWorld(physics_world)
-	}
-
-	world_def := b3.DefaultWorldDef()
-	world_def.gravity = {0, -9.8, 0}
-	physics_world = b3.CreateWorld(world_def)
-
-	ground_def := b3.DefaultBodyDef()
-	ground_def.position = {0, -0.5, 0}
-	ground := b3.CreateBody(physics_world, ground_def)
-	create_box_shape(ground, {6, 0.5, 6})
-
-	for index in 0 ..< BALL_COUNT {
-		column := index % 3
-		row := index / 3
-		radius := 0.38 + f32(index % 3) * 0.08
-
-		body_def := b3.DefaultBodyDef()
-		body_def.type = .dynamicBody
-		body_def.position = {
-			f32(column - 1) * 1.15,
-			1.5 + f32(row) * 1.05,
-			f32((row + column) % 3 - 1) * 0.55,
-		}
-		balls[index] = b3.CreateBody(physics_world, body_def)
-		create_sphere_shape(balls[index], radius)
-	}
-
-	accumulator = 0
-}
-
-on_update :: proc(game: ^rune.Engine) {
+on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if rl.IsKeyPressed(.R) {
-		reset_simulation()
-	}
-
-	accumulator += game.delta_time
-	for accumulator >= FIXED_DELTA {
-		b3.World_Step(physics_world, FIXED_DELTA, 4)
-		accumulator -= FIXED_DELTA
+		_ = rune.change_scene(game, "scenes/main.scene.json")
 	}
 }
 
-on_draw :: proc(game: ^rune.Engine) {
+on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	rl.BeginMode3D(camera)
-	rl.DrawPlane({0, 0, 0}, {12, 12}, rl.Color{55, 62, 72, 255})
-	rl.DrawGrid(12, 1)
-
-	for body, index in balls {
-		position := b3.Body_GetPosition(body)
-		radius := 0.38 + f32(index % 3) * 0.08
-		draw_position := rl.Vector3{position.x, position.y, position.z}
-		color := ball_colors[index % len(ball_colors)]
-		rl.DrawSphere(draw_position, radius, color)
-		rl.DrawSphereWires(draw_position, radius, 10, 10, rl.Fade(rl.BLACK, 0.3))
-	}
+	rl.DrawPlane({0, 0, 0}, {16, 12}, rl.Color{55, 62, 72, 255})
+	draw_physics_boxes(world)
+	draw_physics_spheres(world)
 	rl.EndMode3D()
 
-	counters := b3.World_GetCounters(physics_world)
-	rl.DrawText("Box3D ball drop", 24, 24, 28, rl.RAYWHITE)
-	rl.DrawText("R: reset simulation", 24, 60, 18, rl.LIGHTGRAY)
+	counters, _ := ecs.physics_3d_counters(world)
+	rl.DrawText("Rune ECS + Box3D rolling balls", 24, 24, 28, rl.RAYWHITE)
+	rl.DrawText("Scene JSON: RigidBody3D + SphereCollider/BoxCollider", 24, 60, 18, rl.LIGHTGRAY)
+	rl.DrawText("R: reload scene", 24, 88, 18, rl.LIGHTGRAY)
 	rl.DrawText(
 		fmt.ctprintf("%d bodies  |  %d contacts", counters.bodyCount, counters.contactCount),
 		24,
-		88,
+		116,
 		18,
 		rl.LIGHTGRAY,
 	)
-	rl.DrawFPS(24, 116)
+	rl.DrawFPS(24, 144)
+}
+
+draw_physics_boxes :: proc(world: ^ecs.World) {
+	for entity in ecs.query(world, ecs.BoxCollider) {
+		transform, has_transform := ecs.get_transform(world, entity)
+		collider, has_collider := ecs.get_box_collider(world, entity)
+		if !has_transform || !has_collider { continue }
+
+		size := rl.Vector3{
+			collider.size[0] * transform.scale[0],
+			collider.size[1] * transform.scale[1],
+			collider.size[2] * transform.scale[2],
+		}
+		position := rl.Vector3{transform.position[0], transform.position[1], transform.position[2]}
+		color := rl.Color{95, 105, 125, 255}
+		if transform.rotation[2] != 0 {
+			color = rl.Color{120, 105, 80, 255}
+		}
+		draw_oriented_box(position, size, transform.rotation, rl.Fade(color, 0.55), rl.Fade(rl.RAYWHITE, 0.45))
+	}
+}
+
+draw_oriented_box :: proc(center, size: rl.Vector3, rotation_degrees: [3]f32, fill, wire: rl.Color) {
+	half := vec3_scale(size, 0.5)
+	corners := [8]rl.Vector3{
+		{-half.x, -half.y, -half.z},
+		{ half.x, -half.y, -half.z},
+		{ half.x,  half.y, -half.z},
+		{-half.x,  half.y, -half.z},
+		{-half.x, -half.y,  half.z},
+		{ half.x, -half.y,  half.z},
+		{ half.x,  half.y,  half.z},
+		{-half.x,  half.y,  half.z},
+	}
+	for &corner in corners {
+		corner = vec3_add(center, rotate_euler_degrees(corner, rotation_degrees))
+	}
+
+	draw_quad(corners[0], corners[1], corners[2], corners[3], fill)
+	draw_quad(corners[5], corners[4], corners[7], corners[6], fill)
+	draw_quad(corners[4], corners[0], corners[3], corners[7], fill)
+	draw_quad(corners[1], corners[5], corners[6], corners[2], fill)
+	draw_quad(corners[3], corners[2], corners[6], corners[7], fill)
+	draw_quad(corners[4], corners[5], corners[1], corners[0], fill)
+
+	draw_box_edge(corners[0], corners[1], wire)
+	draw_box_edge(corners[1], corners[2], wire)
+	draw_box_edge(corners[2], corners[3], wire)
+	draw_box_edge(corners[3], corners[0], wire)
+	draw_box_edge(corners[4], corners[5], wire)
+	draw_box_edge(corners[5], corners[6], wire)
+	draw_box_edge(corners[6], corners[7], wire)
+	draw_box_edge(corners[7], corners[4], wire)
+	draw_box_edge(corners[0], corners[4], wire)
+	draw_box_edge(corners[1], corners[5], wire)
+	draw_box_edge(corners[2], corners[6], wire)
+	draw_box_edge(corners[3], corners[7], wire)
+}
+
+draw_quad :: proc(a, b, c, d: rl.Vector3, color: rl.Color) {
+	rl.DrawTriangle3D(a, b, c, color)
+	rl.DrawTriangle3D(a, c, d, color)
+}
+
+draw_box_edge :: proc(a, b: rl.Vector3, color: rl.Color) {
+	rl.DrawLine3D(a, b, color)
+}
+
+rotate_euler_degrees :: proc(value: rl.Vector3, degrees: [3]f32) -> rl.Vector3 {
+	result := value
+	rx := f64(degrees[0] * DEG_TO_RAD)
+	ry := f64(degrees[1] * DEG_TO_RAD)
+	rz := f64(degrees[2] * DEG_TO_RAD)
+
+	cx, sx := f32(math.cos(rx)), f32(math.sin(rx))
+	cy, sy := f32(math.cos(ry)), f32(math.sin(ry))
+	cz, sz := f32(math.cos(rz)), f32(math.sin(rz))
+
+	result = {result.x, result.y * cx - result.z * sx, result.y * sx + result.z * cx}
+	result = {result.x * cy + result.z * sy, result.y, -result.x * sy + result.z * cy}
+	result = {result.x * cz - result.y * sz, result.x * sz + result.y * cz, result.z}
+	return result
+}
+
+vec3_add :: proc(a, b: rl.Vector3) -> rl.Vector3 {
+	return {a.x + b.x, a.y + b.y, a.z + b.z}
+}
+
+vec3_scale :: proc(value: rl.Vector3, scale: f32) -> rl.Vector3 {
+	return {value.x * scale, value.y * scale, value.z * scale}
+}
+
+draw_physics_spheres :: proc(world: ^ecs.World) {
+	for entity in ecs.query(world, ecs.SphereRenderer) {
+		transform, has_transform := ecs.get_transform(world, entity)
+		renderer, has_renderer := ecs.get_sphere_renderer(world, entity)
+		if !has_transform || !has_renderer { continue }
+
+		position := rl.Vector3{transform.position[0], transform.position[1], transform.position[2]}
+		radius := renderer.radius * transform.scale[0]
+		color := rl.Color{renderer.color.r, renderer.color.g, renderer.color.b, renderer.color.a}
+		rl.DrawSphere(position, radius, color)
+		rl.DrawSphereWires(position, radius, 10, 10, rl.Fade(rl.BLACK, 0.3))
+
+		if native, found := ecs.physics_3d_native_body(world, entity); found {
+			rotation := b3.Body_GetRotation(native)
+			marker := b3.RotateVector(rotation, {radius, radius * 0.25, 0})
+			marker_position := rl.Vector3{
+				transform.position[0] + marker.x,
+				transform.position[1] + marker.y,
+				transform.position[2] + marker.z,
+			}
+			rl.DrawLine3D(position, marker_position, rl.BLACK)
+			rl.DrawSphere(marker_position, radius * 0.11, rl.BLACK)
+		}
+	}
 }
 
 main :: proc() {
@@ -124,10 +167,9 @@ main :: proc() {
 		return
 	}
 
-	reset_simulation()
-	rune.run(&game, on_update, on_draw)
-
-	if !b3.IS_NULL(physics_world) {
-		b3.DestroyWorld(physics_world)
+	if !rune.register_system(&game, {name = "box3d_balls", update = on_update, draw = on_draw}) {
+		fmt.eprintln("Could not register Box3D system")
+		return
 	}
+	if !rune.run(&game) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
 }

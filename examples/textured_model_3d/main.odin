@@ -12,7 +12,6 @@ scene_view := r3d_bridge.Scene3D_Settings{
 	grid_spacing = 1,
 	background_color = {8, 10, 14, 255},
 }
-world: ecs.World
 bridge: r3d_bridge.Context
 crate: ecs.Entity
 material_view: Material_View
@@ -31,28 +30,36 @@ Material_View :: enum i32 {
 
 Material_View_Count :: 7
 
-on_update :: proc(game: ^rune.Engine) {
-	if rune.reload_scene_if_changed(game, &world, "examples/textured_model_3d/scenes/main.scene.json") {
-		crate, _ = ecs.find_entity_by_id(&world, "crate")
-		apply_material_view()
+initialize_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	if !bridge.initialized {
+		bridge_ok: bool
+		bridge, bridge_ok = r3d_bridge.init("examples/textured_model_3d", rl.GetScreenWidth(), rl.GetScreenHeight())
+		if !bridge_ok { fmt.eprintln("Could not initialize r3d") }
 	}
-	if rl.IsKeyPressed(.TAB) {
-		material_view = Material_View((i32(material_view) + 1) % Material_View_Count)
-		apply_material_view()
-	}
-	rune.update_orbit_cameras_3d(game, &world)
-	transform, found := ecs.get_transform(&world, crate)
-	if !found { return }
-	transform.rotation[1] += 8 * game.delta_time
-	ecs.set_transform(&world, crate, transform)
+	crate, _ = ecs.find_entity_by_id(world, "crate")
+	apply_material_view(world)
 }
 
-on_draw :: proc(game: ^rune.Engine) {
-	if !r3d_bridge.draw_scene_ex(&bridge, &world, rune.asset_manager(game), scene_view) {
+shutdown_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	r3d_bridge.shutdown(&bridge)
+}
+
+on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	if rl.IsKeyPressed(.TAB) {
+		material_view = Material_View((i32(material_view) + 1) % Material_View_Count)
+		apply_material_view(world)
+	}
+	transform, found := ecs.get_transform(world, crate)
+	if !found { return }
+	transform.rotation[1] += 8 * game.delta_time
+	ecs.set_transform(world, crate, transform)
+}
+
+on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	if !r3d_bridge.draw_scene_ex(&bridge, world, rune.asset_manager(game), scene_view) {
 		rl.DrawText("No active Camera3D entity", 24, 24, 28, rl.MAROON)
 		return
 	}
-	rune.draw_gizmos(game, &world)
 	rl.DrawText("Rune Textured Model 3D", 24, 24, 28, rl.RAYWHITE)
 	rl.DrawText("Left mouse: orbit camera   Mouse wheel: zoom   Tab: material view", 24, 60, 18, rl.LIGHTGRAY)
 	rl.DrawText("Material view:", 24, 94, 18, rl.RAYWHITE)
@@ -67,11 +74,11 @@ on_draw :: proc(game: ^rune.Engine) {
 	}
 }
 
-apply_material_view :: proc() {
-	renderer, found := ecs.get_model_renderer(&world, crate)
+apply_material_view :: proc(world: ^ecs.World) {
+	renderer, found := ecs.get_model_renderer(world, crate)
 	if !found { return }
 	renderer.material = material_view_path(material_view)
-	ecs.set_model_renderer(&world, crate, renderer)
+	ecs.set_model_renderer(world, crate, renderer)
 }
 
 material_view_path :: proc(view: Material_View) -> string {
@@ -109,25 +116,16 @@ main :: proc() {
 	}
 	defer rune.shutdown(&game)
 
-	bridge_ok: bool
-	bridge, bridge_ok = r3d_bridge.init("examples/textured_model_3d", rl.GetScreenWidth(), rl.GetScreenHeight())
-	if !bridge_ok {
-		fmt.eprintln("Could not initialize r3d")
+	if !rune.register_system(&game, {
+		name = "textured_model_3d",
+		start = initialize_scene,
+		update = on_update,
+		draw = on_draw,
+		on_scene_reloaded = initialize_scene,
+		shutdown = shutdown_scene,
+	}) {
+		fmt.eprintln("Could not register textured-model system")
 		return
 	}
-	defer r3d_bridge.shutdown(&bridge)
-
-	scene_ok: bool
-	world, scene_ok = rune.load_scene(&game, "examples/textured_model_3d/scenes/main.scene.json")
-	if !scene_ok {
-		fmt.eprintln("Could not load and instantiate the textured model scene")
-		return
-	}
-	crate, _ = ecs.find_entity_by_id(&world, "crate")
-	if crate == ecs.Entity(0) {
-		fmt.eprintln("Scene is missing entity ID: crate")
-		return
-	}
-	apply_material_view()
-	rune.run(&game, on_update, on_draw)
+	if !rune.run(&game) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
 }

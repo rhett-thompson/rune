@@ -8,7 +8,6 @@ import "rune:input"
 import "rune:r3d_bridge"
 import rl "vendor:raylib"
 
-world: ecs.World
 bridge: r3d_bridge.Context
 listener_entity: ecs.Entity
 player_entity: ecs.Entity
@@ -16,6 +15,20 @@ last_play_succeeded: bool
 bell_phase: f32
 
 scene_view := r3d_bridge.Scene3D_Settings{grid_slices = 40, grid_spacing = 1}
+
+initialize_audio_components :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	if !bridge.initialized {
+		bridge_ok: bool
+		bridge, bridge_ok = r3d_bridge.init("examples/audio_components", rl.GetScreenWidth(), rl.GetScreenHeight())
+		if !bridge_ok { fmt.eprintln("Could not initialize r3d") }
+	}
+	listener_entity, _ = ecs.find_entity_by_id(world, "main_camera")
+	player_entity, _ = ecs.find_entity_by_id(world, "bell_sphere")
+}
+
+shutdown_audio_components :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	r3d_bridge.shutdown(&bridge)
+}
 
 play_bell_on_click :: proc(game: ^rune.Engine, scene_world: ^ecs.World) {
 	// Move the emitting sphere from two to thirty units away from the listener,
@@ -64,36 +77,10 @@ main :: proc() {
 	}
 	defer rune.shutdown(&game)
 
-	bridge_ok: bool
-	bridge, bridge_ok = r3d_bridge.init("examples/audio_components", rl.GetScreenWidth(), rl.GetScreenHeight())
-	if !bridge_ok {
-		fmt.eprintln("Could not initialize r3d")
-		return
-	}
-	defer r3d_bridge.shutdown(&bridge)
-
-	scene_ok: bool
-	world, scene_ok = rune.load_scene(&game, "examples/audio_components/scenes/main.scene.json")
-	if !scene_ok {
-		fmt.eprintln("Could not load and instantiate the audio-components scene")
-		return
-	}
-
-	listener_entity, ok = ecs.find_entity_by_id(&world, "main_camera")
-	if !ok {
-		fmt.eprintln("Scene is missing entity ID: main_camera")
-		return
-	}
-	player_entity, ok = ecs.find_entity_by_id(&world, "bell_sphere")
-	if !ok {
-		fmt.eprintln("Scene is missing entity ID: bell_sphere")
-		return
-	}
-
-	if !rune.register_system(&game, rune.System{name = "play_bell_on_click", update = play_bell_on_click}) ||
+	if !rune.register_system(&game, rune.System{name = "play_bell_on_click", start = initialize_audio_components, update = play_bell_on_click, on_scene_reloaded = initialize_audio_components, shutdown = shutdown_audio_components}) ||
 		!rune.register_system(&game, rune.System{name = "draw_audio_components", draw = draw_audio_components}) {
 		fmt.eprintln("Could not register the audio-components draw system")
 		return
 	}
-	rune.run_scene(&game, &world)
+	if !rune.run(&game) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
 }

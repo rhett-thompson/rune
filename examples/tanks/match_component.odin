@@ -1,6 +1,5 @@
 package main
 
-import "core:encoding/json"
 import "rune:ecs"
 
 Tanks_Match :: struct {
@@ -11,12 +10,8 @@ Tanks_Match :: struct {
 }
 
 match_from_entity :: proc(world: ^ecs.World, entity: ecs.Entity) -> (Tanks_Match, bool) {
-	value, found := ecs.get_component(world, entity, "TanksMatch")
+	result, found := ecs.get(world, entity, Tanks_Match)
 	if !found { return {}, false }
-	data, err := json.marshal(value)
-	if err != nil { return {}, false }
-	defer delete(data)
-	result: Tanks_Match
-	ok := json.unmarshal(data, &result) == nil && result.win_score > 0 && result.round_delay > 0
+	ok := result.win_score > 0 && result.round_delay > 0
 	return result, ok
 }

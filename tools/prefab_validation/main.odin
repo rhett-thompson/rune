@@ -8,6 +8,7 @@ import "rune:scene"
 main :: proc() {
 	registry := ecs.init_registry()
 	assert(ecs.register_builtin_components(&registry))
+	assert(ecs.register_data_component(&registry, "PrefabMarker", "Prefab child marker"))
 	world, loaded := scene.load("examples/prefabs_2d/scenes/main.scene.json", &registry)
 	assert(loaded)
 

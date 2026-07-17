@@ -4,7 +4,7 @@ import "core:fmt"
 import rune "rune:core"
 import "rune:ecs"
 
-world: ecs.World
+world: ^ecs.World
 game_state: Pong_Game
 
 register_pong_components :: proc(game: ^rune.Engine) -> bool {
@@ -12,19 +12,31 @@ register_pong_components :: proc(game: ^rune.Engine) -> bool {
 	return(
 		ecs.register_component(
 			registry,
-			{name = "PongArena", description = "Pong court dimensions and presentation"},
+			"PongArena",
+			Pong_Arena,
+			Pong_Arena{},
+			"Pong court dimensions and presentation",
 		) &&
 		ecs.register_component(
 			registry,
-			{name = "PongPaddle", description = "Player or computer controlled Pong paddle"},
+			"PongPaddle",
+			Pong_Paddle,
+			Pong_Paddle{},
+			"Player or computer controlled Pong paddle",
 		) &&
 		ecs.register_component(
 			registry,
-			{name = "PongBall", description = "Moving Pong ball and serve settings"},
+			"PongBall",
+			Pong_Ball,
+			Pong_Ball{},
+			"Moving Pong ball and serve settings",
 		) &&
 		ecs.register_component(
 			registry,
-			{name = "PongMatch", description = "Pong scoring, mode, and match state"},
+			"PongMatch",
+			Pong_Match,
+			Pong_Match{},
+			"Pong scoring, mode, and match state",
 		)
 	)
 }
@@ -38,10 +50,13 @@ on_draw :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 }
 
 on_reload :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
+	world = scene_world
 	if load_pong_game(&game_state, scene_world) {
 		reset_match(&game_state)
 	}
 }
+
+on_start :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) { on_reload(engine, scene_world) }
 
 main :: proc() {
 
@@ -58,22 +73,10 @@ main :: proc() {
 		return
 	}
 
-	scene_ok: bool
-	world, scene_ok = rune.load_scene(&engine, "examples/pong/scenes/main.scene.json")
-	if !scene_ok {fmt.eprintln("Could not load the Pong scene"); return}
-
-	if !load_pong_game(&game_state, &world) {
-		fmt.eprintln(
-			"Pong scene requires an arena, ball, match, four audio players, and two paddles",
-		)
-		return
-	}
-
 	if !rune.register_system(
 		&engine,
-		{name = "pong", update = on_update, draw = on_draw, on_scene_reloaded = on_reload},
+		{name = "pong", start = on_start, update = on_update, draw = on_draw, on_scene_reloaded = on_reload},
 	) {fmt.eprintln("Could not register Pong system"); return}
 
-	reset_match(&game_state)
-	rune.run_scene(&engine, &world)
+	if !rune.run(&engine) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
 }

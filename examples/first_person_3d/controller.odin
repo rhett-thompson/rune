@@ -1,10 +1,8 @@
 package main
 
-import "core:encoding/json"
 import "core:math"
 import "rune:ecs"
 import "rune:input"
-import "rune:jsonutil"
 
 First_Person_Settings :: struct {
 	move_speed:        f32,
@@ -13,25 +11,9 @@ First_Person_Settings :: struct {
 }
 
 first_person_settings :: proc(world: ^ecs.World, entity: ecs.Entity) -> (First_Person_Settings, bool) {
-	data, found := ecs.get_component(world, entity, "FirstPersonController")
-	if !found { return {}, false }
-	object, ok := data.(json.Object)
-	if !ok { return {}, false }
-
-	settings := First_Person_Settings{move_speed = 5, sprint_multiplier = 1.8, mouse_sensitivity = 0.15}
-	if value, exists := object["move_speed"]; exists {
-		settings.move_speed, ok = jsonutil.number(value)
-		if !ok || settings.move_speed <= 0 { return {}, false }
-	}
-	if value, exists := object["sprint_multiplier"]; exists {
-		settings.sprint_multiplier, ok = jsonutil.number(value)
-		if !ok || settings.sprint_multiplier <= 0 { return {}, false }
-	}
-	if value, exists := object["mouse_sensitivity"]; exists {
-		settings.mouse_sensitivity, ok = jsonutil.number(value)
-		if !ok || settings.mouse_sensitivity <= 0 { return {}, false }
-	}
-	return settings, true
+	settings, found := ecs.get(world, entity, First_Person_Settings)
+	valid := found && settings.move_speed > 0 && settings.sprint_multiplier > 0 && settings.mouse_sensitivity > 0
+	return settings, valid
 }
 
 first_person_controller_system :: proc(world: ^ecs.World, entity: ecs.Entity, controls: ^input.Input, yaw, pitch: ^f32, dt: f32) {

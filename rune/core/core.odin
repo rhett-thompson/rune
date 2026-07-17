@@ -11,6 +11,7 @@ import "rune:console"
 import "rune:ecs"
 import "rune:gizmos"
 import "rune:input"
+import "rune:render"
 import "rune:scene"
 import "rune:validation"
 import rl "vendor:raylib"
@@ -60,13 +61,18 @@ System_Reload_Proc :: #type proc(engine: ^Engine, world: ^ecs.World)
 // Systems run in registration order within their update and draw phases.
 System :: struct {
 	name:              string,
+	start:             System_Update_Proc,
+	fixed_update:      System_Update_Proc,
 	update:            System_Update_Proc,
+	pre_draw:          System_Draw_Proc,
 	draw:              System_Draw_Proc,
 	on_scene_reloaded: System_Reload_Proc,
+	shutdown:          System_Update_Proc,
 }
 
 Engine :: struct {
 	project:    Project,
+	project_directory: string,
 	registry:   ecs.Component_Registry,
 	assets:     assets.Asset_Manager,
 	console:    console.Console,
@@ -79,6 +85,11 @@ Engine :: struct {
 	hot_reload_elapsed: f32,
 	hot_reload_due: bool,
 	delta_time: f32,
+	fixed_delta_time: f32,
+	fixed_accumulator: f32,
+	active_world: ecs.World,
+	has_active_world: bool,
+	scene_loop_active: bool,
 	is_running: bool,
 }
 
@@ -140,6 +151,7 @@ init :: proc(project_path: string) -> (Engine, bool) {
 
 	registry := ecs.init_registry()
 	if !ecs.register_builtin_components(&registry) {
+		ecs.destroy_registry(&registry)
 		return {}, false
 	}
 	project_directory, _ := filepath.split(project_path)
@@ -148,7 +160,10 @@ init :: proc(project_path: string) -> (Engine, bool) {
 		input_path, _ = filepath.join({project_directory, input_path})
 	}
 	input_data, input_ok := input.load(input_path)
-	if !input_ok { return {}, false }
+	if !input_ok {
+		ecs.destroy_registry(&registry)
+		return {}, false
+	}
 
 	title, _ := strings.clone_to_cstring(project.window.title)
 	if project.window.msaa_4x {
@@ -161,7 +176,20 @@ init :: proc(project_path: string) -> (Engine, bool) {
 
 	asset_manager := assets.init(project_directory)
 	audio_system := audio.init(project_directory)
-	return Engine{project = project, registry = registry, assets = asset_manager, audio = audio_system, gizmos = project.gizmos, console = console.init(), input = input_data, systems = make([dynamic]System), scene_watches = make(map[string]map[string]i64), is_running = true}, true
+	return Engine{
+		project = project,
+		project_directory = project_directory,
+		registry = registry,
+		assets = asset_manager,
+		audio = audio_system,
+		gizmos = project.gizmos,
+		console = console.init(),
+		input = input_data,
+		systems = make([dynamic]System),
+		scene_watches = make(map[string]map[string]i64),
+		fixed_delta_time = ecs.Physics2D_Fixed_Delta,
+		is_running = true,
+	}, true
 }
 
 // input_state exposes project-defined input actions and axes to game systems.
@@ -203,9 +231,9 @@ gizmo_settings :: proc(engine: ^Engine) -> ^gizmos.Settings {
 	return &engine.gizmos
 }
 
-// draw_gizmos renders the runtime debug overlay for callback-based programs
-// using rune.run. Programs using rune.run_scene get this call automatically
-// after registered draw systems.
+// draw_gizmos renders the runtime debug overlay for callback-based programs.
+// The engine-owned rune.run workflow draws it automatically after registered
+// draw systems.
 draw_gizmos :: proc(engine: ^Engine, world: ^ecs.World) {
 	gizmos.draw_scene(world, engine.gizmos)
 }
@@ -253,6 +281,50 @@ load_scene :: proc(engine: ^Engine, path: string) -> (ecs.World, bool) {
 	return world, loaded
 }
 
+// load_active_scene gives the Engine clear ownership of the ordinary runtime
+// World. Tools and advanced code can continue using load_scene directly.
+load_active_scene :: proc(engine: ^Engine, path: string) -> bool {
+	resolved_path := path
+	if !filepath.is_abs(resolved_path) {
+		resolved_path, _ = filepath.join({engine.project_directory, resolved_path})
+	}
+	world, loaded := load_scene(engine, resolved_path)
+	if !loaded { return false }
+	if engine.has_active_world { ecs.destroy(&engine.active_world) }
+	engine.active_world = world
+	engine.has_active_world = true
+	return true
+}
+
+// change_scene replaces the engine-owned World while preserving the registered
+// system lifecycle. The old scene remains active when the new scene cannot be
+// loaded. Calls made by an update system take effect immediately, before the
+// remaining systems and draw phase run.
+change_scene :: proc(engine: ^Engine, path: string) -> bool {
+	if engine == nil || !engine.has_active_world || len(path) == 0 { return false }
+	resolved_path := path
+	if !filepath.is_abs(resolved_path) {
+		resolved_path, _ = filepath.join({engine.project_directory, resolved_path})
+	}
+	next_world, loaded := scene.load_with_layers(resolved_path, &engine.registry, engine.project.layers)
+	if !loaded { return false }
+	if engine.scene_loop_active { run_shutdown_systems(engine, &engine.active_world) }
+	ecs.destroy(&engine.active_world)
+	engine.active_world = next_world
+	engine.has_active_world = true
+	engine.active_scene_path = resolved_path
+	watch_scene(engine, resolved_path)
+	if engine.scene_loop_active { run_start_systems(engine, &engine.active_world) }
+	return true
+}
+
+active_world :: proc(engine: ^Engine) -> (^ecs.World, bool) {
+	if engine == nil || !engine.has_active_world { return nil, false }
+	return &engine.active_world, true
+}
+
+last_scene_error :: proc() -> string { return scene.last_load_error() }
+
 // reload_scene_if_changed updates a loaded World when its scene or a directly
 // referenced prefab changes. Component-value-only scene saves are applied onto
 // the existing World and return false so cached Entity handles stay valid and
@@ -263,10 +335,11 @@ reload_scene_if_changed :: proc(engine: ^Engine, world: ^ecs.World, path: string
 	reloaded, loaded := scene.load_with_layers(path, &engine.registry, engine.project.layers)
 	if !loaded { return false }
 	if ecs.apply_value_snapshot(world, &reloaded) {
+		ecs.destroy(&reloaded)
 		watch_scene(engine, path)
 		return false
 	}
-	ecs.physics_2d_shutdown(world)
+	ecs.destroy(world)
 	world^ = reloaded
 	watch_scene(engine, path)
 	return true
@@ -304,7 +377,7 @@ file_modified_time :: proc(path: string) -> i64 {
 // run follows a familiar game-object lifecycle: on_update changes game state,
 // then on_draw presents that state. Rendering is deliberately outside update so
 // component systems never have to mix simulation with raylib draw calls.
-run :: proc(engine: ^Engine, on_update: Update_Proc, on_draw: Draw_Proc) {
+run_callbacks :: proc(engine: ^Engine, on_update: Update_Proc, on_draw: Draw_Proc) {
 	defer shutdown(engine)
 
 	for !rl.WindowShouldClose() {
@@ -319,28 +392,84 @@ run :: proc(engine: ^Engine, on_update: Update_Proc, on_draw: Draw_Proc) {
 	}
 }
 
+run_project :: proc(engine: ^Engine) -> bool {
+	if engine == nil || !engine.is_running { return false }
+	defer shutdown(engine)
+	if !engine.has_active_world {
+		if len(engine.project.startup_scene) == 0 || !load_active_scene(engine, engine.project.startup_scene) {
+			return false
+		}
+	}
+	run_scene_loop(engine, &engine.active_world)
+	return true
+}
+
+// run supports the simple engine-owned startup-scene workflow as well as the
+// original callback loop used by low-level raylib examples.
+run :: proc{run_project, run_callbacks}
+
 // run_scene drives registered systems against a loaded World. It preserves the
 // callback-based run API for small programs while providing the normal ECS
 // lifecycle for games. Scene reload notifications happen before update systems.
 run_scene :: proc(engine: ^Engine, world: ^ecs.World) {
-	defer ecs.physics_2d_shutdown(world)
+	defer ecs.destroy(world)
 	defer shutdown(engine)
+	run_scene_loop(engine, world)
+}
 
+run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
+	engine.scene_loop_active = true
+	run_start_systems(engine, world)
+	defer {
+		run_shutdown_systems(engine, world)
+		engine.scene_loop_active = false
+	}
 	for !rl.WindowShouldClose() {
 		begin_frame(engine)
 		if len(engine.active_scene_path) > 0 && reload_scene_if_changed(engine, world, engine.active_scene_path) {
-			run_scene_reload_systems(engine, world)
+			 run_scene_reload_systems(engine, world)
 		}
+		run_fixed_pipeline(engine, world)
 		update_orbit_cameras_3d(engine, world)
 		run_update_systems(engine, world)
 		audio.update(&engine.audio, world)
 
 		rl.BeginDrawing()
 		clear_background(engine)
+		run_pre_draw_systems(engine, world)
+		render.draw_scene_2d(world, &engine.assets)
 		run_draw_systems(engine, world)
 		gizmos.draw_scene(world, engine.gizmos)
 		console.draw(&engine.console)
 		rl.EndDrawing()
+	}
+}
+
+run_start_systems :: proc(engine: ^Engine, world: ^ecs.World) {
+	for system in engine.systems {
+		if system.start != nil { system.start(engine, world) }
+	}
+}
+
+run_fixed_pipeline :: proc(engine: ^Engine, world: ^ecs.World) {
+	engine.fixed_accumulator += engine.delta_time
+	steps := 0
+	for engine.fixed_accumulator >= engine.fixed_delta_time && steps < 8 {
+		for system in engine.systems {
+			if system.fixed_update != nil { system.fixed_update(engine, world) }
+		}
+		ecs.physics_2d_update(world, engine.fixed_delta_time)
+		ecs.physics_3d_update(world, engine.fixed_delta_time)
+		engine.fixed_accumulator -= engine.fixed_delta_time
+		steps += 1
+	}
+	if steps == 8 { engine.fixed_accumulator = 0 }
+}
+
+run_shutdown_systems :: proc(engine: ^Engine, world: ^ecs.World) {
+	for index := len(engine.systems) - 1; index >= 0; index -= 1 {
+		system := engine.systems[index]
+		if system.shutdown != nil { system.shutdown(engine, world) }
 	}
 }
 
@@ -353,6 +482,12 @@ run_update_systems :: proc(engine: ^Engine, world: ^ecs.World) {
 run_draw_systems :: proc(engine: ^Engine, world: ^ecs.World) {
 	for system in engine.systems {
 		if system.draw != nil { system.draw(engine, world) }
+	}
+}
+
+run_pre_draw_systems :: proc(engine: ^Engine, world: ^ecs.World) {
+	for system in engine.systems {
+		if system.pre_draw != nil { system.pre_draw(engine, world) }
 	}
 }
 
@@ -422,8 +557,16 @@ hot_reload_poll_due :: proc(engine: ^Engine) -> bool {
 
 shutdown :: proc(engine: ^Engine) {
 	if engine.is_running {
+		if engine.has_active_world {
+			ecs.destroy(&engine.active_world)
+			engine.has_active_world = false
+		}
 		audio.shutdown(&engine.audio)
 		assets.shutdown(&engine.assets)
+		ecs.destroy_registry(&engine.registry)
+		for _, watch in engine.scene_watches { delete(watch) }
+		delete(engine.scene_watches)
+		delete(engine.systems)
 		rl.CloseWindow()
 		engine.is_running = false
 	}

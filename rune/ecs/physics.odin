@@ -8,6 +8,9 @@ import "core:encoding/json"
 BoxCollider :: struct {
 	size:      [3]f32,
 	is_static: bool,
+	friction: f32,
+	restitution: f32,
+	rolling_resistance: f32,
 }
 
 // SphereCollider is a sphere-shaped collision volume. Its radius is scaled by
@@ -16,6 +19,9 @@ BoxCollider :: struct {
 SphereCollider :: struct {
 	radius:    f32,
 	is_static: bool,
+	friction: f32,
+	restitution: f32,
+	rolling_resistance: f32,
 }
 
 // CharacterController is a simple upright player volume. Transform position
@@ -33,20 +39,21 @@ CharacterController :: struct {
 box_collider_from_json :: proc(data: json.Value) -> (BoxCollider, bool) {
 	object, ok := data.(json.Object)
 	if !ok { return {}, false }
-	result := BoxCollider{size = {1, 1, 1}, is_static = true}
+	result := BoxCollider{size = {1, 1, 1}, is_static = true, friction = 0.6}
 	if value, found := object["size"]; found && !read_vector3(value, &result.size) { return {}, false }
 	for size in result.size { if size <= 0 { return {}, false } }
 	if value, found := object["is_static"]; found {
 		result.is_static, ok = value.(json.Boolean)
 		if !ok { return {}, false }
 	}
+	if !physics_material_fields_from_json(object, &result.friction, &result.restitution, &result.rolling_resistance) { return {}, false }
 	return result, true
 }
 
 sphere_collider_from_json :: proc(data: json.Value) -> (SphereCollider, bool) {
 	object, ok := data.(json.Object)
 	if !ok { return {}, false }
-	result := SphereCollider{radius = 0.5, is_static = true}
+	result := SphereCollider{radius = 0.5, is_static = true, friction = 0.6}
 	if value, found := object["radius"]; found {
 		result.radius, ok = read_number(value)
 		if !ok || result.radius <= 0 { return {}, false }
@@ -55,7 +62,32 @@ sphere_collider_from_json :: proc(data: json.Value) -> (SphereCollider, bool) {
 		result.is_static, ok = value.(json.Boolean)
 		if !ok { return {}, false }
 	}
+	if !physics_material_fields_from_json(object, &result.friction, &result.restitution, &result.rolling_resistance) { return {}, false }
 	return result, true
+}
+
+physics_material_fields_from_json :: proc(object: json.Object, friction, restitution, rolling_resistance: ^f32) -> bool {
+	if value, found := object["friction"]; found {
+		parsed, ok := read_number(value)
+		if !ok || parsed < 0 { return false }
+		friction^ = parsed
+	}
+	if value, found := object["restitution"]; found {
+		parsed, ok := read_number(value)
+		if !ok || parsed < 0 { return false }
+		restitution^ = parsed
+	}
+	if value, found := object["rolling_resistance"]; found {
+		parsed, ok := read_number(value)
+		if !ok || parsed < 0 { return false }
+		rolling_resistance^ = parsed
+	}
+	if value, found := object["physics_material"]; found {
+		material, ok := value.(json.Object)
+		if !ok { return false }
+		if !physics_material_fields_from_json(material, friction, restitution, rolling_resistance) { return false }
+	}
+	return true
 }
 
 character_controller_from_json :: proc(data: json.Value) -> (CharacterController, bool) {

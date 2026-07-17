@@ -4,8 +4,11 @@ import "core:encoding/json"
 import "core:fmt"
 import rune "rune:core"
 import "rune:ecs"
-import "rune:jsonutil"
 import "rune:scene"
+
+Player_Controller :: struct {
+	jump_height: f32,
+}
 
 main :: proc() {
 	project, project_loaded := rune.load_project("examples/physics_platformer_2d/project.json")
@@ -16,11 +19,19 @@ main :: proc() {
 	project_mode, project_mode_ok := project_settings_object["mode"].(json.String)
 	assert(project_settings_ok && project_mode_ok && project_mode == "arcade")
 	registry := ecs.init_registry()
+	defer ecs.destroy_registry(&registry)
 	assert(ecs.register_builtin_components(&registry))
+	assert(ecs.register_component_type(
+		&registry,
+		"PlayerController",
+		Player_Controller,
+		Player_Controller{jump_height = 150},
+	))
 	layers := make(map[string]u8)
 	layers["Gameplay"] = 1
 	world, loaded := scene.load_with_layers("examples/physics_platformer_2d/scenes/main.scene.json", &registry, layers)
 	assert(loaded)
+	defer ecs.destroy(&world)
 	scene_settings, has_scene_settings := ecs.get_scene_value(&world, "scene_settings")
 	assert(has_scene_settings)
 	scene_settings_object, scene_settings_ok := scene_settings.(json.Object)
@@ -28,14 +39,8 @@ main :: proc() {
 	assert(scene_settings_ok && spawn_label_ok && spawn_label == "training")
 	player, found := ecs.find_entity_by_id(&world, "player")
 	assert(found)
-	controller, has_controller := ecs.get_component(&world, player, "PlayerController")
-	assert(has_controller)
-	controller_object, controller_ok := controller.(json.Object)
-	assert(controller_ok)
-	jump_height, has_jump_height := controller_object["jump_height"]
-	assert(has_jump_height)
-	jump_height_value, jump_height_ok := jsonutil.number(jump_height)
-	assert(jump_height_ok && jump_height_value > 0)
+	controller, has_controller := ecs.get(&world, player, Player_Controller)
+	assert(has_controller && controller.jump_height > 0)
 	for _ in 0..<180 { ecs.physics_2d_update(&world, 1.0 / 60.0) }
 	body, has_body := ecs.get_rigid_body_2d(&world, player)
 	transform, has_transform := ecs.get_transform(&world, player)

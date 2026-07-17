@@ -30,7 +30,13 @@
           "properties": {
             "type": { "const": "keyboard" },
             "key": {
-              "type": "string",
+              "anyOf": [
+                { "type": "string", "pattern": "^[A-Za-z0-9]$" },
+                {
+                  "type": "string",
+                  "enum": ["SPACE", "LEFT", "RIGHT", "UP", "DOWN", "ESCAPE", "ESC", "ENTER", "TAB", "BACKSPACE", "LEFT_SHIFT", "RIGHT_SHIFT", "LEFT_CONTROL", "LEFT_CTRL", "RIGHT_CONTROL", "RIGHT_CTRL"]
+                }
+              ],
               "examples": ["W", "SPACE", "LEFT_SHIFT"]
             }
           },

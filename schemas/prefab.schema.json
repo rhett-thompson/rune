@@ -6,7 +6,7 @@
   "required": ["name", "components"],
   "properties": {
     "$schema": { "type": "string" },
-    "name": { "type": "string" },
+    "name": { "type": "string", "minLength": 1 },
     "components": { "$ref": "components.schema.json" },
     "children": {
       "type": "array",

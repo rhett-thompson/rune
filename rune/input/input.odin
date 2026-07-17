@@ -42,6 +42,14 @@ Input :: struct {
 load :: proc(path: string) -> (Input, bool) {
 	data, read_error := os.read_entire_file(path, context.allocator)
 	if read_error != nil { return {}, false }
+	document: json.Value
+	if json.unmarshal(data, &document) != nil { return {}, false }
+	defer json.destroy_value(document)
+	object, object_ok := document.(json.Object)
+	if !object_ok { return {}, false }
+	_, actions_found := object["actions"]
+	_, axes_found := object["axes"]
+	if !actions_found || !axes_found { return {}, false }
 	mappings: Mappings
 	if json.unmarshal(data, &mappings) != nil || !validate_mappings(mappings) { return {}, false }
 	return Input{mappings = mappings, actions = make(map[string]Action_State), axes = make(map[string]f32), path = path}, true
@@ -60,6 +68,7 @@ save :: proc(input: ^Input) -> bool {
 
 validate_mappings :: proc(mappings: Mappings) -> bool {
 	for _, bindings in mappings.actions {
+		if len(bindings) == 0 { return false }
 		for binding in bindings {
 			if binding.type == "keyboard" {
 				if !key_from_name(binding.key).valid { return false }

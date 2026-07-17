@@ -100,8 +100,9 @@ validate_project :: proc(project_path: string) -> Report {
 	project, ok := read_json_object(project_path, &report)
 	if !ok { return report }
 	project_directory, _ := filepath.split(project_path)
+	string_field(&report, project_path, "$", project, "name", true)
 	startup_scene, scene_ok := string_field(&report, project_path, "$", project, "startup_scene", false)
-	input_path, input_ok := string_field(&report, project_path, "$", project, "input", false)
+	input_path, input_ok := string_field(&report, project_path, "$", project, "input", true)
 	validate_window(&report, project_path, project)
 	layers := validate_layers(&report, project_path, project)
 	if input_ok && len(input_path) > 0 {
@@ -116,7 +117,7 @@ validate_project :: proc(project_path: string) -> Report {
 
 validate_window :: proc(report: ^Report, file: string, project: json.Object) {
 	window, found := project["window"]
-	if !found { return }
+	if !found { add(report, file, "$.window", "is required"); return }
 	settings, ok := window.(json.Object)
 	if !ok { add(report, file, "$.window", "must be an object"); return }
 	dimension_fields := [2]string{"width", "height"}
@@ -169,6 +170,7 @@ validate_scene_with_layers :: proc(scene_path: string, layers: map[string]u8) ->
 validate_scene_at :: proc(report: ^Report, scene_path: string, layers: map[string]u8, project_directory: string) {
 	scene, ok := read_json_object(scene_path, report)
 	if !ok { return }
+	string_field(report, scene_path, "$", scene, "name", true)
 	entities, entities_ok := array_field(report, scene_path, "$", scene, "entities", true)
 	if !entities_ok { return }
 	scene_directory, _ := filepath.split(scene_path)
@@ -217,7 +219,8 @@ validate_entity_layers :: proc(report: ^Report, file, path: string, entity: json
 validate_prefab :: proc(report: ^Report, prefab_path, project_directory: string) {
 	prefab, ok := read_json_object(prefab_path, report)
 	if !ok { return }
-	components, components_ok := object_field(report, prefab_path, "$", prefab, "components", false)
+	string_field(report, prefab_path, "$", prefab, "name", true)
+	components, components_ok := object_field(report, prefab_path, "$", prefab, "components", true)
 	if components_ok { validate_components(report, prefab_path, "$.components", components, project_directory) }
 	children, children_ok := array_field(report, prefab_path, "$", prefab, "children", false)
 	if children_ok {

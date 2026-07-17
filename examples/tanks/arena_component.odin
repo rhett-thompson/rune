@@ -1,6 +1,5 @@
 package main
 
-import "core:encoding/json"
 import "rune:ecs"
 import rl "vendor:raylib"
 
@@ -12,13 +11,9 @@ Tanks_Arena :: struct {
 }
 
 arena_from_entity :: proc(world: ^ecs.World, entity: ecs.Entity) -> (Tanks_Arena, bool) {
-	value, found := ecs.get_component(world, entity, "TanksArena")
+	result, found := ecs.get(world, entity, Tanks_Arena)
 	if !found { return {}, false }
-	data, err := json.marshal(value)
-	if err != nil { return {}, false }
-	defer delete(data)
-	result: Tanks_Arena
-	ok := json.unmarshal(data, &result) == nil && result.width > 0 && result.height > 0 && result.border >= 0
+	ok := result.width > 0 && result.height > 0 && result.border >= 0
 	return result, ok
 }
 

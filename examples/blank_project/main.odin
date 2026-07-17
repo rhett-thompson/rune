@@ -11,14 +11,5 @@ main :: proc() {
 	}
 	defer rune.shutdown(&engine)
 
-	world, scene_ok := rune.load_scene(
-		&engine,
-		"examples/blank_project/scenes/main.scene.json",
-	)
-	if !scene_ok {
-		fmt.eprintln("Could not load examples/blank_project/scenes/main.scene.json")
-		return
-	}
-
-	rune.run_scene(&engine, &world)
+	if !rune.run(&engine) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
 }

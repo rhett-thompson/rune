@@ -1,7 +1,9 @@
 package ecs
 
 import "core:encoding/json"
+import "core:mem"
 import b2 "vendor:box2d"
+import b3 "vendor:box3d"
 
 // Entity is a compact runtime handle. The low 32 bits identify an entity
 // within a World and the high 32 bits identify the World generation. This
@@ -16,6 +18,23 @@ Entity_Ref :: struct {
 Component_Instance :: struct {
 	entity: Entity,
 	name:   string,
+}
+
+Component_Change_Kind :: enum {
+	Added,
+	Changed,
+	Removed,
+}
+
+Component_Change_Key :: struct {
+	entity: Entity,
+	name:   string,
+}
+
+Component_Change :: struct {
+	entity:  Entity,
+	kind:    Component_Change_Kind,
+	version: u64,
 }
 
 next_world_generation: u32 = 1
@@ -44,6 +63,13 @@ World :: struct {
 	scene_json:       json.Value,
 	component_data:  map[string]map[Entity]json.Value,
 	component_instance_data: map[string]map[Component_Instance]json.Value,
+	typed_component_data: map[string]map[Entity]any,
+	typed_component_descriptors: map[string]Component_Descriptor,
+	component_names_by_type: map[typeid]string,
+	component_change_version: u64,
+	component_changes: map[Component_Change_Key]Component_Change,
+	resources: map[typeid]any,
+	typed_component_arena: ^mem.Dynamic_Arena,
 	transforms:       map[Entity]Transform,
 	sprite_renderers: map[Entity]SpriteRenderer,
 	mesh_renderers:   map[Entity]MeshRenderer,
@@ -63,6 +89,10 @@ World :: struct {
 	physics_2d_accumulator: f32,
 	box2d_world: b2.WorldId,
 	box2d_bodies: map[Entity]b2.BodyId,
+	rigid_bodies_3d: map[Entity]RigidBody3D,
+	physics_3d_accumulator: f32,
+	box3d_world: b3.WorldId,
+	box3d_bodies: map[Entity]b3.BodyId,
 	box_colliders:    map[Entity]BoxCollider,
 	sphere_colliders: map[Entity]SphereCollider,
 	character_controllers: map[Entity]CharacterController,
@@ -83,6 +113,9 @@ init :: proc() -> World {
 	if next_world_generation == 0 {
 		next_world_generation = 1
 	}
+	typed_component_arena, _ := mem.new(mem.Dynamic_Arena)
+	assert(typed_component_arena != nil)
+	mem.dynamic_arena_init(typed_component_arena)
 	return World{
 		generation = generation,
 		next_entity = 1,
@@ -98,6 +131,12 @@ init :: proc() -> World {
 		hierarchy_dirty = true,
 		component_data = make(map[string]map[Entity]json.Value),
 		component_instance_data = make(map[string]map[Component_Instance]json.Value),
+		typed_component_data = make(map[string]map[Entity]any),
+		typed_component_descriptors = make(map[string]Component_Descriptor),
+		component_names_by_type = make(map[typeid]string),
+		component_changes = make(map[Component_Change_Key]Component_Change),
+		resources = make(map[typeid]any),
+		typed_component_arena = typed_component_arena,
 		transforms = make(map[Entity]Transform),
 		sprite_renderers = make(map[Entity]SpriteRenderer),
 		mesh_renderers = make(map[Entity]MeshRenderer),
@@ -115,6 +154,8 @@ init :: proc() -> World {
 		box_colliders_2d = make(map[Entity]BoxCollider2D),
 		circle_colliders_2d = make(map[Entity]CircleCollider2D),
 		box2d_bodies = make(map[Entity]b2.BodyId),
+		rigid_bodies_3d = make(map[Entity]RigidBody3D),
+		box3d_bodies = make(map[Entity]b3.BodyId),
 		box_colliders = make(map[Entity]BoxCollider),
 		sphere_colliders = make(map[Entity]SphereCollider),
 		character_controllers = make(map[Entity]CharacterController),
@@ -127,6 +168,76 @@ init :: proc() -> World {
 		audio_players = make(map[Component_Instance]AudioPlayer),
 		nav_grids_2d = make(map[Entity]NavGrid2D),
 		nav_agents_2d = make(map[Entity]NavAgent2D),
+	}
+}
+
+// destroy releases all World-owned containers and native state. It is safe to
+// call more than once, which keeps scene replacement and shutdown ownership
+// straightforward.
+destroy :: proc(world: ^World) {
+	if world == nil { return }
+	physics_2d_shutdown(world)
+	physics_3d_shutdown(world)
+	for _, components in world.component_data { delete(components) }
+	for _, instances in world.component_instance_data { delete(instances) }
+	for _, components in world.typed_component_data { delete(components) }
+	for _, children in world.children_by_parent { delete(children) }
+	delete(world.roots)
+	delete(world.entities)
+	delete(world.entity_ids)
+	delete(world.entities_by_id)
+	delete(world.entity_names)
+	delete(world.entity_tags)
+	delete(world.layer_masks)
+	delete(world.parents)
+	delete(world.children_by_parent)
+	delete(world.component_data)
+	delete(world.component_instance_data)
+	delete(world.typed_component_data)
+	delete(world.typed_component_descriptors)
+	delete(world.component_names_by_type)
+	delete(world.component_changes)
+	delete(world.resources)
+	delete(world.transforms)
+	delete(world.sprite_renderers)
+	delete(world.mesh_renderers)
+	delete(world.sphere_renderers)
+	delete(world.model_renderers)
+	delete(world.ambient_lights)
+	delete(world.directional_lights)
+	delete(world.point_lights)
+	delete(world.spot_lights)
+	delete(world.tilemap_renderers)
+	delete(world.text_renderers)
+	delete(world.tilemap_colliders)
+	delete(world.top_down_controllers)
+	delete(world.rigid_bodies_2d)
+	delete(world.box_colliders_2d)
+	delete(world.circle_colliders_2d)
+	delete(world.box2d_bodies)
+	delete(world.rigid_bodies_3d)
+	delete(world.box3d_bodies)
+	delete(world.box_colliders)
+	delete(world.sphere_colliders)
+	delete(world.character_controllers)
+	delete(world.orbits)
+	delete(world.rotators)
+	delete(world.cameras_2d)
+	delete(world.cameras_3d)
+	delete(world.orbit_cameras_3d)
+	delete(world.audio_listeners)
+	delete(world.audio_players)
+	delete(world.nav_grids_2d)
+	delete(world.nav_agents_2d)
+	world.typed_component_data = nil
+	world.typed_component_descriptors = nil
+	world.component_names_by_type = nil
+	world.component_changes = nil
+	world.resources = nil
+	if world.typed_component_arena != nil {
+		mem.dynamic_arena_destroy(world.typed_component_arena)
+		mem.free(world.typed_component_arena)
+		world.typed_component_arena = nil
 	}
 }
 
@@ -246,6 +357,7 @@ apply_changed_component_values :: proc(world: ^World, snapshot: ^World, entity_t
 			if json_values_equal(world_components[target_entity], snapshot_value) { continue }
 			world_components[target_entity] = snapshot_value
 			apply_snapshot_component_value(world, snapshot, target_entity, snapshot_entity, name)
+			record_component_change(world, target_entity, name, .Changed)
 		}
 		world.component_data[name] = world_components
 	}
@@ -261,12 +373,30 @@ apply_changed_component_instance_values :: proc(world: ^World, snapshot: ^World,
 			if name == "AudioPlayer" {
 				world.audio_players[target_key] = snapshot.audio_players[snapshot_key]
 			}
+			record_component_change(world, target_key.entity, name, .Changed)
 		}
 		world.component_instance_data[name] = world_instances
 	}
 }
 
 apply_snapshot_component_value :: proc(world: ^World, snapshot: ^World, target_entity, snapshot_entity: Entity, name: string) {
+	if descriptor, typed := snapshot.typed_component_descriptors[name]; typed && descriptor.create_typed != nil {
+		if world.typed_component_arena == nil { return }
+		allocator := mem.dynamic_arena_allocator(world.typed_component_arena)
+		snapshot_components := snapshot.component_data[name]
+		replacement, created := descriptor.create_typed(
+			snapshot_components[snapshot_entity],
+			descriptor.default_value,
+			allocator,
+		)
+		if !created { return }
+		components, found := world.typed_component_data[name]
+		if !found { components = make(map[Entity]any) }
+		components[target_entity] = replacement
+		world.typed_component_data[name] = components
+		world.typed_component_descriptors[name] = descriptor
+		return
+	}
 	if name == "Transform" { world.transforms[target_entity] = snapshot.transforms[snapshot_entity] }
 	if name == "SpriteRenderer" { world.sprite_renderers[target_entity] = snapshot.sprite_renderers[snapshot_entity] }
 	if name == "MeshRenderer" { world.mesh_renderers[target_entity] = snapshot.mesh_renderers[snapshot_entity] }
@@ -283,6 +413,7 @@ apply_snapshot_component_value :: proc(world: ^World, snapshot: ^World, target_e
 	if name == "RigidBody2D" { world.rigid_bodies_2d[target_entity] = snapshot.rigid_bodies_2d[snapshot_entity] }
 	if name == "BoxCollider2D" { world.box_colliders_2d[target_entity] = snapshot.box_colliders_2d[snapshot_entity] }
 	if name == "CircleCollider2D" { world.circle_colliders_2d[target_entity] = snapshot.circle_colliders_2d[snapshot_entity] }
+	if name == "RigidBody3D" { world.rigid_bodies_3d[target_entity] = snapshot.rigid_bodies_3d[snapshot_entity] }
 	if name == "BoxCollider" { world.box_colliders[target_entity] = snapshot.box_colliders[snapshot_entity] }
 	if name == "SphereCollider" { world.sphere_colliders[target_entity] = snapshot.sphere_colliders[snapshot_entity] }
 	if name == "CharacterController" { world.character_controllers[target_entity] = snapshot.character_controllers[snapshot_entity] }
@@ -364,6 +495,9 @@ ensure_hierarchy_indexes :: proc(world: ^World) {
 	if !world.hierarchy_dirty { return }
 	// Reparenting is uncommon. Replacing these compact indexes keeps the hot
 	// rendering path allocation-free and avoids a full parent-map scan per node.
+	delete(world.roots)
+	for _, children in world.children_by_parent { delete(children) }
+	delete(world.children_by_parent)
 	world.roots = make([dynamic]Entity)
 	world.children_by_parent = make(map[Entity][dynamic]Entity)
 	for entity in world.entities {
@@ -394,6 +528,41 @@ create_entity :: proc(world: ^World) -> Entity {
 	return entity
 }
 
+// destroy_entity is Rune's equivalent of Unity Destroy or Godot queue_free.
+// Children are destroyed by default, and every component/native subsystem is
+// detached before the runtime handle becomes invalid.
+destroy_entity :: proc(world: ^World, entity: Entity, recursive := true) -> bool {
+	if !is_alive(world, entity) { return false }
+	children := child_entities(world, entity)
+	if len(children) > 0 && !recursive { return false }
+	child_copy := make([]Entity, len(children), context.temp_allocator)
+	copy(child_copy, children)
+	for child in child_copy {
+		if !destroy_entity(world, child, true) { return false }
+	}
+
+	component_names := make([dynamic]string, context.temp_allocator)
+	for name, components in world.component_data {
+		if _, found := components[entity]; found { append(&component_names, name) }
+	}
+	for name in component_names { _ = remove_component(world, entity, name) }
+	physics_2d_remove_entity(world, entity)
+	physics_3d_remove_entity(world, entity)
+
+	if id, found := world.entity_ids[entity]; found && id != "" {
+		delete_key(&world.entities_by_id, id)
+	}
+	delete_key(&world.entity_ids, entity)
+	delete_key(&world.entity_names, entity)
+	delete_key(&world.entity_tags, entity)
+	delete_key(&world.layer_masks, entity)
+	delete_key(&world.parents, entity)
+	delete_key(&world.entities, entity)
+	world.entity_count -= 1
+	world.hierarchy_dirty = true
+	return true
+}
+
 make_entity :: proc(generation, index: u32) -> Entity {
 	return Entity((u64(generation) << 32) | u64(index))
 }
@@ -410,6 +579,21 @@ is_alive :: proc(world: ^World, entity: Entity) -> bool {
 	return entity != Entity(0) &&
 	       entity_generation(entity) == world.generation &&
 	       world.entities[entity]
+}
+
+record_component_change :: proc(
+	world: ^World,
+	entity: Entity,
+	name: string,
+	kind: Component_Change_Kind,
+) {
+	world.component_change_version += 1
+	if world.component_change_version == 0 { world.component_change_version = 1 }
+	world.component_changes[Component_Change_Key{entity = entity, name = name}] = Component_Change{
+		entity = entity,
+		kind = kind,
+		version = world.component_change_version,
+	}
 }
 
 // set_entity_metadata assigns scene-owned identity and filtering data. Non-empty
@@ -515,6 +699,27 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 		return false
 	}
 	descriptor, _ := component_descriptor(registry, name)
+	already_present := has_component_data(world, entity, name)
+	if descriptor.type_id != nil { world.component_names_by_type[descriptor.type_id] = name }
+	if descriptor.create_typed != nil {
+		if descriptor.allow_multiple || world.typed_component_arena == nil { return false }
+		allocator := mem.dynamic_arena_allocator(world.typed_component_arena)
+		typed_value, created := descriptor.create_typed(data, descriptor.default_value, allocator)
+		if !created { return false }
+
+		components, components_found := world.component_data[name]
+		if !components_found { components = make(map[Entity]json.Value) }
+		components[entity] = data
+		world.component_data[name] = components
+
+		typed_components, typed_found := world.typed_component_data[name]
+		if !typed_found { typed_components = make(map[Entity]any) }
+		typed_components[entity] = typed_value
+		world.typed_component_data[name] = typed_components
+		world.typed_component_descriptors[name] = descriptor
+		record_component_change(world, entity, name, .Changed if already_present else .Added)
+		return true
+	}
 	if descriptor.allow_multiple {
 		instances, ok := data.(json.Object)
 		if !ok || len(instances) == 0 { return false }
@@ -542,6 +747,7 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 		if !components_found { components = make(map[Entity]json.Value) }
 		components[entity] = data
 		world.component_data[name] = components
+		record_component_change(world, entity, name, .Changed if already_present else .Added)
 		return true
 	}
 
@@ -561,6 +767,7 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 	rigid_body_2d: RigidBody2D
 	box_collider_2d: BoxCollider2D
 	circle_collider_2d: CircleCollider2D
+	rigid_body_3d: RigidBody3D
 	box_collider: BoxCollider
 	sphere_collider: SphereCollider
 	character_controller: CharacterController
@@ -594,6 +801,7 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 	if name == "RigidBody2D" { rigid_body_2d, parse_ok = rigid_body_2d_from_json(data); if !parse_ok { return false } }
 	if name == "BoxCollider2D" { box_collider_2d, parse_ok = box_collider_2d_from_json(data); if !parse_ok { return false } }
 	if name == "CircleCollider2D" { circle_collider_2d, parse_ok = circle_collider_2d_from_json(data); if !parse_ok { return false } }
+	if name == "RigidBody3D" { rigid_body_3d, parse_ok = rigid_body_3d_from_json(data); if !parse_ok { return false } }
 	if name == "BoxCollider" { box_collider, parse_ok = box_collider_from_json(data); if !parse_ok { return false } }
 	if name == "SphereCollider" { sphere_collider, parse_ok = sphere_collider_from_json(data); if !parse_ok { return false } }
 	if name == "CharacterController" { character_controller, parse_ok = character_controller_from_json(data); if !parse_ok { return false } }
@@ -631,6 +839,7 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 	if name == "RigidBody2D" { world.rigid_bodies_2d[entity] = rigid_body_2d }
 	if name == "BoxCollider2D" { world.box_colliders_2d[entity] = box_collider_2d }
 	if name == "CircleCollider2D" { world.circle_colliders_2d[entity] = circle_collider_2d }
+	if name == "RigidBody3D" { world.rigid_bodies_3d[entity] = rigid_body_3d }
 	if name == "BoxCollider" { world.box_colliders[entity] = box_collider }
 	if name == "SphereCollider" { world.sphere_colliders[entity] = sphere_collider }
 	if name == "CharacterController" { world.character_controllers[entity] = character_controller }
@@ -642,7 +851,31 @@ add_component :: proc(world: ^World, registry: ^Component_Registry, entity: Enti
 	if name == "AudioListener" { world.audio_listeners[entity] = audio_listener }
 	if name == "NavGrid2D" { world.nav_grids_2d[entity] = nav_grid_2d }
 	if name == "NavAgent2D" { world.nav_agents_2d[entity] = nav_agent_2d }
+	record_component_change(world, entity, name, .Changed if already_present else .Added)
 	return true
+}
+
+// add_typed_component attaches a runtime-created custom component without
+// requiring game code to convert the struct through json.Value. Rune retains a
+// JSON snapshot internally so membership queries and scene-shape operations use
+// the same path as scene-authored components.
+add_typed_component :: proc(
+	world: ^World,
+	registry: ^Component_Registry,
+	entity: Entity,
+	name: string,
+	value: $T,
+) -> bool {
+	descriptor, found := component_descriptor(registry, name)
+	if !found || descriptor.create_typed == nil || descriptor.type_id != typeid_of(T) {
+		return false
+	}
+	bytes, marshal_error := json.marshal(value)
+	if marshal_error != nil { return false }
+	defer delete(bytes)
+	data: json.Value
+	if json.unmarshal(bytes, &data) != nil { return false }
+	return add_component(world, registry, entity, name, data)
 }
 
 remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
@@ -655,8 +888,19 @@ remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
 		return false
 	}
 
+	record_component_change(world, entity, name, .Removed)
+	if name == "RigidBody2D" || name == "BoxCollider2D" || name == "CircleCollider2D" {
+		physics_2d_remove_entity(world, entity)
+	}
+	if name == "RigidBody3D" || name == "BoxCollider" || name == "SphereCollider" {
+		physics_3d_remove_entity(world, entity)
+	}
 	delete_key(&components, entity)
 	world.component_data[name] = components
+	if typed_components, typed_found := world.typed_component_data[name]; typed_found {
+		delete_key(&typed_components, entity)
+		world.typed_component_data[name] = typed_components
+	}
 	if name == "Transform" {
 		delete_key(&world.transforms, entity)
 	}
@@ -675,6 +919,7 @@ remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
 	if name == "RigidBody2D" { delete_key(&world.rigid_bodies_2d, entity) }
 	if name == "BoxCollider2D" { delete_key(&world.box_colliders_2d, entity) }
 	if name == "CircleCollider2D" { delete_key(&world.circle_colliders_2d, entity) }
+	if name == "RigidBody3D" { delete_key(&world.rigid_bodies_3d, entity); delete_key(&world.box3d_bodies, entity) }
 	if name == "BoxCollider" { delete_key(&world.box_colliders, entity) }
 	if name == "SphereCollider" { delete_key(&world.sphere_colliders, entity) }
 	if name == "CharacterController" { delete_key(&world.character_controllers, entity) }
@@ -729,6 +974,197 @@ get_component :: proc(world: ^World, entity: Entity, name: string) -> (json.Valu
 
 	component, component_found := components[entity]
 	return component, component_found
+}
+
+// get_typed_component returns a copy of a registered custom component struct.
+// Call set_typed_component after changing it so the World remains the mutation
+// boundary for future change tracking and reactive systems.
+get_typed_component :: proc(world: ^World, entity: Entity, name: string, $T: typeid) -> (T, bool) {
+	components, found := world.typed_component_data[name]
+	if !found { return {}, false }
+	value, value_found := components[entity]
+	if !value_found || value.id != typeid_of(T) { return {}, false }
+	return (^T)(value.data)^, true
+}
+
+set_typed_component :: proc(world: ^World, entity: Entity, name: string, value: $T) -> bool {
+	if !is_alive(world, entity) || world.typed_component_arena == nil { return false }
+	descriptor, descriptor_found := world.typed_component_descriptors[name]
+	if !descriptor_found || descriptor.type_id != typeid_of(T) { return false }
+	components, components_found := world.typed_component_data[name]
+	if !components_found {
+		return false
+	}
+	if _, value_found := components[entity]; !value_found { return false }
+
+	allocator := mem.dynamic_arena_allocator(world.typed_component_arena)
+	replacement, allocation_error := mem.new(T, allocator)
+	if allocation_error != nil { return false }
+	bytes, marshal_error := json.marshal(value, allocator = allocator)
+	if marshal_error != nil || json.unmarshal(bytes, replacement, allocator = allocator) != nil {
+		return false
+	}
+	components[entity] = any{data = replacement, id = typeid_of(T)}
+	world.typed_component_data[name] = components
+	record_component_change(world, entity, name, .Changed)
+	return true
+}
+
+// get is the normal component access path for both built-in and custom typed
+// components. The serialized JSON name is resolved from registration once.
+get :: proc(world: ^World, entity: Entity, $T: typeid) -> (T, bool) {
+	when T == Transform { return get_transform(world, entity) }
+	else when T == SpriteRenderer { return get_sprite_renderer(world, entity) }
+	else when T == MeshRenderer { return get_mesh_renderer(world, entity) }
+	else when T == SphereRenderer { return get_sphere_renderer(world, entity) }
+	else when T == ModelRenderer { return get_model_renderer(world, entity) }
+	else when T == AmbientLight { return get_ambient_light(world, entity) }
+	else when T == DirectionalLight { return get_directional_light(world, entity) }
+	else when T == PointLight { return get_point_light(world, entity) }
+	else when T == SpotLight { return get_spot_light(world, entity) }
+	else when T == TilemapRenderer { return get_tilemap_renderer(world, entity) }
+	else when T == TextRenderer { return get_text_renderer(world, entity) }
+	else when T == TilemapCollider { return get_tilemap_collider(world, entity) }
+	else when T == TopDownController { return get_top_down_controller(world, entity) }
+	else when T == RigidBody2D { return get_rigid_body_2d(world, entity) }
+	else when T == BoxCollider2D { return get_box_collider_2d(world, entity) }
+	else when T == CircleCollider2D { return get_circle_collider_2d(world, entity) }
+	else when T == RigidBody3D { return get_rigid_body_3d(world, entity) }
+	else when T == BoxCollider { return get_box_collider(world, entity) }
+	else when T == SphereCollider { return get_sphere_collider(world, entity) }
+	else when T == CharacterController { return get_character_controller(world, entity) }
+	else when T == Orbit { return get_orbit(world, entity) }
+	else when T == Rotator { return get_rotator(world, entity) }
+	else when T == Camera2D { return get_camera_2d(world, entity) }
+	else when T == Camera3D { return get_camera_3d(world, entity) }
+	else when T == OrbitCamera3D { return get_orbit_camera_3d(world, entity) }
+	else when T == AudioListener { return get_audio_listener(world, entity) }
+	else when T == NavGrid2D { return get_nav_grid_2d(world, entity) }
+	else when T == NavAgent2D { return get_nav_agent_2d(world, entity) }
+	else {
+		name, found := world.component_names_by_type[typeid_of(T)]
+		if !found { return {}, false }
+		return get_typed_component(world, entity, name, T)
+	}
+}
+
+// set writes a typed component and records a single change version. Systems
+// that need reactive work can consume changes_since without file watchers.
+set :: proc(world: ^World, entity: Entity, value: $T) -> bool {
+	name, registered := world.component_names_by_type[typeid_of(T)]
+	if !registered { return false }
+	when T == Transform { if !set_transform(world, entity, value) { return false } }
+	else when T == SpriteRenderer { if !set_sprite_renderer(world, entity, value) { return false } }
+	else when T == MeshRenderer { if !set_mesh_renderer(world, entity, value) { return false } }
+	else when T == SphereRenderer { if !set_sphere_renderer(world, entity, value) { return false } }
+	else when T == ModelRenderer { if !set_model_renderer(world, entity, value) { return false } }
+	else when T == AmbientLight { if !set_ambient_light(world, entity, value) { return false } }
+	else when T == DirectionalLight { if !set_directional_light(world, entity, value) { return false } }
+	else when T == PointLight { if !set_point_light(world, entity, value) { return false } }
+	else when T == SpotLight { if !set_spot_light(world, entity, value) { return false } }
+	else when T == TilemapRenderer { if !set_tilemap_renderer(world, entity, value) { return false } }
+	else when T == TextRenderer { if !set_text_renderer(world, entity, value) { return false } }
+	else when T == TilemapCollider { if !set_tilemap_collider(world, entity, value) { return false } }
+	else when T == TopDownController { if !set_top_down_controller(world, entity, value) { return false } }
+	else when T == RigidBody2D { if !set_rigid_body_2d(world, entity, value) { return false } }
+	else when T == BoxCollider2D {
+		if !has_component_data(world, entity, name) { return false }
+		world.box_colliders_2d[entity] = value
+	}
+	else when T == CircleCollider2D {
+		if !has_component_data(world, entity, name) { return false }
+		world.circle_colliders_2d[entity] = value
+	}
+	else when T == RigidBody3D { if !set_rigid_body_3d(world, entity, value) { return false } }
+	else when T == BoxCollider { if !set_box_collider(world, entity, value) { return false } }
+	else when T == SphereCollider { if !set_sphere_collider(world, entity, value) { return false } }
+	else when T == CharacterController { if !set_character_controller(world, entity, value) { return false } }
+	else when T == Orbit { if !set_orbit(world, entity, value) { return false } }
+	else when T == Rotator { if !set_rotator(world, entity, value) { return false } }
+	else when T == Camera2D { if !set_camera_2d(world, entity, value) { return false } }
+	else when T == Camera3D { if !set_camera_3d(world, entity, value) { return false } }
+	else when T == OrbitCamera3D { if !set_orbit_camera_3d(world, entity, value) { return false } }
+	else when T == AudioListener { if !set_audio_listener(world, entity, value) { return false } }
+	else when T == NavGrid2D { if !set_nav_grid_2d(world, entity, value) { return false } }
+	else when T == NavAgent2D { if !set_nav_agent_2d(world, entity, value) { return false } }
+	else { return set_typed_component(world, entity, name, value) }
+	record_component_change(world, entity, name, .Changed)
+	return true
+}
+
+add :: proc(world: ^World, registry: ^Component_Registry, entity: Entity, value: $T) -> bool {
+	name, found := component_name_for_type(registry, T)
+	if !found { return false }
+	return add_typed_component(world, registry, entity, name, value)
+}
+
+query :: proc(world: ^World, $T: typeid) -> []Entity {
+	name, found := world.component_names_by_type[typeid_of(T)]
+	if !found { return nil }
+	return entities_with_component(world, name)
+}
+
+query2 :: proc(world: ^World, $A: typeid, $B: typeid) -> []Entity {
+	name_a, found_a := world.component_names_by_type[typeid_of(A)]
+	name_b, found_b := world.component_names_by_type[typeid_of(B)]
+	if !found_a || !found_b { return nil }
+	result := make([dynamic]Entity, context.temp_allocator)
+	for entity in entities_with_component(world, name_a) {
+		if has_component_data(world, entity, name_b) { append(&result, entity) }
+	}
+	return result[:]
+}
+
+query3 :: proc(world: ^World, $A: typeid, $B: typeid, $C: typeid) -> []Entity {
+	name_a, found_a := world.component_names_by_type[typeid_of(A)]
+	name_b, found_b := world.component_names_by_type[typeid_of(B)]
+	name_c, found_c := world.component_names_by_type[typeid_of(C)]
+	if !found_a || !found_b || !found_c { return nil }
+	result := make([dynamic]Entity, context.temp_allocator)
+	for entity in entities_with_component(world, name_a) {
+		if has_component_data(world, entity, name_b) && has_component_data(world, entity, name_c) {
+			append(&result, entity)
+		}
+	}
+	return result[:]
+}
+
+change_version :: proc(world: ^World) -> u64 { return world.component_change_version }
+
+changes_since :: proc(world: ^World, $T: typeid, version: u64) -> []Component_Change {
+	name, found := world.component_names_by_type[typeid_of(T)]
+	if !found { return nil }
+	result := make([dynamic]Component_Change, context.temp_allocator)
+	for key, change in world.component_changes {
+		if key.name == name && change.version > version { append(&result, change) }
+	}
+	return result[:]
+}
+
+// Resources hold typed system-wide state that does not belong to one entity.
+// Their pointers remain stable for the lifetime of the World.
+add_resource :: proc(world: ^World, value: $T) -> bool {
+	if world == nil || world.typed_component_arena == nil { return false }
+	id := typeid_of(T)
+	if _, exists := world.resources[id]; exists { return false }
+	storage, allocation_error := mem.new(T, mem.dynamic_arena_allocator(world.typed_component_arena))
+	if allocation_error != nil { return false }
+	storage^ = value
+	world.resources[id] = any{data = storage, id = id}
+	return true
+}
+
+resource :: proc(world: ^World, $T: typeid) -> (^T, bool) {
+	value, found := world.resources[typeid_of(T)]
+	if !found || value.id != typeid_of(T) { return nil, false }
+	return (^T)(value.data), true
+}
+
+remove_resource :: proc(world: ^World, $T: typeid) -> bool {
+	id := typeid_of(T)
+	if _, found := world.resources[id]; !found { return false }
+	delete_key(&world.resources, id)
+	return true
 }
 
 get_component_instance :: proc(world: ^World, entity: Entity, component_name, instance_name: string) -> (json.Value, bool) {
@@ -825,6 +1261,8 @@ get_rigid_body_2d :: proc(world: ^World, entity: Entity) -> (RigidBody2D, bool) 
 set_rigid_body_2d :: proc(world: ^World, entity: Entity, value: RigidBody2D) -> bool { if !has_component_data(world, entity, "RigidBody2D") { return false }; world.rigid_bodies_2d[entity] = value; return true }
 get_box_collider_2d :: proc(world: ^World, entity: Entity) -> (BoxCollider2D, bool) { value, found := world.box_colliders_2d[entity]; return value, found }
 get_circle_collider_2d :: proc(world: ^World, entity: Entity) -> (CircleCollider2D, bool) { value, found := world.circle_colliders_2d[entity]; return value, found }
+get_rigid_body_3d :: proc(world: ^World, entity: Entity) -> (RigidBody3D, bool) { value, found := world.rigid_bodies_3d[entity]; return value, found }
+set_rigid_body_3d :: proc(world: ^World, entity: Entity, value: RigidBody3D) -> bool { if !has_component_data(world, entity, "RigidBody3D") { return false }; world.rigid_bodies_3d[entity] = value; return true }
 get_box_collider :: proc(world: ^World, entity: Entity) -> (BoxCollider, bool) { value, found := world.box_colliders[entity]; return value, found }
 set_box_collider :: proc(world: ^World, entity: Entity, value: BoxCollider) -> bool { if !has_component_data(world, entity, "BoxCollider") { return false }; world.box_colliders[entity] = value; return true }
 get_sphere_collider :: proc(world: ^World, entity: Entity) -> (SphereCollider, bool) { value, found := world.sphere_colliders[entity]; return value, found }

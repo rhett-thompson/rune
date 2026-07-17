@@ -1,9 +1,7 @@
 package main
 
-import "core:encoding/json"
 import "rune:assets"
 import "rune:ecs"
-import "rune:jsonutil"
 import rl "vendor:raylib"
 
 Tiled_Wall :: struct {
@@ -11,29 +9,14 @@ Tiled_Wall :: struct {
 	tile_scale: f32,
 }
 
-// TiledWall is a game-owned component. The scene loader automatically stores
-// its JSON data; this example supplies the behavior that renders it.
+// TiledWall is a game-owned typed component. JSON initializes its struct data;
+// this example supplies the behavior that renders it.
 draw_tiled_walls :: proc(world: ^ecs.World, asset_manager: ^assets.Asset_Manager) {
-	for entity in ecs.entities_with_component(world, "TiledWall") {
-		component, found := ecs.get_component(world, entity, "TiledWall")
-		if !found { continue }
-		wall_data, valid := tiled_wall_from_json(component)
-		if !valid { continue }
+	for entity in ecs.query(world, Tiled_Wall) {
+		wall_data, found := ecs.get(world, entity, Tiled_Wall)
+		if !found || len(wall_data.texture) == 0 || wall_data.tile_scale <= 0 { continue }
 		draw_tiled_wall_component(asset_manager, wall_data)
 	}
-}
-
-tiled_wall_from_json :: proc(data: json.Value) -> (Tiled_Wall, bool) {
-	object, ok := data.(json.Object)
-	if !ok { return {}, false }
-	texture, texture_ok := object["texture"].(json.String)
-	if !texture_ok || len(texture) == 0 { return {}, false }
-	tile_scale := f32(1)
-	if value, found := object["tile_scale"]; found {
-		tile_scale, ok = jsonutil.number(value)
-		if !ok || tile_scale <= 0 { return {}, false }
-	}
-	return Tiled_Wall{texture = texture, tile_scale = tile_scale}, true
 }
 
 draw_tiled_wall_component :: proc(asset_manager: ^assets.Asset_Manager, wall_data: Tiled_Wall) {

@@ -6,26 +6,26 @@
   "required": ["name", "entities"],
   "properties": {
     "$schema": { "type": "string" },
-    "name": { "type": "string", "description": "Display name of the scene." },
+    "name": { "type": "string", "minLength": 1, "description": "Display name of the scene." },
     "entities": {
       "type": "array",
       "items": { "$ref": "#/$defs/entity" }
     }
   },
-  "additionalProperties": false,
+  "additionalProperties": true,
   "$defs": {
     "entity": {
       "type": "object",
       "properties": {
-        "id": { "type": "string", "description": "Scene-unique entity identifier." },
+        "id": { "type": "string", "minLength": 1, "description": "Scene-unique entity identifier." },
         "name": { "type": "string" },
         "tag": { "type": "string" },
         "layers": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": { "type": "string", "minLength": 1 },
           "uniqueItems": true
         },
-        "prefab": { "type": "string", "description": "Path relative to this scene file." },
+        "prefab": { "type": "string", "minLength": 1, "description": "Path relative to this scene file." },
         "components": { "$ref": "components.schema.json" },
         "children": {
           "type": "array",

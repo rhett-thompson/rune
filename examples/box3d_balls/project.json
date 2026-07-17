@@ -1,14 +1,23 @@
 {
   "$schema": "../../schemas/project.schema.json",
-  "name": "Box3D Ball Drop",
-  "background_color": [24, 28, 36, 255],
+  "name": "Box3D Rolling Balls",
+  "startup_scene": "scenes/main.scene.json",
+  "background_color": [
+    24,
+    28,
+    36,
+    255
+  ],
   "window": {
     "width": 960,
     "height": 540,
-    "title": "Rune - Box3D Ball Drop",
+    "title": "Rune - Box3D Rolling Balls",
     "fullscreen": false,
     "vsync": true,
     "msaa_4x": true
   },
-  "input": "input/default.input.json"
+  "input": "input/default.input.json",
+  "gizmos": {
+    "enabled": false
+  }
 }

@@ -22,22 +22,15 @@ main :: proc() {
 	}
 	defer rune.shutdown(&engine)
 	registry := rune.component_registry(&engine)
-	if !ecs.register_component(registry, {name="DungeonGenerator", description="Procedural dungeon generation settings"}) ||
-	   !ecs.register_component(registry, {name="DungeonPlayer", description="First-person dungeon player state"}) ||
-	   !ecs.register_component(registry, {name="DungeonPresentation", description="Dungeon texture settings"}) ||
-	   !ecs.register_component(registry, {name="DungeonEnemy", description="Runtime dungeon enemy state"}) {
+	if !ecs.register_component(registry, "DungeonGenerator", Dungeon_Generator, Dungeon_Generator{}, "Procedural dungeon generation settings") ||
+	   !ecs.register_component(registry, "DungeonPlayer", Dungeon_Player, Dungeon_Player{}, "First-person dungeon player state") ||
+	   !ecs.register_component(registry, "DungeonPresentation", Dungeon_Presentation, Dungeon_Presentation{}, "Dungeon texture settings") {
 		fmt.eprintln("Could not register dungeon components")
-		return
-	}
-	project_dir, _ := filepath.split(project_path)
-	scene_path, _ := filepath.join({project_dir, "scenes", "main.scene.json"})
-	world, scene_ok := rune.load_scene(&engine, scene_path)
-	if !scene_ok || !initialize_dungeon(&engine, &world) {
-		fmt.eprintln("Could not initialize dungeon scene")
 		return
 	}
 	if !rune.register_system(&engine, {
 		name = "dungeon_crawler",
+		start = dungeon_reload_system,
 		update = dungeon_update_system,
 		draw = dungeon_draw_system,
 		on_scene_reloaded = dungeon_reload_system,
@@ -46,5 +39,5 @@ main :: proc() {
 		return
 	}
 	rl.DisableCursor()
-	rune.run_scene(&engine, &world)
+	if !rune.run(&engine) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
 }

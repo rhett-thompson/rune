@@ -38,11 +38,11 @@ Tanks_Game :: struct {
 }
 
 load_tanks_game :: proc(game: ^Tanks_Game, world: ^ecs.World) -> bool {
-	arenas := ecs.entities_with_component(world, "TanksArena")
-	tanks := ecs.entities_with_component(world, "Tank")
-	matches := ecs.entities_with_component(world, "TanksMatch")
-	nav_grids := ecs.entities_with_component(world, "NavGrid2D")
-	nav_agents := ecs.entities_with_component(world, "NavAgent2D")
+	arenas := ecs.query(world, Tanks_Arena)
+	tanks := ecs.query(world, Tank)
+	matches := ecs.query(world, Tanks_Match)
+	nav_grids := ecs.query(world, ecs.NavGrid2D)
+	nav_agents := ecs.query(world, ecs.NavAgent2D)
 	if len(arenas) != 1 || len(tanks) != 2 || len(matches) != 1 ||
 	   len(nav_grids) != 1 || len(nav_agents) != 1 { return false }
 	ok_a, ok_m: bool

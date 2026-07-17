@@ -11,14 +11,13 @@ Transition_State :: enum { Idle, Fading_To_Black, Fading_From_Black }
 
 Fade_Duration : f32 : 0.35
 
-world: ecs.World
 scene_index: int
 transition_state: Transition_State
 fade: tween.Tween
 
 scene_paths := [2]string{
-	"examples/scene_transition_2d/scenes/blue.scene.json",
-	"examples/scene_transition_2d/scenes/pink.scene.json",
+	"scenes/blue.scene.json",
+	"scenes/pink.scene.json",
 }
 
 scene_names := [2]cstring{"Blue Scene", "Pink Scene"}
@@ -30,14 +29,13 @@ begin_transition :: proc() {
 }
 
 load_next_scene :: proc(game: ^rune.Engine) -> bool {
-	scene_index = (scene_index + 1) % len(scene_paths)
-	next_world, loaded := rune.load_scene(game, scene_paths[scene_index])
-	if !loaded { return false }
-	world = next_world
+	next_index := (scene_index + 1) % len(scene_paths)
+	if !rune.change_scene(game, scene_paths[next_index]) { return false }
+	scene_index = next_index
 	return true
 }
 
-on_update :: proc(game: ^rune.Engine) {
+on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if transition_state == .Idle && input.pressed(rune.input_state(game), "change_scene") {
 		begin_transition()
 	}
@@ -55,10 +53,10 @@ on_update :: proc(game: ^rune.Engine) {
 	transition_state = .Idle
 }
 
-on_draw :: proc(game: ^rune.Engine) {
-	orb, found := ecs.find_entity_by_id(&world, "scene_orb")
+on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	orb, found := ecs.find_entity_by_id(world, "scene_orb")
 	if found {
-		transform, has_transform := ecs.get_transform(&world, orb)
+		transform, has_transform := ecs.get_transform(world, orb)
 		if has_transform {
 			rl.DrawCircleV({transform.position[0], transform.position[1]}, 96, scene_colors[scene_index])
 		}
@@ -67,8 +65,6 @@ on_draw :: proc(game: ^rune.Engine) {
 	rl.DrawText("Runtime scene transition", 32, 28, 30, rl.RAYWHITE)
 	rl.DrawText(scene_names[scene_index], 32, 72, 24, scene_colors[scene_index])
 	rl.DrawText("Left-click to fade to black and load the next JSON scene.", 32, 108, 18, rl.LIGHTGRAY)
-	rune.draw_gizmos(game, &world)
-
 	if transition_state != .Idle {
 		alpha := tween.value_f32(&fade, 0, 1)
 		if transition_state == .Fading_From_Black { alpha = 1 - alpha }
@@ -81,8 +77,9 @@ main :: proc() {
 	if !ok { fmt.eprintln("Could not load examples/scene_transition_2d/project.json"); return }
 	defer rune.shutdown(&game)
 
-	scene_ok: bool
-	world, scene_ok = rune.load_scene(&game, scene_paths[scene_index])
-	if !scene_ok { fmt.eprintln("Could not load the initial transition scene"); return }
-	rune.run(&game, on_update, on_draw)
+	if !rune.register_system(&game, {name = "scene_transition", update = on_update, draw = on_draw}) {
+		fmt.eprintln("Could not register scene-transition system")
+		return
+	}
+	if !rune.run(&game) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
 }

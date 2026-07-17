@@ -16,7 +16,7 @@ The initial scaffold provides:
 
 - a raylib-backed engine loop;
 - JSON `project.json` loading and scene-to-world instantiation;
-- an ECS world with registered, JSON-backed custom components;
+- a strict typed ECS with reflected Odin/JSON custom components;
 - cached texture assets and scene-owned 2D sprite rendering;
 - a runnable hello-world example.
 
@@ -35,13 +35,46 @@ entries and descriptions live in `examples/examples.json`.
 
 ## Runtime lifecycle
 
-The engine separates simulation from presentation using Unity-like callback
-names. Pass an `on_update` procedure for gameplay and component-data changes,
-and an `on_draw` procedure for camera/UI drawing and scene rendering:
+The normal workflow registers components and systems, then lets the engine load
+and own the project's startup scene:
 
 ```odin
-rune.run(&game, on_update, on_draw)
+rune.register_system(&game, rune.System{
+    name = "movement",
+    start = acquire_scene_state,
+    fixed_update = update_physics_controls,
+    update = update_gameplay,
+    pre_draw = draw_background,
+    draw = draw_overlay,
+    on_scene_reloaded = acquire_scene_state,
+    shutdown = release_game_state,
+})
+
+if !rune.run(&game) {
+    fmt.eprintln(rune.last_scene_error())
+}
 ```
+
+The scene loop updates input, fixed-step systems and physics, normal systems,
+audio, background drawing, automatic 2D scene rendering, overlay drawing,
+gizmos, and the console. `pre_draw` is for custom content that must appear
+behind automatic scene rendering; normal UI and debug drawing belongs in
+`draw`.
+`rune.run(&game, on_update, on_draw)` remains available as a low-level callback
+loop for focused utilities and probes that intentionally do not use an
+engine-owned scene or registered systems.
+
+Change the engine-owned scene from a system with a project-relative path:
+
+```odin
+if !rune.change_scene(game, "scenes/level_2.scene.json") {
+    fmt.eprintln(rune.last_scene_error())
+}
+```
+
+The new scene is loaded before the current one is disturbed. Rune then runs
+system shutdown callbacks, destroys the old World, installs the new World, and
+runs start callbacks. A load failure leaves the current scene running.
 
 `Transform`, `SpriteRenderer`, `MeshRenderer`, `SphereRenderer`, `Camera2D`, `Camera3D`, `AudioListener`, and `AudioPlayer` are data
 components. Their behavior stays in Odin systems, rather than turning scene
@@ -52,25 +85,19 @@ can pause a raylib frame loop; capping the resumed frame prevents movement and
 physics from jumping across the world. Rendering still pauses while the OS owns
 the window-drag operation.
 
-## Optional registered systems
+## Registered systems
 
-Games can register ordered Odin systems and run an instantiated world through
-the ECS lifecycle. Update systems run before drawing; draw systems run after
-the engine clears the project background. A system may also reacquire cached
-entities after a scene hot reload.
+Systems are ordered Odin behavior over component data. `start` runs after a
+scene exists, and `shutdown` runs before its World is destroyed. Scene changes
+therefore receive the same lifecycle as startup and application shutdown.
 
 ```odin
 rune.register_system(&game, rune.System{
-  name = "draw_scene",
-  draw = proc(game: ^rune.Engine, world: ^ecs.World) {
-    render.draw_scene_2d(world, rune.asset_manager(game))
-  },
+    name = "movement",
+    update = movement_system,
 })
-rune.run_scene(&game, &world)
+rune.run(&game)
 ```
-
-`rune.run` remains the simpler choice for small callback-based programs. The
-dedicated registered-system example is available at:
 
 ```powershell
 odin run examples/registered_systems -collection:rune=rune
@@ -108,7 +135,7 @@ while the console is open.
 ## Runtime gizmos
 
 Rune includes a small debug visualization layer for scene data. In projects
-using `rune.run_scene`, gizmos are disabled by default; press `F3` to toggle
+using the scene-owning `rune.run`, gizmos are disabled by default; press `F3` to toggle
 them at runtime. The overlay can
 draw transform axes, active and inactive cameras, 2D and 3D collision bounds,
 tilemap solid cells, audio listener/player ranges, and light positions,
@@ -316,24 +343,30 @@ window or world.
 ## Custom components
 
 `rune.init` automatically creates the component registry and registers the
-built-ins. Scene instantiation discovers component names recursively and
-automatically registers missing names as JSON-backed custom components. This
-means a scene can declare `Health` or `Mover` without an earlier registration
-call. Game code still owns behaviour: automatic registration does not generate
-an Odin type or system from JSON.
+built-ins. Register gameplay components with an Odin struct before loading a
+scene. Rune reflects the struct to validate and deserialize the matching JSON
+component, while game code continues to own all behavior.
 
 ```odin
-entity := ecs.create_entity(&world)
-ecs.register_component(rune.component_registry(&game), ecs.Component_Descriptor{
-    name = "Health",
-    description = "Hit points for damageable entities",
-})
-ecs.add_component(&world, rune.component_registry(&game), entity, "Health", health_json)
+Health :: struct {
+    current: i32,
+    maximum: i32 `json:"max"`,
+}
+
+ecs.register_component(
+    rune.component_registry(&game),
+    "Health",
+    Health,
+    Health{current = 100, maximum = 100},
+    "Hit points for damageable entities",
+)
 ```
 
-`health_json` is a `json.Value`; it can come directly from a scene or prefab JSON
-component block. Typed Odin component storage and serializers can be added later
-without changing the JSON-facing format.
+An untagged field uses its exact Odin member name; a `json:"..."` tag overrides
+that name. Omitted properties retain registered defaults and unknown properties
+fail validation. Scene loading also rejects unregistered component names, so a
+misspelling cannot silently create a new component. Deliberately untyped data
+uses the explicit `ecs.register_data_component` compatibility API.
 
 The typed built-ins are `Transform`, `SpriteRenderer`, `MeshRenderer`,
 `SphereRenderer`, `Camera2D`, `Camera3D`, `AudioListener`, and `AudioPlayer`. Cameras use their entity's
@@ -342,12 +375,28 @@ active at a time. Custom-component systems can read and modify `Transform` by
 entity ID:
 
 ```odin
-transform, ok := ecs.get_transform(&world, entity)
+transform, ok := ecs.get(&world, entity, ecs.Transform)
 if ok {
     transform.position[0] += speed * dt
-    ecs.set_transform(&world, entity, transform)
+    ecs.set(&world, entity, transform)
 }
 ```
+
+Queries resolve serialized names from registration and match component sets
+without repeating strings:
+
+```odin
+for entity in ecs.query2(world, ecs.Transform, Mover) {
+    transform, _ := ecs.get(world, entity, ecs.Transform)
+    mover, _ := ecs.get(world, entity, Mover)
+}
+```
+
+`ecs.destroy_entity` recursively removes an entity, its children, components,
+audio instances, and native physics bodies. `ecs.change_version` and
+`ecs.changes_since` expose added, changed, and removed component events from
+scene reload, runtime creation, `ecs.set`, and destruction. Typed World-wide
+system state can live in `ecs.add_resource` / `ecs.resource` instead of globals.
 
 ## Audio component data
 
@@ -399,7 +448,7 @@ The runnable component-loading example is available at:
 odin run examples/audio_components -collection:rune=rune -collection:r3d=third_party/r3d-odin
 ```
 
-When using `rune.run_scene`, the engine updates audio automatically. Odin
+When using the scene-owning `rune.run`, the engine updates audio automatically. Odin
 systems can trigger a configured player explicitly with
 `rune.play_audio(game, world, entity, "bell")` and stop it with
 `rune.stop_audio(game, entity, "bell")`.
@@ -462,11 +511,8 @@ r3d_bridge.draw_scene_ex(&bridge, &world, rune.asset_manager(game), scene_view)
 
 `MeshRenderer` currently draws the `cube` primitive and `SphereRenderer` draws
 a sphere through r3d. `SpriteRenderer` loads a project-relative texture path
-through the asset cache and draws it through the active `Camera2D`:
-
-```odin
-render.draw_scene_2d(&world, rune.asset_manager(game))
-```
+through the asset cache and is drawn automatically through the active
+`Camera2D`. Callback-based loops can still call `render.draw_scene_2d`.
 
 Missing sprite textures use a shared magenta fallback texture rather than
 retrying disk loading every frame.
@@ -542,9 +588,13 @@ following when the block is omitted:
 }
 ```
 
-Texture reload respects `textures`. Scenes are opt-in at the game-code level
-because a reload replaces the `World` and invalidates cached entity handles.
-Call this in a game's update callback:
+Texture reload respects `textures`. The normal engine-owned `rune.run(&game)`
+workflow watches the active scene automatically. Component-value-only edits
+are applied to the existing World; structural edits rebuild it and invoke each
+system's `on_scene_reloaded` callback so cached entity handles can be
+reacquired.
+
+Advanced callback-based programs that own a World can poll explicitly:
 
 ```odin
 if rune.reload_scene_if_changed(game, &world, "scenes/main.scene.json") {
@@ -762,9 +812,10 @@ with a collider but no `RigidBody2D` becomes static collision geometry.
 "BoxCollider2D": { "size": [26, 30] }
 ```
 
-Call `ecs.physics_2d_update(&world, game.delta_time)` after game code updates
-the body's velocity. `grounded` is set after a body lands, which makes jumping
-an explicit game-code decision. Run the example and non-windowed validation:
+The scene-owning loop advances physics automatically. Gameplay that controls a
+body belongs in a system's `fixed_update`; `grounded` is set after a body lands,
+which makes jumping an explicit game-code decision. Callback-based programs may
+still call `ecs.physics_2d_update` directly. Run the example and validation:
 
 ```powershell
 odin run examples/physics_platformer_2d -collection:rune=rune
@@ -815,7 +866,7 @@ axes for yaw, pitch, and zoom:
 }
 ```
 
-Projects using `rune.run_scene` update orbit cameras automatically before
+Projects using the scene-owning `rune.run` update orbit cameras automatically before
 registered systems run. Callback-based programs can call
 `rune.update_orbit_cameras_3d(game, &world)`. Hold the left mouse button and
 drag in the orbit-camera example to control the orbit:
@@ -848,9 +899,41 @@ odin run examples/solar_system -collection:rune=rune -collection:r3d=third_party
 
 ## Custom component updating a Transform
 
-This example lets scene loading auto-register the game-defined `Mover`
-component. Its JSON `speed` value is read by an Odin system, which updates the
-entity's typed `Transform` every frame.
+This example registers the game-defined `Mover` component as an Odin struct:
+
+```odin
+Mover :: struct {
+    speed: f32,
+}
+
+ecs.register_component(
+    rune.component_registry(&game),
+    "Mover",
+    Mover,
+    Mover{speed = 120},
+    "Horizontal movement speed",
+)
+```
+
+Untagged fields use their exact Odin member name in JSON, so `speed` maps to
+`"speed"`. Use an Odin `json:"..."` struct tag only when the JSON name should
+differ. Missing properties retain the registered defaults; unknown properties,
+including unknown properties in nested structs, make scene loading fail.
+
+Systems read and update the stored struct without converting through
+`json.Value`:
+
+```odin
+mover, found := ecs.get(world, entity, Mover)
+if found {
+    mover.speed = 240
+    ecs.set(world, entity, mover)
+}
+```
+
+When scene hot reload changes a component property, Rune deserializes and
+validates a replacement struct, then swaps it into the existing World while
+preserving the entity handle.
 
 ```powershell
 odin run examples/custom_mover -collection:rune=rune

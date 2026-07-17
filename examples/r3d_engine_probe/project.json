@@ -1,7 +1,6 @@
 {
   "$schema": "../../schemas/project.schema.json",
   "name": "r3d Engine Probe",
-  "startup_scene": "../textured_model_3d/scenes/main.scene.json",
   "window": {
     "width": 960,
     "height": 540,

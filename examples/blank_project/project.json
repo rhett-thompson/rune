@@ -2,6 +2,7 @@
   "$schema": "../../schemas/project.schema.json",
   "name": "Blank Rune Project",
   "startup_scene": "scenes/main.scene.json",
+  "input": "input/default.input.json",
   "window": {
     "width": 1280,
     "height": 720,

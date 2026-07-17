@@ -1,6 +1,5 @@
 package main
 
-import "core:encoding/json"
 import "core:fmt"
 import "core:math"
 import rune "rune:core"
@@ -74,15 +73,13 @@ get_texture :: proc(engine: ^rune.Engine, path: string) -> rl.Texture2D {
 	return value
 }
 
-component_into :: proc(world: ^ecs.World, name: string, result: ^$T) -> bool {
-	entities := ecs.entities_with_component(world, name)
+component_into :: proc(world: ^ecs.World, result: ^$T) -> bool {
+	entities := ecs.query(world, T)
 	if len(entities) != 1 { return false }
-	value, found := ecs.get_component(world, entities[0], name)
+	value, found := ecs.get(world, entities[0], T)
 	if !found { return false }
-	data, err := json.marshal(value)
-	if err != nil { return false }
-	defer delete(data)
-	return json.unmarshal(data, result) == nil
+	result^ = value
+	return true
 }
 
 load_assets :: proc(engine: ^rune.Engine) {
@@ -108,9 +105,9 @@ initialize_dungeon :: proc(engine: ^rune.Engine, world: ^ecs.World) -> bool {
 	death_audio, ok = ecs.find_entity_by_id(world, "death_audio"); if !ok { return false }
 	footstep_audio, ok = ecs.find_entity_by_id(world, "footstep_audio"); if !ok { return false }
 	level_audio, ok = ecs.find_entity_by_id(world, "level_audio"); if !ok { return false }
-	if !component_into(world, "DungeonGenerator", &generator) ||
-	   !component_into(world, "DungeonPresentation", &presentation) ||
-	   !component_into(world, "DungeonPlayer", &player_settings) {
+	if !component_into(world, &generator) ||
+	   !component_into(world, &presentation) ||
+	   !component_into(world, &player_settings) {
 		return false
 	}
 	load_assets(engine)

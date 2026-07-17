@@ -12,7 +12,6 @@ Player_Speed : f32 : 6
 Camera_Height : f32 : 1.5
 Mouse_Orbit_Speed : f32 : 0.25
 
-world: ecs.World
 bridge: r3d_bridge.Context
 player: ecs.Entity
 follow_camera: ecs.Entity
@@ -29,10 +28,10 @@ clamp :: proc(value, minimum, maximum: f32) -> f32 {
 	return value
 }
 
-update_follow_camera :: proc() {
-	player_transform, has_player := ecs.get_transform(&world, player)
-	camera_transform, has_camera_transform := ecs.get_transform(&world, follow_camera)
-	camera, has_camera := ecs.get_camera_3d(&world, follow_camera)
+update_follow_camera :: proc(world: ^ecs.World) {
+	player_transform, has_player := ecs.get_transform(world, player)
+	camera_transform, has_camera_transform := ecs.get_transform(world, follow_camera)
+	camera, has_camera := ecs.get_camera_3d(world, follow_camera)
 	if !has_player || !has_camera_transform || !has_camera { return }
 
 	yaw := camera_yaw * f32(math.PI / 180)
@@ -45,11 +44,26 @@ update_follow_camera :: proc() {
 		player_transform.position[2] - forward[2] * horizontal_distance,
 	}
 	camera.target = {player_transform.position[0], player_transform.position[1] + 0.4, player_transform.position[2]}
-	ecs.set_transform(&world, follow_camera, camera_transform)
-	ecs.set_camera_3d(&world, follow_camera, camera)
+	ecs.set_transform(world, follow_camera, camera_transform)
+	ecs.set_camera_3d(world, follow_camera, camera)
 }
 
-on_update :: proc(game: ^rune.Engine) {
+initialize_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	if !bridge.initialized {
+		bridge_ok: bool
+		bridge, bridge_ok = r3d_bridge.init("examples/third_person_3d", rl.GetScreenWidth(), rl.GetScreenHeight())
+		if !bridge_ok { fmt.eprintln("Could not initialize r3d") }
+	}
+	player, _ = ecs.find_entity_by_id(world, "player")
+	follow_camera, _ = ecs.find_entity_by_id(world, "follow_camera")
+	update_follow_camera(world)
+}
+
+shutdown_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	r3d_bridge.shutdown(&bridge)
+}
+
+on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	controls := rune.input_state(game)
 	camera_distance = clamp(camera_distance - input.axis(controls, "zoom"), 3, 12)
 	orbit_camera := input.is_down(controls, "orbit_camera")
@@ -77,24 +91,23 @@ on_update :: proc(game: ^rune.Engine) {
 			(forward[2] * move_z + right[2] * move_x) * Player_Speed * game.delta_time,
 		}
 	}
-	ecs.move_character(&world, player, horizontal, input.pressed(controls, "jump"), game.delta_time)
+	ecs.move_character(world, player, horizontal, input.pressed(controls, "jump"), game.delta_time)
 
-	transform, found := ecs.get_transform(&world, player)
+	transform, found := ecs.get_transform(world, player)
 	if !found { return }
 	// Left-click only changes the camera. Right-click keeps the character aligned
 	// with the camera yaw; the white front marker makes that rotation visible.
 	if orbit_with_character { transform.rotation[1] = camera_yaw }
-	ecs.set_transform(&world, player, transform)
+	ecs.set_transform(world, player, transform)
 
-	update_follow_camera()
+	update_follow_camera(world)
 }
 
-on_draw :: proc(game: ^rune.Engine) {
-	if !r3d_bridge.draw_scene_ex(&bridge, &world, rune.asset_manager(game), scene_view) {
+on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	if !r3d_bridge.draw_scene_ex(&bridge, world, rune.asset_manager(game), scene_view) {
 		rl.DrawText("No active Camera3D entity", 24, 24, 28, rl.MAROON)
 		return
 	}
-	rune.draw_gizmos(game, &world)
 	rl.DrawText("Rune Third-Person Controller", 24, 24, 28, rl.DARKGRAY)
 	rl.DrawText("WASD: move   Space: jump   Mouse wheel: zoom", 24, 60, 18, rl.DARKGRAY)
 	rl.DrawText("Left mouse: orbit camera   Right mouse: orbit and turn player", 24, 86, 18, rl.GRAY)
@@ -107,19 +120,16 @@ main :: proc() {
 	if !ok { fmt.eprintln("Could not load examples/third_person_3d/project.json"); return }
 	defer rune.shutdown(&game)
 
-	bridge_ok: bool
-	bridge, bridge_ok = r3d_bridge.init("examples/third_person_3d", rl.GetScreenWidth(), rl.GetScreenHeight())
-	if !bridge_ok { fmt.eprintln("Could not initialize r3d"); return }
-	defer r3d_bridge.shutdown(&bridge)
-
-	scene_ok: bool
-	world, scene_ok = rune.load_scene(&game, "examples/third_person_3d/scenes/main.scene.json")
-	if !scene_ok { fmt.eprintln("Could not load the third-person scene"); return }
-	player, scene_ok = ecs.find_entity_by_id(&world, "player")
-	if !scene_ok { fmt.eprintln("Scene is missing entity ID: player"); return }
-	follow_camera, scene_ok = ecs.find_entity_by_id(&world, "follow_camera")
-	if !scene_ok { fmt.eprintln("Scene is missing entity ID: follow_camera"); return }
-
-	update_follow_camera()
-	rune.run(&game, on_update, on_draw)
+	if !rune.register_system(&game, {
+		name = "third_person_3d",
+		start = initialize_scene,
+		update = on_update,
+		draw = on_draw,
+		on_scene_reloaded = initialize_scene,
+		shutdown = shutdown_scene,
+	}) {
+		fmt.eprintln("Could not register third-person system")
+		return
+	}
+	if !rune.run(&game) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
 }

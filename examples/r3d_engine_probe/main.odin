@@ -33,9 +33,9 @@ on_draw :: proc(game: ^rune.Engine) {
 
 main :: proc() {
 	capture = len(os.args) > 1 && os.args[1] == "--capture"
-	game, ok := rune.init("examples/textured_model_3d/project.json")
+	game, ok := rune.init("examples/r3d_engine_probe/project.json")
 	if !ok {
-		fmt.eprintln("Could not load examples/textured_model_3d/project.json")
+		fmt.eprintln("Could not load examples/r3d_engine_probe/project.json")
 		return
 	}
 	defer rune.shutdown(&game)

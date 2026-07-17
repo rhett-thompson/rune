@@ -11,25 +11,36 @@ scene_view := r3d_bridge.Scene3D_Settings{
 	grid_spacing = 1.0,
 }
 
-world: ecs.World
 bridge: r3d_bridge.Context
 cube: ecs.Entity
 
-on_update :: proc(game: ^rune.Engine) {
-	transform, found := ecs.get_transform(&world, cube)
+initialize_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	if !bridge.initialized {
+		bridge_ok: bool
+		bridge, bridge_ok = r3d_bridge.init("examples/hello_3d", rl.GetScreenWidth(), rl.GetScreenHeight())
+		if !bridge_ok { fmt.eprintln("Could not initialize r3d") }
+	}
+	cube, _ = ecs.find_entity_by_id(world, "cube")
+}
+
+shutdown_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	r3d_bridge.shutdown(&bridge)
+}
+
+on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	transform, found := ecs.get_transform(world, cube)
 	if found {
 		transform.rotation[0] += 19.25 * game.delta_time
 		transform.rotation[1] += 55.0 * game.delta_time
-		ecs.set_transform(&world, cube, transform)
+		ecs.set_transform(world, cube, transform)
 	}
 }
 
-on_draw :: proc(game: ^rune.Engine) {
-	if !r3d_bridge.draw_scene_ex(&bridge, &world, rune.asset_manager(game), scene_view) {
+on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	if !r3d_bridge.draw_scene_ex(&bridge, world, rune.asset_manager(game), scene_view) {
 		rl.DrawText("No active Camera3D entity", 24, 24, 28, rl.MAROON)
 		return
 	}
-	rune.draw_gizmos(game, &world)
 	rl.DrawText("Rune 3D Hello World", 24, 24, 28, rl.RAYWHITE)
 	rl.DrawText("A JSON scene with a rotating cube", 24, 60, 18, rl.LIGHTGRAY)
 	rl.DrawFPS(24, 94)
@@ -44,28 +55,16 @@ main :: proc() {
 	}
 	defer rune.shutdown(&game)
 
-	bridge_ok: bool
-	bridge, bridge_ok = r3d_bridge.init("examples/hello_3d", rl.GetScreenWidth(), rl.GetScreenHeight())
-	if !bridge_ok {
-		fmt.eprintln("Could not initialize r3d")
+	if !rune.register_system(&game, {
+		name = "hello_3d",
+		start = initialize_scene,
+		update = on_update,
+		draw = on_draw,
+		on_scene_reloaded = initialize_scene,
+		shutdown = shutdown_scene,
+	}) {
+		fmt.eprintln("Could not register hello-3D system")
 		return
 	}
-	defer r3d_bridge.shutdown(&bridge)
-
-	scene_ok: bool
-	world, scene_ok = rune.load_scene(&game, "examples/hello_3d/scenes/main.scene.json")
-	if !scene_ok {
-		fmt.eprintln("Could not load and instantiate the 3D hello-world scene")
-		return
-	}
-
-	found: bool
-	cube, found = ecs.find_entity_by_id(&world, "cube")
-	if !found {
-		fmt.eprintln("Scene is missing entity ID: cube")
-		return
-	}
-
-	rune.run(&game, on_update, on_draw)
-	
+	if !rune.run(&game) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
 }

@@ -2,7 +2,6 @@ package main
 
 import rune "rune:core"
 import "rune:ecs"
-import "rune:render"
 import rl "vendor:raylib"
 
 demo_skeleton: ecs.Entity
@@ -19,7 +18,6 @@ skeleton_movement_system :: proc(game: ^rune.Engine, world: ^ecs.World) {
 }
 
 scene_draw_system :: proc(game: ^rune.Engine, world: ^ecs.World) {
-	render.draw_scene_2d(world, rune.asset_manager(game))
 	rl.DrawText("Registered systems: movement, draw, and reload notification", 24, 24, 20, rl.RAYWHITE)
 }
 

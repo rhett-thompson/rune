@@ -15,6 +15,7 @@ main :: proc() {
 validate_hello_world_value_reload :: proc() {
 	registry := ecs.init_registry()
 	assert(ecs.register_builtin_components(&registry))
+	assert(ecs.register_data_component(&registry, "Greeting", "Hello-world reload validation data"))
 	project, project_loaded := rune.load_project("examples/hello_world/project.json")
 	assert(project_loaded)
 

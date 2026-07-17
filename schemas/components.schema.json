@@ -20,6 +20,7 @@
     "Camera3D": { "$ref": "#/$defs/camera3D" },
     "OrbitCamera3D": { "$ref": "#/$defs/orbitCamera3D" },
     "RigidBody2D": { "$ref": "#/$defs/rigidBody2D" },
+    "RigidBody3D": { "$ref": "#/$defs/rigidBody3D" },
     "BoxCollider2D": { "$ref": "#/$defs/boxCollider2D" },
     "CircleCollider2D": { "$ref": "#/$defs/circleCollider2D" },
     "BoxCollider": { "$ref": "#/$defs/boxCollider" },
@@ -29,6 +30,8 @@
     "TopDownController": { "$ref": "#/$defs/topDownController" },
     "AudioListener": { "$ref": "#/$defs/audioListener" },
     "AudioPlayer": { "$ref": "#/$defs/audioPlayers" },
+    "NavGrid2D": { "$ref": "#/$defs/navGrid2D" },
+    "NavAgent2D": { "$ref": "#/$defs/navAgent2D" },
     "Orbit": { "$ref": "#/$defs/orbit" },
     "Rotator": { "$ref": "#/$defs/rotator" }
   },
@@ -72,7 +75,7 @@
     "spriteRenderer": {
       "type": "object",
       "properties": {
-        "texture": { "type": "string" },
+        "texture": { "type": "string", "minLength": 1 },
         "origin": { "$ref": "#/$defs/vec2", "default": [0.5, 0.5] }
       },
       "additionalProperties": false
@@ -177,7 +180,12 @@
       "required": ["texture", "tile_size", "grid"],
       "properties": {
         "texture": { "type": "string", "minLength": 1 },
-        "tile_size": { "$ref": "#/$defs/vec2" },
+        "tile_size": {
+          "type": "array",
+          "items": { "type": "number", "exclusiveMinimum": 0 },
+          "minItems": 2,
+          "maxItems": 2
+        },
         "grid": {
           "type": "array",
           "items": {
@@ -251,6 +259,19 @@
       },
       "additionalProperties": false
     },
+    "rigidBody3D": {
+      "type": "object",
+      "properties": {
+        "velocity": { "$ref": "#/$defs/vec3", "default": [0, 0, 0] },
+        "angular_velocity": { "$ref": "#/$defs/vec3", "default": [0, 0, 0] },
+        "gravity_scale": { "type": "number", "minimum": 0, "default": 1 },
+        "type": { "type": "string", "enum": ["dynamic", "kinematic", "static"], "default": "dynamic" },
+        "linear_damping": { "type": "number", "minimum": 0, "default": 0 },
+        "angular_damping": { "type": "number", "minimum": 0, "default": 0 },
+        "allow_fast_rotation": { "type": "boolean", "default": false }
+      },
+      "additionalProperties": false
+    },
     "boxCollider2D": {
       "type": "object",
       "properties": { "size": { "$ref": "#/$defs/vec2", "default": [16, 16] } },
@@ -258,14 +279,27 @@
     },
     "circleCollider2D": {
       "type": "object",
-      "properties": { "radius": { "type": "number", "exclusiveMinimum": 0 } },
+      "properties": { "radius": { "type": "number", "exclusiveMinimum": 0, "default": 8 } },
+      "additionalProperties": false
+    },
+    "physicsMaterial": {
+      "type": "object",
+      "properties": {
+        "friction": { "type": "number", "minimum": 0, "default": 0.6 },
+        "restitution": { "type": "number", "minimum": 0, "default": 0 },
+        "rolling_resistance": { "type": "number", "minimum": 0, "default": 0 }
+      },
       "additionalProperties": false
     },
     "boxCollider": {
       "type": "object",
       "properties": {
         "size": { "$ref": "#/$defs/vec3", "default": [1, 1, 1] },
-        "is_static": { "type": "boolean", "default": true }
+        "is_static": { "type": "boolean", "default": true },
+        "friction": { "type": "number", "minimum": 0, "default": 0.6 },
+        "restitution": { "type": "number", "minimum": 0, "default": 0 },
+        "rolling_resistance": { "type": "number", "minimum": 0, "default": 0 },
+        "physics_material": { "$ref": "#/$defs/physicsMaterial" }
       },
       "additionalProperties": false
     },
@@ -273,7 +307,11 @@
       "type": "object",
       "properties": {
         "radius": { "type": "number", "exclusiveMinimum": 0, "default": 0.5 },
-        "is_static": { "type": "boolean", "default": true }
+        "is_static": { "type": "boolean", "default": true },
+        "friction": { "type": "number", "minimum": 0, "default": 0.6 },
+        "restitution": { "type": "number", "minimum": 0, "default": 0 },
+        "rolling_resistance": { "type": "number", "minimum": 0, "default": 0 },
+        "physics_material": { "$ref": "#/$defs/physicsMaterial" }
       },
       "additionalProperties": false
     },
@@ -333,8 +371,25 @@
         "looping": { "type": "boolean", "default": false },
         "play_on_start": { "type": "boolean", "default": false },
         "spatial": { "type": "boolean", "default": false },
-        "min_distance": { "type": "number", "minimum": 0 },
-        "max_distance": { "type": "number", "minimum": 0 }
+        "min_distance": { "type": "number", "minimum": 0, "default": 1 },
+        "max_distance": { "type": "number", "minimum": 0, "default": 20 }
+      },
+      "additionalProperties": false
+    },
+    "navGrid2D": {
+      "type": "object",
+      "properties": {
+        "cell_size": { "type": "number", "exclusiveMinimum": 0, "default": 24 },
+        "algorithm": { "type": "string", "enum": ["a_star", "theta_star"], "default": "a_star" }
+      },
+      "additionalProperties": false
+    },
+    "navAgent2D": {
+      "type": "object",
+      "properties": {
+        "radius": { "type": "number", "exclusiveMinimum": 0, "default": 8 },
+        "repath_interval": { "type": "number", "exclusiveMinimum": 0, "default": 0.25 },
+        "arrival_distance": { "type": "number", "minimum": 0, "default": 4 }
       },
       "additionalProperties": false
     },

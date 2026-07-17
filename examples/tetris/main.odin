@@ -28,7 +28,7 @@ Game :: struct {
 	paused, game_over: bool,
 }
 
-world: ecs.World
+world: ^ecs.World
 game: Game
 drop_audio, clear_audio: ecs.Entity
 
@@ -122,8 +122,8 @@ lock_piece :: proc(g: ^Game, engine: ^rune.Engine) {
 		}
 	}
 	if g.game_over { return }
-	rune.play_audio(engine, &world, drop_audio, "default")
-	if clear_lines(g) > 0 { rune.play_audio(engine, &world, clear_audio, "default") }
+	rune.play_audio(engine, world, drop_audio, "default")
+	if clear_lines(g) > 0 { rune.play_audio(engine, world, clear_audio, "default") }
 	spawn_piece(g)
 }
 
@@ -281,22 +281,21 @@ draw_tetris :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 	}
 }
 
+initialize_tetris :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
+	world = scene_world
+	drop_audio, _ = ecs.find_entity_by_id(scene_world, "drop_audio")
+	clear_audio, _ = ecs.find_entity_by_id(scene_world, "clear_audio")
+	reset_game(&game)
+}
+
 main :: proc() {
 	engine, ok := rune.init("examples/tetris/project.json")
 	if !ok { fmt.eprintln("Could not load examples/tetris/project.json"); return }
 	defer rune.shutdown(&engine)
 
-	scene_ok: bool
-	world, scene_ok = rune.load_scene(&engine, "examples/tetris/scenes/main.scene.json")
-	if !scene_ok { fmt.eprintln("Could not load the Tetris scene"); return }
-	drop_audio, ok = ecs.find_entity_by_id(&world, "drop_audio")
-	if !ok { fmt.eprintln("Tetris scene is missing the drop_audio entity"); return }
-	clear_audio, ok = ecs.find_entity_by_id(&world, "clear_audio")
-	if !ok { fmt.eprintln("Tetris scene is missing the clear_audio entity"); return }
-	if !rune.register_system(&engine, {name = "tetris", update = update_tetris, draw = draw_tetris}) {
+	if !rune.register_system(&engine, {name = "tetris", start = initialize_tetris, update = update_tetris, draw = draw_tetris, on_scene_reloaded = initialize_tetris}) {
 		fmt.eprintln("Could not register Tetris system")
 		return
 	}
-	reset_game(&game)
-	rune.run_scene(&engine, &world)
+	if !rune.run(&engine) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
 }

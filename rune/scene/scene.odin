@@ -1,6 +1,7 @@
 package scene
 
 import "core:encoding/json"
+import "core:fmt"
 import "core:os"
 import "core:path/filepath"
 import "rune:ecs"
@@ -37,6 +38,20 @@ Scene :: struct {
 	name:     string,
 	entities: []Entity_Data,
 }
+
+last_load_error_message: string
+
+clear_load_error :: proc() {
+	if len(last_load_error_message) > 0 { delete(last_load_error_message) }
+	last_load_error_message = ""
+}
+
+set_load_error :: proc(format: string, args: ..any) {
+	clear_load_error()
+	last_load_error_message = fmt.aprintf(format, ..args)
+}
+
+last_load_error :: proc() -> string { return last_load_error_message }
 
 // dependency_paths returns a scene file and all directly referenced prefab
 // files. Prefab references are relative to the owning scene file.
@@ -81,19 +96,29 @@ load :: proc(path: string, registry: ^ecs.Component_Registry) -> (ecs.World, boo
 // project's layer table. Passing nil supports standalone scenes that only use
 // the implicit Default layer.
 load_with_layers :: proc(path: string, registry: ^ecs.Component_Registry, layer_names: map[string]u8) -> (ecs.World, bool) {
+	clear_load_error()
 	validation_report := validation.validate_scene_with_layers(path, layer_names)
-	if !validation.is_valid(&validation_report) { return {}, false }
+	if !validation.is_valid(&validation_report) {
+		if len(validation_report.diagnostics) > 0 {
+			diagnostic := validation_report.diagnostics[0]
+			set_load_error("%s: %s: %s", diagnostic.file, diagnostic.path, diagnostic.message)
+		}
+		return {}, false
+	}
 	data, read_error := os.read_entire_file(path, context.allocator)
 	if read_error != nil {
+		set_load_error("%s: could not read scene", path)
 		return {}, false
 	}
 
 	scene: Scene
 	if json.unmarshal(data, &scene) != nil {
+		set_load_error("%s: could not deserialize scene", path)
 		return {}, false
 	}
 	root_json: json.Value
 	if json.unmarshal(data, &root_json) != nil {
+		set_load_error("%s: could not preserve scene JSON", path)
 		return {}, false
 	}
 
@@ -101,39 +126,15 @@ load_with_layers :: proc(path: string, registry: ^ecs.Component_Registry, layer_
 	world := ecs.init()
 	ecs.set_scene_json(&world, root_json)
 	if !instantiate_with_layers_at(&world, registry, scene, layer_names, scene_directory) {
+		ecs.destroy(&world)
 		return {}, false
 	}
 
 	return world, true
 }
 
-// register_components discovers all component names used by a scene and makes
-// missing names available as JSON-backed components. Built-in component names
-// still receive their typed storage when they are attached to a World; custom
-// components remain data until game code gives them behaviour.
-register_components :: proc(registry: ^ecs.Component_Registry, scene: Scene) {
-	for entity in scene.entities {
-		register_entity_components(registry, entity)
-	}
-}
-
-register_entity_components :: proc(registry: ^ecs.Component_Registry, entity: Entity_Data) {
-	for name in entity.components {
-		if !ecs.has_component(registry, name) {
-			ecs.register_component(registry, ecs.Component_Descriptor{
-				name = name,
-				description = "Auto-registered from scene JSON",
-			})
-		}
-	}
-
-	for child in entity.children {
-		register_entity_components(registry, child)
-	}
-}
-
-// instantiate creates scene entities and attaches their component data. It
-// automatically registers any component names declared by the scene first.
+// instantiate creates scene entities and attaches their component data.
+// Every component name must already be registered so authoring typos fail.
 instantiate :: proc(world: ^ecs.World, registry: ^ecs.Component_Registry, scene: Scene) -> bool {
 	return instantiate_with_layers(world, registry, scene, nil)
 }
@@ -143,7 +144,6 @@ instantiate_with_layers :: proc(world: ^ecs.World, registry: ^ecs.Component_Regi
 }
 
 instantiate_with_layers_at :: proc(world: ^ecs.World, registry: ^ecs.Component_Registry, scene: Scene, layer_names: map[string]u8, scene_directory: string) -> bool {
-	register_components(registry, scene)
 	for entity in scene.entities {
 		if !instantiate_entity(world, registry, entity, ecs.Entity(0), layer_names, scene_directory) {
 			return false
@@ -161,7 +161,10 @@ instantiate_entity :: proc(world: ^ecs.World, registry: ^ecs.Component_Registry,
 			prefab_path, _ = filepath.join({scene_directory, prefab_path})
 		}
 		prefab_data, prefab_ok := prefab.load(prefab_path)
-		if !prefab_ok { return false }
+		if !prefab_ok {
+			set_load_error("Could not load prefab '%s' for entity '%s'", prefab_path, entity_data.id)
+			return false
+		}
 		components = prefab.merge_components(prefab_data.components, entity_data.components)
 		prefab_children = prefab_data.children
 	}
@@ -169,14 +172,19 @@ instantiate_entity :: proc(world: ^ecs.World, registry: ^ecs.Component_Registry,
 	entity := ecs.create_entity(world)
 	layer_mask, layers_ok := layer_mask_from_names(entity_data.layers, layer_names)
 	if !layers_ok || !ecs.set_entity_metadata(world, entity, entity_data.id, entity_data.name, entity_data.tag, layer_mask) {
+		set_load_error("Could not create scene entity '%s'", entity_data.id)
 		return false
 	}
 	if parent != ecs.Entity(0) && !ecs.set_parent(world, entity, parent) {
 		return false
 	}
-	register_component_data(registry, components)
 	for name, data in components {
+		if !ecs.has_component(registry, name) {
+			set_load_error("Entity '%s' uses unregistered component '%s'", entity_data.id, name)
+			return false
+		}
 		if !ecs.add_component(world, registry, entity, name, data) {
+			set_load_error("Entity '%s' has invalid data for component '%s'", entity_data.id, name)
 			return false
 		}
 	}
@@ -197,22 +205,20 @@ instantiate_prefab_child :: proc(world: ^ecs.World, registry: ^ecs.Component_Reg
 	if !ecs.set_entity_metadata(world, child, "", child_data.name, "", layer_mask) || !ecs.set_parent(world, child, parent) {
 		return false
 	}
-	register_component_data(registry, child_data.components)
 	for name, data in child_data.components {
-		if !ecs.add_component(world, registry, child, name, data) { return false }
+		if !ecs.has_component(registry, name) {
+			set_load_error("Prefab child '%s' uses unregistered component '%s'", child_data.name, name)
+			return false
+		}
+		if !ecs.add_component(world, registry, child, name, data) {
+			set_load_error("Prefab child '%s' has invalid data for component '%s'", child_data.name, name)
+			return false
+		}
 	}
 	for grandchild in child_data.children {
 		if !instantiate_prefab_child(world, registry, grandchild, child, layer_mask) { return false }
 	}
 	return true
-}
-
-register_component_data :: proc(registry: ^ecs.Component_Registry, components: map[string]json.Value) {
-	for name in components {
-		if !ecs.has_component(registry, name) {
-			ecs.register_component(registry, ecs.Component_Descriptor{name = name, description = "Auto-registered from JSON"})
-		}
-	}
 }
 
 layer_mask_from_names :: proc(layers: []string, layer_names: map[string]u8) -> (u64, bool) {

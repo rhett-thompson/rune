@@ -3,18 +3,21 @@ package main
 import "core:fmt"
 import rune "rune:core"
 import "rune:ecs"
-import "rune:render"
 import rl "vendor:raylib"
 
 Skeleton_Size  : f32 : 32
 Skeleton_Speed : f32 : 140
 
-world:              ecs.World
 skeleton:           ecs.Entity
 movement_direction: [2]f32
 direction_timer:    f32
 
-on_update :: proc(game: ^rune.Engine) {
+initialize_sprite_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	skeleton, _ = ecs.find_entity_by_id(world, "skeleton")
+	movement_direction = {1, 1}
+}
+
+on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	direction_timer -= game.delta_time
 	if direction_timer <= 0 {
 		movement_direction = {
@@ -27,7 +30,7 @@ on_update :: proc(game: ^rune.Engine) {
 		direction_timer = f32(rl.GetRandomValue(4, 12)) / 10
 	}
 
-	transform, found := ecs.get_transform(&world, skeleton)
+	transform, found := ecs.get_transform(world, skeleton)
 	if !found { return }
 	transform.position[0] += movement_direction[0] * Skeleton_Speed * game.delta_time
 	transform.position[1] += movement_direction[1] * Skeleton_Speed * game.delta_time
@@ -47,13 +50,11 @@ on_update :: proc(game: ^rune.Engine) {
 		transform.position[1] = f32(rl.GetScreenHeight()) - half_size
 		movement_direction[1] = -1
 	}
-	ecs.set_transform(&world, skeleton, transform)
+	ecs.set_transform(world, skeleton, transform)
 }
 
-on_draw :: proc(game: ^rune.Engine) {
-	draw_tiled_walls(&world, rune.asset_manager(game))
-	render.draw_scene_2d(&world, rune.asset_manager(game))
-	rune.draw_gizmos(game, &world)
+draw_background :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	draw_tiled_walls(world, rune.asset_manager(game))
 }
 
 main :: proc() {
@@ -63,19 +64,26 @@ main :: proc() {
 		return
 	}
 	defer rune.shutdown(&game)
-
-	scene_ok: bool
-	world, scene_ok = rune.load_scene(&game, "examples/sprite_scene_2d/scenes/main.scene.json")
-	if !scene_ok {
-		fmt.eprintln("Could not load and instantiate the sprite scene")
+	if !ecs.register_component(
+		rune.component_registry(&game),
+		"TiledWall",
+		Tiled_Wall,
+		Tiled_Wall{tile_scale = 1},
+		"Repeated full-screen texture background",
+	) {
+		fmt.eprintln("Could not register TiledWall")
 		return
 	}
-	skeleton, scene_ok = ecs.find_entity_by_id(&world, "skeleton")
-	if !scene_ok {
-		fmt.eprintln("Could not find the skeleton entity")
+
+	if !rune.register_system(&game, {
+		name = "sprite_scene",
+		start = initialize_sprite_scene,
+		update = on_update,
+		pre_draw = draw_background,
+		on_scene_reloaded = initialize_sprite_scene,
+	}) {
+		fmt.eprintln("Could not register sprite-scene system")
 		return
 	}
-	movement_direction = {1, 1}
-
-	rune.run(&game, on_update, on_draw)
+	if !rune.run(&game) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
 }

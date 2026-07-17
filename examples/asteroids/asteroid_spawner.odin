@@ -1,6 +1,5 @@
 package main
 
-import "core:encoding/json"
 import "rune:ecs"
 import rl "vendor:raylib"
 
@@ -20,25 +19,19 @@ spawn_asteroid :: proc(game: ^Game, position: rl.Vector2, tier: i32) {
 		seed = rl.GetRandomValue(1, 100000),
 	}
 
-	data, marshal_error := json.marshal(component)
-	if marshal_error != nil { return }
-	defer delete(data)
-	value: json.Value
-	if json.unmarshal(data, &value) != nil { return }
-
-	entity := ecs.create_entity(&world)
-	if !ecs.add_component(&world, rune_registry, entity, "Asteroid", value) { return }
+	entity := ecs.create_entity(world)
+	if !ecs.add(world, rune_registry, entity, component) { return }
 	append(&game.asteroids, Asteroid_Instance{entity = entity, component = component})
 }
 
 remove_asteroid :: proc(game: ^Game, index: int) {
-	ecs.remove_component(&world, game.asteroids[index].entity, "Asteroid")
+	ecs.destroy_entity(world, game.asteroids[index].entity)
 	unordered_remove(&game.asteroids, index)
 }
 
 clear_asteroids :: proc(game: ^Game) {
 	for asteroid in game.asteroids {
-		ecs.remove_component(&world, asteroid.entity, "Asteroid")
+		ecs.destroy_entity(world, asteroid.entity)
 	}
 	clear(&game.asteroids)
 }

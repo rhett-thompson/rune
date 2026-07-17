@@ -1,0 +1,150 @@
+{
+  "$schema": "../../../schemas/scene.schema.json",
+  "name": "Box3D Rolling Balls",
+  "entities": [
+    {
+      "id": "ground",
+      "name": "Ground",
+      "components": {
+        "Transform": { "position": [0, -0.5, 0], "scale": [1, 1, 1] },
+        "BoxCollider": {
+          "size": [16, 1, 12],
+          "is_static": true,
+          "physics_material": { "friction": 0.85, "restitution": 0.0 }
+        }
+      }
+    },
+    {
+      "id": "ramp",
+      "name": "Rolling Ramp",
+      "components": {
+        "Transform": { "position": [-1.8, 1.0, 0], "rotation": [0, 0, -16], "scale": [1, 1, 1] },
+        "BoxCollider": {
+          "size": [9, 0.36, 6],
+          "is_static": true,
+          "physics_material": { "friction": 0.95, "restitution": 0.0 }
+        }
+      }
+    },
+    {
+      "id": "ball_00",
+      "name": "Ball 00",
+      "components": {
+        "Transform": { "position": [-4.2, 3.0, -0.55] },
+        "RigidBody3D": { "type": "dynamic", "velocity": [1.4, 0, -0.15], "angular_velocity": [0.2, 0, -3.0], "angular_damping": 0.02, "allow_fast_rotation": true },
+        "SphereCollider": { "radius": 0.38, "physics_material": { "friction": 0.9, "restitution": 0.35, "rolling_resistance": 0.015 } },
+        "SphereRenderer": { "radius": 0.38, "color": [102, 191, 255, 255] }
+      }
+    },
+    {
+      "id": "ball_01",
+      "name": "Ball 01",
+      "components": {
+        "Transform": { "position": [-3.35, 3.0, 0.55] },
+        "RigidBody3D": { "type": "dynamic", "velocity": [1.65, 0, 0.15], "angular_velocity": [0.2, 0, -4.0], "angular_damping": 0.02, "allow_fast_rotation": true },
+        "SphereCollider": { "radius": 0.46, "physics_material": { "friction": 0.9, "restitution": 0.35, "rolling_resistance": 0.015 } },
+        "SphereRenderer": { "radius": 0.46, "color": [255, 161, 0, 255] }
+      }
+    },
+    {
+      "id": "ball_02",
+      "name": "Ball 02",
+      "components": {
+        "Transform": { "position": [-2.5, 3.0, -0.55] },
+        "RigidBody3D": { "type": "dynamic", "velocity": [1.9, 0, -0.15], "angular_velocity": [0.2, 0, -5.0], "angular_damping": 0.02, "allow_fast_rotation": true },
+        "SphereCollider": { "radius": 0.54, "physics_material": { "friction": 0.9, "restitution": 0.35, "rolling_resistance": 0.015 } },
+        "SphereRenderer": { "radius": 0.54, "color": [0, 228, 48, 255] }
+      }
+    },
+    {
+      "id": "ball_03",
+      "name": "Ball 03",
+      "components": {
+        "Transform": { "position": [-4.2, 3.85, 0] },
+        "RigidBody3D": { "type": "dynamic", "velocity": [1.4, 0, 0.15], "angular_velocity": [0.4, 0, -3.0], "angular_damping": 0.02, "allow_fast_rotation": true },
+        "SphereCollider": { "radius": 0.38, "physics_material": { "friction": 0.9, "restitution": 0.35, "rolling_resistance": 0.015 } },
+        "SphereRenderer": { "radius": 0.38, "color": [255, 109, 194, 255] }
+      }
+    },
+    {
+      "id": "ball_04",
+      "name": "Ball 04",
+      "components": {
+        "Transform": { "position": [-3.35, 3.85, -0.55] },
+        "RigidBody3D": { "type": "dynamic", "velocity": [1.65, 0, -0.15], "angular_velocity": [0.4, 0, -4.0], "angular_damping": 0.02, "allow_fast_rotation": true },
+        "SphereCollider": { "radius": 0.46, "physics_material": { "friction": 0.9, "restitution": 0.35, "rolling_resistance": 0.015 } },
+        "SphereRenderer": { "radius": 0.46, "color": [253, 249, 0, 255] }
+      }
+    },
+    {
+      "id": "ball_05",
+      "name": "Ball 05",
+      "components": {
+        "Transform": { "position": [-2.5, 3.85, 0.55] },
+        "RigidBody3D": { "type": "dynamic", "velocity": [1.9, 0, 0.15], "angular_velocity": [0.4, 0, -5.0], "angular_damping": 0.02, "allow_fast_rotation": true },
+        "SphereCollider": { "radius": 0.54, "physics_material": { "friction": 0.9, "restitution": 0.35, "rolling_resistance": 0.015 } },
+        "SphereRenderer": { "radius": 0.54, "color": [200, 122, 255, 255] }
+      }
+    },
+    {
+      "id": "ball_06",
+      "name": "Ball 06",
+      "components": {
+        "Transform": { "position": [-4.2, 4.7, 0.55] },
+        "RigidBody3D": { "type": "dynamic", "velocity": [1.4, 0, -0.15], "angular_velocity": [0.6, 0, -3.0], "angular_damping": 0.02, "allow_fast_rotation": true },
+        "SphereCollider": { "radius": 0.38, "physics_material": { "friction": 0.9, "restitution": 0.35, "rolling_resistance": 0.015 } },
+        "SphereRenderer": { "radius": 0.38, "color": [102, 191, 255, 255] }
+      }
+    },
+    {
+      "id": "ball_07",
+      "name": "Ball 07",
+      "components": {
+        "Transform": { "position": [-3.35, 4.7, 0] },
+        "RigidBody3D": { "type": "dynamic", "velocity": [1.65, 0, 0.15], "angular_velocity": [0.6, 0, -4.0], "angular_damping": 0.02, "allow_fast_rotation": true },
+        "SphereCollider": { "radius": 0.46, "physics_material": { "friction": 0.9, "restitution": 0.35, "rolling_resistance": 0.015 } },
+        "SphereRenderer": { "radius": 0.46, "color": [255, 161, 0, 255] }
+      }
+    },
+    {
+      "id": "ball_08",
+      "name": "Ball 08",
+      "components": {
+        "Transform": { "position": [-2.5, 4.7, -0.55] },
+        "RigidBody3D": { "type": "dynamic", "velocity": [1.9, 0, -0.15], "angular_velocity": [0.6, 0, -5.0], "angular_damping": 0.02, "allow_fast_rotation": true },
+        "SphereCollider": { "radius": 0.54, "physics_material": { "friction": 0.9, "restitution": 0.35, "rolling_resistance": 0.015 } },
+        "SphereRenderer": { "radius": 0.54, "color": [0, 228, 48, 255] }
+      }
+    },
+    {
+      "id": "ball_09",
+      "name": "Ball 09",
+      "components": {
+        "Transform": { "position": [-4.2, 5.55, -0.55] },
+        "RigidBody3D": { "type": "dynamic", "velocity": [1.4, 0, 0.15], "angular_velocity": [0.8, 0, -3.0], "angular_damping": 0.02, "allow_fast_rotation": true },
+        "SphereCollider": { "radius": 0.38, "physics_material": { "friction": 0.9, "restitution": 0.35, "rolling_resistance": 0.015 } },
+        "SphereRenderer": { "radius": 0.38, "color": [255, 109, 194, 255] }
+      }
+    },
+    {
+      "id": "ball_10",
+      "name": "Ball 10",
+      "components": {
+        "Transform": { "position": [-3.35, 5.55, 0.55] },
+        "RigidBody3D": { "type": "dynamic", "velocity": [1.65, 0, -0.15], "angular_velocity": [0.8, 0, -4.0], "angular_damping": 0.02, "allow_fast_rotation": true },
+        "SphereCollider": { "radius": 0.46, "physics_material": { "friction": 0.9, "restitution": 0.35, "rolling_resistance": 0.015 } },
+        "SphereRenderer": { "radius": 0.46, "color": [253, 249, 0, 255] }
+      }
+    },
+    {
+      "id": "ball_11",
+      "name": "Ball 11",
+      "components": {
+        "Transform": { "position": [-2.5, 5.55, -0.55] },
+        "RigidBody3D": { "type": "dynamic", "velocity": [1.9, 0, 0.15], "angular_velocity": [0.8, 0, -5.0], "angular_damping": 0.02, "allow_fast_rotation": true },
+        "SphereCollider": { "radius": 0.54, "physics_material": { "friction": 0.9, "restitution": 0.35, "rolling_resistance": 0.015 } },
+        "SphereRenderer": { "radius": 0.54, "color": [200, 122, 255, 255] }
+      }
+    }
+  ]
+}

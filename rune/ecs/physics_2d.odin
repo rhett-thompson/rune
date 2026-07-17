@@ -48,7 +48,7 @@ circle_collider_2d_from_json :: proc(data: json.Value) -> (CircleCollider2D, boo
 }
 
 physics_2d_update :: proc(world: ^World, dt: f32) {
-	if dt <= 0 { return }
+	if dt <= 0 || (len(world.rigid_bodies_2d) == 0 && len(world.box_colliders_2d) == 0 && len(world.circle_colliders_2d) == 0) { return }
 	ensure_box2d_world(world)
 	world.physics_2d_accumulator += dt
 	steps := 0
@@ -66,9 +66,17 @@ physics_2d_update :: proc(world: ^World, dt: f32) {
 // call this before replacing a World; standalone callers should do the same.
 physics_2d_shutdown :: proc(world: ^World) {
 	for _, native in world.box2d_bodies { if b2.Body_IsValid(native) { b2.DestroyBody(native) } }
+	delete(world.box2d_bodies)
 	world.box2d_bodies = make(map[Entity]b2.BodyId)
 	if !b2.IS_NULL(world.box2d_world) && b2.World_IsValid(world.box2d_world) { b2.DestroyWorld(world.box2d_world); world.box2d_world = {} }
 	world.physics_2d_accumulator = 0
+}
+
+physics_2d_remove_entity :: proc(world: ^World, entity: Entity) {
+	if native, found := world.box2d_bodies[entity]; found {
+		if b2.Body_IsValid(native) { b2.DestroyBody(native) }
+		delete_key(&world.box2d_bodies, entity)
+	}
 }
 
 ensure_box2d_world :: proc(world: ^World) {
@@ -166,13 +174,13 @@ create_box2d_shape_def :: proc(layer_mask: u64) -> b2.ShapeDef {
 create_box2d_box_shape :: proc(body: b2.BodyId, half_width, half_height: f32, layer_mask: u64) {
 	def := create_box2d_shape_def(layer_mask)
 	shape := b2.MakeBox(half_width, half_height)
-	_ = b2.CreatePolygonShape(body, def, shape)
+	_ = b2.CreatePolygonShape(body, def, &shape)
 }
 
 create_box2d_circle_shape :: proc(body: b2.BodyId, radius: f32, layer_mask: u64) {
 	def := create_box2d_shape_def(layer_mask)
 	shape := b2.Circle{radius = radius}
-	_ = b2.CreateCircleShape(body, def, shape)
+	_ = b2.CreateCircleShape(body, def, &shape)
 }
 
 box2d_is_grounded :: proc(body: b2.BodyId) -> bool {

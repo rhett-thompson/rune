@@ -17,7 +17,7 @@
         "height": { "type": "integer", "exclusiveMinimum": 0, "default": 720 },
         "title": { "type": "string" },
         "fullscreen": { "type": "boolean", "default": false },
-        "vsync": { "type": "boolean", "default": true },
+        "vsync": { "type": "boolean", "default": false },
         "msaa_4x": { "type": "boolean", "default": false }
       },
       "additionalProperties": false
@@ -25,7 +25,7 @@
     "hot_reload": {
       "type": "object",
       "properties": {
-        "enabled": { "type": "boolean", "default": false },
+        "enabled": { "type": "boolean", "default": true },
         "poll_interval_ms": { "type": "integer", "exclusiveMinimum": 0, "default": 250 },
         "scenes": { "type": "boolean", "default": true },
         "prefabs": { "type": "boolean", "default": true },
@@ -38,7 +38,7 @@
     "gizmos": {
       "type": "object",
       "properties": {
-        "enabled": { "type": "boolean", "default": true },
+        "enabled": { "type": "boolean", "default": false },
         "transforms": { "type": "boolean", "default": true },
         "cameras": { "type": "boolean", "default": true },
         "physics_2d": { "type": "boolean", "default": true },

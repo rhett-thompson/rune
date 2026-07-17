@@ -1,6 +1,5 @@
 package main
 
-import "core:encoding/json"
 import "rune:ecs"
 import rl "vendor:raylib"
 
@@ -18,13 +17,9 @@ Tank :: struct {
 }
 
 tank_from_entity :: proc(world: ^ecs.World, entity: ecs.Entity) -> (Tank, bool) {
-	value, found := ecs.get_component(world, entity, "Tank")
+	result, found := ecs.get(world, entity, Tank)
 	if !found { return {}, false }
-	data, err := json.marshal(value)
-	if err != nil { return {}, false }
-	defer delete(data)
-	result: Tank
-	ok := json.unmarshal(data, &result) == nil && result.radius > 0 &&
+	ok := result.radius > 0 &&
 	      result.move_speed > 0 && result.turn_speed > 0 && result.fire_cooldown > 0 &&
 	      result.max_shot_bounces >= 0
 	result.turret_angle = result.angle

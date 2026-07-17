@@ -1,6 +1,5 @@
 package main
 
-import "core:encoding/json"
 import "rune:ecs"
 
 Pong_Paddle :: struct {
@@ -12,13 +11,8 @@ Pong_Paddle :: struct {
 }
 
 paddle_from_entity :: proc(world: ^ecs.World, entity: ecs.Entity) -> (Pong_Paddle, bool) {
-	value, found := ecs.get_component(world, entity, "PongPaddle")
-	if !found { return {}, false }
-	data, err := json.marshal(value)
-	if err != nil { return {}, false }
-	defer delete(data)
-	result: Pong_Paddle
-	ok := json.unmarshal(data, &result) == nil && result.width > 0 && result.height > 0 && result.speed > 0
+	result, found := ecs.get(world, entity, Pong_Paddle)
+	ok := found && result.width > 0 && result.height > 0 && result.speed > 0
 	return result, ok
 }
 

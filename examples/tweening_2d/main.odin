@@ -7,7 +7,6 @@ import "rune:input"
 import "rune:tween"
 import rl "vendor:raylib"
 
-world: ecs.World
 orb:   ecs.Entity
 motion: tween.Tween
 easing_index: int
@@ -37,21 +36,26 @@ start_motion :: proc() {
 	motion.repeat = -1
 }
 
-on_update :: proc(game: ^rune.Engine) {
+initialize_tween :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	orb, _ = ecs.find_entity_by_id(world, "orb")
+	start_motion()
+}
+
+on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if input.pressed(rune.input_state(game), "cycle_easing") {
 		easing_index = (easing_index + 1) % len(easing_options)
 		start_motion()
 	}
 	tween.update(&motion, game.delta_time)
 
-	transform, found := ecs.get_transform(&world, orb)
+	transform, found := ecs.get_transform(world, orb)
 	if !found { return }
 	transform.position = tween.value_vec3(&motion, Orb_Start, Orb_Target)
-	ecs.set_transform(&world, orb, transform)
+	ecs.set_transform(world, orb, transform)
 }
 
-on_draw :: proc(game: ^rune.Engine) {
-	transform, found := ecs.get_transform(&world, orb)
+on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	transform, found := ecs.get_transform(world, orb)
 	if !found { return }
 
 	color := tween.value_color(&motion, Color_Start, Color_Target)
@@ -61,7 +65,6 @@ on_draw :: proc(game: ^rune.Engine) {
 	rl.DrawText("A JSON-loaded entity is animated by Odin code.", 32, 68, 20, rl.LIGHTGRAY)
 	rl.DrawText("Left-click to change the easing equation.", 32, 100, 18, rl.LIGHTGRAY)
 	rl.DrawText(easing_options[easing_index].name, 32, 132, 22, rl.SKYBLUE)
-	rune.draw_gizmos(game, &world)
 }
 
 main :: proc() {
@@ -69,12 +72,15 @@ main :: proc() {
 	if !ok { fmt.eprintln("Could not load examples/tweening_2d/project.json"); return }
 	defer rune.shutdown(&game)
 
-	scene_ok: bool
-	world, scene_ok = rune.load_scene(&game, "examples/tweening_2d/scenes/main.scene.json")
-	if !scene_ok { fmt.eprintln("Could not load the tweening scene"); return }
-	orb, scene_ok = ecs.find_entity_by_id(&world, "orb")
-	if !scene_ok { fmt.eprintln("Scene is missing entity ID: orb"); return }
-
-	start_motion()
-	rune.run(&game, on_update, on_draw)
+	if !rune.register_system(&game, {
+		name = "tweening",
+		start = initialize_tween,
+		update = on_update,
+		draw = on_draw,
+		on_scene_reloaded = initialize_tween,
+	}) {
+		fmt.eprintln("Could not register tweening system")
+		return
+	}
+	if !rune.run(&game) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
 }

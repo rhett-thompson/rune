@@ -6,23 +6,19 @@ import "rune:ecs"
 import "rune:input"
 import rl "vendor:raylib"
 
-world: ecs.World
-moving_ball: ecs.Entity
-
-on_update :: proc(game: ^rune.Engine) {
-	mover_system(&world, moving_ball, input.axis(rune.input_state(game), "move_x"), game.delta_time)
+on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	for entity in ecs.query2(world, ecs.Transform, Mover) {
+		mover_system(world, entity, input.axis(rune.input_state(game), "move_x"), game.delta_time)
+	}
 }
 
-on_draw :: proc(game: ^rune.Engine) {
-	transform, found := ecs.get_transform(&world, moving_ball)
-	if !found {
-		return
-	}
-
+on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	rl.DrawText("Custom Mover updates a typed Transform", 32, 32, 28, rl.DARKGRAY)
 	rl.DrawText("Use A/D or Left/Right. Input comes from input/default.input.json.", 32, 72, 18, rl.GRAY)
-	rl.DrawCircle(i32(transform.position[0]), i32(transform.position[1]), 28, rl.MAROON)
-	rune.draw_gizmos(game, &world)
+	for entity in ecs.query2(world, ecs.Transform, Mover) {
+		transform, _ := ecs.get(world, entity, ecs.Transform)
+		rl.DrawCircle(i32(transform.position[0]), i32(transform.position[1]), 28, rl.MAROON)
+	}
 	rl.DrawFPS(32, 112)
 }
 
@@ -33,19 +29,20 @@ main :: proc() {
 		return
 	}
 	defer rune.shutdown(&game)
-
-	scene_ok: bool
-	world, scene_ok = rune.load_scene(&game, "examples/custom_mover/scenes/main.scene.json")
-	if !scene_ok {
-		fmt.eprintln("Could not load and instantiate the custom-mover scene")
+	if !ecs.register_component(
+		rune.component_registry(&game),
+		"Mover",
+		Mover,
+		Mover{speed = 120},
+		"Horizontal movement speed",
+	) {
+		fmt.eprintln("Could not register the typed Mover component")
 		return
 	}
 
-	found: bool
-	moving_ball, found = ecs.find_entity_by_id(&world, "moving_ball")
-	if !found {
-		fmt.eprintln("Scene is missing entity ID: moving_ball")
+	if !rune.register_system(&game, {name = "mover", update = on_update, draw = on_draw}) {
+		fmt.eprintln("Could not register mover system")
 		return
 	}
-	rune.run(&game, on_update, on_draw)
+	if !rune.run(&game) { fmt.eprintln("Could not run the startup scene: ", rune.last_scene_error()) }
 }

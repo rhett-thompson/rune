@@ -17,10 +17,10 @@ Pong_Game :: struct {
 }
 
 load_pong_game :: proc(game: ^Pong_Game, world: ^ecs.World) -> bool {
-	arenas := ecs.entities_with_component(world, "PongArena")
-	paddles := ecs.entities_with_component(world, "PongPaddle")
-	balls := ecs.entities_with_component(world, "PongBall")
-	matches := ecs.entities_with_component(world, "PongMatch")
+	arenas := ecs.query(world, Pong_Arena)
+	paddles := ecs.query(world, Pong_Paddle)
+	balls := ecs.query(world, Pong_Ball)
+	matches := ecs.query(world, Pong_Match)
 	if len(arenas) != 1 || len(paddles) != 2 || len(balls) != 1 || len(matches) != 1 {return false}
 	ok_a, ok_b, ok_m: bool
 	game.arena, ok_a = arena_from_entity(world, arenas[0])
@@ -89,23 +89,23 @@ update_ball :: proc(game: ^Pong_Game, engine: ^rune.Engine, dt: f32) {
 	if game.ball.position.y - game.ball.radius <= top {
 		game.ball.position.y, game.ball.velocity.y =
 			top + game.ball.radius, math.abs(game.ball.velocity.y)
-		rune.play_audio(engine, &world, game.hit_audio, "default")
+		rune.play_audio(engine, world, game.hit_audio, "default")
 	} else if game.ball.position.y + game.ball.radius >= bottom {
 		game.ball.position.y, game.ball.velocity.y =
 			bottom - game.ball.radius, -math.abs(game.ball.velocity.y)
-		rune.play_audio(engine, &world, game.hit_audio, "default")
+		rune.play_audio(engine, world, game.hit_audio, "default")
 	}
 	if game.ball.velocity.x < 0 && paddle_hit(game, game.left, true) {
 		bounce(game, game.left, true)
-		rune.play_audio(engine, &world, game.hit_audio, "default")
+		rune.play_audio(engine, world, game.hit_audio, "default")
 	}
 	if game.ball.velocity.x > 0 && paddle_hit(game, game.right, false) {
 		bounce(game, game.right, false)
-		rune.play_audio(engine, &world, game.hit_audio, "default")
+		rune.play_audio(engine, world, game.hit_audio, "default")
 	}
 	if game.ball.position.x < -game.ball.radius {
 		game.match.right_score += 1
-		rune.play_audio(engine, &world, game.goal_audio, "default")
+		rune.play_audio(engine, world, game.goal_audio, "default")
 		game.match.serve_to_left = true
 		game.match.goal_side = -1
 		game.match.goal_flash_time = .75
@@ -113,7 +113,7 @@ update_ball :: proc(game: ^Pong_Game, engine: ^rune.Engine, dt: f32) {
 		reset_ball(game)
 	} else if game.ball.position.x > f32(game.arena.width) + game.ball.radius {
 		game.match.left_score += 1
-		rune.play_audio(engine, &world, game.goal_audio, "default")
+		rune.play_audio(engine, world, game.goal_audio, "default")
 		game.match.serve_to_left = false
 		game.match.goal_side = 1
 		game.match.goal_flash_time = .75
@@ -159,7 +159,7 @@ update_pong :: proc(game: ^Pong_Game, engine: ^rune.Engine) {
 	if game.match.serving {
 		if input.pressed(controls, "serve") {
 			launch_ball(&game.ball, game.match.serve_to_left)
-			rune.play_audio(engine, &world, game.start_audio, "default")
+			rune.play_audio(engine, world, game.start_audio, "default")
 			game.match.serving = false
 		}
 	} else {update_ball(game, engine, engine.delta_time)}

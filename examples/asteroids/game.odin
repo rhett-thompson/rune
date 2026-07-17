@@ -1,6 +1,5 @@
 package main
 
-import "core:encoding/json"
 import "core:fmt"
 import "core:math"
 import "core:strings"
@@ -47,15 +46,13 @@ color :: proc(value: [4]u8) -> rl.Color {
 	return {value[0], value[1], value[2], value[3]}
 }
 
-component_into :: proc(world: ^ecs.World, name: string, result: ^$T) -> bool {
-	entities := ecs.entities_with_component(world, name)
+component_into :: proc(world: ^ecs.World, result: ^$T) -> bool {
+	entities := ecs.query(world, T)
 	if len(entities) != 1 { return false }
-	value, found := ecs.get_component(world, entities[0], name)
+	value, found := ecs.get(world, entities[0], T)
 	if !found { return false }
-	data, err := json.marshal(value)
-	if err != nil { return false }
-	defer delete(data)
-	return json.unmarshal(data, result) == nil
+	result^ = value
+	return true
 }
 
 direction :: proc(angle: f32) -> rl.Vector2 {
@@ -127,7 +124,7 @@ emit_particles :: proc(game: ^Game, position: rl.Vector2, count: i32, speed: f32
 destroy_ship :: proc(game: ^Game, engine: ^rune.Engine) {
 	if !game.ship.alive || game.ship.invulnerable > 0 { return }
 	emit_particles(game, game.ship.position, 24, 190)
-	rune.play_audio(engine, &world, game.ship_explode_audio, "default")
+	rune.play_audio(engine, world, game.ship_explode_audio, "default")
 	game.ship.alive = false
 	game.ship.respawn_timer = game.spawner.respawn_delay
 	game.lives -= 1
@@ -143,7 +140,7 @@ fire :: proc(game: ^Game, engine: ^rune.Engine) {
 		life = game.ship_config.bullet_life,
 	})
 	game.ship.fire_timer = game.ship_config.fire_delay
-	rune.play_audio(engine, &world, game.laser_audio, "default")
+	rune.play_audio(engine, world, game.laser_audio, "default")
 }
 
 update_particles :: proc(game: ^Game, dt: f32) {
@@ -220,7 +217,7 @@ update_bullets :: proc(game: ^Game, engine: ^rune.Engine, dt: f32) {
 			asteroid := game.asteroids[hit].component
 			game.score += 25 * (4 - asteroid.tier)
 			emit_particles(game, asteroid.position, 5 + asteroid.tier * 3, 120)
-			rune.play_audio(engine, &world, game.destroy_audio, "default")
+			rune.play_audio(engine, world, game.destroy_audio, "default")
 			remove_asteroid(game, hit)
 			if asteroid.tier > 1 {
 				spawn_asteroid(game, asteroid.position + {-5, 3}, asteroid.tier - 1)
@@ -234,6 +231,7 @@ update_bullets :: proc(game: ^Game, engine: ^rune.Engine, dt: f32) {
 }
 
 update_game :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
+	if !asteroids_ready { return }
 	controls := rune.input_state(engine)
 	if input.pressed(controls, "restart") {
 		rune.stop_audio(engine, game.thruster_audio, "default")
@@ -248,7 +246,7 @@ update_game :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 	thrusting := game.ship.alive && input.is_down(controls, "thrust")
 	if thrusting {
 		if !rune.audio_is_playing(engine, game.thruster_audio, "default") {
-			rune.play_audio(engine, &world, game.thruster_audio, "default")
+			rune.play_audio(engine, world, game.thruster_audio, "default")
 		}
 	} else if rune.audio_is_playing(engine, game.thruster_audio, "default") {
 		rune.stop_audio(engine, game.thruster_audio, "default")
@@ -331,6 +329,7 @@ draw_centered :: proc(text: string, y, size, width: i32, tint: rl.Color) {
 }
 
 draw_game :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
+	if !asteroids_ready { return }
 	line := color(game.arena.line_color)
 	accent := color(game.arena.accent_color)
 	muted := color(game.arena.muted_color)

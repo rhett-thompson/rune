@@ -4,9 +4,42 @@ import "core:fmt"
 import rune "rune:core"
 import "rune:ecs"
 
-world: ecs.World
+world: ^ecs.World
 game: Game
 rune_registry: ^ecs.Component_Registry
+asteroids_ready: bool
+
+start_asteroids :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
+	world = scene_world
+	config_ok := component_into(world, &game.arena) && component_into(world, &game.ship_config) && component_into(world, &game.spawner)
+	entity_ok: bool
+	game.thruster_audio, entity_ok = ecs.find_entity_by_id(world, "thruster_audio"); config_ok = config_ok && entity_ok
+	game.destroy_audio, entity_ok = ecs.find_entity_by_id(world, "asteroid_destroy_audio"); config_ok = config_ok && entity_ok
+	game.laser_audio, entity_ok = ecs.find_entity_by_id(world, "laser_audio"); config_ok = config_ok && entity_ok
+	game.music_audio, entity_ok = ecs.find_entity_by_id(world, "music_audio"); config_ok = config_ok && entity_ok
+	game.ship_explode_audio, entity_ok = ecs.find_entity_by_id(world, "ship_explode_audio"); config_ok = config_ok && entity_ok
+	if !config_ok { fmt.eprintln("Asteroids startup scene is missing required components or audio entities"); return }
+	game.asteroids = make([dynamic]Asteroid_Instance)
+	game.bullets = make([dynamic]Bullet)
+	game.particles = make([dynamic]Particle)
+	reset_game(&game)
+	asteroids_ready = true
+}
+
+stop_asteroids :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
+	delete(game.asteroids)
+	delete(game.bullets)
+	delete(game.particles)
+	game.asteroids = nil
+	game.bullets = nil
+	game.particles = nil
+	asteroids_ready = false
+}
+
+reload_asteroids :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
+	stop_asteroids(engine, scene_world)
+	start_asteroids(engine, scene_world)
+}
 
 main :: proc() {
 	engine, ok := rune.init("examples/asteroids/project.json")
@@ -14,63 +47,24 @@ main :: proc() {
 	defer rune.shutdown(&engine)
 
 	rune_registry = rune.component_registry(&engine)
-	if !ecs.register_component(rune_registry, {name = "AsteroidsArena", description = "Asteroids playfield presentation"}) ||
-	   !ecs.register_component(rune_registry, {name = "AsteroidsShip", description = "Player ship tuning"}) ||
-	   !ecs.register_component(rune_registry, {name = "AsteroidSpawner", description = "Creates asteroid entities for each wave"}) ||
-	   !ecs.register_component(rune_registry, {name = "Asteroid", description = "Runtime asteroid position, motion, size, and tier"}) {
+	if !ecs.register_component(rune_registry, "AsteroidsArena", Arena_Config, Arena_Config{}, "Asteroids playfield presentation") ||
+	   !ecs.register_component(rune_registry, "AsteroidsShip", Ship_Config, Ship_Config{}, "Player ship tuning") ||
+	   !ecs.register_component(rune_registry, "AsteroidSpawner", Asteroid_Spawner, Asteroid_Spawner{}, "Creates asteroid entities for each wave") ||
+	   !ecs.register_component(rune_registry, "Asteroid", Asteroid_Component, Asteroid_Component{}, "Runtime asteroid position, motion, size, and tier") {
 		fmt.eprintln("Could not register Asteroids components")
 		return
 	}
 
-	scene_ok: bool
-	world, scene_ok = rune.load_scene(&engine, "examples/asteroids/scenes/main.scene.json")
-	if !scene_ok { fmt.eprintln("Could not load the Asteroids scene"); return }
-	if !component_into(&world, "AsteroidsArena", &game.arena) ||
-	   !component_into(&world, "AsteroidsShip", &game.ship_config) ||
-	   !component_into(&world, "AsteroidSpawner", &game.spawner) {
-		fmt.eprintln("Asteroids scene requires arena, ship, and asteroid spawner entities")
-		return
-	}
-	game.thruster_audio, ok = ecs.find_entity_by_id(&world, "thruster_audio")
-	if !ok {
-		fmt.eprintln("Asteroids scene is missing the thruster_audio entity")
-		return
-	}
-	game.destroy_audio, ok = ecs.find_entity_by_id(&world, "asteroid_destroy_audio")
-	if !ok {
-		fmt.eprintln("Asteroids scene is missing the asteroid_destroy_audio entity")
-		return
-	}
-	game.laser_audio, ok = ecs.find_entity_by_id(&world, "laser_audio")
-	if !ok {
-		fmt.eprintln("Asteroids scene is missing the laser_audio entity")
-		return
-	}
-	game.music_audio, ok = ecs.find_entity_by_id(&world, "music_audio")
-	if !ok {
-		fmt.eprintln("Asteroids scene is missing the music_audio entity")
-		return
-	}
-	game.ship_explode_audio, ok = ecs.find_entity_by_id(&world, "ship_explode_audio")
-	if !ok {
-		fmt.eprintln("Asteroids scene is missing the ship_explode_audio entity")
-		return
-	}
-
-	game.asteroids = make([dynamic]Asteroid_Instance)
-	game.bullets = make([dynamic]Bullet)
-	game.particles = make([dynamic]Particle)
-	defer delete(game.asteroids)
-	defer delete(game.bullets)
-	defer delete(game.particles)
-	reset_game(&game)
 	if !rune.register_system(&engine, {
 		name = "asteroids",
+		start = start_asteroids,
 		update = update_game,
 		draw = draw_game,
+		on_scene_reloaded = reload_asteroids,
+		shutdown = stop_asteroids,
 	}) {
 		fmt.eprintln("Could not register Asteroids system")
 		return
 	}
-	rune.run_scene(&engine, &world)
+	if !rune.run(&engine) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
 }

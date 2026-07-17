@@ -6,7 +6,6 @@ import "rune:ecs"
 import "rune:r3d_bridge"
 import rl "vendor:raylib"
 
-world: ecs.World
 bridge: r3d_bridge.Context
 
 scene_view := r3d_bridge.Scene3D_Settings{
@@ -14,19 +13,22 @@ scene_view := r3d_bridge.Scene3D_Settings{
 	grid_spacing = 1,
 }
 
-orbit_camera: ecs.Entity
-
-on_update :: proc(game: ^rune.Engine) {
-	rune.update_orbit_cameras_3d(game, &world)
+initialize_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	if bridge.initialized { return }
+	bridge_ok: bool
+	bridge, bridge_ok = r3d_bridge.init("examples/orbit_camera", rl.GetScreenWidth(), rl.GetScreenHeight())
+	if !bridge_ok { fmt.eprintln("Could not initialize r3d") }
 }
 
-on_draw :: proc(game: ^rune.Engine) {
-	if !r3d_bridge.draw_scene_ex(&bridge, &world, rune.asset_manager(game), scene_view) {
+shutdown_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	r3d_bridge.shutdown(&bridge)
+}
+
+on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	if !r3d_bridge.draw_scene_ex(&bridge, world, rune.asset_manager(game), scene_view) {
 		rl.DrawText("No active Camera3D entity", 24, 24, 28, rl.MAROON)
 		return
 	}
-	rune.draw_gizmos(game, &world)
-
 	rl.DrawText("Camera3D Orbit", 24, 24, 28, rl.DARKGRAY)
 	rl.DrawText("The Camera3D entity's Transform orbits its JSON target.", 24, 60, 18, rl.GRAY)
 	rl.DrawText("Hold left mouse and drag to orbit manually.", 24, 86, 18, rl.DARKGRAY)
@@ -41,26 +43,9 @@ main :: proc() {
 	}
 	defer rune.shutdown(&game)
 
-	bridge_ok: bool
-	bridge, bridge_ok = r3d_bridge.init("examples/orbit_camera", rl.GetScreenWidth(), rl.GetScreenHeight())
-	if !bridge_ok {
-		fmt.eprintln("Could not initialize r3d")
+	if !rune.register_system(&game, {name = "orbit_camera_draw", start = initialize_scene, draw = on_draw, shutdown = shutdown_scene}) {
+		fmt.eprintln("Could not register orbit-camera draw system")
 		return
 	}
-	defer r3d_bridge.shutdown(&bridge)
-
-	scene_ok: bool
-	world, scene_ok = rune.load_scene(&game, "examples/orbit_camera/scenes/main.scene.json")
-	if !scene_ok {
-		fmt.eprintln("Could not load and instantiate the orbit-camera scene")
-		return
-	}
-	found: bool
-	orbit_camera, found = ecs.find_entity_by_id(&world, "orbit_camera")
-	if !found {
-		fmt.eprintln("Scene is missing entity ID: orbit_camera")
-		return
-	}
-
-	rune.run(&game, on_update, on_draw)
+	if !rune.run(&game) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
 }
