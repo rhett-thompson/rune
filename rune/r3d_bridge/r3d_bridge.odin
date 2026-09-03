@@ -53,7 +53,6 @@ init :: proc(root: string, width, height: i32) -> (Context, bool) {
 	if !r3d.Init(width, height) {return {}, false}
 	r3d.SetAntiAliasingMode(.FXAA)
 	result := Context {
-		root             = root,
 		cube             = r3d.GenMeshCube(1, 1, 1),
 		cube_no_shadow   = r3d.GenMeshCube(1, 1, 1),
 		plane            = r3d.GenMeshPlane(1, 1, 1, 1),
@@ -66,6 +65,7 @@ init :: proc(root: string, width, height: i32) -> (Context, bool) {
 		scene_lights     = make(map[ecs.Entity]r3d.Light),
 		initialized      = true,
 	}
+	result.root = retain_path(&result, root)
 	result.cube.shadowCastMode = .ON_DOUBLE_SIDED
 	result.sphere.shadowCastMode = .ON_DOUBLE_SIDED
 	result.cube_no_shadow.shadowCastMode = .DISABLED
@@ -94,7 +94,7 @@ shutdown :: proc(ctx: ^Context) {
 	delete(ctx.scene_lights)
 	destroy_retained_paths(ctx)
 	r3d.Close()
-	ctx.initialized = false
+	ctx^ = {}
 }
 
 draw_scene :: proc(
@@ -387,7 +387,7 @@ load_model :: proc(
 	if !watched {return {}, false}
 	previous, already_loaded := ctx.models[path]
 	if already_loaded && previous.revision == revision {return previous.model, true}
-	full_path := resolve_path(ctx.root, path)
+	full_path := resolve_path(ctx, path)
 	cpath, _ := strings.clone_to_cstring(full_path)
 	defer delete(cpath)
 	loaded := r3d.LoadModel(cpath)
@@ -618,6 +618,7 @@ material_signature :: proc(data: assets.Material_Data) -> u64 {
 }
 
 retain_path :: proc(ctx: ^Context, path: string) -> string {
+	if len(path) == 0 {return ""}
 	if owned, found := ctx.retained_paths[path]; found {return owned}
 	owned, _ := strings.clone(path)
 	ctx.retained_paths[owned] = owned
@@ -629,11 +630,12 @@ destroy_retained_paths :: proc(ctx: ^Context) {
 	defer delete(paths)
 	for path in ctx.retained_paths {append(&paths, path)}
 	delete(ctx.retained_paths)
+	ctx.retained_paths = nil
 	for path in paths {delete(path)}
 }
 
 load_albedo_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.AlbedoMap, bool) {
-	full_path := resolve_path(ctx.root, data.texture)
+	full_path := resolve_path(ctx, data.texture)
 	cpath, _ := strings.clone_to_cstring(full_path)
 	defer delete(cpath)
 	result := r3d.LoadAlbedoMap(
@@ -646,7 +648,7 @@ load_albedo_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.Albed
 }
 
 load_normal_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.NormalMap, bool) {
-	full_path := resolve_path(ctx.root, data.normal)
+	full_path := resolve_path(ctx, data.normal)
 	cpath, _ := strings.clone_to_cstring(full_path)
 	defer delete(cpath)
 	result := r3d.LoadNormalMap(cpath, data.normal_scale)
@@ -656,7 +658,7 @@ load_normal_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.Norma
 }
 
 load_emission_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.EmissionMap, bool) {
-	full_path := resolve_path(ctx.root, data.emission)
+	full_path := resolve_path(ctx, data.emission)
 	cpath, _ := strings.clone_to_cstring(full_path)
 	defer delete(cpath)
 	result := r3d.LoadEmissionMap(
@@ -675,7 +677,7 @@ load_emission_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.Emi
 }
 
 load_orm_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.OrmMap, bool) {
-	full_path := resolve_path(ctx.root, data.orm_texture)
+	full_path := resolve_path(ctx, data.orm_texture)
 	cpath, _ := strings.clone_to_cstring(full_path)
 	defer delete(cpath)
 	result := r3d.LoadOrmMap(cpath, data.ao_strength, data.roughness, data.metallic, data.specular)
@@ -785,10 +787,12 @@ degrees_to_radians :: proc(value: f32) -> f32 {
 	return value * 0.01745329252
 }
 
-resolve_path :: proc(root, path: string) -> string {
-	if filepath.is_abs(path) {return path}
-	full_path, _ := filepath.join({root, path})
-	return full_path
+resolve_path :: proc(ctx: ^Context, path: string) -> string {
+	if filepath.is_abs(path) {return retain_path(ctx, path)}
+	full_path, _ := filepath.join({ctx.root, path})
+	owned := retain_path(ctx, full_path)
+	delete(full_path)
+	return owned
 }
 
 to_raylib_color :: proc(color: ecs.Color) -> rl.Color {

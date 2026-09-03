@@ -38,6 +38,7 @@ main :: proc() {
 
 	project, project_loaded := rune.load_project("examples/prefabs_2d/project.json")
 	assert(project_loaded)
+	defer rune.destroy_project(&project)
 	assert(project.hot_reload.enabled && project.hot_reload.poll_interval_ms == 250)
 	assert(
 		project.hot_reload.scenes &&

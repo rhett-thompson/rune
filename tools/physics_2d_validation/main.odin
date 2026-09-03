@@ -13,6 +13,7 @@ Player_Controller :: struct {
 main :: proc() {
 	project, project_loaded := rune.load_project("examples/physics_platformer_2d/project.json")
 	assert(project_loaded)
+	defer rune.destroy_project(&project)
 	project_settings, has_project_settings := project.raw_json.(json.Object)["game_settings"]
 	assert(has_project_settings)
 	project_settings_object, project_settings_ok := project_settings.(json.Object)
@@ -21,15 +22,21 @@ main :: proc() {
 	registry := ecs.init_registry()
 	defer ecs.destroy_registry(&registry)
 	assert(ecs.register_builtin_components(&registry))
-	assert(ecs.register_component_type(
-		&registry,
-		"PlayerController",
-		Player_Controller,
-		Player_Controller{jump_height = 150},
-	))
+	assert(
+		ecs.register_component_type(
+			&registry,
+			"PlayerController",
+			Player_Controller,
+			Player_Controller{jump_height = 150},
+		),
+	)
 	layers := make(map[string]u8)
 	layers["Gameplay"] = 1
-	world, loaded := scene.load_with_layers("examples/physics_platformer_2d/scenes/main.scene.json", &registry, layers)
+	world, loaded := scene.load_with_layers(
+		"examples/physics_platformer_2d/scenes/main.scene.json",
+		&registry,
+		layers,
+	)
 	assert(loaded)
 	defer ecs.destroy(&world)
 	scene_settings, has_scene_settings := ecs.get_scene_value(&world, "scene_settings")
@@ -41,7 +48,7 @@ main :: proc() {
 	assert(found)
 	controller, has_controller := ecs.get(&world, player, Player_Controller)
 	assert(has_controller && controller.jump_height > 0)
-	for _ in 0..<180 { ecs.physics_2d_update(&world, 1.0 / 60.0) }
+	for _ in 0 ..< 180 {ecs.physics_2d_update(&world, 1.0 / 60.0)}
 	body, has_body := ecs.get_rigid_body_2d(&world, player)
 	transform, has_transform := ecs.get_transform(&world, player)
 	assert(has_body && body.grounded)

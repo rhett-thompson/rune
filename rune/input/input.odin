@@ -1,6 +1,7 @@
 package input
 
 import "core:encoding/json"
+import "core:mem"
 import "core:os"
 import "core:strings"
 import rl "vendor:raylib"
@@ -34,34 +35,65 @@ Mappings :: struct {
 	axes:    map[string]Axis,
 }
 Input :: struct {
-	mappings: Mappings,
-	actions:  map[string]Action_State,
-	axes:     map[string]f32,
-	path:     string,
+	mappings:         Mappings,
+	actions:          map[string]Action_State,
+	axes:             map[string]f32,
+	path:             string,
+	retained_strings: map[string]string,
+	arena:            ^mem.Dynamic_Arena,
 }
 
 // load reads the declarative project input document. Invalid documents or
 // unknown binding types are rejected so a project never silently loses input.
 load :: proc(path: string) -> (Input, bool) {
-	data, read_error := os.read_entire_file(path, context.allocator)
-	if read_error != nil {return {}, false}
+	arena, _ := mem.new(mem.Dynamic_Arena)
+	assert(arena != nil)
+	mem.dynamic_arena_init(arena)
+	allocator := mem.dynamic_arena_allocator(arena)
+	result := Input {
+		retained_strings = make(map[string]string, allocator),
+		arena            = arena,
+	}
+	data, read_error := os.read_entire_file(path, allocator)
+	if read_error != nil {destroy(&result); return {}, false}
 	document: json.Value
-	if json.unmarshal(data, &document) != nil {return {}, false}
-	defer json.destroy_value(document)
+	if json.unmarshal(data, &document, allocator = allocator) != nil {
+		destroy(&result)
+		return {}, false
+	}
 	object, object_ok := document.(json.Object)
-	if !object_ok {return {}, false}
+	if !object_ok {destroy(&result); return {}, false}
 	_, actions_found := object["actions"]
 	_, axes_found := object["axes"]
-	if !actions_found || !axes_found {return {}, false}
+	if !actions_found || !axes_found {destroy(&result); return {}, false}
 	mappings: Mappings
-	if json.unmarshal(data, &mappings) != nil || !validate_mappings(mappings) {return {}, false}
-	return Input {
-			mappings = mappings,
-			actions = make(map[string]Action_State),
-			axes = make(map[string]f32),
-			path = path,
-		},
-		true
+	if json.unmarshal(data, &mappings, allocator = allocator) != nil ||
+	   !validate_mappings(mappings) {
+		destroy(&result)
+		return {}, false
+	}
+	result.mappings = mappings
+	result.actions = make(map[string]Action_State, allocator)
+	result.axes = make(map[string]f32, allocator)
+	result.path = retain_string(&result, path)
+	return result, true
+}
+
+// destroy releases mappings, runtime state, retained paths, and JSON strings
+// returned by load. Engine shutdown handles this for its owned Input value.
+destroy :: proc(input: ^Input) {
+	if input == nil || input.arena == nil {return}
+	mem.dynamic_arena_destroy(input.arena)
+	mem.free(input.arena)
+	input^ = {}
+}
+
+retain_string :: proc(input: ^Input, value: string) -> string {
+	if len(value) == 0 {return ""}
+	if owned, found := input.retained_strings[value]; found {return owned}
+	owned, _ := strings.clone(value, mem.dynamic_arena_allocator(input.arena))
+	input.retained_strings[owned] = owned
+	return owned
 }
 
 // save writes the current mappings to the same JSON file originally loaded.
@@ -175,7 +207,7 @@ rebind_keyboard :: proc(input: ^Input, action_name, key: string) -> bool {
 		if bindings[binding_index].type == "keyboard" {
 			bindings[binding_index] = Binding {
 				type = "keyboard",
-				key  = key,
+				key  = retain_string(input, key),
 			}
 			input.mappings.actions[action_name] = bindings
 			return true

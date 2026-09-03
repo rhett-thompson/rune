@@ -388,6 +388,10 @@ The project path is optional and defaults to the hello-world example. Runtime
 project and scene loading use the same structural validation before creating a
 window or world.
 
+`rune.init` owns its loaded project and input data and releases both during
+`rune.shutdown`. Standalone tools that call `rune.load_project` or `input.load`
+directly must pair them with `rune.destroy_project` or `input.destroy`.
+
 ## Custom components
 
 `rune.init` automatically creates the component registry and registers the

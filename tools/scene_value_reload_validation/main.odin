@@ -22,6 +22,7 @@ validate_hello_world_value_reload :: proc() {
 	)
 	project, project_loaded := rune.load_project("examples/hello_world/project.json")
 	assert(project_loaded)
+	defer rune.destroy_project(&project)
 
 	world, loaded := scene.load_with_layers(
 		"examples/hello_world/scenes/main.scene.json",

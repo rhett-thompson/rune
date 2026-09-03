@@ -30,13 +30,22 @@ validate_path_ownership :: proc() {
 	ctx := bridge.Context {
 		retained_paths = make(map[string]string),
 	}
+	root_source, _ := strings.clone("examples/textured_model_3d")
+	ctx.root = bridge.retain_path(&ctx, root_source)
+	resolved := bridge.resolve_path(&ctx, "assets/models/crate.obj")
+	root_bytes := transmute([]u8)root_source
+	root_bytes[0] = 'X'
+	assert(ctx.root == "examples/textured_model_3d")
+	assert(bridge.resolve_path(&ctx, "assets/models/crate.obj") == resolved)
 	source, _ := strings.clone("assets/materials/crate.material.json")
 	retained := bridge.retain_path(&ctx, source)
 	bytes := transmute([]u8)source
 	bytes[0] = 'X'
 	assert(retained == "assets/materials/crate.material.json")
 	assert(bridge.retain_path(&ctx, retained) == retained)
-	assert(len(ctx.retained_paths) == 1)
+	assert(len(ctx.retained_paths) == 3)
+	delete(root_source)
 	delete(source)
+	bridge.destroy_retained_paths(&ctx)
 	bridge.destroy_retained_paths(&ctx)
 }

@@ -67,14 +67,23 @@ validate_asset_cache_ownership :: proc() {
 	manager := assets.Asset_Manager {
 		retained_paths = make(map[string]string),
 	}
+	root_source, _ := strings.clone("examples/hello_world")
+	manager.root = assets.retain_path(&manager, root_source)
+	resolved := assets.resolve_path(&manager, "assets/fonts/mecha.png")
+	root_bytes := transmute([]u8)root_source
+	root_bytes[0] = 'X'
+	assert(manager.root == "examples/hello_world")
+	assert(assets.resolve_path(&manager, "assets/fonts/mecha.png") == resolved)
 	source, _ := strings.clone("assets/textures/test.png")
 	retained := assets.retain_path(&manager, source)
 	bytes := transmute([]u8)source
 	bytes[0] = 'X'
 	assert(retained == "assets/textures/test.png")
 	assert(assets.retain_path(&manager, retained) == retained)
-	assert(len(manager.retained_paths) == 1)
+	assert(len(manager.retained_paths) == 3)
+	delete(root_source)
 	delete(source)
+	assets.destroy_retained_paths(&manager)
 	assets.destroy_retained_paths(&manager)
 
 	borrowed := assets.Material_Data {

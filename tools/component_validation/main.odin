@@ -1,7 +1,7 @@
 package main
 
-import "core:fmt"
 import "core:encoding/json"
+import "core:fmt"
 import rune "rune:core"
 import "rune:ecs"
 import "rune:scene"
@@ -11,12 +11,13 @@ Typed_Nested_Test :: struct {
 }
 
 Typed_Component_Test :: struct {
-	speed: f32,
+	speed:        f32,
 	display_name: string `json:"displayName"`,
-	nested: Typed_Nested_Test,
+	nested:       Typed_Nested_Test,
 }
 
 main :: proc() {
+	validate_project_ownership()
 	validate_strict_component_registration()
 	validate_entity_metadata()
 	validate_reflected_typed_components()
@@ -25,9 +26,19 @@ main :: proc() {
 	assert(ecs.register_data_component(&registry, "Greeting", "Hello-world validation data"))
 	project, project_loaded := rune.load_project("examples/hello_world/project.json")
 	assert(project_loaded)
+	defer rune.destroy_project(&project)
 	assert(project.hot_reload.enabled && project.hot_reload.poll_interval_ms == 250)
-	assert(project.hot_reload.scenes && project.hot_reload.prefabs && project.hot_reload.textures && project.hot_reload.models)
-	world, loaded := scene.load_with_layers("examples/hello_world/scenes/main.scene.json", &registry, project.layers)
+	assert(
+		project.hot_reload.scenes &&
+		project.hot_reload.prefabs &&
+		project.hot_reload.textures &&
+		project.hot_reload.models,
+	)
+	world, loaded := scene.load_with_layers(
+		"examples/hello_world/scenes/main.scene.json",
+		&registry,
+		project.layers,
+	)
 	assert(loaded)
 
 	greeting, found := ecs.find_entity_by_id(&world, "greeting")
@@ -53,6 +64,17 @@ main :: proc() {
 	fmt.println("Typed built-in component validation passed")
 }
 
+validate_project_ownership :: proc() {
+	for _ in 0 ..< 16 {
+		project, loaded := rune.load_project("examples/hello_world/project.json")
+		assert(loaded && project.name == "Rune Hello World")
+		_, has_raw_json := project.raw_json.(json.Object)
+		assert(has_raw_json)
+		rune.destroy_project(&project)
+		rune.destroy_project(&project)
+	}
+}
+
 validate_strict_component_registration :: proc() {
 	registry := ecs.init_registry()
 	defer ecs.destroy_registry(&registry)
@@ -66,14 +88,23 @@ validate_strict_component_registration :: proc() {
 validate_reflected_typed_components :: proc() {
 	registry := ecs.init_registry()
 	defer ecs.destroy_registry(&registry)
-	assert(ecs.register_component_type(
-		&registry,
-		"TypedTest",
-		Typed_Component_Test,
-		Typed_Component_Test{speed = 4, display_name = "default", nested = {amount = 2}},
-		"Reflected typed component validation",
-	))
-	assert(!ecs.register_component_type(&registry, "TypedTest", Typed_Component_Test, Typed_Component_Test{}))
+	assert(
+		ecs.register_component_type(
+			&registry,
+			"TypedTest",
+			Typed_Component_Test,
+			Typed_Component_Test{speed = 4, display_name = "default", nested = {amount = 2}},
+			"Reflected typed component validation",
+		),
+	)
+	assert(
+		!ecs.register_component_type(
+			&registry,
+			"TypedTest",
+			Typed_Component_Test,
+			Typed_Component_Test{},
+		),
+	)
 
 	world := typed_test_world(&registry, `{"displayName":"live","nested":{"amount":3}}`)
 	defer ecs.destroy(&world)
@@ -99,29 +130,38 @@ validate_reflected_typed_components :: proc() {
 	unknown_world := ecs.init()
 	defer ecs.destroy(&unknown_world)
 	unknown_entity := ecs.create_entity(&unknown_world)
-	assert(!ecs.add_component(
-		&unknown_world,
-		&registry,
-		unknown_entity,
-		"TypedTest",
-		json_value(`{"speed":1,"unknown":true}`),
-	))
-	assert(!ecs.add_component(
-		&unknown_world,
-		&registry,
-		unknown_entity,
-		"TypedTest",
-		json_value(`{"nested":{"amount":1,"unknown":true}}`),
-	))
-	assert(!ecs.add_component(
-		&unknown_world,
-		&registry,
-		unknown_entity,
-		"TypedTest",
-		json_value(`{"Speed":1}`),
-	))
+	assert(
+		!ecs.add_component(
+			&unknown_world,
+			&registry,
+			unknown_entity,
+			"TypedTest",
+			json_value(`{"speed":1,"unknown":true}`),
+		),
+	)
+	assert(
+		!ecs.add_component(
+			&unknown_world,
+			&registry,
+			unknown_entity,
+			"TypedTest",
+			json_value(`{"nested":{"amount":1,"unknown":true}}`),
+		),
+	)
+	assert(
+		!ecs.add_component(
+			&unknown_world,
+			&registry,
+			unknown_entity,
+			"TypedTest",
+			json_value(`{"Speed":1}`),
+		),
+	)
 
-	snapshot := typed_test_world(&registry, `{"speed":12,"displayName":"reloaded","nested":{"amount":8}}`)
+	snapshot := typed_test_world(
+		&registry,
+		`{"speed":12,"displayName":"reloaded","nested":{"amount":8}}`,
+	)
 	defer ecs.destroy(&snapshot)
 	assert(ecs.apply_value_snapshot(&world, &snapshot))
 	component, typed_found = ecs.get(&world, entity, Typed_Component_Test)
@@ -131,7 +171,11 @@ validate_reflected_typed_components :: proc() {
 	assert(component.nested.amount == 8)
 
 	runtime_entity := ecs.create_entity(&world)
-	runtime_value := Typed_Component_Test{speed = 6, display_name = "runtime", nested = {amount = 7}}
+	runtime_value := Typed_Component_Test {
+		speed = 6,
+		display_name = "runtime",
+		nested = {amount = 7},
+	}
 	assert(ecs.add(&world, &registry, runtime_entity, runtime_value))
 	runtime_component, runtime_found := ecs.get(&world, runtime_entity, Typed_Component_Test)
 	assert(runtime_found && runtime_component == runtime_value)
@@ -174,7 +218,12 @@ validate_audio_components :: proc() {
 	assert(len(player_names) == 1 && player_names[0] == "bell")
 	player, has_player := ecs.get_audio_player(&world, player_entity, "bell")
 	assert(has_player && player.sound == "assets/bell.wav" && player.spatial && !player.looping)
-	assert(player.volume == 0.35 && player.pitch == 1.25 && player.min_distance == 2 && player.max_distance == 32)
+	assert(
+		player.volume == 0.35 &&
+		player.pitch == 1.25 &&
+		player.min_distance == 2 &&
+		player.max_distance == 32,
+	)
 	assert(player.random_volume == 0 && player.random_pitch == 0.05)
 	assert(player.max_voices == 3)
 	assert(!player.play_on_start)
@@ -185,10 +234,15 @@ validate_entity_metadata :: proc() {
 	validate_entity_id_index()
 	project, project_loaded := rune.load_project("examples/hello_world/project.json")
 	assert(project_loaded)
+	defer rune.destroy_project(&project)
 	registry := ecs.init_registry()
 	assert(ecs.register_builtin_components(&registry))
 	assert(ecs.register_data_component(&registry, "Greeting", "Hello-world validation data"))
-	world, loaded := scene.load_with_layers("examples/hello_world/scenes/main.scene.json", &registry, project.layers)
+	world, loaded := scene.load_with_layers(
+		"examples/hello_world/scenes/main.scene.json",
+		&registry,
+		project.layers,
+	)
 	assert(loaded)
 	greeting, greeting_found := ecs.find_entity_by_id(&world, "greeting")
 	assert(greeting_found)
@@ -206,7 +260,16 @@ validate_entity_id_index :: proc() {
 	assert(ecs.set_entity_metadata(&world, first, "player", "Player", "", ecs.Default_Layer_Mask))
 	resolved, found := ecs.find_entity_by_id(&world, "player")
 	assert(found && resolved == first)
-	assert(!ecs.set_entity_metadata(&world, second, "player", "Other Player", "", ecs.Default_Layer_Mask))
+	assert(
+		!ecs.set_entity_metadata(
+			&world,
+			second,
+			"player",
+			"Other Player",
+			"",
+			ecs.Default_Layer_Mask,
+		),
+	)
 	_, empty_found := ecs.find_entity_by_id(&world, "")
 	assert(!empty_found)
 
@@ -215,11 +278,23 @@ validate_entity_id_index :: proc() {
 
 	reloaded_world := ecs.init()
 	reloaded_player := ecs.create_entity(&reloaded_world)
-	assert(ecs.set_entity_metadata(&reloaded_world, reloaded_player, "player", "Player", "", ecs.Default_Layer_Mask))
+	assert(
+		ecs.set_entity_metadata(
+			&reloaded_world,
+			reloaded_player,
+			"player",
+			"Player",
+			"",
+			ecs.Default_Layer_Mask,
+		),
+	)
 	assert(!ecs.is_alive(&reloaded_world, first))
 	assert(ecs.entity_index(first) == ecs.entity_index(reloaded_player))
 	assert(ecs.entity_generation(first) != ecs.entity_generation(reloaded_player))
-	resolved_after_reload, resolved_after_reload_found := ecs.resolve_entity_ref(&reloaded_world, player_ref)
+	resolved_after_reload, resolved_after_reload_found := ecs.resolve_entity_ref(
+		&reloaded_world,
+		player_ref,
+	)
 	assert(resolved_after_reload_found && resolved_after_reload == reloaded_player)
 	child := ecs.create_entity(&world)
 	assert(ecs.set_entity_metadata(&world, child, "child", "Child", "", ecs.Default_Layer_Mask))
@@ -317,9 +392,14 @@ validate_motion_components :: proc() {
 validate_sphere_collider :: proc() {
 	project, project_loaded := rune.load_project("examples/third_person_3d/project.json")
 	assert(project_loaded)
+	defer rune.destroy_project(&project)
 	registry := ecs.init_registry()
 	assert(ecs.register_builtin_components(&registry))
-	world, loaded := scene.load_with_layers("examples/third_person_3d/scenes/main.scene.json", &registry, project.layers)
+	world, loaded := scene.load_with_layers(
+		"examples/third_person_3d/scenes/main.scene.json",
+		&registry,
+		project.layers,
+	)
 	assert(loaded)
 	target, found := ecs.find_entity_by_id(&world, "look_target")
 	assert(found)
@@ -351,10 +431,21 @@ validate_model_renderer :: proc() {
 validate_character_collision :: proc() {
 	project, project_loaded := rune.load_project("examples/first_person_3d/project.json")
 	assert(project_loaded)
+	defer rune.destroy_project(&project)
 	registry := ecs.init_registry()
 	assert(ecs.register_builtin_components(&registry))
-	assert(ecs.register_data_component(&registry, "FirstPersonController", "Ignored by collision validation"))
-	world, loaded := scene.load_with_layers("examples/first_person_3d/scenes/main.scene.json", &registry, project.layers)
+	assert(
+		ecs.register_data_component(
+			&registry,
+			"FirstPersonController",
+			"Ignored by collision validation",
+		),
+	)
+	world, loaded := scene.load_with_layers(
+		"examples/first_person_3d/scenes/main.scene.json",
+		&registry,
+		project.layers,
+	)
 	assert(loaded)
 	player, found := ecs.find_entity_by_id(&world, "player")
 	assert(found)

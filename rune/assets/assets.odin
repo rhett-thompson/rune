@@ -80,20 +80,21 @@ Asset_Manager :: struct {
 init :: proc(root: string) -> Asset_Manager {
 	missing_image := rl.GenImageColor(2, 2, rl.MAGENTA)
 	defer rl.UnloadImage(missing_image)
-	return Asset_Manager {
-		root = root,
-		textures = make(map[string]Texture_Asset),
-		models = make(map[string]Model_Asset),
-		fonts = make(map[string]Font_Asset),
-		materials = make(map[string]Material_Asset),
-		generated_orm_textures = make(map[u64]Texture_Asset),
+	result := Asset_Manager {
+		textures                 = make(map[string]Texture_Asset),
+		models                   = make(map[string]Model_Asset),
+		fonts                    = make(map[string]Font_Asset),
+		materials                = make(map[string]Material_Asset),
+		generated_orm_textures   = make(map[u64]Texture_Asset),
 		material_texture_watches = make(map[string]i64),
-		material_revision = 1,
-		missing_textures = make(map[string]i64),
-		missing_texture = rl.LoadTextureFromImage(missing_image),
-		diagnostics = init_diagnostic_log(),
-		retained_paths = make(map[string]string),
+		material_revision        = 1,
+		missing_textures         = make(map[string]i64),
+		missing_texture          = rl.LoadTextureFromImage(missing_image),
+		diagnostics              = init_diagnostic_log(),
+		retained_paths           = make(map[string]string),
 	}
+	result.root = retain_path(&result, root)
+	return result
 }
 
 font :: proc(
@@ -714,6 +715,7 @@ hash_value :: proc(seed: u64, value: $T) -> u64 {
 }
 
 retain_path :: proc(manager: ^Asset_Manager, path: string) -> string {
+	if len(path) == 0 {return ""}
 	if owned, found := manager.retained_paths[path]; found {return owned}
 	owned, _ := strings.clone(path)
 	manager.retained_paths[owned] = owned
@@ -725,13 +727,16 @@ destroy_retained_paths :: proc(manager: ^Asset_Manager) {
 	defer delete(paths)
 	for path in manager.retained_paths {append(&paths, path)}
 	delete(manager.retained_paths)
+	manager.retained_paths = nil
 	for path in paths {delete(path)}
 }
 
 resolve_path :: proc(manager: ^Asset_Manager, path: string) -> string {
-	if filepath.is_abs(path) {return path}
+	if filepath.is_abs(path) {return retain_path(manager, path)}
 	full_path, _ := filepath.join({manager.root, path})
-	return full_path
+	owned := retain_path(manager, full_path)
+	delete(full_path)
+	return owned
 }
 
 load_material_data :: proc(full_path: string) -> (Material_Data, bool) {
@@ -997,6 +1002,7 @@ path_modified_time :: proc(manager: ^Asset_Manager, path: string) -> i64 {
 }
 
 shutdown :: proc(manager: ^Asset_Manager) {
+	if manager == nil {return}
 	clear_generated_orm_textures(manager)
 	for _, asset in manager.textures {
 		rl.UnloadTexture(asset.texture)
@@ -1020,4 +1026,5 @@ shutdown :: proc(manager: ^Asset_Manager) {
 	delete(manager.missing_textures)
 	destroy_diagnostic_log(&manager.diagnostics)
 	destroy_retained_paths(manager)
+	manager^ = {}
 }

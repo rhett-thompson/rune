@@ -1,6 +1,7 @@
 package core
 
 import "core:encoding/json"
+import "core:mem"
 import "core:os"
 import "core:path/filepath"
 import "core:strings"
@@ -59,6 +60,7 @@ Project :: struct {
 	// Default is always engine-defined at bit 0 and does not need an entry.
 	layers:           map[string]u8,
 	raw_json:         json.Value,
+	arena:            ^mem.Dynamic_Arena `json:"-"`,
 }
 
 System_Update_Proc :: #type proc(engine: ^Engine, world: ^ecs.World)
@@ -114,23 +116,32 @@ load_project :: proc(path: string) -> (Project, bool) {
 	validation_report := validation.validate_project(path)
 	defer validation.destroy_report(&validation_report)
 	if !validation.is_valid(&validation_report) {return {}, false}
-	data, read_error := os.read_entire_file(path, context.allocator)
-	if read_error != nil {
-		return {}, false
-	}
-
+	arena, _ := mem.new(mem.Dynamic_Arena)
+	assert(arena != nil)
+	mem.dynamic_arena_init(arena)
+	allocator := mem.dynamic_arena_allocator(arena)
 	project := Project {
 		hot_reload = default_hot_reload_settings(),
 		gizmos     = gizmos.default_settings(),
+		arena      = arena,
 	}
-	if json.unmarshal(data, &project) != nil {
+	data, read_error := os.read_entire_file(path, allocator)
+	if read_error != nil {
+		destroy_project(&project)
 		return {}, false
 	}
-	if json.unmarshal(data, &project.raw_json) != nil {
+
+	if json.unmarshal(data, &project, allocator = allocator) != nil {
+		destroy_project(&project)
+		return {}, false
+	}
+	if json.unmarshal(data, &project.raw_json, allocator = allocator) != nil {
+		destroy_project(&project)
 		return {}, false
 	}
 	for layer_name, layer_index in project.layers {
 		if layer_name == "Default" || layer_index == ecs.Default_Layer || layer_index >= 64 {
+			destroy_project(&project)
 			return {}, false
 		}
 	}
@@ -139,6 +150,19 @@ load_project :: proc(path: string) -> (Project, bool) {
 	}
 
 	return project, true
+}
+
+// destroy_project releases the typed settings and preserved raw JSON returned
+// by load_project. Engine shutdown handles this for engine-owned projects.
+destroy_project :: proc(project: ^Project) {
+	if project == nil || project.arena == nil {return}
+	mem.dynamic_arena_destroy(project.arena)
+	mem.free(project.arena)
+	project^ = {}
+}
+
+project_allocator :: proc(project: ^Project) -> mem.Allocator {
+	return mem.dynamic_arena_allocator(project.arena)
 }
 
 init :: proc(project_path: string) -> (Engine, bool) {
@@ -165,16 +189,19 @@ init :: proc(project_path: string) -> (Engine, bool) {
 	registry := ecs.init_registry()
 	if !ecs.register_builtin_components(&registry) {
 		ecs.destroy_registry(&registry)
+		destroy_project(&project)
 		return {}, false
 	}
-	project_directory, _ := filepath.split(project_path)
+	project_directory_view, _ := filepath.split(project_path)
+	project_directory, _ := strings.clone(project_directory_view, project_allocator(&project))
 	input_path := project.input
 	if len(input_path) > 0 {
-		input_path, _ = filepath.join({project_directory, input_path})
+		input_path, _ = filepath.join({project_directory, input_path}, project_allocator(&project))
 	}
 	input_data, input_ok := input.load(input_path)
 	if !input_ok {
 		ecs.destroy_registry(&registry)
+		destroy_project(&project)
 		return {}, false
 	}
 
@@ -662,6 +689,8 @@ shutdown :: proc(engine: ^Engine) {
 		for path in scene_paths {delete(path)}
 		delete(scene_paths)
 		delete(engine.systems)
+		input.destroy(&engine.input)
+		destroy_project(&engine.project)
 		rl.CloseWindow()
 		engine.is_running = false
 	}
