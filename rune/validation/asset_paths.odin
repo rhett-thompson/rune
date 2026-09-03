@@ -34,7 +34,7 @@ validate_texture_reference :: proc(report: ^Report, file, path, asset, project_d
 			),
 		)
 	}
-	if len(project_directory) > 0 && !file_exists(path_from(project_directory, asset)) {
+	if len(project_directory) > 0 && !file_exists(path_from(report, project_directory, asset)) {
 		add(report, file, path, fmt.tprint("referenced asset does not exist: ", asset))
 	}
 }
@@ -51,7 +51,7 @@ validate_material_reference :: proc(
 		return
 	}
 	if len(project_directory) == 0 {return}
-	resolved := path_from(project_directory, material)
+	resolved := path_from(report, project_directory, material)
 	if !file_exists(resolved) {
 		add(report, file, path, fmt.tprint("referenced material does not exist: ", material))
 		return

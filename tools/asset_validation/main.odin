@@ -7,6 +7,7 @@ import "rune:validation"
 
 main :: proc() {
 	report := validation.validate_project("tools/asset_validation/fixtures/project.json")
+	defer validation.destroy_report(&report)
 	assert(!validation.is_valid(&report))
 	assert(
 		has_diagnostic(
@@ -26,7 +27,17 @@ main :: proc() {
 	)
 	validate_runtime_diagnostics()
 	validate_asset_cache_ownership()
+	validate_repeated_report_ownership()
 	fmt.println("Asset reference validation passed")
+}
+
+validate_repeated_report_ownership :: proc() {
+	for _ in 0 ..< 16 {
+		report := validation.validate_project("examples/hello_world/project.json")
+		assert(validation.is_valid(&report))
+		validation.destroy_report(&report)
+		validation.destroy_report(&report)
+	}
 }
 
 validate_runtime_diagnostics :: proc() {

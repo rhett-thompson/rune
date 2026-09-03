@@ -112,6 +112,7 @@ Max_Simulation_Delta: f32 : 0.1
 
 load_project :: proc(path: string) -> (Project, bool) {
 	validation_report := validation.validate_project(path)
+	defer validation.destroy_report(&validation_report)
 	if !validation.is_valid(&validation_report) {return {}, false}
 	data, read_error := os.read_entire_file(path, context.allocator)
 	if read_error != nil {
@@ -178,6 +179,7 @@ init :: proc(project_path: string) -> (Engine, bool) {
 	}
 
 	title, _ := strings.clone_to_cstring(project.window.title)
+	defer delete(title)
 	if project.window.msaa_4x {
 		rl.SetConfigFlags({rl.ConfigFlag.MSAA_4X_HINT})
 	}
@@ -303,7 +305,9 @@ load_scene :: proc(engine: ^Engine, path: string) -> (ecs.World, bool) {
 load_active_scene :: proc(engine: ^Engine, path: string) -> bool {
 	resolved_path := path
 	if !filepath.is_abs(resolved_path) {
-		resolved_path, _ = filepath.join({engine.project_directory, resolved_path})
+		joined_path, _ := filepath.join({engine.project_directory, resolved_path})
+		defer delete(joined_path)
+		resolved_path = joined_path
 	}
 	world, loaded := load_scene(engine, resolved_path)
 	if !loaded {return false}
@@ -321,7 +325,9 @@ change_scene :: proc(engine: ^Engine, path: string) -> bool {
 	if engine == nil || !engine.has_active_world || len(path) == 0 {return false}
 	resolved_path := path
 	if !filepath.is_abs(resolved_path) {
-		resolved_path, _ = filepath.join({engine.project_directory, resolved_path})
+		joined_path, _ := filepath.join({engine.project_directory, resolved_path})
+		defer delete(joined_path)
+		resolved_path = joined_path
 	}
 	next_world, loaded := scene.load_with_layers(
 		resolved_path,

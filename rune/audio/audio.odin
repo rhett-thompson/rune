@@ -1,6 +1,7 @@
 package audio
 
 import "core:math"
+import "core:mem"
 import "core:path/filepath"
 import "core:strings"
 import "rune:ecs"
@@ -30,27 +31,49 @@ Audio_Instance :: struct {
 // Audio_System owns one raylib playback instance per named AudioPlayer
 // component instance. Short clips are buffered Sounds; music formats stream.
 Audio_System :: struct {
-	root:      string,
-	instances: map[ecs.Component_Instance]Audio_Instance,
-	available: bool,
+	root:             string,
+	instances:        map[ecs.Component_Instance]Audio_Instance,
+	retained_strings: map[string]string,
+	arena:            ^mem.Dynamic_Arena,
+	available:        bool,
 }
 
 init :: proc(project_root: string) -> Audio_System {
+	arena, _ := mem.new(mem.Dynamic_Arena)
+	assert(arena != nil)
+	mem.dynamic_arena_init(arena)
 	rl.InitAudioDevice()
-	return Audio_System {
-		root = project_root,
-		instances = make(map[ecs.Component_Instance]Audio_Instance),
-		available = rl.IsAudioDeviceReady(),
+	system := Audio_System {
+		instances        = make(map[ecs.Component_Instance]Audio_Instance),
+		retained_strings = make(map[string]string),
+		arena            = arena,
+		available        = rl.IsAudioDeviceReady(),
 	}
+	system.root = retain_string(&system, project_root)
+	return system
 }
 
 shutdown :: proc(system: ^Audio_System) {
+	if system == nil {return}
 	for _, instance in system.instances {
 		unload_instance(instance)
 	}
 	delete(system.instances)
+	delete(system.retained_strings)
 	if system.available && rl.IsAudioDeviceReady() {rl.CloseAudioDevice()}
-	system.available = false
+	if system.arena != nil {
+		mem.dynamic_arena_destroy(system.arena)
+		mem.free(system.arena)
+	}
+	system^ = {}
+}
+
+retain_string :: proc(system: ^Audio_System, value: string) -> string {
+	if len(value) == 0 {return ""}
+	if owned, found := system.retained_strings[value]; found {return owned}
+	owned, _ := strings.clone(value, mem.dynamic_arena_allocator(system.arena))
+	system.retained_strings[owned] = owned
+	return owned
 }
 
 // update synchronizes configured players, starts play_on_start sounds, and
@@ -168,25 +191,34 @@ ensure_instance :: proc(system: ^Audio_System, key: ecs.Component_Instance, path
 		delete_key(&system.instances, key)
 	}
 	full_path := path
-	if !filepath.is_abs(full_path) {full_path, _ = filepath.join({system.root, path})}
+	if !filepath.is_abs(full_path) {
+		joined_path, _ := filepath.join({system.root, path})
+		defer delete(joined_path)
+		full_path = joined_path
+	}
 	path_cstring, _ := strings.clone_to_cstring(full_path)
+	defer delete(path_cstring)
 	if is_streaming_path(path) {
 		music := rl.LoadMusicStream(path_cstring)
 		if !rl.IsMusicValid(music) {return false}
-		system.instances[key] = Audio_Instance {
+		owned_key := key
+		owned_key.name = retain_string(system, key.name)
+		system.instances[owned_key] = Audio_Instance {
 			music     = music,
 			streaming = true,
-			path      = path,
+			path      = retain_string(system, path),
 		}
 	} else {
 		sound := rl.LoadSound(path_cstring)
 		if !rl.IsSoundValid(sound) {return false}
 		voices := make([dynamic]Audio_Voice)
 		append(&voices, Audio_Voice{sound = sound})
-		system.instances[key] = Audio_Instance {
+		owned_key := key
+		owned_key.name = retain_string(system, key.name)
+		system.instances[owned_key] = Audio_Instance {
 			sound  = sound,
 			voices = voices,
-			path   = path,
+			path   = retain_string(system, path),
 		}
 	}
 	return true

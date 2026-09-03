@@ -129,6 +129,7 @@ load_with_layers :: proc(
 ) {
 	clear_load_error()
 	validation_report := validation.validate_scene_with_layers(path, layer_names)
+	defer validation.destroy_report(&validation_report)
 	if !validation.is_valid(&validation_report) {
 		if len(validation_report.diagnostics) > 0 {
 			diagnostic := validation_report.diagnostics[0]

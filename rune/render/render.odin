@@ -172,6 +172,7 @@ draw_text :: proc(
 	font, loaded := assets.font(asset_manager, text.font, "", "TextRenderer.font")
 	if !loaded {return}
 	content, _ := strings.clone_to_cstring(text.text)
+	defer delete(content)
 	font_size := text.font_size * scale[0]
 	spacing := text.spacing * scale[0]
 	measured := rl.MeasureTextEx(font, content, font_size, spacing)

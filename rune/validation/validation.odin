@@ -2,8 +2,10 @@ package validation
 
 import "core:encoding/json"
 import "core:fmt"
+import "core:mem"
 import "core:os"
 import "core:path/filepath"
+import "core:strings"
 import "rune:jsonutil"
 
 // Diagnostic describes one authoring problem. `path` is a JSON-style field
@@ -15,28 +17,58 @@ Diagnostic :: struct {
 	message: string,
 }
 
+// Report owns its diagnostics and all JSON/path scratch storage. Call
+// destroy_report when the caller has finished reading it.
 Report :: struct {
 	diagnostics: [dynamic]Diagnostic,
+	arena:       ^mem.Dynamic_Arena,
 }
 
 is_valid :: proc(report: ^Report) -> bool {return len(report.diagnostics) == 0}
+
+init_report :: proc() -> Report {
+	arena, _ := mem.new(mem.Dynamic_Arena)
+	assert(arena != nil)
+	mem.dynamic_arena_init(arena)
+	allocator := mem.dynamic_arena_allocator(arena)
+	return Report{diagnostics = make([dynamic]Diagnostic, allocator), arena = arena}
+}
+
+destroy_report :: proc(report: ^Report) {
+	if report == nil || report.arena == nil {return}
+	mem.dynamic_arena_destroy(report.arena)
+	mem.free(report.arena)
+	report^ = {}
+}
+
+report_allocator :: proc(report: ^Report) -> mem.Allocator {
+	return mem.dynamic_arena_allocator(report.arena)
+}
 
 field_path :: proc(path, name: string) -> string {return fmt.tprintf("%s.%s", path, name)}
 index_path :: proc(path: string, index: int) -> string {return fmt.tprintf("%s[%d]", path, index)}
 layer_path :: proc(name: string) -> string {return fmt.tprintf("$.layers.%s", name)}
 
 add :: proc(report: ^Report, file, path, message: string) {
-	append(&report.diagnostics, Diagnostic{file = file, path = path, message = message})
+	allocator := report_allocator(report)
+	owned_file, _ := strings.clone(file, allocator)
+	owned_path, _ := strings.clone(path, allocator)
+	owned_message, _ := strings.clone(message, allocator)
+	append(
+		&report.diagnostics,
+		Diagnostic{file = owned_file, path = owned_path, message = owned_message},
+	)
 }
 
 read_json_object :: proc(path: string, report: ^Report) -> (json.Object, bool) {
-	data, read_error := os.read_entire_file(path, context.allocator)
+	allocator := report_allocator(report)
+	data, read_error := os.read_entire_file(path, allocator)
 	if read_error != nil {
 		add(report, path, "$", "file could not be read")
 		return nil, false
 	}
 	value: json.Value
-	if json.unmarshal(data, &value) != nil {
+	if json.unmarshal(data, &value, allocator = allocator) != nil {
 		add(report, path, "$", "invalid JSON")
 		return nil, false
 	}
@@ -108,9 +140,9 @@ array_field :: proc(
 	return result, ok
 }
 
-path_from :: proc(directory, value: string) -> string {
+path_from :: proc(report: ^Report, directory, value: string) -> string {
 	if filepath.is_abs(value) {return value}
-	result, _ := filepath.join({directory, value})
+	result, _ := filepath.join({directory, value}, report_allocator(report))
 	return result
 }
 
@@ -123,9 +155,7 @@ file_exists :: proc(path: string) -> bool {
 // scene, input document, and directly referenced prefab files. Asset paths are
 // resolved relative to the project file, matching the runtime asset manager.
 validate_project :: proc(project_path: string) -> Report {
-	report := Report {
-		diagnostics = make([dynamic]Diagnostic),
-	}
+	report := init_report()
 	project, ok := read_json_object(project_path, &report)
 	if !ok {return report}
 	project_directory, _ := filepath.split(project_path)
@@ -142,7 +172,7 @@ validate_project :: proc(project_path: string) -> Report {
 	validate_window(&report, project_path, project)
 	layers := validate_layers(&report, project_path, project)
 	if input_ok && len(input_path) > 0 {
-		resolved_input := path_from(project_directory, input_path)
+		resolved_input := path_from(&report, project_directory, input_path)
 		if !file_exists(
 			resolved_input,
 		) {add(&report, project_path, "$.input", fmt.tprint("referenced input file does not exist: ", resolved_input))}
@@ -150,7 +180,7 @@ validate_project :: proc(project_path: string) -> Report {
 	if scene_ok && len(startup_scene) > 0 {
 		validate_scene_at(
 			&report,
-			path_from(project_directory, startup_scene),
+			path_from(&report, project_directory, startup_scene),
 			layers,
 			project_directory,
 		)
@@ -179,7 +209,7 @@ validate_window :: proc(report: ^Report, file: string, project: json.Object) {
 }
 
 validate_layers :: proc(report: ^Report, file: string, project: json.Object) -> map[string]u8 {
-	result := make(map[string]u8)
+	result := make(map[string]u8, report_allocator(report))
 	value, found := project["layers"]
 	if !found {return result}
 	layers, ok := value.(json.Object)
@@ -214,9 +244,7 @@ validate_scene :: proc(scene_path: string) -> Report {
 // project's declared layer table. Standalone tools can pass nil when only the
 // built-in Default layer is available.
 validate_scene_with_layers :: proc(scene_path: string, layers: map[string]u8) -> Report {
-	report := Report {
-		diagnostics = make([dynamic]Diagnostic),
-	}
+	report := init_report()
 	validate_scene_at(&report, scene_path, layers, "")
 	return report
 }
@@ -233,7 +261,7 @@ validate_scene_at :: proc(
 	entities, entities_ok := array_field(report, scene_path, "$", scene, "entities", true)
 	if !entities_ok {return}
 	scene_directory, _ := filepath.split(scene_path)
-	ids := make(map[string]bool)
+	ids := make(map[string]bool, report_allocator(report))
 	for entity, index in entities {
 		validate_entity(
 			report,
@@ -267,7 +295,7 @@ validate_entity :: proc(
 	if components_ok {validate_components(report, file, field_path(path, "components"), components, project_directory)}
 	if prefab_path, prefab_ok := string_field(report, file, path, entity, "prefab", false);
 	   prefab_ok && len(prefab_path) > 0 {
-		resolved_prefab := path_from(scene_directory, prefab_path)
+		resolved_prefab := path_from(report, scene_directory, prefab_path)
 		validate_prefab(report, resolved_prefab, project_directory)
 	}
 	children, children_ok := array_field(report, file, path, entity, "children", false)
@@ -411,7 +439,8 @@ validate_component_assets :: proc(
 			)
 			continue
 		}
-		if len(project_directory) > 0 && !file_exists(path_from(project_directory, asset)) {
+		if len(project_directory) > 0 &&
+		   !file_exists(path_from(report, project_directory, asset)) {
 			add(
 				report,
 				file,
