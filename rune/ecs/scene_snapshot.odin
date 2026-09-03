@@ -200,6 +200,10 @@ apply_snapshot_component_value :: proc(
 	if name == "Transform" {world.transforms[target_entity] = snapshot.transforms[snapshot_entity]}
 	if name ==
 	   "SpriteRenderer" {world.sprite_renderers[target_entity] = snapshot.sprite_renderers[snapshot_entity]}
+	if name == "SpriteAnimator" {
+		world.sprite_animators[target_entity] = snapshot.sprite_animators[snapshot_entity]
+		world.sprite_animation_states[target_entity] = {}
+	}
 	if name ==
 	   "MeshRenderer" {world.mesh_renderers[target_entity] = snapshot.mesh_renderers[snapshot_entity]}
 	if name ==
@@ -428,6 +432,12 @@ rehome_builtin_strings :: proc(world, snapshot: ^World) {
 		owned.texture = retain_scene_string(snapshot, value.texture)
 		world.sprite_renderers[entity] = owned
 	}
+	for entity, value in world.sprite_animators {
+		owned := value
+		owned.animation = retain_scene_string(snapshot, value.animation)
+		owned.clip = retain_scene_string(snapshot, value.clip)
+		world.sprite_animators[entity] = owned
+	}
 	for entity, value in world.mesh_renderers {
 		owned := value
 		owned.primitive = retain_scene_string(snapshot, value.primitive)
@@ -450,6 +460,7 @@ rehome_builtin_strings :: proc(world, snapshot: ^World) {
 	}
 	for entity, value in world.tilemap_renderers {
 		owned := value
+		owned.tileset = retain_scene_string(snapshot, value.tileset)
 		owned.texture = retain_scene_string(snapshot, value.texture)
 		world.tilemap_renderers[entity] = owned
 	}

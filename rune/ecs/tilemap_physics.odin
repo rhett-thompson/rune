@@ -82,6 +82,8 @@ top_down_blocked :: proc(
 		map_transform, has_transform := get_transform(world, map_entity)
 		if !has_tilemap ||
 		   !has_transform ||
+		   tilemap.tile_size[0] <= 0 ||
+		   tilemap.tile_size[1] <= 0 ||
 		   map_transform.scale[0] <= 0 ||
 		   map_transform.scale[1] <= 0 {continue}
 		tile_width := tilemap.tile_size[0] * map_transform.scale[0]

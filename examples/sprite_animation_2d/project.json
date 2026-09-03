@@ -1,0 +1,14 @@
+{
+  "$schema": "../../schemas/project.schema.json",
+  "name": "Rune Sprite Animation",
+  "startup_scene": "scenes/main.scene.json",
+  "window": {
+    "width": 960,
+    "height": 540,
+    "title": "Rune - Sprite Animation 2D",
+    "fullscreen": false,
+    "vsync": true
+  },
+  "background_color": [18, 23, 31, 255],
+  "input": "input/default.input.json"
+}

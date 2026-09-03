@@ -32,6 +32,101 @@ set_sprite_renderer :: proc(
 	owned.texture = retain_scene_string(world, value.texture)
 	world.sprite_renderers[entity] = owned
 	return true}
+get_sprite_animator :: proc(
+	world: ^World,
+	entity: Entity,
+) -> (
+	SpriteAnimator,
+	bool,
+) {value, found := world.sprite_animators[entity]; return value, found}
+set_sprite_animator :: proc(world: ^World, entity: Entity, value: SpriteAnimator) -> bool {
+	if !has_component_data(world, entity, "SpriteAnimator") ||
+	   len(value.animation) == 0 ||
+	   len(value.clip) == 0 ||
+	   value.speed <= 0 {return false}
+	owned := value
+	owned.animation = retain_scene_string(world, value.animation)
+	owned.clip = retain_scene_string(world, value.clip)
+	previous := world.sprite_animators[entity]
+	world.sprite_animators[entity] = owned
+	if previous.animation != owned.animation ||
+	   previous.clip != owned.clip ||
+	   previous.autoplay != owned.autoplay {
+		world.sprite_animation_states[entity] = {}
+	}
+	return true
+}
+
+// Playback controls mutate runtime state only. They never rewrite the scene's
+// JSON data, keeping animation behavior in Odin and authoring data declarative.
+play_sprite_animation :: proc(
+	world: ^World,
+	entity: Entity,
+	clip: string,
+	restart := true,
+) -> bool {
+	animator, found := world.sprite_animators[entity]
+	if !found || len(clip) == 0 {return false}
+	clip_changed := animator.clip != clip
+	animator.clip = retain_scene_string(world, clip)
+	world.sprite_animators[entity] = animator
+	state := world.sprite_animation_states[entity]
+	if restart || clip_changed {
+		state.elapsed = 0
+		state.frame = 0
+	}
+	state.initialized = true
+	state.playing = true
+	world.sprite_animation_states[entity] = state
+	return true
+}
+
+pause_sprite_animation :: proc(world: ^World, entity: Entity) -> bool {
+	state, found := world.sprite_animation_states[entity]
+	if !found {return false}
+	state.initialized = true
+	state.playing = false
+	world.sprite_animation_states[entity] = state
+	return true
+}
+
+resume_sprite_animation :: proc(world: ^World, entity: Entity) -> bool {
+	state, found := world.sprite_animation_states[entity]
+	if !found {return false}
+	state.initialized = true
+	state.playing = true
+	world.sprite_animation_states[entity] = state
+	return true
+}
+
+stop_sprite_animation :: proc(world: ^World, entity: Entity) -> bool {
+	state, found := world.sprite_animation_states[entity]
+	if !found {return false}
+	state.elapsed = 0
+	state.frame = 0
+	state.initialized = true
+	state.playing = false
+	world.sprite_animation_states[entity] = state
+	return true
+}
+
+get_sprite_animation_state :: proc(
+	world: ^World,
+	entity: Entity,
+) -> (
+	Sprite_Animation_State,
+	bool,
+) {value, found := world.sprite_animation_states[entity]; return value, found}
+
+set_sprite_animation_state :: proc(
+	world: ^World,
+	entity: Entity,
+	value: Sprite_Animation_State,
+) -> bool {
+	if _, found := world.sprite_animators[entity]; !found {return false}
+	world.sprite_animation_states[entity] = value
+	return true
+}
 get_mesh_renderer :: proc(world: ^World, entity: Entity) -> (MeshRenderer, bool) {value, found :=
 		world.mesh_renderers[entity]
 	return value, found}
@@ -139,6 +234,7 @@ set_tilemap_renderer :: proc(
 	value: TilemapRenderer,
 ) -> bool {if !has_component_data(world, entity, "TilemapRenderer") {return false}
 	owned := clone_tilemap_renderer_storage(value)
+	owned.tileset = retain_scene_string(world, value.tileset)
 	owned.texture = retain_scene_string(world, value.texture)
 	destroy_tilemap_renderer_storage(world.tilemap_renderers[entity])
 	world.tilemap_renderers[entity] = owned

@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../schemas/input.schema.json",
+  "actions": {
+    "change_direction": [
+      { "type": "keyboard", "key": "SPACE" }
+    ],
+    "next_knight_clip": [
+      { "type": "keyboard", "key": "TAB" }
+    ]
+  },
+  "axes": {}
+}

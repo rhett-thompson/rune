@@ -1,0 +1,20 @@
+{
+  "$schema": "../../../schemas/tileset.schema.json",
+  "texture": "../assets/brackeys_platformer_assets/sprites/world_tileset.png",
+  "tile_size": [16, 16],
+  "tiles": {
+    "0": {
+      "name": "grass_block",
+      "source": [0, 0]
+    },
+    "1": {
+      "name": "stone_block",
+      "source": [2, 0]
+    },
+    "100": {
+      "name": "large_tree",
+      "source": [0, 3],
+      "size": [2, 4]
+    }
+  }
+}

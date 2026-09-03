@@ -7,6 +7,7 @@
   "properties": {
     "Transform": { "$ref": "#/$defs/transform" },
     "SpriteRenderer": { "$ref": "#/$defs/spriteRenderer" },
+    "SpriteAnimator": { "$ref": "#/$defs/spriteAnimator" },
     "MeshRenderer": { "$ref": "#/$defs/meshRenderer" },
     "SphereRenderer": { "$ref": "#/$defs/sphereRenderer" },
     "ModelRenderer": { "$ref": "#/$defs/modelRenderer" },
@@ -52,6 +53,12 @@
       "minItems": 3,
       "maxItems": 3
     },
+    "vec4": {
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 4,
+      "maxItems": 4
+    },
     "color": {
       "type": "array",
       "description": "RGBA color with channels from 0 through 255.",
@@ -76,7 +83,22 @@
       "type": "object",
       "properties": {
         "texture": { "type": "string", "minLength": 1 },
-        "origin": { "$ref": "#/$defs/vec2", "default": [0.5, 0.5] }
+        "origin": { "$ref": "#/$defs/vec2", "default": [0.5, 0.5] },
+        "source": { "$ref": "#/$defs/vec4", "default": [0, 0, 0, 0], "description": "Texture source rectangle. Zero width or height selects the full texture." },
+        "tint": { "$ref": "#/$defs/color", "default": [255, 255, 255, 255] },
+        "flip_x": { "type": "boolean", "default": false },
+        "flip_y": { "type": "boolean", "default": false }
+      },
+      "additionalProperties": false
+    },
+    "spriteAnimator": {
+      "type": "object",
+      "required": ["animation", "clip"],
+      "properties": {
+        "animation": { "type": "string", "minLength": 1 },
+        "clip": { "type": "string", "minLength": 1 },
+        "autoplay": { "type": "boolean", "default": true },
+        "speed": { "type": "number", "exclusiveMinimum": 0, "default": 1 }
       },
       "additionalProperties": false
     },
@@ -177,8 +199,13 @@
     },
     "tilemapRenderer": {
       "type": "object",
-      "required": ["texture", "tile_size", "grid"],
+      "required": ["grid"],
+      "anyOf": [
+        { "required": ["tileset"] },
+        { "required": ["texture", "tile_size"] }
+      ],
       "properties": {
+        "tileset": { "type": "string", "minLength": 1 },
         "texture": { "type": "string", "minLength": 1 },
         "tile_size": {
           "type": "array",

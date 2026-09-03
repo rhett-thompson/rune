@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "animation.schema.json",
+  "title": "Rune sprite animation",
+  "type": "object",
+  "required": ["texture", "frame_size", "clips"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "texture": { "type": "string", "minLength": 1 },
+    "frame_size": {
+      "type": "array",
+      "items": { "type": "integer", "exclusiveMinimum": 0 },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "clips": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "minLength": 1 },
+      "additionalProperties": { "$ref": "#/$defs/clip" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "clip": {
+      "type": "object",
+      "required": ["frames"],
+      "properties": {
+        "frames": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 0 },
+          "minItems": 1
+        },
+        "origin": {
+          "type": "array",
+          "description": "Pixel origin of this clip's local frame grid within the sprite sheet.",
+          "items": { "type": "integer", "minimum": 0 },
+          "minItems": 2,
+          "maxItems": 2,
+          "default": [0, 0]
+        },
+        "fps": { "type": "number", "exclusiveMinimum": 0, "default": 12 },
+        "loop": { "type": "boolean", "default": true }
+      },
+      "additionalProperties": false
+    }
+  }
+}

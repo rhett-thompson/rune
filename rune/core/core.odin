@@ -34,6 +34,8 @@ Hot_Reload_Settings :: struct {
 	textures:         bool,
 	models:           bool,
 	materials:        bool,
+	animations:       bool,
+	tilesets:         bool,
 }
 
 default_hot_reload_settings :: proc() -> Hot_Reload_Settings {
@@ -45,6 +47,8 @@ default_hot_reload_settings :: proc() -> Hot_Reload_Settings {
 		textures = true,
 		models = true,
 		materials = true,
+		animations = true,
+		tilesets = true,
 	}
 }
 
@@ -519,9 +523,11 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 		   reload_scene_if_changed(engine, world, engine.active_scene_path) {
 			run_scene_reload_systems(engine, world)
 		}
+		render.update_tilesets(world, &engine.assets)
 		run_fixed_pipeline(engine, world)
 		update_orbit_cameras_3d(engine, world)
 		run_update_systems(engine, world)
+		render.update_sprite_animators(world, &engine.assets, engine.delta_time)
 		audio.update(&engine.audio, world)
 
 		rl.BeginDrawing()
@@ -627,6 +633,16 @@ begin_frame :: proc(engine: ^Engine) {
 	   engine.project.hot_reload.enabled &&
 	   engine.project.hot_reload.materials {
 		assets.refresh_materials(&engine.assets)
+	}
+	if engine.hot_reload_due &&
+	   engine.project.hot_reload.enabled &&
+	   engine.project.hot_reload.animations {
+		assets.refresh_animations(&engine.assets)
+	}
+	if engine.hot_reload_due &&
+	   engine.project.hot_reload.enabled &&
+	   engine.project.hot_reload.tilesets {
+		assets.refresh_tilesets(&engine.assets)
 	}
 	flush_asset_diagnostics(engine)
 	if rl.IsKeyPressed(.F3) {

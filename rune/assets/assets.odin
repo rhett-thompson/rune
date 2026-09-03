@@ -66,6 +66,8 @@ Asset_Manager :: struct {
 	models:                   map[string]Model_Asset,
 	fonts:                    map[string]Font_Asset,
 	materials:                map[string]Material_Asset,
+	animations:               map[string]Animation_Asset,
+	tilesets:                 map[string]Tileset_Asset,
 	generated_orm_textures:   map[u64]Texture_Asset,
 	material_texture_watches: map[string]i64,
 	material_revision:        u64,
@@ -85,6 +87,8 @@ init :: proc(root: string) -> Asset_Manager {
 		models                   = make(map[string]Model_Asset),
 		fonts                    = make(map[string]Font_Asset),
 		materials                = make(map[string]Material_Asset),
+		animations               = make(map[string]Animation_Asset),
+		tilesets                 = make(map[string]Tileset_Asset),
 		generated_orm_textures   = make(map[u64]Texture_Asset),
 		material_texture_watches = make(map[string]i64),
 		material_revision        = 1,
@@ -1014,6 +1018,14 @@ shutdown :: proc(manager: ^Asset_Manager) {
 		data := asset.data
 		destroy_material_data(&data)
 	}
+	for _, asset in manager.animations {
+		data := asset.data
+		destroy_animation_data(&data)
+	}
+	for _, asset in manager.tilesets {
+		data := asset.data
+		destroy_tileset_data(&data)
+	}
 	if rl.IsTextureValid(manager.missing_texture) {
 		rl.UnloadTexture(manager.missing_texture)
 	}
@@ -1022,6 +1034,8 @@ shutdown :: proc(manager: ^Asset_Manager) {
 	delete(manager.models)
 	delete(manager.fonts)
 	delete(manager.materials)
+	delete(manager.animations)
+	delete(manager.tilesets)
 	delete(manager.material_texture_watches)
 	delete(manager.missing_textures)
 	destroy_diagnostic_log(&manager.diagnostics)

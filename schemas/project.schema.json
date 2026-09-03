@@ -31,7 +31,9 @@
         "prefabs": { "type": "boolean", "default": true },
         "textures": { "type": "boolean", "default": true },
         "models": { "type": "boolean", "default": true },
-        "materials": { "type": "boolean", "default": true }
+        "materials": { "type": "boolean", "default": true },
+        "animations": { "type": "boolean", "default": true },
+        "tilesets": { "type": "boolean", "default": true }
       },
       "additionalProperties": false
     },

@@ -64,6 +64,12 @@ register_builtin_components :: proc(registry: ^Component_Registry) -> bool {
 		SpriteRenderer,
 		"2D texture renderer",
 	)
+	sprite_animator_registered := register_builtin_component(
+		registry,
+		"SpriteAnimator",
+		SpriteAnimator,
+		"Sprite-sheet animation playback",
+	)
 	mesh_registered := register_builtin_component(
 		registry,
 		"MeshRenderer",
@@ -231,6 +237,7 @@ register_builtin_components :: proc(registry: ^Component_Registry) -> bool {
 	return(
 		transform_registered &&
 		sprite_registered &&
+		sprite_animator_registered &&
 		mesh_registered &&
 		sphere_registered &&
 		model_registered &&

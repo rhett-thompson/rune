@@ -1,0 +1,37 @@
+{
+  "$schema": "../../../schemas/animation.schema.json",
+  "texture": "../assets/brackeys_platformer_assets/sprites/knight.png",
+  "frame_size": [32, 32],
+  "clips": {
+    "idle": {
+      "origin": [0, 0],
+      "frames": [0, 1, 2, 3],
+      "fps": 6,
+      "loop": true
+    },
+    "run": {
+      "origin": [0, 64],
+      "frames": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "fps": 12,
+      "loop": true
+    },
+    "roll": {
+      "origin": [0, 160],
+      "frames": [0, 1, 2, 3, 4, 5, 6, 7],
+      "fps": 14,
+      "loop": false
+    },
+    "hit": {
+      "origin": [0, 192],
+      "frames": [0, 1, 2, 3],
+      "fps": 10,
+      "loop": false
+    },
+    "death": {
+      "origin": [0, 224],
+      "frames": [0, 1, 2, 3],
+      "fps": 8,
+      "loop": false
+    }
+  }
+}

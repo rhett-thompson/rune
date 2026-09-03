@@ -474,8 +474,11 @@ validate_tilemap_renderer :: proc() {
 	assert(found)
 	tilemap, has_tilemap := ecs.get_tilemap_renderer(&world, tilemap_entity)
 	assert(has_tilemap)
-	assert(tilemap.texture == "../sprite_scene_2d/assets/wallDark.png")
-	assert(tilemap.tile_size == [2]f32{16, 16})
+	assert(tilemap.tileset == "assets/world.tileset.json")
+	// The engine resolves texture and tile size from the tileset before the
+	// fixed/update pipeline. Standalone scene loading intentionally stays IO-only.
+	assert(len(tilemap.texture) == 0)
+	assert(tilemap.tile_size == [2]f32{})
 	assert(len(tilemap.tiles) > 0)
 }
 

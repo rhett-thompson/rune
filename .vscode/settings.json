@@ -19,6 +19,14 @@
     {
       "fileMatch": ["**/*.material.json"],
       "url": "./schemas/material.schema.json"
+    },
+    {
+      "fileMatch": ["**/*.animation.json"],
+      "url": "./schemas/animation.schema.json"
+    },
+    {
+      "fileMatch": ["**/*.tileset.json"],
+      "url": "./schemas/tileset.schema.json"
     }
   ]
 }

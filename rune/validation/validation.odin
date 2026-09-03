@@ -412,6 +412,15 @@ validate_components :: proc(
 				project_directory,
 			)
 		}
+		if name == "SpriteAnimator" {
+			validate_sprite_animator_clip(
+				report,
+				file,
+				field_path(path, name),
+				component,
+				project_directory,
+			)
+		}
 	}
 }
 
@@ -421,7 +430,7 @@ validate_component_assets :: proc(
 	component: json.Object,
 	project_directory: string,
 ) {
-	asset_fields := [4]string{"texture", "model", "font", "sound"}
+	asset_fields := [6]string{"texture", "model", "font", "sound", "animation", "tileset"}
 	for field in asset_fields {
 		asset_path, found := component[field]
 		if !found {continue}
@@ -435,6 +444,26 @@ validate_component_assets :: proc(
 				file,
 				field_path(path, field),
 				asset,
+				project_directory,
+			)
+			continue
+		}
+		if field == "animation" {
+			validate_animation_reference(
+				report,
+				file,
+				field_path(path, field),
+				asset_path,
+				project_directory,
+			)
+			continue
+		}
+		if field == "tileset" {
+			validate_tileset_reference(
+				report,
+				file,
+				field_path(path, field),
+				asset_path,
 				project_directory,
 			)
 			continue

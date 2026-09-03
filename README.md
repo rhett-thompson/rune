@@ -1,7 +1,7 @@
 # Rune
 
 Rune is a lightweight, code-first game engine written in Odin. Projects,
-scenes, prefabs, materials, and input mappings are readable JSON files;
+scenes, prefabs, materials, tilesets, sprite animations, and input mappings are readable JSON files;
 gameplay behavior remains Odin code.
 
 Rune uses raylib for its platform layer, 2D rendering, input, and audio; r3d
@@ -20,9 +20,9 @@ their game-specific fields are not completed by the built-in schemas.
 ## Current capabilities
 
 - raylib-backed engine lifecycle and registered update/draw systems;
-- JSON projects, scenes, prefabs, materials, input mappings, and schemas;
+- JSON projects, scenes, prefabs, materials, tilesets, sprite animations, input mappings, and schemas;
 - a typed ECS with reflected Odin/JSON custom components and hierarchy;
-- cached, hot-reloadable texture, model, material, font, and audio assets;
+- cached, hot-reloadable texture, model, material, tileset, sprite-animation, font, and audio assets;
 - scene-owned sprites, tilemaps, text, 3D models, PBR materials, lights, and shadows;
 - input actions and runtime rebinding, audio components, tweening, and navigation;
 - fixed-step Box2D physics and Box3D rigid bodies;
@@ -117,7 +117,7 @@ The new scene is loaded before the current one is disturbed. Rune then runs
 system shutdown callbacks, destroys the old World, installs the new World, and
 runs start callbacks. A load failure leaves the current scene running.
 
-`Transform`, `SpriteRenderer`, `MeshRenderer`, `SphereRenderer`, `Camera2D`, `Camera3D`, `AudioListener`, and `AudioPlayer` are data
+`Transform`, `SpriteRenderer`, `SpriteAnimator`, `MeshRenderer`, `SphereRenderer`, `Camera2D`, `Camera3D`, `AudioListener`, and `AudioPlayer` are data
 components. Their behavior stays in Odin systems, rather than turning scene
 JSON into scripts.
 
@@ -420,7 +420,7 @@ fail validation. Scene loading also rejects unregistered component names, so a
 misspelling cannot silently create a new component. Deliberately untyped data
 uses the explicit `ecs.register_data_component` compatibility API.
 
-The typed built-ins are `Transform`, `SpriteRenderer`, `MeshRenderer`,
+The typed built-ins are `Transform`, `SpriteRenderer`, `SpriteAnimator`, `MeshRenderer`,
 `SphereRenderer`, `Camera2D`, `Camera3D`, `AudioListener`, and `AudioPlayer`. Cameras use their entity's
 `Transform` for their position; only one camera of a given kind should be
 active at a time. Custom-component systems can read and modify `Transform` by
@@ -594,6 +594,53 @@ engine texture cache:
 odin run examples/sprite_scene_2d -collection:rune=rune
 ```
 
+## Sprite-sheet animation
+
+`SpriteRenderer` supports a source rectangle, RGBA tint, and horizontal or
+vertical flipping. Add `SpriteAnimator` to select a clip from a project-relative
+animation JSON asset. Animation assets declare one sprite sheet, its frame
+size, and named row-major frame sequences. A clip can optionally set a pixel
+`origin`; its frame indices are then local to the grid starting there. This
+keeps multiple strips at different sheet positions readable:
+
+```json
+{
+  "texture": "assets/knight.png",
+  "frame_size": [32, 32],
+  "clips": {
+    "idle": { "origin": [0, 0], "frames": [0, 1, 2, 3], "fps": 6 },
+    "run": {
+      "origin": [0, 64],
+      "frames": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "fps": 12
+    }
+  }
+}
+```
+
+Scenes keep only playback intent:
+
+```json
+"SpriteAnimator": {
+  "animation": "animations/knight.animation.json",
+  "clip": "idle",
+  "autoplay": true,
+  "speed": 1
+}
+```
+
+Odin systems can call `ecs.play_sprite_animation`,
+`ecs.pause_sprite_animation`, `ecs.resume_sprite_animation`, and
+`ecs.stop_sprite_animation`. Run the complete example with:
+
+```powershell
+odin run examples/sprite_animation_2d -collection:rune=rune
+```
+
+The example animates both the coin and knight sheets. Press `Tab` to cycle the
+knight through `idle`, `run`, `roll`, `hit`, and `death`; press `Space` to
+reverse the coin clip.
+
 ## Prefabs
 
 Scenes can instantiate a prefab using a path relative to the scene file. The
@@ -636,11 +683,15 @@ following when the block is omitted:
   "scenes": true,
   "prefabs": true,
   "textures": true,
-  "models": true
+  "models": true,
+  "materials": true,
+  "animations": true,
+  "tilesets": true
 }
 ```
 
-Texture reload respects `textures`. The normal engine-owned `rune.run(&game)`
+Texture, model, material, tileset, and animation reload use their corresponding flags.
+The normal engine-owned `rune.run(&game)`
 workflow watches the active scene automatically. Component-value-only edits
 are applied to the existing World; structural edits rebuild it and invoke each
 system's `on_scene_reloaded` callback so cached entity handles can be
@@ -828,13 +879,34 @@ show static collision boxes.
 ## 2D tilemaps
 
 `TilemapRenderer` draws a JSON grid from a texture atlas. Each non-negative
-cell selects an atlas tile; `-1` leaves that cell empty.
+cell selects a tile ID; `-1` leaves that cell empty. The legacy inline texture
+and tile size remain supported, while reusable tilesets keep atlas metadata in
+one hot-reloadable file:
+
+```json
+{
+  "texture": "assets/world_tileset.png",
+  "tile_size": [16, 16],
+  "tiles": {
+    "0": { "name": "grass", "source": [0, 0] },
+    "100": {
+      "name": "tree_cluster",
+      "source": [0, 3],
+      "size": [2, 4]
+    }
+  }
+}
+```
+
+`source` is the top-left atlas cell. `size` defaults to `[1, 1]` and lets one
+sprite span several tile cells. Its map cell is the top-left anchor; leave any
+cells underneath the larger artwork empty when it should not overlap another
+tile.
 
 ```json
 "TilemapRenderer": {
-  "texture": "assets/tiles/dungeon.png",
-  "tile_size": [16, 16],
-  "grid": [[0, 0, -1], [0, 1, 0]]
+  "tileset": "assets/world.tileset.json",
+  "grid": [[0, 0, -1], [0, 100, -1]]
 }
 ```
 
@@ -844,7 +916,9 @@ Run the example with:
 odin run examples/tilemap_2d -collection:rune=rune
 ```
 
-`TilemapCollider` uses the same grid and blocks indices in `solid_tiles`.
+`TilemapCollider` uses the same grid and blocks IDs in `solid_tiles`. Collision
+remains cell-based: a multi-cell visual is one anchored tile unless additional
+occupied cells are authored for collision.
 `TopDownController` gives an entity a 2D collision size and movement speed;
 game code supplies input deltas to `ecs.move_top_down`, which resolves X and Y
 separately for wall sliding. Run the collision example with:

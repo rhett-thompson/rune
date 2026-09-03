@@ -1,0 +1,53 @@
+{
+  "$schema": "../../../schemas/scene.schema.json",
+  "name": "Sprite Animation 2D",
+  "entities": [
+    {
+      "id": "camera",
+      "name": "Camera",
+      "components": {
+        "Transform": { "position": [0, 0, 0] },
+        "Camera2D": { "offset": [0, 0], "zoom": 1, "active": true }
+      }
+    },
+    {
+      "id": "knight",
+      "name": "Animated Knight",
+      "components": {
+        "Transform": {
+          "position": [300, 270, 0],
+          "scale": [5, 5, 1]
+        },
+        "SpriteRenderer": {
+          "origin": [0.5, 0.5]
+        },
+        "SpriteAnimator": {
+          "animation": "animations/knight.animation.json",
+          "clip": "idle",
+          "autoplay": true,
+          "speed": 1
+        }
+      }
+    },
+    {
+      "id": "coin",
+      "name": "Animated Coin",
+      "components": {
+        "Transform": {
+          "position": [660, 270, 0],
+          "scale": [10, 10, 1]
+        },
+        "SpriteRenderer": {
+          "origin": [0.5, 0.5],
+          "tint": [255, 238, 128, 255]
+        },
+        "SpriteAnimator": {
+          "animation": "animations/coin.animation.json",
+          "clip": "spin",
+          "autoplay": true,
+          "speed": 1
+        }
+      }
+    }
+  ]
+}

@@ -10,6 +10,27 @@ Color :: struct {
 SpriteRenderer :: struct {
 	texture: string,
 	origin:  [2]f32,
+	source:  [4]f32,
+	tint:    Color,
+	flip_x:  bool,
+	flip_y:  bool,
+}
+
+// SpriteAnimator selects a declarative clip from an animation asset. Playback
+// state remains runtime-only so saving scene JSON never serializes frame time.
+SpriteAnimator :: struct {
+	animation: string,
+	clip:      string,
+	autoplay:  bool,
+	speed:     f32,
+}
+
+Sprite_Animation_State :: struct {
+	elapsed:        f32,
+	frame:          int,
+	asset_revision: u64,
+	initialized:    bool,
+	playing:        bool,
 }
 
 MeshRenderer :: struct {
@@ -38,11 +59,13 @@ Tilemap_Tile :: struct {
 }
 
 TilemapRenderer :: struct {
-	texture:      string,
-	tile_size:    [2]f32,
-	grid_size:    [2]i32,
-	tiles:        []Tilemap_Tile,
-	tile_indices: map[[2]i32]i32,
+	tileset:          string,
+	texture:          string,
+	tile_size:        [2]f32,
+	tileset_revision: u64,
+	grid_size:        [2]i32,
+	tiles:            []Tilemap_Tile,
+	tile_indices:     map[[2]i32]i32,
 }
 
 TextRenderer :: struct {
@@ -59,6 +82,7 @@ sprite_renderer_from_json :: proc(data: json.Value) -> (SpriteRenderer, bool) {
 	if !ok {return {}, false}
 	result := SpriteRenderer {
 		origin = {0.5, 0.5},
+		tint   = {255, 255, 255, 255},
 	}
 	if value, found := object["texture"]; found {
 		result.texture, ok = value.(json.String)
@@ -66,6 +90,43 @@ sprite_renderer_from_json :: proc(data: json.Value) -> (SpriteRenderer, bool) {
 	}
 	if value, found := object["origin"];
 	   found && !read_vector2(value, &result.origin) {return {}, false}
+	if value, found := object["source"];
+	   found && !read_vector4(value, &result.source) {return {}, false}
+	if result.source[2] < 0 || result.source[3] < 0 {return {}, false}
+	if value, found := object["tint"]; found && !read_color(value, &result.tint) {return {}, false}
+	if value, found := object["flip_x"]; found {
+		result.flip_x, ok = value.(json.Boolean)
+		if !ok {return {}, false}
+	}
+	if value, found := object["flip_y"]; found {
+		result.flip_y, ok = value.(json.Boolean)
+		if !ok {return {}, false}
+	}
+	return result, true
+}
+
+sprite_animator_from_json :: proc(data: json.Value) -> (SpriteAnimator, bool) {
+	object, ok := data.(json.Object)
+	if !ok {return {}, false}
+	result := SpriteAnimator {
+		autoplay = true,
+		speed    = 1,
+	}
+	animation, has_animation := object["animation"]
+	clip, has_clip := object["clip"]
+	if !has_animation || !has_clip {return {}, false}
+	result.animation, ok = animation.(json.String)
+	if !ok || len(result.animation) == 0 {return {}, false}
+	result.clip, ok = clip.(json.String)
+	if !ok || len(result.clip) == 0 {return {}, false}
+	if value, found := object["autoplay"]; found {
+		result.autoplay, ok = value.(json.Boolean)
+		if !ok {return {}, false}
+	}
+	if value, found := object["speed"]; found {
+		result.speed, ok = read_number(value)
+		if !ok || result.speed <= 0 {return {}, false}
+	}
 	return result, true
 }
 
@@ -152,13 +213,22 @@ tilemap_renderer_from_json :: proc(data: json.Value) -> (TilemapRenderer, bool) 
 	object, ok := data.(json.Object)
 	if !ok {return {}, false}
 	result := TilemapRenderer{}
-	texture, has_texture := object["texture"]
-	if !has_texture {return {}, false}
-	result.texture, ok = texture.(json.String)
-	if !ok || len(result.texture) == 0 {return {}, false}
-	if value, found := object["tile_size"];
-	   !found || !read_vector2(value, &result.tile_size) {return {}, false}
-	if result.tile_size[0] <= 0 || result.tile_size[1] <= 0 {return {}, false}
+	if value, found := object["tileset"]; found {
+		result.tileset, ok = value.(json.String)
+		if !ok || len(result.tileset) == 0 {return {}, false}
+	}
+	if value, found := object["texture"]; found {
+		result.texture, ok = value.(json.String)
+		if !ok || len(result.texture) == 0 {return {}, false}
+	}
+	if value, found := object["tile_size"]; found {
+		if !read_vector2(value, &result.tile_size) {return {}, false}
+		if result.tile_size[0] <= 0 || result.tile_size[1] <= 0 {return {}, false}
+	}
+	if len(result.tileset) == 0 &&
+	   (len(result.texture) == 0 || result.tile_size[0] <= 0 || result.tile_size[1] <= 0) {
+		return {}, false
+	}
 	grid, has_grid := object["grid"]
 	if !has_grid {return {}, false}
 	rows, rows_ok := grid.(json.Array)
@@ -216,6 +286,17 @@ text_renderer_from_json :: proc(data: json.Value) -> (TextRenderer, bool) {
 read_vector2 :: proc(data: json.Value, result: ^[2]f32) -> bool {
 	array, ok := data.(json.Array)
 	if !ok || len(array) != 2 {return false}
+	for value, index in array {
+		number, number_ok := read_number(value)
+		if !number_ok {return false}
+		result[index] = number
+	}
+	return true
+}
+
+read_vector4 :: proc(data: json.Value, result: ^[4]f32) -> bool {
+	array, ok := data.(json.Array)
+	if !ok || len(array) != 4 {return false}
 	for value, index in array {
 		number, number_ok := read_number(value)
 		if !number_ok {return false}

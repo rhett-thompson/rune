@@ -74,6 +74,8 @@ World :: struct {
 	scene_strings:               map[string]string,
 	transforms:                  map[Entity]Transform,
 	sprite_renderers:            map[Entity]SpriteRenderer,
+	sprite_animators:            map[Entity]SpriteAnimator,
+	sprite_animation_states:     map[Entity]Sprite_Animation_State,
 	mesh_renderers:              map[Entity]MeshRenderer,
 	sphere_renderers:            map[Entity]SphereRenderer,
 	model_renderers:             map[Entity]ModelRenderer,
@@ -146,6 +148,8 @@ init :: proc() -> World {
 		scene_strings = make(map[string]string),
 		transforms = make(map[Entity]Transform),
 		sprite_renderers = make(map[Entity]SpriteRenderer),
+		sprite_animators = make(map[Entity]SpriteAnimator),
+		sprite_animation_states = make(map[Entity]Sprite_Animation_State),
 		mesh_renderers = make(map[Entity]MeshRenderer),
 		sphere_renderers = make(map[Entity]SphereRenderer),
 		model_renderers = make(map[Entity]ModelRenderer),
@@ -211,6 +215,8 @@ destroy :: proc(world: ^World) {
 	delete(world.scene_strings)
 	delete(world.transforms)
 	delete(world.sprite_renderers)
+	delete(world.sprite_animators)
+	delete(world.sprite_animation_states)
 	delete(world.mesh_renderers)
 	delete(world.sphere_renderers)
 	delete(world.model_renderers)
@@ -361,6 +367,7 @@ add_component_owned :: proc(
 
 	transform: Transform
 	sprite_renderer: SpriteRenderer
+	sprite_animator: SpriteAnimator
 	mesh_renderer: MeshRenderer
 	sphere_renderer: SphereRenderer
 	model_renderer: ModelRenderer
@@ -396,6 +403,8 @@ add_component_owned :: proc(
 	}
 	if name ==
 	   "SpriteRenderer" {sprite_renderer, parse_ok = sprite_renderer_from_json(data); if !parse_ok {return false}}
+	if name ==
+	   "SpriteAnimator" {sprite_animator, parse_ok = sprite_animator_from_json(data); if !parse_ok {return false}}
 	if name ==
 	   "MeshRenderer" {mesh_renderer, parse_ok = mesh_renderer_from_json(data); if !parse_ok {return false}}
 	if name ==
@@ -469,6 +478,10 @@ add_component_owned :: proc(
 		world.transforms[entity] = transform
 	}
 	if name == "SpriteRenderer" {world.sprite_renderers[entity] = sprite_renderer}
+	if name == "SpriteAnimator" {
+		world.sprite_animators[entity] = sprite_animator
+		world.sprite_animation_states[entity] = {}
+	}
 	if name == "MeshRenderer" {world.mesh_renderers[entity] = mesh_renderer}
 	if name == "SphereRenderer" {world.sphere_renderers[entity] = sphere_renderer}
 	if name == "ModelRenderer" {world.model_renderers[entity] = model_renderer}
@@ -549,6 +562,10 @@ remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
 		delete_key(&world.transforms, entity)
 	}
 	if name == "SpriteRenderer" {delete_key(&world.sprite_renderers, entity)}
+	if name == "SpriteAnimator" {
+		delete_key(&world.sprite_animators, entity)
+		delete_key(&world.sprite_animation_states, entity)
+	}
 	if name == "MeshRenderer" {delete_key(&world.mesh_renderers, entity)}
 	if name == "SphereRenderer" {delete_key(&world.sphere_renderers, entity)}
 	if name == "ModelRenderer" {

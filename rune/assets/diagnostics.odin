@@ -8,6 +8,8 @@ Asset_Kind :: enum {
 	Font,
 	Material,
 	Model,
+	Animation,
+	Tileset,
 }
 
 Asset_Operation :: enum {
@@ -173,6 +175,10 @@ asset_kind_name :: proc(kind: Asset_Kind) -> string {
 		return "material"
 	case .Model:
 		return "model"
+	case .Animation:
+		return "animation"
+	case .Tileset:
+		return "tileset"
 	}
 	return "asset"
 }
