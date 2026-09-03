@@ -1,7 +1,7 @@
 package main
 
-import "core:fmt"
 import "core:encoding/json"
+import "core:fmt"
 import rune "rune:core"
 import "rune:ecs"
 import "rune:scene"
@@ -9,19 +9,32 @@ import "rune:scene"
 main :: proc() {
 	validate_hello_world_value_reload()
 	validate_textured_model_light_edit()
+	validate_repeated_value_reload()
 	fmt.println("Scene value reload validation passed")
 }
 
 validate_hello_world_value_reload :: proc() {
 	registry := ecs.init_registry()
+	defer ecs.destroy_registry(&registry)
 	assert(ecs.register_builtin_components(&registry))
-	assert(ecs.register_data_component(&registry, "Greeting", "Hello-world reload validation data"))
+	assert(
+		ecs.register_data_component(&registry, "Greeting", "Hello-world reload validation data"),
+	)
 	project, project_loaded := rune.load_project("examples/hello_world/project.json")
 	assert(project_loaded)
 
-	world, loaded := scene.load_with_layers("examples/hello_world/scenes/main.scene.json", &registry, project.layers)
+	world, loaded := scene.load_with_layers(
+		"examples/hello_world/scenes/main.scene.json",
+		&registry,
+		project.layers,
+	)
 	assert(loaded)
-	snapshot, snapshot_loaded := scene.load_with_layers("examples/hello_world/scenes/main.scene.json", &registry, project.layers)
+	defer ecs.destroy(&world)
+	snapshot, snapshot_loaded := scene.load_with_layers(
+		"examples/hello_world/scenes/main.scene.json",
+		&registry,
+		project.layers,
+	)
 	assert(snapshot_loaded)
 
 	greeting, found := ecs.find_entity_by_id(&world, "greeting")
@@ -38,24 +51,37 @@ validate_hello_world_value_reload :: proc() {
 	set_component_json(&snapshot, snapshot_greeting, "Transform", `{"position":[96,64,0]}`)
 
 	assert(ecs.apply_value_snapshot(&world, &snapshot))
+	assert(snapshot.scene_data_arena == nil && snapshot.scene_strings == nil)
+	ecs.destroy(&snapshot)
+	ecs.destroy(&snapshot)
 	greeting_after, found_after := ecs.find_entity_by_id(&world, "greeting")
 	assert(found_after && greeting_after == greeting)
 	updated_transform, updated := ecs.get_transform(&world, greeting)
 	assert(updated && updated_transform.position[0] == transform.position[0])
 
-	structural_snapshot, structural_loaded := scene.load_with_layers("examples/hello_world/scenes/main.scene.json", &registry, project.layers)
+	structural_snapshot, structural_loaded := scene.load_with_layers(
+		"examples/hello_world/scenes/main.scene.json",
+		&registry,
+		project.layers,
+	)
 	assert(structural_loaded)
+	defer ecs.destroy(&structural_snapshot)
 	_ = ecs.create_entity(&structural_snapshot)
 	assert(!ecs.apply_value_snapshot(&world, &structural_snapshot))
 }
 
 validate_textured_model_light_edit :: proc() {
 	registry := ecs.init_registry()
+	defer ecs.destroy_registry(&registry)
 	assert(ecs.register_builtin_components(&registry))
 
 	world, loaded := scene.load("examples/textured_model_3d/scenes/main.scene.json", &registry)
 	assert(loaded)
-	snapshot, snapshot_loaded := scene.load("examples/textured_model_3d/scenes/main.scene.json", &registry)
+	defer ecs.destroy(&world)
+	snapshot, snapshot_loaded := scene.load(
+		"examples/textured_model_3d/scenes/main.scene.json",
+		&registry,
+	)
 	assert(snapshot_loaded)
 
 	camera, camera_found := ecs.find_entity_by_id(&world, "camera")
@@ -82,17 +108,58 @@ validate_textured_model_light_edit :: proc() {
 	set_component_json(&snapshot, snapshot_light, "Transform", `{"position":[4.2,1.75,1.25]}`)
 
 	assert(ecs.apply_value_snapshot(&world, &snapshot))
+	assert(snapshot.scene_data_arena == nil && snapshot.scene_strings == nil)
+	ecs.destroy(&snapshot)
 	camera_after, _ := ecs.get_transform(&world, camera)
 	crate_after, _ := ecs.get_transform(&world, crate)
 	light_after, _ := ecs.get_transform(&world, light)
 	assert(camera_after.position == camera_transform.position)
 	assert(crate_after.rotation[1] == crate_transform.rotation[1])
 	assert(light_after.position[0] == light_transform.position[0])
+	model, model_found := ecs.get_model_renderer(&world, crate)
+	assert(model_found && model.model == "assets/models/crate.obj")
+}
+
+validate_repeated_value_reload :: proc() {
+	registry := ecs.init_registry()
+	defer ecs.destroy_registry(&registry)
+	assert(ecs.register_builtin_components(&registry))
+	world, loaded := scene.load("examples/textured_model_3d/scenes/main.scene.json", &registry)
+	assert(loaded)
+	defer ecs.destroy(&world)
+	camera, found := ecs.find_entity_by_id(&world, "camera")
+	assert(found)
+	transform, has_transform := ecs.get_transform(&world, camera)
+	assert(has_transform)
+	transform.position = {12, 9, 8}
+	assert(ecs.set_transform(&world, camera, transform))
+	for _ in 0 ..< 16 {
+		snapshot, snapshot_loaded := scene.load(
+			"examples/textured_model_3d/scenes/main.scene.json",
+			&registry,
+		)
+		assert(snapshot_loaded)
+		assert(ecs.apply_value_snapshot(&world, &snapshot))
+		ecs.destroy(&snapshot)
+		preserved, preserved_ok := ecs.get_transform(&world, camera)
+		assert(preserved_ok && preserved.position == transform.position)
+		model_entity, model_found := ecs.find_entity_by_id(&world, "crate")
+		assert(model_found)
+		model, renderer_found := ecs.get_model_renderer(&world, model_entity)
+		assert(renderer_found && model.material == "assets/materials/crate.material.json")
+	}
 }
 
 set_component_json :: proc(world: ^ecs.World, entity: ecs.Entity, component_name, text: string) {
 	value: json.Value
-	assert(json.unmarshal(transmute([]byte)text, &value) == nil)
+	assert(
+		json.unmarshal(
+			transmute([]byte)text,
+			&value,
+			allocator = ecs.scene_data_allocator(world),
+		) ==
+		nil,
+	)
 	components := world.component_data[component_name]
 	components[entity] = value
 	world.component_data[component_name] = components

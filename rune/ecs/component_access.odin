@@ -28,7 +28,9 @@ set_sprite_renderer :: proc(
 	entity: Entity,
 	value: SpriteRenderer,
 ) -> bool {if !has_component_data(world, entity, "SpriteRenderer") {return false}
-	world.sprite_renderers[entity] = value
+	owned := value
+	owned.texture = retain_scene_string(world, value.texture)
+	world.sprite_renderers[entity] = owned
 	return true}
 get_mesh_renderer :: proc(world: ^World, entity: Entity) -> (MeshRenderer, bool) {value, found :=
 		world.mesh_renderers[entity]
@@ -38,7 +40,10 @@ set_mesh_renderer :: proc(
 	entity: Entity,
 	value: MeshRenderer,
 ) -> bool {if !has_component_data(world, entity, "MeshRenderer") {return false}
-	world.mesh_renderers[entity] = value
+	owned := value
+	owned.primitive = retain_scene_string(world, value.primitive)
+	owned.material = retain_scene_string(world, value.material)
+	world.mesh_renderers[entity] = owned
 	return true}
 get_sphere_renderer :: proc(
 	world: ^World,
@@ -52,7 +57,9 @@ set_sphere_renderer :: proc(
 	entity: Entity,
 	value: SphereRenderer,
 ) -> bool {if !has_component_data(world, entity, "SphereRenderer") {return false}
-	world.sphere_renderers[entity] = value
+	owned := value
+	owned.material = retain_scene_string(world, value.material)
+	world.sphere_renderers[entity] = owned
 	return true}
 get_model_renderer :: proc(
 	world: ^World,
@@ -66,7 +73,14 @@ set_model_renderer :: proc(
 	entity: Entity,
 	value: ModelRenderer,
 ) -> bool {if !has_component_data(world, entity, "ModelRenderer") {return false}
-	world.model_renderers[entity] = value
+	owned := clone_model_renderer_storage(value)
+	owned.model = retain_scene_string(world, value.model)
+	owned.material = retain_scene_string(world, value.material)
+	for slot, path in owned.materials {
+		owned.materials[slot] = retain_scene_string(world, path)
+	}
+	destroy_model_renderer_storage(world.model_renderers[entity])
+	world.model_renderers[entity] = owned
 	return true}
 get_ambient_light :: proc(world: ^World, entity: Entity) -> (AmbientLight, bool) {value, found :=
 		world.ambient_lights[entity]
@@ -124,7 +138,10 @@ set_tilemap_renderer :: proc(
 	entity: Entity,
 	value: TilemapRenderer,
 ) -> bool {if !has_component_data(world, entity, "TilemapRenderer") {return false}
-	world.tilemap_renderers[entity] = value
+	owned := clone_tilemap_renderer_storage(value)
+	owned.texture = retain_scene_string(world, value.texture)
+	destroy_tilemap_renderer_storage(world.tilemap_renderers[entity])
+	world.tilemap_renderers[entity] = owned
 	return true}
 get_text_renderer :: proc(world: ^World, entity: Entity) -> (TextRenderer, bool) {value, found :=
 		world.text_renderers[entity]
@@ -134,7 +151,10 @@ set_text_renderer :: proc(
 	entity: Entity,
 	value: TextRenderer,
 ) -> bool {if !has_component_data(world, entity, "TextRenderer") {return false}
-	world.text_renderers[entity] = value
+	owned := value
+	owned.text = retain_scene_string(world, value.text)
+	owned.font = retain_scene_string(world, value.font)
+	world.text_renderers[entity] = owned
 	return true}
 get_tilemap_collider :: proc(
 	world: ^World,
@@ -148,7 +168,9 @@ set_tilemap_collider :: proc(
 	entity: Entity,
 	value: TilemapCollider,
 ) -> bool {if !has_component_data(world, entity, "TilemapCollider") {return false}
-	world.tilemap_colliders[entity] = value
+	owned := clone_tilemap_collider_storage(value)
+	destroy_tilemap_collider_storage(world.tilemap_colliders[entity])
+	world.tilemap_colliders[entity] = owned
 	return true}
 get_top_down_controller :: proc(
 	world: ^World,
@@ -172,7 +194,9 @@ set_rigid_body_2d :: proc(
 	entity: Entity,
 	value: RigidBody2D,
 ) -> bool {if !has_component_data(world, entity, "RigidBody2D") {return false}
-	world.rigid_bodies_2d[entity] = value
+	owned := value
+	owned.body_type = retain_scene_string(world, value.body_type)
+	world.rigid_bodies_2d[entity] = owned
 	return true}
 get_box_collider_2d :: proc(
 	world: ^World,
@@ -196,7 +220,9 @@ set_rigid_body_3d :: proc(
 	entity: Entity,
 	value: RigidBody3D,
 ) -> bool {if !has_component_data(world, entity, "RigidBody3D") {return false}
-	world.rigid_bodies_3d[entity] = value
+	owned := value
+	owned.body_type = retain_scene_string(world, value.body_type)
+	world.rigid_bodies_3d[entity] = owned
 	return true}
 get_box_collider :: proc(world: ^World, entity: Entity) -> (BoxCollider, bool) {value, found :=
 		world.box_colliders[entity]
@@ -288,7 +314,12 @@ set_orbit_camera_3d :: proc(
 	entity: Entity,
 	value: OrbitCamera3D,
 ) -> bool {if !has_component_data(world, entity, "OrbitCamera3D") {return false}
-	world.orbit_cameras_3d[entity] = value
+	owned := value
+	owned.manual_action = retain_scene_string(world, value.manual_action)
+	owned.yaw_axis = retain_scene_string(world, value.yaw_axis)
+	owned.pitch_axis = retain_scene_string(world, value.pitch_axis)
+	owned.zoom_axis = retain_scene_string(world, value.zoom_axis)
+	world.orbit_cameras_3d[entity] = owned
 	return true}
 get_audio_listener :: proc(
 	world: ^World,
@@ -326,7 +357,10 @@ set_audio_player :: proc(
 		name   = instance_name,
 	}
 	if _, found := world.audio_players[key]; !found {return false}
-	world.audio_players[key] = value
+	key.name = retain_scene_string(world, instance_name)
+	owned := value
+	owned.sound = retain_scene_string(world, value.sound)
+	world.audio_players[key] = owned
 	return true
 }
 get_nav_grid_2d :: proc(world: ^World, entity: Entity) -> (NavGrid2D, bool) {value, found :=

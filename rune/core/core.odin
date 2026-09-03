@@ -293,8 +293,7 @@ layer_names :: proc(engine: ^Engine) -> map[string]u8 {
 load_scene :: proc(engine: ^Engine, path: string) -> (ecs.World, bool) {
 	world, loaded := scene.load_with_layers(path, &engine.registry, engine.project.layers)
 	if loaded {
-		engine.active_scene_path = path
-		watch_scene(engine, path)
+		engine.active_scene_path = watch_scene(engine, path)
 	}
 	return world, loaded
 }
@@ -334,8 +333,7 @@ change_scene :: proc(engine: ^Engine, path: string) -> bool {
 	ecs.destroy(&engine.active_world)
 	engine.active_world = next_world
 	engine.has_active_world = true
-	engine.active_scene_path = resolved_path
-	watch_scene(engine, resolved_path)
+	engine.active_scene_path = watch_scene(engine, resolved_path)
 	if engine.scene_loop_active {run_start_systems(engine, &engine.active_world)}
 	return true
 }
@@ -361,24 +359,52 @@ reload_scene_if_changed :: proc(engine: ^Engine, world: ^ecs.World, path: string
 	if !loaded {return false}
 	if ecs.apply_value_snapshot(world, &reloaded) {
 		ecs.destroy(&reloaded)
-		watch_scene(engine, path)
+		engine.active_scene_path = watch_scene(engine, path)
 		return false
 	}
 	ecs.destroy(world)
 	world^ = reloaded
-	watch_scene(engine, path)
+	engine.active_scene_path = watch_scene(engine, path)
 	return true
 }
 
-watch_scene :: proc(engine: ^Engine, path: string) {
+watch_scene :: proc(engine: ^Engine, path: string) -> string {
+	owned_scene_path := ""
+	for watched_path in engine.scene_watches {
+		if watched_path == path {
+			owned_scene_path = watched_path
+			break
+		}
+	}
+	if len(owned_scene_path) == 0 {
+		owned_scene_path, _ = strings.clone(path)
+	}
+	if previous, watched := engine.scene_watches[owned_scene_path]; watched {
+		destroy_scene_watch(previous)
+		delete_key(&engine.scene_watches, owned_scene_path)
+	}
 	paths, found := scene.dependency_paths(path)
-	if !found {return}
+	if !found {
+		engine.scene_watches[owned_scene_path] = make(map[string]i64)
+		return owned_scene_path
+	}
+	defer scene.destroy_dependency_paths(paths)
 	watch := make(map[string]i64)
 	for dependency_path in paths {
 		if dependency_path != path && !engine.project.hot_reload.prefabs {continue}
-		watch[dependency_path] = file_modified_time(dependency_path)
+		owned_dependency, _ := strings.clone(dependency_path)
+		watch[owned_dependency] = file_modified_time(dependency_path)
 	}
-	engine.scene_watches[path] = watch
+	engine.scene_watches[owned_scene_path] = watch
+	return owned_scene_path
+}
+
+destroy_scene_watch :: proc(watch: map[string]i64) {
+	paths := make([dynamic]string)
+	defer delete(paths)
+	for path in watch {append(&paths, path)}
+	delete(watch)
+	for path in paths {delete(path)}
 }
 
 scene_changed :: proc(engine: ^Engine, path: string) -> bool {
@@ -621,8 +647,14 @@ shutdown :: proc(engine: ^Engine) {
 		audio.shutdown(&engine.audio)
 		assets.shutdown(&engine.assets)
 		ecs.destroy_registry(&engine.registry)
-		for _, watch in engine.scene_watches {delete(watch)}
+		scene_paths := make([dynamic]string)
+		for path, watch in engine.scene_watches {
+			append(&scene_paths, path)
+			destroy_scene_watch(watch)
+		}
 		delete(engine.scene_watches)
+		for path in scene_paths {delete(path)}
+		delete(scene_paths)
 		delete(engine.systems)
 		rl.CloseWindow()
 		engine.is_running = false

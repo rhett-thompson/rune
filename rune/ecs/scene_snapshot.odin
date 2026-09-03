@@ -2,11 +2,24 @@ package ecs
 
 import "core:encoding/json"
 import "core:mem"
+import "core:strings"
 
 // set_scene_json stores the full root scene JSON document on the World. Scene
 // loading calls this so game code can access scene-owned global settings.
 set_scene_json :: proc(world: ^World, value: json.Value) {
-	world.scene_json = value
+	world.scene_json = json.clone_value(value, scene_data_allocator(world))
+}
+
+scene_data_allocator :: proc(world: ^World) -> mem.Allocator {
+	return mem.dynamic_arena_allocator(world.scene_data_arena)
+}
+
+retain_scene_string :: proc(world: ^World, value: string) -> string {
+	if len(value) == 0 {return ""}
+	if owned, found := world.scene_strings[value]; found {return owned}
+	owned, _ := strings.clone(value, scene_data_allocator(world))
+	world.scene_strings[owned] = owned
+	return owned
 }
 
 // apply_value_snapshot updates metadata and component values from a freshly
@@ -37,6 +50,7 @@ apply_value_snapshot :: proc(world: ^World, snapshot: ^World) -> bool {
 	apply_changed_component_values(world, snapshot, entity_translation)
 	apply_changed_component_instance_values(world, snapshot, entity_translation)
 	world.scene_json = snapshot.scene_json
+	adopt_snapshot_storage(world, snapshot, entity_translation)
 	return true
 }
 
@@ -190,8 +204,13 @@ apply_snapshot_component_value :: proc(
 	   "MeshRenderer" {world.mesh_renderers[target_entity] = snapshot.mesh_renderers[snapshot_entity]}
 	if name ==
 	   "SphereRenderer" {world.sphere_renderers[target_entity] = snapshot.sphere_renderers[snapshot_entity]}
-	if name ==
-	   "ModelRenderer" {world.model_renderers[target_entity] = snapshot.model_renderers[snapshot_entity]}
+	if name == "ModelRenderer" {
+		current := world.model_renderers[target_entity]
+		if current.materials != nil {delete(current.materials)}
+		world.model_renderers[target_entity] = clone_model_renderer_storage(
+			snapshot.model_renderers[snapshot_entity],
+		)
+	}
 	if name ==
 	   "AmbientLight" {world.ambient_lights[target_entity] = snapshot.ambient_lights[snapshot_entity]}
 	if name ==
@@ -200,12 +219,23 @@ apply_snapshot_component_value :: proc(
 	   "PointLight" {world.point_lights[target_entity] = snapshot.point_lights[snapshot_entity]}
 	if name ==
 	   "SpotLight" {world.spot_lights[target_entity] = snapshot.spot_lights[snapshot_entity]}
-	if name ==
-	   "TilemapRenderer" {world.tilemap_renderers[target_entity] = snapshot.tilemap_renderers[snapshot_entity]}
+	if name == "TilemapRenderer" {
+		current := world.tilemap_renderers[target_entity]
+		if current.tiles != nil {delete(current.tiles)}
+		if current.tile_indices != nil {delete(current.tile_indices)}
+		world.tilemap_renderers[target_entity] = clone_tilemap_renderer_storage(
+			snapshot.tilemap_renderers[snapshot_entity],
+		)
+	}
 	if name ==
 	   "TextRenderer" {world.text_renderers[target_entity] = snapshot.text_renderers[snapshot_entity]}
-	if name ==
-	   "TilemapCollider" {world.tilemap_colliders[target_entity] = snapshot.tilemap_colliders[snapshot_entity]}
+	if name == "TilemapCollider" {
+		current := world.tilemap_colliders[target_entity]
+		if current.solid_tiles != nil {delete(current.solid_tiles)}
+		world.tilemap_colliders[target_entity] = clone_tilemap_collider_storage(
+			snapshot.tilemap_colliders[snapshot_entity],
+		)
+	}
 	if name ==
 	   "TopDownController" {world.top_down_controllers[target_entity] = snapshot.top_down_controllers[snapshot_entity]}
 	if name ==
@@ -234,6 +264,229 @@ apply_snapshot_component_value :: proc(
 	   "NavGrid2D" {world.nav_grids_2d[target_entity] = snapshot.nav_grids_2d[snapshot_entity]}
 	if name ==
 	   "NavAgent2D" {world.nav_agents_2d[target_entity] = snapshot.nav_agents_2d[snapshot_entity]}
+}
+
+clone_model_renderer_storage :: proc(value: ModelRenderer) -> ModelRenderer {
+	result := value
+	if value.materials != nil {
+		result.materials = make(map[i32]string)
+		for slot, path in value.materials {result.materials[slot] = path}
+	}
+	return result
+}
+
+clone_tilemap_renderer_storage :: proc(value: TilemapRenderer) -> TilemapRenderer {
+	result := value
+	if value.tiles != nil {
+		result.tiles = make([]Tilemap_Tile, len(value.tiles))
+		copy(result.tiles, value.tiles)
+	}
+	if value.tile_indices != nil {
+		result.tile_indices = make(map[[2]i32]i32)
+		for cell, tile in value.tile_indices {result.tile_indices[cell] = tile}
+	}
+	return result
+}
+
+clone_tilemap_collider_storage :: proc(value: TilemapCollider) -> TilemapCollider {
+	result := value
+	if value.solid_tiles != nil {
+		result.solid_tiles = make(map[i32]bool)
+		for tile, solid in value.solid_tiles {result.solid_tiles[tile] = solid}
+	}
+	return result
+}
+
+destroy_model_renderer_storage :: proc(value: ModelRenderer) {
+	if value.materials != nil {delete(value.materials)}
+}
+
+destroy_tilemap_renderer_storage :: proc(value: TilemapRenderer) {
+	if value.tiles != nil {delete(value.tiles)}
+	if value.tile_indices != nil {delete(value.tile_indices)}
+}
+
+destroy_tilemap_collider_storage :: proc(value: TilemapCollider) {
+	if value.solid_tiles != nil {delete(value.solid_tiles)}
+}
+
+adopt_snapshot_storage :: proc(world, snapshot: ^World, entity_translation: map[Entity]Entity) {
+	rehome_entity_metadata(world, snapshot, entity_translation)
+	rehome_component_json(world, snapshot, entity_translation)
+	rehome_component_instance_json(world, snapshot, entity_translation)
+	rehome_component_map_names(world, snapshot)
+	rehome_builtin_strings(world, snapshot)
+
+	old_arena := world.scene_data_arena
+	delete(world.scene_strings)
+	world.scene_strings = snapshot.scene_strings
+	world.scene_data_arena = snapshot.scene_data_arena
+	snapshot.scene_strings = nil
+	snapshot.scene_data_arena = nil
+	if old_arena != nil {
+		mem.dynamic_arena_destroy(old_arena)
+		mem.free(old_arena)
+	}
+}
+
+rehome_entity_metadata :: proc(world, snapshot: ^World, entity_translation: map[Entity]Entity) {
+	entity_ids := make(map[Entity]string)
+	entities_by_id := make(map[string]Entity)
+	entity_names := make(map[Entity]string)
+	entity_tags := make(map[Entity]string)
+	for snapshot_entity, target_entity in entity_translation {
+		id := retain_scene_string(snapshot, snapshot.entity_ids[snapshot_entity])
+		name := retain_scene_string(snapshot, snapshot.entity_names[snapshot_entity])
+		tag := retain_scene_string(snapshot, snapshot.entity_tags[snapshot_entity])
+		entity_ids[target_entity] = id
+		entity_names[target_entity] = name
+		entity_tags[target_entity] = tag
+		if len(id) > 0 {entities_by_id[id] = target_entity}
+	}
+	delete(world.entity_ids)
+	delete(world.entities_by_id)
+	delete(world.entity_names)
+	delete(world.entity_tags)
+	world.entity_ids = entity_ids
+	world.entities_by_id = entities_by_id
+	world.entity_names = entity_names
+	world.entity_tags = entity_tags
+}
+
+rehome_component_json :: proc(world, snapshot: ^World, entity_translation: map[Entity]Entity) {
+	component_data := make(map[string]map[Entity]json.Value)
+	for name, snapshot_components in snapshot.component_data {
+		owned_name := retain_scene_string(snapshot, name)
+		components := make(map[Entity]json.Value)
+		for snapshot_entity, value in snapshot_components {
+			components[entity_translation[snapshot_entity]] = value
+		}
+		component_data[owned_name] = components
+	}
+	for _, components in world.component_data {delete(components)}
+	delete(world.component_data)
+	world.component_data = component_data
+}
+
+rehome_component_instance_json :: proc(
+	world, snapshot: ^World,
+	entity_translation: map[Entity]Entity,
+) {
+	instance_data := make(map[string]map[Component_Instance]json.Value)
+	for name, snapshot_instances in snapshot.component_instance_data {
+		owned_name := retain_scene_string(snapshot, name)
+		instances := make(map[Component_Instance]json.Value)
+		for snapshot_key, value in snapshot_instances {
+			key := Component_Instance {
+				entity = entity_translation[snapshot_key.entity],
+				name   = retain_scene_string(snapshot, snapshot_key.name),
+			}
+			instances[key] = value
+		}
+		instance_data[owned_name] = instances
+	}
+	for _, instances in world.component_instance_data {delete(instances)}
+	delete(world.component_instance_data)
+	world.component_instance_data = instance_data
+}
+
+rehome_component_map_names :: proc(world, snapshot: ^World) {
+	typed_data := make(map[string]map[Entity]any)
+	for name, components in world.typed_component_data {
+		typed_data[retain_scene_string(snapshot, name)] = components
+	}
+	delete(world.typed_component_data)
+	world.typed_component_data = typed_data
+
+	descriptors := make(map[string]Component_Descriptor)
+	for name, descriptor in world.typed_component_descriptors {
+		descriptors[retain_scene_string(snapshot, name)] = descriptor
+	}
+	delete(world.typed_component_descriptors)
+	world.typed_component_descriptors = descriptors
+
+	names_by_type := make(map[typeid]string)
+	for id, name in world.component_names_by_type {
+		names_by_type[id] = retain_scene_string(snapshot, name)
+	}
+	delete(world.component_names_by_type)
+	world.component_names_by_type = names_by_type
+
+	changes := make(map[Component_Change_Key]Component_Change)
+	for key, change in world.component_changes {
+		owned_key := key
+		owned_key.name = retain_scene_string(snapshot, key.name)
+		changes[owned_key] = change
+	}
+	delete(world.component_changes)
+	world.component_changes = changes
+}
+
+rehome_builtin_strings :: proc(world, snapshot: ^World) {
+	for entity, value in world.sprite_renderers {
+		owned := value
+		owned.texture = retain_scene_string(snapshot, value.texture)
+		world.sprite_renderers[entity] = owned
+	}
+	for entity, value in world.mesh_renderers {
+		owned := value
+		owned.primitive = retain_scene_string(snapshot, value.primitive)
+		owned.material = retain_scene_string(snapshot, value.material)
+		world.mesh_renderers[entity] = owned
+	}
+	for entity, value in world.sphere_renderers {
+		owned := value
+		owned.material = retain_scene_string(snapshot, value.material)
+		world.sphere_renderers[entity] = owned
+	}
+	for entity, value in world.model_renderers {
+		owned := value
+		owned.model = retain_scene_string(snapshot, value.model)
+		owned.material = retain_scene_string(snapshot, value.material)
+		for slot, path in owned.materials {
+			owned.materials[slot] = retain_scene_string(snapshot, path)
+		}
+		world.model_renderers[entity] = owned
+	}
+	for entity, value in world.tilemap_renderers {
+		owned := value
+		owned.texture = retain_scene_string(snapshot, value.texture)
+		world.tilemap_renderers[entity] = owned
+	}
+	for entity, value in world.text_renderers {
+		owned := value
+		owned.text = retain_scene_string(snapshot, value.text)
+		owned.font = retain_scene_string(snapshot, value.font)
+		world.text_renderers[entity] = owned
+	}
+	for entity, value in world.rigid_bodies_2d {
+		owned := value
+		owned.body_type = retain_scene_string(snapshot, value.body_type)
+		world.rigid_bodies_2d[entity] = owned
+	}
+	for entity, value in world.rigid_bodies_3d {
+		owned := value
+		owned.body_type = retain_scene_string(snapshot, value.body_type)
+		world.rigid_bodies_3d[entity] = owned
+	}
+	for entity, value in world.orbit_cameras_3d {
+		owned := value
+		owned.manual_action = retain_scene_string(snapshot, value.manual_action)
+		owned.yaw_axis = retain_scene_string(snapshot, value.yaw_axis)
+		owned.pitch_axis = retain_scene_string(snapshot, value.pitch_axis)
+		owned.zoom_axis = retain_scene_string(snapshot, value.zoom_axis)
+		world.orbit_cameras_3d[entity] = owned
+	}
+	audio_players := make(map[Component_Instance]AudioPlayer)
+	for key, value in world.audio_players {
+		owned_key := key
+		owned_value := value
+		owned_key.name = retain_scene_string(snapshot, key.name)
+		owned_value.sound = retain_scene_string(snapshot, value.sound)
+		audio_players[owned_key] = owned_value
+	}
+	delete(world.audio_players)
+	world.audio_players = audio_players
 }
 
 json_values_equal :: proc(left, right: json.Value) -> bool {

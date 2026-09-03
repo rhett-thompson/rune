@@ -70,6 +70,8 @@ World :: struct {
 	component_changes:           map[Component_Change_Key]Component_Change,
 	resources:                   map[typeid]any,
 	typed_component_arena:       ^mem.Dynamic_Arena,
+	scene_data_arena:            ^mem.Dynamic_Arena,
+	scene_strings:               map[string]string,
 	transforms:                  map[Entity]Transform,
 	sprite_renderers:            map[Entity]SpriteRenderer,
 	mesh_renderers:              map[Entity]MeshRenderer,
@@ -116,6 +118,9 @@ init :: proc() -> World {
 	typed_component_arena, _ := mem.new(mem.Dynamic_Arena)
 	assert(typed_component_arena != nil)
 	mem.dynamic_arena_init(typed_component_arena)
+	scene_data_arena, _ := mem.new(mem.Dynamic_Arena)
+	assert(scene_data_arena != nil)
+	mem.dynamic_arena_init(scene_data_arena)
 	return World {
 		generation = generation,
 		next_entity = 1,
@@ -137,6 +142,8 @@ init :: proc() -> World {
 		component_changes = make(map[Component_Change_Key]Component_Change),
 		resources = make(map[typeid]any),
 		typed_component_arena = typed_component_arena,
+		scene_data_arena = scene_data_arena,
+		scene_strings = make(map[string]string),
 		transforms = make(map[Entity]Transform),
 		sprite_renderers = make(map[Entity]SpriteRenderer),
 		mesh_renderers = make(map[Entity]MeshRenderer),
@@ -182,6 +189,9 @@ destroy :: proc(world: ^World) {
 	for _, instances in world.component_instance_data {delete(instances)}
 	for _, components in world.typed_component_data {delete(components)}
 	for _, children in world.children_by_parent {delete(children)}
+	for _, renderer in world.model_renderers {destroy_model_renderer_storage(renderer)}
+	for _, renderer in world.tilemap_renderers {destroy_tilemap_renderer_storage(renderer)}
+	for _, collider in world.tilemap_colliders {destroy_tilemap_collider_storage(collider)}
 	delete(world.roots)
 	delete(world.entities)
 	delete(world.entity_ids)
@@ -198,6 +208,7 @@ destroy :: proc(world: ^World) {
 	delete(world.component_names_by_type)
 	delete(world.component_changes)
 	delete(world.resources)
+	delete(world.scene_strings)
 	delete(world.transforms)
 	delete(world.sprite_renderers)
 	delete(world.mesh_renderers)
@@ -239,11 +250,34 @@ destroy :: proc(world: ^World) {
 		mem.free(world.typed_component_arena)
 		world.typed_component_arena = nil
 	}
+	if world.scene_data_arena != nil {
+		mem.dynamic_arena_destroy(world.scene_data_arena)
+		mem.free(world.scene_data_arena)
+		world.scene_data_arena = nil
+	}
+	world^ = {}
 }
 
 // add_component attaches JSON data to an entity. Components must be explicitly
 // registered so misspelled or unsupported component names fail at load time.
 add_component :: proc(
+	world: ^World,
+	registry: ^Component_Registry,
+	entity: Entity,
+	name: string,
+	data: json.Value,
+) -> bool {
+	if !is_alive(world, entity) || !has_component(registry, name) {return false}
+	return add_component_owned(
+		world,
+		registry,
+		entity,
+		retain_scene_string(world, name),
+		json.clone_value(data, scene_data_allocator(world)),
+	)
+}
+
+add_component_owned :: proc(
 	world: ^World,
 	registry: ^Component_Registry,
 	entity: Entity,
@@ -290,6 +324,19 @@ add_component :: proc(
 				value, parsed := audio_player_from_json(instance_data)
 				if !parsed {return false}
 				parsed_audio[key] = value
+			}
+		}
+		if already_present {
+			if old_values, found := world.component_instance_data[name]; found {
+				for key in old_values {
+					if key.entity == entity {delete_key(&old_values, key)}
+				}
+				world.component_instance_data[name] = old_values
+			}
+			if name == "AudioPlayer" {
+				for key in world.audio_players {
+					if key.entity == entity {delete_key(&world.audio_players, key)}
+				}
 			}
 		}
 
@@ -399,6 +446,17 @@ add_component :: proc(
 	   "NavGrid2D" {nav_grid_2d, parse_ok = nav_grid_2d_from_json(data); if !parse_ok {return false}}
 	if name ==
 	   "NavAgent2D" {nav_agent_2d, parse_ok = nav_agent_2d_from_json(data); if !parse_ok {return false}}
+	if already_present {
+		if name == "ModelRenderer" {
+			destroy_model_renderer_storage(world.model_renderers[entity])
+		}
+		if name == "TilemapRenderer" {
+			destroy_tilemap_renderer_storage(world.tilemap_renderers[entity])
+		}
+		if name == "TilemapCollider" {
+			destroy_tilemap_collider_storage(world.tilemap_colliders[entity])
+		}
+	}
 
 	components, component_type_found := world.component_data[name]
 	if !component_type_found {
@@ -460,6 +518,7 @@ add_typed_component :: proc(
 	defer delete(bytes)
 	data: json.Value
 	if json.unmarshal(bytes, &data) != nil {return false}
+	defer json.destroy_value(data)
 	return add_component(world, registry, entity, name, data)
 }
 
@@ -492,14 +551,23 @@ remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
 	if name == "SpriteRenderer" {delete_key(&world.sprite_renderers, entity)}
 	if name == "MeshRenderer" {delete_key(&world.mesh_renderers, entity)}
 	if name == "SphereRenderer" {delete_key(&world.sphere_renderers, entity)}
-	if name == "ModelRenderer" {delete_key(&world.model_renderers, entity)}
+	if name == "ModelRenderer" {
+		destroy_model_renderer_storage(world.model_renderers[entity])
+		delete_key(&world.model_renderers, entity)
+	}
 	if name == "AmbientLight" {delete_key(&world.ambient_lights, entity)}
 	if name == "DirectionalLight" {delete_key(&world.directional_lights, entity)}
 	if name == "PointLight" {delete_key(&world.point_lights, entity)}
 	if name == "SpotLight" {delete_key(&world.spot_lights, entity)}
-	if name == "TilemapRenderer" {delete_key(&world.tilemap_renderers, entity)}
+	if name == "TilemapRenderer" {
+		destroy_tilemap_renderer_storage(world.tilemap_renderers[entity])
+		delete_key(&world.tilemap_renderers, entity)
+	}
 	if name == "TextRenderer" {delete_key(&world.text_renderers, entity)}
-	if name == "TilemapCollider" {delete_key(&world.tilemap_colliders, entity)}
+	if name == "TilemapCollider" {
+		destroy_tilemap_collider_storage(world.tilemap_colliders[entity])
+		delete_key(&world.tilemap_colliders, entity)
+	}
 	if name == "TopDownController" {delete_key(&world.top_down_controllers, entity)}
 	if name == "RigidBody2D" {delete_key(&world.rigid_bodies_2d, entity)}
 	if name == "BoxCollider2D" {delete_key(&world.box_colliders_2d, entity)}

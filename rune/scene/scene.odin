@@ -2,8 +2,10 @@ package scene
 
 import "core:encoding/json"
 import "core:fmt"
+import "core:mem"
 import "core:os"
 import "core:path/filepath"
+import "core:strings"
 import "rune:ecs"
 import "rune:prefab"
 import "rune:validation"
@@ -56,35 +58,53 @@ last_load_error :: proc() -> string {return last_load_error_message}
 // dependency_paths returns a scene file and all directly referenced prefab
 // files. Prefab references are relative to the owning scene file.
 dependency_paths :: proc(path: string) -> ([]string, bool) {
-	data, read_error := os.read_entire_file(path, context.allocator)
+	arena: mem.Dynamic_Arena
+	mem.dynamic_arena_init(&arena)
+	defer mem.dynamic_arena_destroy(&arena)
+	allocator := mem.dynamic_arena_allocator(&arena)
+	data, read_error := os.read_entire_file(path, allocator)
 	if read_error != nil {return nil, false}
 	scene: Scene
-	if json.unmarshal(data, &scene) != nil {return nil, false}
+	if json.unmarshal(data, &scene, allocator = allocator) != nil {return nil, false}
 
+	parsed_paths := make([dynamic]string, allocator)
 	result := make([dynamic]string, context.allocator)
-	append(&result, path)
+	defer if len(result) == 0 {delete(result)}
+	append(&parsed_paths, path)
 	scene_directory, _ := filepath.split(path)
 	for entity in scene.entities {
-		if !collect_entity_dependencies(&result, entity, scene_directory) {return nil, false}
+		if !collect_entity_dependencies(&parsed_paths, entity, scene_directory, allocator) {
+			return nil, false
+		}
+	}
+	for dependency in parsed_paths {
+		owned, _ := strings.clone(dependency)
+		append(&result, owned)
 	}
 	return result[:], true
+}
+
+destroy_dependency_paths :: proc(paths: []string) {
+	for path in paths {delete(path)}
+	delete(paths)
 }
 
 collect_entity_dependencies :: proc(
 	paths: ^[dynamic]string,
 	entity: Entity_Data,
 	scene_directory: string,
+	allocator: mem.Allocator,
 ) -> bool {
 	if len(entity.prefab) > 0 {
 		prefab_path := entity.prefab
 		if !filepath.is_abs(prefab_path) {
-			prefab_path, _ = filepath.join({scene_directory, prefab_path})
+			prefab_path, _ = filepath.join({scene_directory, prefab_path}, allocator)
 		}
-		if _, loaded := prefab.load(prefab_path); !loaded {return false}
+		if _, loaded := prefab.load(prefab_path, allocator); !loaded {return false}
 		append(paths, prefab_path)
 	}
 	for child in entity.children {
-		if !collect_entity_dependencies(paths, child, scene_directory) {return false}
+		if !collect_entity_dependencies(paths, child, scene_directory, allocator) {return false}
 	}
 	return true
 }
@@ -116,19 +136,23 @@ load_with_layers :: proc(
 		}
 		return {}, false
 	}
-	data, read_error := os.read_entire_file(path, context.allocator)
+	parse_arena: mem.Dynamic_Arena
+	mem.dynamic_arena_init(&parse_arena)
+	defer mem.dynamic_arena_destroy(&parse_arena)
+	parse_allocator := mem.dynamic_arena_allocator(&parse_arena)
+	data, read_error := os.read_entire_file(path, parse_allocator)
 	if read_error != nil {
 		set_load_error("%s: could not read scene", path)
 		return {}, false
 	}
 
 	scene: Scene
-	if json.unmarshal(data, &scene) != nil {
+	if json.unmarshal(data, &scene, allocator = parse_allocator) != nil {
 		set_load_error("%s: could not deserialize scene", path)
 		return {}, false
 	}
 	root_json: json.Value
-	if json.unmarshal(data, &root_json) != nil {
+	if json.unmarshal(data, &root_json, allocator = parse_allocator) != nil {
 		set_load_error("%s: could not preserve scene JSON", path)
 		return {}, false
 	}
@@ -136,7 +160,14 @@ load_with_layers :: proc(
 	scene_directory, _ := filepath.split(path)
 	world := ecs.init()
 	ecs.set_scene_json(&world, root_json)
-	if !instantiate_with_layers_at(&world, registry, scene, layer_names, scene_directory) {
+	if !instantiate_with_layers_at(
+		&world,
+		registry,
+		scene,
+		layer_names,
+		scene_directory,
+		parse_allocator,
+	) {
 		ecs.destroy(&world)
 		return {}, false
 	}
@@ -165,6 +196,7 @@ instantiate_with_layers_at :: proc(
 	scene: Scene,
 	layer_names: map[string]u8,
 	scene_directory: string,
+	allocator := context.allocator,
 ) -> bool {
 	for entity in scene.entities {
 		if !instantiate_entity(
@@ -174,6 +206,7 @@ instantiate_with_layers_at :: proc(
 			ecs.Entity(0),
 			layer_names,
 			scene_directory,
+			allocator,
 		) {
 			return false
 		}
@@ -188,15 +221,16 @@ instantiate_entity :: proc(
 	parent: ecs.Entity,
 	layer_names: map[string]u8,
 	scene_directory: string,
+	allocator: mem.Allocator,
 ) -> bool {
 	components := entity_data.components
 	prefab_children: []prefab.Entity_Data
 	if len(entity_data.prefab) > 0 {
 		prefab_path := entity_data.prefab
 		if !filepath.is_abs(prefab_path) {
-			prefab_path, _ = filepath.join({scene_directory, prefab_path})
+			prefab_path, _ = filepath.join({scene_directory, prefab_path}, allocator)
 		}
-		prefab_data, prefab_ok := prefab.load(prefab_path)
+		prefab_data, prefab_ok := prefab.load(prefab_path, allocator)
 		if !prefab_ok {
 			set_load_error(
 				"Could not load prefab '%s' for entity '%s'",
@@ -205,7 +239,11 @@ instantiate_entity :: proc(
 			)
 			return false
 		}
-		components = prefab.merge_components(prefab_data.components, entity_data.components)
+		components = prefab.merge_components(
+			prefab_data.components,
+			entity_data.components,
+			allocator,
+		)
 		prefab_children = prefab_data.children
 	}
 
@@ -238,7 +276,15 @@ instantiate_entity :: proc(
 	}
 
 	for child in entity_data.children {
-		if !instantiate_entity(world, registry, child, entity, layer_names, scene_directory) {
+		if !instantiate_entity(
+			world,
+			registry,
+			child,
+			entity,
+			layer_names,
+			scene_directory,
+			allocator,
+		) {
 			return false
 		}
 	}

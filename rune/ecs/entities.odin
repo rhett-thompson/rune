@@ -75,9 +75,10 @@ record_component_change :: proc(
 	name: string,
 	kind: Component_Change_Kind,
 ) {
+	owned_name := retain_scene_string(world, name)
 	world.component_change_version += 1
 	if world.component_change_version == 0 {world.component_change_version = 1}
-	world.component_changes[Component_Change_Key{entity = entity, name = name}] =
+	world.component_changes[Component_Change_Key{entity = entity, name = owned_name}] =
 		Component_Change {
 			entity  = entity,
 			kind    = kind,
@@ -98,15 +99,18 @@ set_entity_metadata :: proc(
 	if !is_alive(world, entity) || layer_mask == 0 {
 		return false
 	}
-	if id != "" {
-		if existing, found := world.entities_by_id[id]; found && existing != entity {
+	owned_id := retain_scene_string(world, id)
+	owned_name := retain_scene_string(world, name)
+	owned_tag := retain_scene_string(world, tag)
+	if owned_id != "" {
+		if existing, found := world.entities_by_id[owned_id]; found && existing != entity {
 			return false
 		}
-		world.entities_by_id[id] = entity
+		world.entities_by_id[owned_id] = entity
 	}
-	world.entity_ids[entity] = id
-	world.entity_names[entity] = name
-	world.entity_tags[entity] = tag
+	world.entity_ids[entity] = owned_id
+	world.entity_names[entity] = owned_name
+	world.entity_tags[entity] = owned_tag
 	world.layer_masks[entity] = layer_mask
 	return true
 }
@@ -161,7 +165,7 @@ entity_tag :: proc(world: ^World, entity: Entity) -> (string, bool) {
 
 set_entity_tag :: proc(world: ^World, entity: Entity, tag: string) -> bool {
 	if !is_alive(world, entity) {return false}
-	world.entity_tags[entity] = tag
+	world.entity_tags[entity] = retain_scene_string(world, tag)
 	return true
 }
 
