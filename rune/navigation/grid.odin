@@ -19,14 +19,15 @@ Grid :: struct {
 }
 
 init_grid :: proc(width, height: i32, cell_size: f32, origin: [2]f32 = {}) -> (Grid, bool) {
-	if width <= 0 || height <= 0 || cell_size <= 0 { return {}, false }
-	return Grid{
-		width = width,
-		height = height,
-		cell_size = cell_size,
-		origin = origin,
-		blocked = make([]bool, int(width * height)),
-	}, true
+	if width <= 0 || height <= 0 || cell_size <= 0 {return {}, false}
+	return Grid {
+			width = width,
+			height = height,
+			cell_size = cell_size,
+			origin = origin,
+			blocked = make([]bool, int(width * height)),
+		},
+		true
 }
 
 destroy_grid :: proc(grid: ^Grid) {
@@ -47,7 +48,7 @@ is_blocked :: proc(grid: ^Grid, point: Point) -> bool {
 }
 
 set_blocked :: proc(grid: ^Grid, point: Point, blocked := true) -> bool {
-	if !inside(grid, point) { return false }
+	if !inside(grid, point) {return false}
 	grid.blocked[index_of(grid, point)] = blocked
 	return true
 }
@@ -94,26 +95,33 @@ line_of_sight :: proc(grid: ^Grid, start, goal: Point) -> bool {
 	sy: i32 = 1 if goal.y >= start.y else -1
 	err := dx - dy
 	for {
-		if is_blocked(grid, {x, y}) { return false }
-		if x == goal.x && y == goal.y { return true }
+		if is_blocked(grid, {x, y}) {return false}
+		if x == goal.x && y == goal.y {return true}
 		e2 := err * 2
 		old_x, old_y := x, y
-		if e2 > -dy { err -= dy; x += sx }
-		if e2 < dx { err += dx; y += sy }
+		if e2 > -dy {err -= dy; x += sx}
+		if e2 < dx {err += dx; y += sy}
 		if x != old_x && y != old_y {
-			if is_blocked(grid, {x, old_y}) || is_blocked(grid, {old_x, y}) { return false }
+			if is_blocked(grid, {x, old_y}) || is_blocked(grid, {old_x, y}) {return false}
 		}
 	}
 }
 
-find_path :: proc(grid: ^Grid, start, goal: Point, algorithm := Algorithm.A_Star) -> ([]Point, bool) {
-	if is_blocked(grid, start) || is_blocked(grid, goal) { return nil, false }
+find_path :: proc(
+	grid: ^Grid,
+	start, goal: Point,
+	algorithm := Algorithm.A_Star,
+) -> (
+	[]Point,
+	bool,
+) {
+	if is_blocked(grid, start) || is_blocked(grid, goal) {return nil, false}
 	count := int(grid.width * grid.height)
 	g_score := make([]f32, count, context.temp_allocator)
 	parent := make([]i32, count, context.temp_allocator)
 	open := make([]bool, count, context.temp_allocator)
 	closed := make([]bool, count, context.temp_allocator)
-	for i in 0..<count {
+	for i in 0 ..< count {
 		g_score[i] = 3.402823e38
 		parent[i] = -1
 	}
@@ -123,35 +131,42 @@ find_path :: proc(grid: ^Grid, start, goal: Point, algorithm := Algorithm.A_Star
 	for {
 		current := -1
 		best: f32 = 3.402823e38
-		for i in 0..<count {
-			if !open[i] { continue }
+		for i in 0 ..< count {
+			if !open[i] {continue}
 			point := Point{i32(i % int(grid.width)), i32(i / int(grid.width))}
 			score := g_score[i] + distance(point, goal)
-			if score < best { best, current = score, i }
+			if score < best {best, current = score, i}
 		}
-		if current < 0 { return nil, false }
-		if current == goal_index { break }
+		if current < 0 {return nil, false}
+		if current == goal_index {break}
 		open[current], closed[current] = false, true
 		current_point := Point{i32(current % int(grid.width)), i32(current / int(grid.width))}
 		for oy: i32 = -1; oy <= 1; oy += 1 {
 			for ox: i32 = -1; ox <= 1; ox += 1 {
-				if ox == 0 && oy == 0 { continue }
+				if ox == 0 && oy == 0 {continue}
 				next := Point{current_point.x + ox, current_point.y + oy}
-				if is_blocked(grid, next) { continue }
-				if ox != 0 && oy != 0 &&
+				if is_blocked(grid, next) {continue}
+				if ox != 0 &&
+				   oy != 0 &&
 				   (is_blocked(grid, {current_point.x + ox, current_point.y}) ||
-				    is_blocked(grid, {current_point.x, current_point.y + oy})) { continue }
+						   is_blocked(grid, {current_point.x, current_point.y + oy})) {continue}
 				next_index := index_of(grid, next)
-				if closed[next_index] { continue }
+				if closed[next_index] {continue}
 				source_index := current
 				if algorithm == .Theta_Star {
 					candidate_parent := int(parent[current])
 					if candidate_parent >= 0 {
-						candidate := Point{i32(candidate_parent % int(grid.width)), i32(candidate_parent / int(grid.width))}
-						if line_of_sight(grid, candidate, next) { source_index = candidate_parent }
+						candidate := Point {
+							i32(candidate_parent % int(grid.width)),
+							i32(candidate_parent / int(grid.width)),
+						}
+						if line_of_sight(grid, candidate, next) {source_index = candidate_parent}
 					}
 				}
-				source := Point{i32(source_index % int(grid.width)), i32(source_index / int(grid.width))}
+				source := Point {
+					i32(source_index % int(grid.width)),
+					i32(source_index / int(grid.width)),
+				}
 				tentative := g_score[source_index] + distance(source, next)
 				if tentative < g_score[next_index] {
 					g_score[next_index] = tentative
@@ -166,12 +181,12 @@ find_path :: proc(grid: ^Grid, start, goal: Point, algorithm := Algorithm.A_Star
 	cursor := goal_index
 	for {
 		append(&reversed, Point{i32(cursor % int(grid.width)), i32(cursor / int(grid.width))})
-		if cursor == start_index { break }
+		if cursor == start_index {break}
 		cursor = int(parent[cursor])
-		if cursor < 0 { delete(reversed); return nil, false }
+		if cursor < 0 {delete(reversed); return nil, false}
 	}
 	path := make([]Point, len(reversed))
-	for point, i in reversed { path[len(reversed) - 1 - i] = point }
+	for point, i in reversed {path[len(reversed) - 1 - i] = point}
 	delete(reversed)
 	return path, true
 }

@@ -5,8 +5,8 @@ import "core:os"
 import "core:path/filepath"
 import "core:strings"
 import "core:time"
-import "rune:audio"
 import "rune:assets"
+import "rune:audio"
 import "rune:console"
 import "rune:ecs"
 import "rune:gizmos"
@@ -36,7 +36,15 @@ Hot_Reload_Settings :: struct {
 }
 
 default_hot_reload_settings :: proc() -> Hot_Reload_Settings {
-	return Hot_Reload_Settings{enabled = true, poll_interval_ms = 250, scenes = true, prefabs = true, textures = true, models = true, materials = true}
+	return Hot_Reload_Settings {
+		enabled = true,
+		poll_interval_ms = 250,
+		scenes = true,
+		prefabs = true,
+		textures = true,
+		models = true,
+		materials = true,
+	}
 }
 
 Project :: struct {
@@ -49,12 +57,12 @@ Project :: struct {
 	input:            string,
 	// Layer names map to project-defined bit positions from 1 through 63.
 	// Default is always engine-defined at bit 0 and does not need an entry.
-	layers:        map[string]u8,
-	raw_json:      json.Value,
+	layers:           map[string]u8,
+	raw_json:         json.Value,
 }
 
 System_Update_Proc :: #type proc(engine: ^Engine, world: ^ecs.World)
-System_Draw_Proc   :: #type proc(engine: ^Engine, world: ^ecs.World)
+System_Draw_Proc :: #type proc(engine: ^Engine, world: ^ecs.World)
 System_Reload_Proc :: #type proc(engine: ^Engine, world: ^ecs.World)
 
 // System keeps game behavior in Odin while component data remains in JSON.
@@ -71,45 +79,48 @@ System :: struct {
 }
 
 Engine :: struct {
-	project:    Project,
-	project_directory: string,
-	registry:   ecs.Component_Registry,
-	assets:     assets.Asset_Manager,
-	console:    console.Console,
-	audio:      audio.Audio_System,
-	gizmos:     gizmos.Settings,
-	input:      input.Input,
-	systems:    [dynamic]System,
-	scene_watches: map[string]map[string]i64,
-	active_scene_path: string,
+	project:            Project,
+	project_directory:  string,
+	registry:           ecs.Component_Registry,
+	assets:             assets.Asset_Manager,
+	console:            console.Console,
+	audio:              audio.Audio_System,
+	gizmos:             gizmos.Settings,
+	input:              input.Input,
+	systems:            [dynamic]System,
+	scene_watches:      map[string]map[string]i64,
+	active_scene_path:  string,
 	hot_reload_elapsed: f32,
-	hot_reload_due: bool,
-	delta_time: f32,
-	fixed_delta_time: f32,
-	fixed_accumulator: f32,
-	active_world: ecs.World,
-	has_active_world: bool,
-	scene_loop_active: bool,
-	is_running: bool,
+	hot_reload_due:     bool,
+	delta_time:         f32,
+	fixed_delta_time:   f32,
+	fixed_accumulator:  f32,
+	active_world:       ecs.World,
+	has_active_world:   bool,
+	scene_loop_active:  bool,
+	is_running:         bool,
 }
 
 Update_Proc :: #type proc(engine: ^Engine)
-Draw_Proc   :: #type proc(engine: ^Engine)
+Draw_Proc :: #type proc(engine: ^Engine)
 
 // Native window dragging can pause the game loop for seconds. Simulation uses
 // a capped delta so a resumed frame cannot throw moving entities through the
 // world or off screen.
-Max_Simulation_Delta : f32 : 0.1
+Max_Simulation_Delta: f32 : 0.1
 
 load_project :: proc(path: string) -> (Project, bool) {
 	validation_report := validation.validate_project(path)
-	if !validation.is_valid(&validation_report) { return {}, false }
+	if !validation.is_valid(&validation_report) {return {}, false}
 	data, read_error := os.read_entire_file(path, context.allocator)
 	if read_error != nil {
 		return {}, false
 	}
 
-	project := Project{hot_reload = default_hot_reload_settings(), gizmos = gizmos.default_settings()}
+	project := Project {
+		hot_reload = default_hot_reload_settings(),
+		gizmos     = gizmos.default_settings(),
+	}
 	if json.unmarshal(data, &project) != nil {
 		return {}, false
 	}
@@ -176,41 +187,42 @@ init :: proc(project_path: string) -> (Engine, bool) {
 
 	asset_manager := assets.init(project_directory)
 	audio_system := audio.init(project_directory)
-	return Engine{
-		project = project,
-		project_directory = project_directory,
-		registry = registry,
-		assets = asset_manager,
-		audio = audio_system,
-		gizmos = project.gizmos,
-		console = console.init(),
-		input = input_data,
-		systems = make([dynamic]System),
-		scene_watches = make(map[string]map[string]i64),
-		fixed_delta_time = ecs.Physics2D_Fixed_Delta,
-		is_running = true,
-	}, true
+	return Engine {
+			project = project,
+			project_directory = project_directory,
+			registry = registry,
+			assets = asset_manager,
+			audio = audio_system,
+			gizmos = project.gizmos,
+			console = console.init(),
+			input = input_data,
+			systems = make([dynamic]System),
+			scene_watches = make(map[string]map[string]i64),
+			fixed_delta_time = ecs.Physics2D_Fixed_Delta,
+			is_running = true,
+		},
+		true
 }
 
 // input_state exposes project-defined input actions and axes to game systems.
-input_state :: proc(engine: ^Engine) -> ^input.Input { return &engine.input }
+input_state :: proc(engine: ^Engine) -> ^input.Input {return &engine.input}
 
 // project_json exposes the full root project.json document, including
 // game-defined fields that are not part of Rune's typed Project settings.
-project_json :: proc(engine: ^Engine) -> json.Value { return engine.project.raw_json }
+project_json :: proc(engine: ^Engine) -> json.Value {return engine.project.raw_json}
 
 // project_value returns a top-level project.json value by key. Use this for
 // game-owned global settings while keeping Rune's required settings typed.
 project_value :: proc(engine: ^Engine, key: string) -> (json.Value, bool) {
 	object, ok := engine.project.raw_json.(json.Object)
-	if !ok { return {}, false }
+	if !ok {return {}, false}
 	value, found := object[key]
 	return value, found
 }
 
 // developer_console exposes the engine-owned runtime console. Register
 // project-specific commands and write diagnostic messages through this value.
-developer_console :: proc(engine: ^Engine) -> ^console.Console { return &engine.console }
+developer_console :: proc(engine: ^Engine) -> ^console.Console {return &engine.console}
 
 // component_registry exposes the engine-initialized registry. Built-in
 // components are ready after init; games only register their own components.
@@ -241,7 +253,12 @@ draw_gizmos :: proc(engine: ^Engine, world: ^ecs.World) {
 // AudioPlayer is repeatable, so playback commands address an entity and its
 // stable component instance name.
 // The engine owns the audio device and per-entity raylib sound instances.
-play_audio :: proc(engine: ^Engine, world: ^ecs.World, entity: ecs.Entity, instance_name: string) -> bool {
+play_audio :: proc(
+	engine: ^Engine,
+	world: ^ecs.World,
+	entity: ecs.Entity,
+	instance_name: string,
+) -> bool {
 	return audio.play(&engine.audio, world, entity, instance_name)
 }
 
@@ -256,9 +273,9 @@ audio_is_playing :: proc(engine: ^Engine, entity: ecs.Entity, instance_name: str
 // register_system appends a game system to the deterministic lifecycle order.
 // Names must be unique so accidental duplicate registration is rejected.
 register_system :: proc(engine: ^Engine, system: System) -> bool {
-	if len(system.name) == 0 { return false }
+	if len(system.name) == 0 {return false}
 	for registered in engine.systems {
-		if registered.name == system.name { return false }
+		if registered.name == system.name {return false}
 	}
 	append(&engine.systems, system)
 	return true
@@ -289,8 +306,8 @@ load_active_scene :: proc(engine: ^Engine, path: string) -> bool {
 		resolved_path, _ = filepath.join({engine.project_directory, resolved_path})
 	}
 	world, loaded := load_scene(engine, resolved_path)
-	if !loaded { return false }
-	if engine.has_active_world { ecs.destroy(&engine.active_world) }
+	if !loaded {return false}
+	if engine.has_active_world {ecs.destroy(&engine.active_world)}
 	engine.active_world = world
 	engine.has_active_world = true
 	return true
@@ -301,29 +318,33 @@ load_active_scene :: proc(engine: ^Engine, path: string) -> bool {
 // loaded. Calls made by an update system take effect immediately, before the
 // remaining systems and draw phase run.
 change_scene :: proc(engine: ^Engine, path: string) -> bool {
-	if engine == nil || !engine.has_active_world || len(path) == 0 { return false }
+	if engine == nil || !engine.has_active_world || len(path) == 0 {return false}
 	resolved_path := path
 	if !filepath.is_abs(resolved_path) {
 		resolved_path, _ = filepath.join({engine.project_directory, resolved_path})
 	}
-	next_world, loaded := scene.load_with_layers(resolved_path, &engine.registry, engine.project.layers)
-	if !loaded { return false }
-	if engine.scene_loop_active { run_shutdown_systems(engine, &engine.active_world) }
+	next_world, loaded := scene.load_with_layers(
+		resolved_path,
+		&engine.registry,
+		engine.project.layers,
+	)
+	if !loaded {return false}
+	if engine.scene_loop_active {run_shutdown_systems(engine, &engine.active_world)}
 	ecs.destroy(&engine.active_world)
 	engine.active_world = next_world
 	engine.has_active_world = true
 	engine.active_scene_path = resolved_path
 	watch_scene(engine, resolved_path)
-	if engine.scene_loop_active { run_start_systems(engine, &engine.active_world) }
+	if engine.scene_loop_active {run_start_systems(engine, &engine.active_world)}
 	return true
 }
 
 active_world :: proc(engine: ^Engine) -> (^ecs.World, bool) {
-	if engine == nil || !engine.has_active_world { return nil, false }
+	if engine == nil || !engine.has_active_world {return nil, false}
 	return &engine.active_world, true
 }
 
-last_scene_error :: proc() -> string { return scene.last_load_error() }
+last_scene_error :: proc() -> string {return scene.last_load_error()}
 
 // reload_scene_if_changed updates a loaded World when its scene or a directly
 // referenced prefab changes. Component-value-only scene saves are applied onto
@@ -331,9 +352,12 @@ last_scene_error :: proc() -> string { return scene.last_load_error() }
 // reload callbacks do not run. Structural changes still rebuild the World and
 // return true; game code must reacquire cached entity IDs after that.
 reload_scene_if_changed :: proc(engine: ^Engine, world: ^ecs.World, path: string) -> bool {
-	if !engine.project.hot_reload.enabled || !engine.project.hot_reload.scenes || !engine.hot_reload_due || !scene_changed(engine, path) { return false }
+	if !engine.project.hot_reload.enabled ||
+	   !engine.project.hot_reload.scenes ||
+	   !engine.hot_reload_due ||
+	   !scene_changed(engine, path) {return false}
 	reloaded, loaded := scene.load_with_layers(path, &engine.registry, engine.project.layers)
-	if !loaded { return false }
+	if !loaded {return false}
 	if ecs.apply_value_snapshot(world, &reloaded) {
 		ecs.destroy(&reloaded)
 		watch_scene(engine, path)
@@ -347,10 +371,10 @@ reload_scene_if_changed :: proc(engine: ^Engine, world: ^ecs.World, path: string
 
 watch_scene :: proc(engine: ^Engine, path: string) {
 	paths, found := scene.dependency_paths(path)
-	if !found { return }
+	if !found {return}
 	watch := make(map[string]i64)
 	for dependency_path in paths {
-		if dependency_path != path && !engine.project.hot_reload.prefabs { continue }
+		if dependency_path != path && !engine.project.hot_reload.prefabs {continue}
 		watch[dependency_path] = file_modified_time(dependency_path)
 	}
 	engine.scene_watches[path] = watch
@@ -363,14 +387,14 @@ scene_changed :: proc(engine: ^Engine, path: string) -> bool {
 		return false
 	}
 	for dependency_path, recorded_time in watch {
-		if file_modified_time(dependency_path) != recorded_time { return true }
+		if file_modified_time(dependency_path) != recorded_time {return true}
 	}
 	return false
 }
 
 file_modified_time :: proc(path: string) -> i64 {
 	modified, err := os.modification_time_by_path(path)
-	if err != nil { return -1 }
+	if err != nil {return -1}
 	return time.to_unix_nanoseconds(modified)
 }
 
@@ -393,10 +417,11 @@ run_callbacks :: proc(engine: ^Engine, on_update: Update_Proc, on_draw: Draw_Pro
 }
 
 run_project :: proc(engine: ^Engine) -> bool {
-	if engine == nil || !engine.is_running { return false }
+	if engine == nil || !engine.is_running {return false}
 	defer shutdown(engine)
 	if !engine.has_active_world {
-		if len(engine.project.startup_scene) == 0 || !load_active_scene(engine, engine.project.startup_scene) {
+		if len(engine.project.startup_scene) == 0 ||
+		   !load_active_scene(engine, engine.project.startup_scene) {
 			return false
 		}
 	}
@@ -406,7 +431,10 @@ run_project :: proc(engine: ^Engine) -> bool {
 
 // run supports the simple engine-owned startup-scene workflow as well as the
 // original callback loop used by low-level raylib examples.
-run :: proc{run_project, run_callbacks}
+run :: proc {
+	run_project,
+	run_callbacks,
+}
 
 // run_scene drives registered systems against a loaded World. It preserves the
 // callback-based run API for small programs while providing the normal ECS
@@ -426,8 +454,9 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 	}
 	for !rl.WindowShouldClose() {
 		begin_frame(engine)
-		if len(engine.active_scene_path) > 0 && reload_scene_if_changed(engine, world, engine.active_scene_path) {
-			 run_scene_reload_systems(engine, world)
+		if len(engine.active_scene_path) > 0 &&
+		   reload_scene_if_changed(engine, world, engine.active_scene_path) {
+			run_scene_reload_systems(engine, world)
 		}
 		run_fixed_pipeline(engine, world)
 		update_orbit_cameras_3d(engine, world)
@@ -447,7 +476,7 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 
 run_start_systems :: proc(engine: ^Engine, world: ^ecs.World) {
 	for system in engine.systems {
-		if system.start != nil { system.start(engine, world) }
+		if system.start != nil {system.start(engine, world)}
 	}
 }
 
@@ -456,44 +485,44 @@ run_fixed_pipeline :: proc(engine: ^Engine, world: ^ecs.World) {
 	steps := 0
 	for engine.fixed_accumulator >= engine.fixed_delta_time && steps < 8 {
 		for system in engine.systems {
-			if system.fixed_update != nil { system.fixed_update(engine, world) }
+			if system.fixed_update != nil {system.fixed_update(engine, world)}
 		}
 		ecs.physics_2d_update(world, engine.fixed_delta_time)
 		ecs.physics_3d_update(world, engine.fixed_delta_time)
 		engine.fixed_accumulator -= engine.fixed_delta_time
 		steps += 1
 	}
-	if steps == 8 { engine.fixed_accumulator = 0 }
+	if steps == 8 {engine.fixed_accumulator = 0}
 }
 
 run_shutdown_systems :: proc(engine: ^Engine, world: ^ecs.World) {
 	for index := len(engine.systems) - 1; index >= 0; index -= 1 {
 		system := engine.systems[index]
-		if system.shutdown != nil { system.shutdown(engine, world) }
+		if system.shutdown != nil {system.shutdown(engine, world)}
 	}
 }
 
 run_update_systems :: proc(engine: ^Engine, world: ^ecs.World) {
 	for system in engine.systems {
-		if system.update != nil { system.update(engine, world) }
+		if system.update != nil {system.update(engine, world)}
 	}
 }
 
 run_draw_systems :: proc(engine: ^Engine, world: ^ecs.World) {
 	for system in engine.systems {
-		if system.draw != nil { system.draw(engine, world) }
+		if system.draw != nil {system.draw(engine, world)}
 	}
 }
 
 run_pre_draw_systems :: proc(engine: ^Engine, world: ^ecs.World) {
 	for system in engine.systems {
-		if system.pre_draw != nil { system.pre_draw(engine, world) }
+		if system.pre_draw != nil {system.pre_draw(engine, world)}
 	}
 }
 
 run_scene_reload_systems :: proc(engine: ^Engine, world: ^ecs.World) {
 	for system in engine.systems {
-		if system.on_scene_reloaded != nil { system.on_scene_reloaded(engine, world) }
+		if system.on_scene_reloaded != nil {system.on_scene_reloaded(engine, world)}
 	}
 }
 
@@ -501,7 +530,7 @@ update_orbit_cameras_3d :: proc(engine: ^Engine, world: ^ecs.World) {
 	for entity in ecs.entities_with_component(world, "OrbitCamera3D") {
 		orbit, has_orbit := ecs.get_orbit_camera_3d(world, entity)
 		camera, has_camera := ecs.get_camera_3d(world, entity)
-		if !has_orbit || !has_camera { continue }
+		if !has_orbit || !has_camera {continue}
 		transform := ecs.update_orbit_camera_3d(&orbit, &engine.input, engine.delta_time)
 		camera.target = orbit.target
 		ecs.set_orbit_camera_3d(world, entity, orbit)
@@ -516,13 +545,19 @@ begin_frame :: proc(engine: ^Engine) {
 		engine.delta_time = Max_Simulation_Delta
 	}
 	engine.hot_reload_due = hot_reload_poll_due(engine)
-	if engine.hot_reload_due && engine.project.hot_reload.enabled && engine.project.hot_reload.textures {
+	if engine.hot_reload_due &&
+	   engine.project.hot_reload.enabled &&
+	   engine.project.hot_reload.textures {
 		assets.refresh(&engine.assets)
 	}
-	if engine.hot_reload_due && engine.project.hot_reload.enabled && engine.project.hot_reload.models {
+	if engine.hot_reload_due &&
+	   engine.project.hot_reload.enabled &&
+	   engine.project.hot_reload.models {
 		assets.refresh_models(&engine.assets)
 	}
-	if engine.hot_reload_due && engine.project.hot_reload.enabled && engine.project.hot_reload.materials {
+	if engine.hot_reload_due &&
+	   engine.project.hot_reload.enabled &&
+	   engine.project.hot_reload.materials {
 		assets.refresh_materials(&engine.assets)
 	}
 	if rl.IsKeyPressed(.F3) {
@@ -538,19 +573,21 @@ begin_frame :: proc(engine: ^Engine) {
 }
 
 clear_background :: proc(engine: ^Engine) {
-	rl.ClearBackground(rl.Color{
-		engine.project.background_color[0],
-		engine.project.background_color[1],
-		engine.project.background_color[2],
-		engine.project.background_color[3],
-	})
+	rl.ClearBackground(
+		rl.Color {
+			engine.project.background_color[0],
+			engine.project.background_color[1],
+			engine.project.background_color[2],
+			engine.project.background_color[3],
+		},
+	)
 }
 
 hot_reload_poll_due :: proc(engine: ^Engine) -> bool {
-	if !engine.project.hot_reload.enabled { return false }
+	if !engine.project.hot_reload.enabled {return false}
 	engine.hot_reload_elapsed += engine.delta_time
 	interval := f32(engine.project.hot_reload.poll_interval_ms) / 1000
-	if engine.hot_reload_elapsed < interval { return false }
+	if engine.hot_reload_elapsed < interval {return false}
 	engine.hot_reload_elapsed = 0
 	return true
 }
@@ -564,7 +601,7 @@ shutdown :: proc(engine: ^Engine) {
 		audio.shutdown(&engine.audio)
 		assets.shutdown(&engine.assets)
 		ecs.destroy_registry(&engine.registry)
-		for _, watch in engine.scene_watches { delete(watch) }
+		for _, watch in engine.scene_watches {delete(watch)}
 		delete(engine.scene_watches)
 		delete(engine.systems)
 		rl.CloseWindow()

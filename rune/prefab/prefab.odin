@@ -19,9 +19,9 @@ Prefab :: struct {
 
 load :: proc(path: string) -> (Prefab, bool) {
 	data, read_error := os.read_entire_file(path, context.allocator)
-	if read_error != nil { return {}, false }
+	if read_error != nil {return {}, false}
 	prefab: Prefab
-	if json.unmarshal(data, &prefab) != nil { return {}, false }
+	if json.unmarshal(data, &prefab) != nil {return {}, false}
 	return prefab, true
 }
 
@@ -30,7 +30,7 @@ load :: proc(path: string) -> (Prefab, bool) {
 // and avoids ambiguous deep-merge rules for arbitrary custom component data.
 merge_components :: proc(base, overrides: map[string]json.Value) -> map[string]json.Value {
 	result := make(map[string]json.Value)
-	for name, data in base { result[name] = data }
-	for name, data in overrides { result[name] = data }
+	for name, data in base {result[name] = data}
+	for name, data in overrides {result[name] = data}
 	return result
 }

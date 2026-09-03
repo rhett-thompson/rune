@@ -16,21 +16,21 @@ Rotator :: struct {
 
 orbit_from_json :: proc(data: json.Value) -> (Orbit, bool) {
 	object, ok := data.(json.Object)
-	if !ok { return {}, false }
+	if !ok {return {}, false}
 	value, found := object["degrees_per_second"]
-	if !found { return {}, false }
+	if !found {return {}, false}
 	degrees_per_second, number_ok := read_number(value)
-	if !number_ok { return {}, false }
+	if !number_ok {return {}, false}
 	return Orbit{degrees_per_second = degrees_per_second}, true
 }
 
 rotator_from_json :: proc(data: json.Value) -> (Rotator, bool) {
 	object, ok := data.(json.Object)
-	if !ok { return {}, false }
+	if !ok {return {}, false}
 	value, found := object["degrees_per_second"]
-	if !found { return {}, false }
+	if !found {return {}, false}
 	degrees_per_second, number_ok := read_number(value)
-	if !number_ok { return {}, false }
+	if !number_ok {return {}, false}
 	return Rotator{degrees_per_second = degrees_per_second}, true
 }
 
@@ -40,7 +40,7 @@ rotator_from_json :: proc(data: json.Value) -> (Rotator, bool) {
 update_orbits :: proc(world: ^World, dt: f32) {
 	for entity, orbit in world.orbits {
 		transform, has_transform := get_transform(world, entity)
-		if !has_transform { continue }
+		if !has_transform {continue}
 
 		angle := orbit.degrees_per_second * dt * f32(math.PI / 180.0)
 		cosine := f32(math.cos(f64(angle)))
@@ -57,7 +57,7 @@ update_orbits :: proc(world: ^World, dt: f32) {
 update_rotators :: proc(world: ^World, dt: f32) {
 	for entity, rotator in world.rotators {
 		transform, has_transform := get_transform(world, entity)
-		if !has_transform { continue }
+		if !has_transform {continue}
 		transform.rotation[1] += rotator.degrees_per_second * dt
 		set_transform(world, entity, transform)
 	}

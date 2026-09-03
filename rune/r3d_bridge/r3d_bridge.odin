@@ -1,17 +1,17 @@
 package r3d_bridge
 
-import "core:path/filepath"
 import "core:fmt"
+import "core:path/filepath"
 import "core:strings"
+import r3d "r3d:r3d"
 import "rune:assets"
 import "rune:ecs"
-import r3d "r3d:r3d"
 import rl "vendor:raylib"
 
 Scene3D_Settings :: struct {
-	grid_slices:  i32,
-	grid_spacing: f32,
-	draw_colliders: bool,
+	grid_slices:      i32,
+	grid_spacing:     f32,
+	draw_colliders:   bool,
 	background_color: rl.Color,
 }
 
@@ -20,27 +20,27 @@ Model_Asset :: struct {
 }
 
 R3D_Material_Asset :: struct {
-	material: r3d.Material,
-	signature: string,
-	owns_albedo: bool,
+	material:      r3d.Material,
+	signature:     string,
+	owns_albedo:   bool,
 	owns_emission: bool,
-	owns_normal: bool,
-	owns_orm: bool,
+	owns_normal:   bool,
+	owns_orm:      bool,
 }
 
 Context :: struct {
-	root: string,
-	cube: r3d.Mesh,
-	cube_no_shadow: r3d.Mesh,
-	plane: r3d.Mesh,
-	plane_no_shadow: r3d.Mesh,
-	sphere: r3d.Mesh,
+	root:             string,
+	cube:             r3d.Mesh,
+	cube_no_shadow:   r3d.Mesh,
+	plane:            r3d.Mesh,
+	plane_no_shadow:  r3d.Mesh,
+	sphere:           r3d.Mesh,
 	sphere_no_shadow: r3d.Mesh,
-	models: map[string]Model_Asset,
-	r3d_materials: map[string]R3D_Material_Asset,
-	scene_lights: map[ecs.Entity]r3d.Light,
+	models:           map[string]Model_Asset,
+	r3d_materials:    map[string]R3D_Material_Asset,
+	scene_lights:     map[ecs.Entity]r3d.Light,
 	world_generation: u32,
-	initialized: bool,
+	initialized:      bool,
 }
 
 is_available :: proc() -> bool {
@@ -48,20 +48,20 @@ is_available :: proc() -> bool {
 }
 
 init :: proc(root: string, width, height: i32) -> (Context, bool) {
-	if !r3d.Init(width, height) { return {}, false }
+	if !r3d.Init(width, height) {return {}, false}
 	r3d.SetAntiAliasingMode(.FXAA)
-	result := Context{
-		root = root,
-		cube = r3d.GenMeshCube(1, 1, 1),
-		cube_no_shadow = r3d.GenMeshCube(1, 1, 1),
-		plane = r3d.GenMeshPlane(1, 1, 1, 1),
-		plane_no_shadow = r3d.GenMeshPlane(1, 1, 1, 1),
-		sphere = r3d.GenMeshSphere(1, 24, 32),
+	result := Context {
+		root             = root,
+		cube             = r3d.GenMeshCube(1, 1, 1),
+		cube_no_shadow   = r3d.GenMeshCube(1, 1, 1),
+		plane            = r3d.GenMeshPlane(1, 1, 1, 1),
+		plane_no_shadow  = r3d.GenMeshPlane(1, 1, 1, 1),
+		sphere           = r3d.GenMeshSphere(1, 24, 32),
 		sphere_no_shadow = r3d.GenMeshSphere(1, 24, 32),
-		models = make(map[string]Model_Asset),
-		r3d_materials = make(map[string]R3D_Material_Asset),
-		scene_lights = make(map[ecs.Entity]r3d.Light),
-		initialized = true,
+		models           = make(map[string]Model_Asset),
+		r3d_materials    = make(map[string]R3D_Material_Asset),
+		scene_lights     = make(map[ecs.Entity]r3d.Light),
+		initialized      = true,
 	}
 	result.cube.shadowCastMode = .ON_DOUBLE_SIDED
 	result.sphere.shadowCastMode = .ON_DOUBLE_SIDED
@@ -72,7 +72,7 @@ init :: proc(root: string, width, height: i32) -> (Context, bool) {
 }
 
 shutdown :: proc(ctx: ^Context) {
-	if !ctx.initialized { return }
+	if !ctx.initialized {return}
 	destroy_scene_lights(ctx)
 	for _, asset in ctx.models {
 		r3d.UnloadModel(asset.model, true)
@@ -80,12 +80,12 @@ shutdown :: proc(ctx: ^Context) {
 	for _, asset in ctx.r3d_materials {
 		unload_owned_material_maps(asset)
 	}
-	if r3d.IsMeshValid(ctx.cube) { r3d.UnloadMesh(ctx.cube) }
-	if r3d.IsMeshValid(ctx.cube_no_shadow) { r3d.UnloadMesh(ctx.cube_no_shadow) }
-	if r3d.IsMeshValid(ctx.plane) { r3d.UnloadMesh(ctx.plane) }
-	if r3d.IsMeshValid(ctx.plane_no_shadow) { r3d.UnloadMesh(ctx.plane_no_shadow) }
-	if r3d.IsMeshValid(ctx.sphere) { r3d.UnloadMesh(ctx.sphere) }
-	if r3d.IsMeshValid(ctx.sphere_no_shadow) { r3d.UnloadMesh(ctx.sphere_no_shadow) }
+	if r3d.IsMeshValid(ctx.cube) {r3d.UnloadMesh(ctx.cube)}
+	if r3d.IsMeshValid(ctx.cube_no_shadow) {r3d.UnloadMesh(ctx.cube_no_shadow)}
+	if r3d.IsMeshValid(ctx.plane) {r3d.UnloadMesh(ctx.plane)}
+	if r3d.IsMeshValid(ctx.plane_no_shadow) {r3d.UnloadMesh(ctx.plane_no_shadow)}
+	if r3d.IsMeshValid(ctx.sphere) {r3d.UnloadMesh(ctx.sphere)}
+	if r3d.IsMeshValid(ctx.sphere_no_shadow) {r3d.UnloadMesh(ctx.sphere_no_shadow)}
 	delete(ctx.models)
 	delete(ctx.r3d_materials)
 	delete(ctx.scene_lights)
@@ -93,22 +93,31 @@ shutdown :: proc(ctx: ^Context) {
 	ctx.initialized = false
 }
 
-draw_scene :: proc(ctx: ^Context, world: ^ecs.World, asset_manager: ^assets.Asset_Manager) -> bool {
+draw_scene :: proc(
+	ctx: ^Context,
+	world: ^ecs.World,
+	asset_manager: ^assets.Asset_Manager,
+) -> bool {
 	return draw_scene_ex(ctx, world, asset_manager, {})
 }
 
-draw_scene_ex :: proc(ctx: ^Context, world: ^ecs.World, asset_manager: ^assets.Asset_Manager, settings: Scene3D_Settings) -> bool {
-	if !ctx.initialized { return false }
+draw_scene_ex :: proc(
+	ctx: ^Context,
+	world: ^ecs.World,
+	asset_manager: ^assets.Asset_Manager,
+	settings: Scene3D_Settings,
+) -> bool {
+	if !ctx.initialized {return false}
 	entity, camera_component, found := ecs.active_camera_3d(world)
-	if !found { return false }
+	if !found {return false}
 	transform, has_transform := ecs.get_transform(world, entity)
-	if !has_transform { return false }
+	if !has_transform {return false}
 
-	camera := rl.Camera3D{
-		position = transform.position,
-		target = camera_component.target,
-		up = camera_component.up,
-		fovy = camera_component.fovy,
+	camera := rl.Camera3D {
+		position   = transform.position,
+		target     = camera_component.target,
+		up         = camera_component.up,
+		fovy       = camera_component.fovy,
 		projection = .PERSPECTIVE,
 	}
 	if ctx.world_generation != world.generation {
@@ -136,7 +145,14 @@ Render_Pass :: enum {
 	Non_Plane,
 }
 
-draw_entity_tree :: proc(ctx: ^Context, world: ^ecs.World, asset_manager: ^assets.Asset_Manager, entity: ecs.Entity, parent: ecs.Transform, pass: Render_Pass) {
+draw_entity_tree :: proc(
+	ctx: ^Context,
+	world: ^ecs.World,
+	asset_manager: ^assets.Asset_Manager,
+	entity: ecs.Entity,
+	parent: ecs.Transform,
+	pass: Render_Pass,
+) {
 	local := parent
 	if transform, has_transform := ecs.get_transform(world, entity); has_transform {
 		local.position += transform.position
@@ -149,44 +165,76 @@ draw_entity_tree :: proc(ctx: ^Context, world: ^ecs.World, asset_manager: ^asset
 	}
 }
 
-draw_entity :: proc(ctx: ^Context, world: ^ecs.World, asset_manager: ^assets.Asset_Manager, entity: ecs.Entity, transform: ecs.Transform, pass: Render_Pass) {
-	if mesh, has_mesh := ecs.get_mesh_renderer(world, entity); has_mesh && mesh.primitive == "cube" {
-		if pass != .Non_Plane { return }
+draw_entity :: proc(
+	ctx: ^Context,
+	world: ^ecs.World,
+	asset_manager: ^assets.Asset_Manager,
+	entity: ecs.Entity,
+	transform: ecs.Transform,
+	pass: Render_Pass,
+) {
+	if mesh, has_mesh := ecs.get_mesh_renderer(world, entity);
+	   has_mesh && mesh.primitive == "cube" {
+		if pass != .Non_Plane {return}
 		material := material_from_path(ctx, asset_manager, mesh.material, mesh.color)
 		cube := ctx.cube if mesh.shadows else ctx.cube_no_shadow
 		if is_unrotated(transform) && is_uniform_scale(transform.scale) {
 			r3d.DrawMesh(cube, material, transform.position, transform.scale[0])
 		} else {
-			r3d.DrawMeshEx(cube, material, transform.position, rotation_quaternion(transform), transform.scale)
+			r3d.DrawMeshEx(
+				cube,
+				material,
+				transform.position,
+				rotation_quaternion(transform),
+				transform.scale,
+			)
 		}
 	}
-	if mesh, has_mesh := ecs.get_mesh_renderer(world, entity); has_mesh && mesh.primitive == "plane" {
-		if pass != .Plane_Only { return }
+	if mesh, has_mesh := ecs.get_mesh_renderer(world, entity);
+	   has_mesh && mesh.primitive == "plane" {
+		if pass != .Plane_Only {return}
 		material := material_from_path(ctx, asset_manager, mesh.material, mesh.color)
 		plane := ctx.plane if mesh.shadows else ctx.plane_no_shadow
 		if is_unrotated(transform) && transform.scale[0] == transform.scale[2] {
 			r3d.DrawMesh(plane, material, transform.position, transform.scale[0])
 		} else {
-			r3d.DrawMeshEx(plane, material, transform.position, rotation_quaternion(transform), transform.scale)
+			r3d.DrawMeshEx(
+				plane,
+				material,
+				transform.position,
+				rotation_quaternion(transform),
+				transform.scale,
+			)
 		}
 	}
 	if sphere, has_sphere := ecs.get_sphere_renderer(world, entity); has_sphere {
-		if pass != .Non_Plane { return }
+		if pass != .Non_Plane {return}
 		material := material_from_path(ctx, asset_manager, sphere.material, sphere.color)
 		scale := transform.scale * sphere.radius
 		sphere_mesh := ctx.sphere if sphere.shadows else ctx.sphere_no_shadow
 		if is_unrotated(transform) && is_uniform_scale(scale) {
 			r3d.DrawMesh(sphere_mesh, material, transform.position, scale[0])
 		} else {
-			r3d.DrawMeshEx(sphere_mesh, material, transform.position, rotation_quaternion(transform), scale)
+			r3d.DrawMeshEx(
+				sphere_mesh,
+				material,
+				transform.position,
+				rotation_quaternion(transform),
+				scale,
+			)
 		}
 	}
 	if model_renderer, has_model := ecs.get_model_renderer(world, entity); has_model {
-		if pass != .Non_Plane { return }
+		if pass != .Non_Plane {return}
 		loaded_model, loaded := load_model(ctx, model_renderer.model)
-		if !loaded { return }
+		if !loaded {return}
 		apply_model_materials(ctx, asset_manager, &loaded_model, model_renderer)
-		r3d.DrawModelEx(loaded_model, transform.position, rotation_quaternion(transform), transform.scale)
+		r3d.DrawModelEx(
+			loaded_model,
+			transform.position,
+			rotation_quaternion(transform),
+			transform.scale,
+		)
 	}
 }
 
@@ -206,7 +254,7 @@ apply_ambient :: proc(world: ^ecs.World) {
 	energy: f32 = 1
 	for entity in ecs.entities_with_component(world, "AmbientLight") {
 		light, found := ecs.get_ambient_light(world, entity)
-		if !found { continue }
+		if !found {continue}
 		color = to_raylib_color(light.color)
 		energy = light.intensity
 	}
@@ -218,8 +266,8 @@ apply_ambient :: proc(world: ^ecs.World) {
 create_scene_lights :: proc(ctx: ^Context, world: ^ecs.World) {
 	for entity in ecs.entities_with_component(world, "DirectionalLight") {
 		light, found := ecs.get_directional_light(world, entity)
-		if !found { continue }
-		if light.intensity <= 0 { continue }
+		if !found {continue}
+		if light.intensity <= 0 {continue}
 		id := scene_light(ctx, entity, .DIR)
 		r3d.SetLightDirection(id, light.direction)
 		r3d.SetLightColor(id, to_raylib_color(light.color))
@@ -227,13 +275,20 @@ create_scene_lights :: proc(ctx: ^Context, world: ^ecs.World) {
 		r3d.SetLightRange(id, light.range)
 		r3d.SetLightSpecular(id, light.specular)
 		r3d.SetLightActive(id, true)
-		apply_shadow_settings(id, light.shadows, light.shadow_softness, light.shadow_opacity, light.shadow_depth_bias, light.shadow_slope_bias)
+		apply_shadow_settings(
+			id,
+			light.shadows,
+			light.shadow_softness,
+			light.shadow_opacity,
+			light.shadow_depth_bias,
+			light.shadow_slope_bias,
+		)
 	}
 	for entity in ecs.entities_with_component(world, "PointLight") {
 		light, has_light := ecs.get_point_light(world, entity)
 		transform, has_transform := ecs.get_transform(world, entity)
-		if !has_light || !has_transform { continue }
-		if light.intensity <= 0 { continue }
+		if !has_light || !has_transform {continue}
+		if light.intensity <= 0 {continue}
 		id := scene_light(ctx, entity, .OMNI)
 		r3d.SetLightPosition(id, transform.position)
 		r3d.SetLightColor(id, to_raylib_color(light.color))
@@ -241,13 +296,20 @@ create_scene_lights :: proc(ctx: ^Context, world: ^ecs.World) {
 		r3d.SetLightRange(id, light.range)
 		r3d.SetLightSpecular(id, light.specular)
 		r3d.SetLightActive(id, true)
-		apply_shadow_settings(id, light.shadows, light.shadow_softness, light.shadow_opacity, light.shadow_depth_bias, light.shadow_slope_bias)
+		apply_shadow_settings(
+			id,
+			light.shadows,
+			light.shadow_softness,
+			light.shadow_opacity,
+			light.shadow_depth_bias,
+			light.shadow_slope_bias,
+		)
 	}
 	for entity in ecs.entities_with_component(world, "SpotLight") {
 		light, has_light := ecs.get_spot_light(world, entity)
 		transform, has_transform := ecs.get_transform(world, entity)
-		if !has_light || !has_transform { continue }
-		if light.intensity <= 0 { continue }
+		if !has_light || !has_transform {continue}
+		if light.intensity <= 0 {continue}
 		id := scene_light(ctx, entity, .SPOT)
 		r3d.LightLookAt(id, transform.position, transform.position + light.direction)
 		r3d.SetLightColor(id, to_raylib_color(light.color))
@@ -255,7 +317,14 @@ create_scene_lights :: proc(ctx: ^Context, world: ^ecs.World) {
 		r3d.SetLightRange(id, light.range)
 		r3d.SetLightSpecular(id, light.specular)
 		r3d.SetLightActive(id, true)
-		apply_shadow_settings(id, light.shadows, light.shadow_softness, light.shadow_opacity, light.shadow_depth_bias, light.shadow_slope_bias)
+		apply_shadow_settings(
+			id,
+			light.shadows,
+			light.shadow_softness,
+			light.shadow_opacity,
+			light.shadow_depth_bias,
+			light.shadow_slope_bias,
+		)
 	}
 }
 
@@ -273,8 +342,12 @@ scene_light :: proc(ctx: ^Context, entity: ecs.Entity, light_type: r3d.LightType
 	return id
 }
 
-apply_shadow_settings :: proc(id: r3d.Light, enabled: bool, softness, opacity, depth_bias, slope_bias: f32) {
-	if !enabled { return }
+apply_shadow_settings :: proc(
+	id: r3d.Light,
+	enabled: bool,
+	softness, opacity, depth_bias, slope_bias: f32,
+) {
+	if !enabled {return}
 	r3d.EnableShadow(id)
 	r3d.SetShadowOpacity(id, opacity)
 	if softness > 0 {
@@ -298,47 +371,59 @@ destroy_scene_lights :: proc(ctx: ^Context) {
 }
 
 load_model :: proc(ctx: ^Context, path: string) -> (r3d.Model, bool) {
-	if len(path) == 0 { return {}, false }
-	if asset, found := ctx.models[path]; found { return asset.model, true }
+	if len(path) == 0 {return {}, false}
+	if asset, found := ctx.models[path]; found {return asset.model, true}
 	full_path := resolve_path(ctx.root, path)
 	cpath, _ := strings.clone_to_cstring(full_path)
 	defer delete(cpath)
 	loaded := r3d.LoadModel(cpath)
-	if loaded.meshCount <= 0 { return {}, false }
+	if loaded.meshCount <= 0 {return {}, false}
 	enable_model_shadows(&loaded)
-	ctx.models[path] = Model_Asset{model = loaded}
+	ctx.models[path] = Model_Asset {
+		model = loaded,
+	}
 	return loaded, true
 }
 
 enable_model_shadows :: proc(model: ^r3d.Model) {
-	for index in 0..<model.meshCount {
+	for index in 0 ..< model.meshCount {
 		model.meshes[index].shadowCastMode = .ON_DOUBLE_SIDED
 	}
 }
 
-apply_model_materials :: proc(ctx: ^Context, asset_manager: ^assets.Asset_Manager, model: ^r3d.Model, renderer: ecs.ModelRenderer) {
-	if model.materialCount <= 0 { return }
+apply_model_materials :: proc(
+	ctx: ^Context,
+	asset_manager: ^assets.Asset_Manager,
+	model: ^r3d.Model,
+	renderer: ecs.ModelRenderer,
+) {
+	if model.materialCount <= 0 {return}
 	if material, loaded := assets.material_data(asset_manager, renderer.material); loaded {
 		r3d_material := material_from_data(ctx, asset_manager, renderer.material, material)
-		for index in 0..<model.materialCount {
+		for index in 0 ..< model.materialCount {
 			model.materials[index] = r3d_material
 		}
 	} else {
 		material := r3d.GetDefaultMaterial()
 		material.albedo.color = to_raylib_color(renderer.tint)
-		for index in 0..<model.materialCount {
+		for index in 0 ..< model.materialCount {
 			model.materials[index] = material
 		}
 	}
 	for slot, path in renderer.materials {
-		if slot < 0 || slot >= model.materialCount { continue }
+		if slot < 0 || slot >= model.materialCount {continue}
 		if material, loaded := assets.material_data(asset_manager, path); loaded {
 			model.materials[slot] = material_from_data(ctx, asset_manager, path, material)
 		}
 	}
 }
 
-material_from_path :: proc(ctx: ^Context, asset_manager: ^assets.Asset_Manager, path: string, fallback_color: ecs.Color) -> r3d.Material {
+material_from_path :: proc(
+	ctx: ^Context,
+	asset_manager: ^assets.Asset_Manager,
+	path: string,
+	fallback_color: ecs.Color,
+) -> r3d.Material {
 	if material, loaded := assets.material_data(asset_manager, path); loaded {
 		return material_from_data(ctx, asset_manager, path, material)
 	}
@@ -347,7 +432,12 @@ material_from_path :: proc(ctx: ^Context, asset_manager: ^assets.Asset_Manager, 
 	return material
 }
 
-material_from_data :: proc(ctx: ^Context, asset_manager: ^assets.Asset_Manager, path: string, data: assets.Material_Data) -> r3d.Material {
+material_from_data :: proc(
+	ctx: ^Context,
+	asset_manager: ^assets.Asset_Manager,
+	path: string,
+	data: assets.Material_Data,
+) -> r3d.Material {
 	signature := material_signature(data)
 	if len(path) > 0 {
 		if cached, found := ctx.r3d_materials[path]; found {
@@ -359,8 +449,13 @@ material_from_data :: proc(ctx: ^Context, asset_manager: ^assets.Asset_Manager, 
 	}
 
 	material := r3d.GetDefaultMaterial()
-	material.albedo.color = rl.Color{data.base_color[0], data.base_color[1], data.base_color[2], data.base_color[3]}
-	asset := R3D_Material_Asset{
+	material.albedo.color = rl.Color {
+		data.base_color[0],
+		data.base_color[1],
+		data.base_color[2],
+		data.base_color[3],
+	}
+	asset := R3D_Material_Asset {
 		signature = signature,
 	}
 	if asset_manager != nil && len(data.texture) > 0 {
@@ -376,7 +471,12 @@ material_from_data :: proc(ctx: ^Context, asset_manager: ^assets.Asset_Manager, 
 		}
 	}
 	material.normal.scale = data.normal_scale
-	material.emission.color = rl.Color{data.emission_color[0], data.emission_color[1], data.emission_color[2], data.emission_color[3]}
+	material.emission.color = rl.Color {
+		data.emission_color[0],
+		data.emission_color[1],
+		data.emission_color[2],
+		data.emission_color[3],
+	}
 	material.emission.energy = data.emission_energy
 	if asset_manager != nil && len(data.emission) > 0 {
 		if emission, loaded := load_emission_map(ctx, data); loaded {
@@ -447,8 +547,11 @@ load_albedo_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.Albed
 	full_path := resolve_path(ctx.root, data.texture)
 	cpath, _ := strings.clone_to_cstring(full_path)
 	defer delete(cpath)
-	result := r3d.LoadAlbedoMap(cpath, rl.Color{data.base_color[0], data.base_color[1], data.base_color[2], data.base_color[3]})
-	if !rl.IsTextureValid(result.texture) { return {}, false }
+	result := r3d.LoadAlbedoMap(
+		cpath,
+		rl.Color{data.base_color[0], data.base_color[1], data.base_color[2], data.base_color[3]},
+	)
+	if !rl.IsTextureValid(result.texture) {return {}, false}
 	assets.configure_texture(&result.texture, data.filter, data.mipmaps)
 	return result, true
 }
@@ -458,7 +561,7 @@ load_normal_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.Norma
 	cpath, _ := strings.clone_to_cstring(full_path)
 	defer delete(cpath)
 	result := r3d.LoadNormalMap(cpath, data.normal_scale)
-	if !rl.IsTextureValid(result.texture) { return {}, false }
+	if !rl.IsTextureValid(result.texture) {return {}, false}
 	assets.configure_texture(&result.texture, data.filter, data.mipmaps)
 	return result, true
 }
@@ -467,8 +570,17 @@ load_emission_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.Emi
 	full_path := resolve_path(ctx.root, data.emission)
 	cpath, _ := strings.clone_to_cstring(full_path)
 	defer delete(cpath)
-	result := r3d.LoadEmissionMap(cpath, rl.Color{data.emission_color[0], data.emission_color[1], data.emission_color[2], data.emission_color[3]}, data.emission_energy)
-	if !rl.IsTextureValid(result.texture) { return {}, false }
+	result := r3d.LoadEmissionMap(
+		cpath,
+		rl.Color {
+			data.emission_color[0],
+			data.emission_color[1],
+			data.emission_color[2],
+			data.emission_color[3],
+		},
+		data.emission_energy,
+	)
+	if !rl.IsTextureValid(result.texture) {return {}, false}
 	assets.configure_texture(&result.texture, data.filter, data.mipmaps)
 	return result, true
 }
@@ -478,7 +590,7 @@ load_orm_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.OrmMap, 
 	cpath, _ := strings.clone_to_cstring(full_path)
 	defer delete(cpath)
 	result := r3d.LoadOrmMap(cpath, data.ao_strength, data.roughness, data.metallic, data.specular)
-	if !rl.IsTextureValid(result.texture) { return {}, false }
+	if !rl.IsTextureValid(result.texture) {return {}, false}
 	assets.configure_texture(&result.texture, data.filter, data.mipmaps)
 	return result, true
 }
@@ -499,30 +611,30 @@ unload_owned_material_maps :: proc(asset: R3D_Material_Asset) {
 }
 
 transparency_mode_from_name :: proc(name: string) -> r3d.TransparencyMode {
-	if name == "prepass" { return .PREPASS }
-	if name == "alpha" { return .ALPHA }
+	if name == "prepass" {return .PREPASS}
+	if name == "alpha" {return .ALPHA}
 	return .DISABLED
 }
 
 blend_mode_from_name :: proc(name: string) -> r3d.BlendMode {
-	if name == "additive" { return .ADDITIVE }
-	if name == "multiply" { return .MULTIPLY }
-	if name == "premultiplied_alpha" { return .PREMULTIPLIED_ALPHA }
+	if name == "additive" {return .ADDITIVE}
+	if name == "multiply" {return .MULTIPLY}
+	if name == "premultiplied_alpha" {return .PREMULTIPLIED_ALPHA}
 	return .MIX
 }
 
 cull_mode_from_name :: proc(name: string) -> r3d.CullMode {
-	if name == "front" { return .FRONT }
-	if name == "none" { return .NONE }
+	if name == "front" {return .FRONT}
+	if name == "none" {return .NONE}
 	return .BACK
 }
 
 draw_debug_overlays :: proc(world: ^ecs.World, camera: rl.Camera3D, settings: Scene3D_Settings) {
-	if settings.grid_slices <= 0 && !settings.draw_colliders { return }
+	if settings.grid_slices <= 0 && !settings.draw_colliders {return}
 	rl.BeginMode3D(camera)
 	if settings.grid_slices > 0 {
 		spacing := settings.grid_spacing
-		if spacing <= 0 { spacing = 1 }
+		if spacing <= 0 {spacing = 1}
 		rl.DrawGrid(settings.grid_slices, spacing)
 	}
 	if settings.draw_colliders {
@@ -535,23 +647,32 @@ draw_collision_debug :: proc(world: ^ecs.World) {
 	for entity in ecs.entities_with_component(world, "BoxCollider") {
 		collider, has_collider := ecs.get_box_collider(world, entity)
 		transform, has_transform := ecs.get_transform(world, entity)
-		if !has_collider || !has_transform { continue }
-		half := [3]f32{
+		if !has_collider || !has_transform {continue}
+		half := [3]f32 {
 			collider.size[0] * transform.scale[0] * 0.5,
 			collider.size[1] * transform.scale[1] * 0.5,
 			collider.size[2] * transform.scale[2] * 0.5,
 		}
-		box := rl.BoundingBox{min = transform.position - half, max = transform.position + half}
+		box := rl.BoundingBox {
+			min = transform.position - half,
+			max = transform.position + half,
+		}
 		rl.DrawBoundingBox(box, rl.LIME if collider.is_static else rl.YELLOW)
 	}
 	for entity in ecs.entities_with_component(world, "SphereCollider") {
 		collider, has_collider := ecs.get_sphere_collider(world, entity)
 		transform, has_transform := ecs.get_transform(world, entity)
-		if !has_collider || !has_transform { continue }
+		if !has_collider || !has_transform {continue}
 		scale := transform.scale[0]
-		if transform.scale[1] > scale { scale = transform.scale[1] }
-		if transform.scale[2] > scale { scale = transform.scale[2] }
-		rl.DrawSphereWires(transform.position, collider.radius * scale, 12, 8, rl.LIME if collider.is_static else rl.YELLOW)
+		if transform.scale[1] > scale {scale = transform.scale[1]}
+		if transform.scale[2] > scale {scale = transform.scale[2]}
+		rl.DrawSphereWires(
+			transform.position,
+			collider.radius * scale,
+			12,
+			8,
+			rl.LIME if collider.is_static else rl.YELLOW,
+		)
 	}
 }
 
@@ -576,7 +697,7 @@ degrees_to_radians :: proc(value: f32) -> f32 {
 }
 
 resolve_path :: proc(root, path: string) -> string {
-	if filepath.is_abs(path) { return path }
+	if filepath.is_abs(path) {return path}
 	full_path, _ := filepath.join({root, path})
 	return full_path
 }

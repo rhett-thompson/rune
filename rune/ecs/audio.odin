@@ -35,56 +35,59 @@ default_audio_player :: proc() -> AudioPlayer {
 
 audio_listener_from_json :: proc(data: json.Value) -> (AudioListener, bool) {
 	object, ok := data.(json.Object)
-	if !ok { return {}, false }
+	if !ok {return {}, false}
 
 	result := default_audio_listener()
 	if value, found := object["active"]; found {
 		result.active, ok = value.(json.Boolean)
-		if !ok { return {}, false }
+		if !ok {return {}, false}
 	}
 	return result, true
 }
 
 audio_player_from_json :: proc(data: json.Value) -> (AudioPlayer, bool) {
 	object, ok := data.(json.Object)
-	if !ok { return {}, false }
+	if !ok {return {}, false}
 
 	result := default_audio_player()
 	value, found := object["sound"]
-	if !found { return {}, false }
+	if !found {return {}, false}
 	result.sound, ok = value.(json.String)
-	if !ok || len(result.sound) == 0 { return {}, false }
+	if !ok || len(result.sound) == 0 {return {}, false}
 	if value, found := object["volume"]; found {
 		result.volume, ok = read_number(value)
-		if !ok || result.volume < 0 { return {}, false }
+		if !ok || result.volume < 0 {return {}, false}
 	}
 	if value, found := object["pitch"]; found {
 		result.pitch, ok = read_number(value)
-		if !ok || result.pitch <= 0 { return {}, false }
+		if !ok || result.pitch <= 0 {return {}, false}
 	}
 	if value, found := object["random_volume"]; found {
 		result.random_volume, ok = read_number(value)
-		if !ok || result.random_volume < 0 { return {}, false }
+		if !ok || result.random_volume < 0 {return {}, false}
 	}
 	if value, found := object["random_pitch"]; found {
 		result.random_pitch, ok = read_number(value)
-		if !ok || result.random_pitch < 0 { return {}, false }
+		if !ok || result.random_pitch < 0 {return {}, false}
 	}
 	if value, found := object["max_voices"]; found {
 		number, number_ok := read_number(value)
-		if !number_ok || number < 1 || number != f32(i32(number)) { return {}, false }
+		if !number_ok || number < 1 || number != f32(i32(number)) {return {}, false}
 		result.max_voices = i32(number)
 	}
-	if value, found := object["looping"]; found { result.looping, ok = value.(json.Boolean); if !ok { return {}, false } }
-	if value, found := object["spatial"]; found { result.spatial, ok = value.(json.Boolean); if !ok { return {}, false } }
+	if value, found := object["looping"];
+	   found {result.looping, ok = value.(json.Boolean); if !ok {return {}, false}}
+	if value, found := object["spatial"];
+	   found {result.spatial, ok = value.(json.Boolean); if !ok {return {}, false}}
 	if value, found := object["min_distance"]; found {
 		result.min_distance, ok = read_number(value)
-		if !ok || result.min_distance < 0 { return {}, false }
+		if !ok || result.min_distance < 0 {return {}, false}
 	}
 	if value, found := object["max_distance"]; found {
 		result.max_distance, ok = read_number(value)
-		if !ok || result.max_distance < result.min_distance { return {}, false }
+		if !ok || result.max_distance < result.min_distance {return {}, false}
 	}
-	if value, found := object["play_on_start"]; found { result.play_on_start, ok = value.(json.Boolean); if !ok { return {}, false } }
+	if value, found := object["play_on_start"];
+	   found {result.play_on_start, ok = value.(json.Boolean); if !ok {return {}, false}}
 	return result, true
 }

@@ -1,0 +1,4 @@
+[submodule "third_party/r3d-odin"]
+	path = third_party/r3d-odin
+	url = https://github.com/Bigfoot71/r3d-odin.git
+

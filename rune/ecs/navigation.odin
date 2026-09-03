@@ -17,26 +17,32 @@ NavGrid2D :: struct {
 // NavAgent2D contains reusable path-query settings. Destinations and current
 // paths remain transient runtime state controlled by game systems.
 NavAgent2D :: struct {
-	radius: f32,
-	repath_interval: f32,
+	radius:           f32,
+	repath_interval:  f32,
 	arrival_distance: f32,
 }
 
 nav_grid_2d_from_json :: proc(data: json.Value) -> (NavGrid2D, bool) {
 	object, ok := data.(json.Object)
-	if !ok { return {}, false }
-	result := NavGrid2D{cell_size = 24, algorithm = .A_Star}
+	if !ok {return {}, false}
+	result := NavGrid2D {
+		cell_size = 24,
+		algorithm = .A_Star,
+	}
 	if value, found := object["cell_size"]; found {
 		result.cell_size, ok = read_number(value)
-		if !ok || result.cell_size <= 0 { return {}, false }
+		if !ok || result.cell_size <= 0 {return {}, false}
 	}
 	if value, found := object["algorithm"]; found {
 		name, string_ok := value.(json.String)
-		if !string_ok { return {}, false }
+		if !string_ok {return {}, false}
 		switch name {
-		case "a_star":     result.algorithm = .A_Star
-		case "theta_star": result.algorithm = .Theta_Star
-		case: return {}, false
+		case "a_star":
+			result.algorithm = .A_Star
+		case "theta_star":
+			result.algorithm = .Theta_Star
+		case:
+			return {}, false
 		}
 	}
 	return result, true
@@ -44,19 +50,23 @@ nav_grid_2d_from_json :: proc(data: json.Value) -> (NavGrid2D, bool) {
 
 nav_agent_2d_from_json :: proc(data: json.Value) -> (NavAgent2D, bool) {
 	object, ok := data.(json.Object)
-	if !ok { return {}, false }
-	result := NavAgent2D{radius = 8, repath_interval = .25, arrival_distance = 4}
+	if !ok {return {}, false}
+	result := NavAgent2D {
+		radius           = 8,
+		repath_interval  = .25,
+		arrival_distance = 4,
+	}
 	if value, found := object["radius"]; found {
 		result.radius, ok = read_number(value)
-		if !ok || result.radius <= 0 { return {}, false }
+		if !ok || result.radius <= 0 {return {}, false}
 	}
 	if value, found := object["repath_interval"]; found {
 		result.repath_interval, ok = read_number(value)
-		if !ok || result.repath_interval <= 0 { return {}, false }
+		if !ok || result.repath_interval <= 0 {return {}, false}
 	}
 	if value, found := object["arrival_distance"]; found {
 		result.arrival_distance, ok = read_number(value)
-		if !ok || result.arrival_distance < 0 { return {}, false }
+		if !ok || result.arrival_distance < 0 {return {}, false}
 	}
 	return result, true
 }

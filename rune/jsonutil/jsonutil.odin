@@ -6,8 +6,10 @@ import "core:encoding/json"
 // f32. Callers retain responsibility for field-specific range validation.
 number :: proc(value: json.Value) -> (f32, bool) {
 	#partial switch numeric_value in value {
-	case json.Integer: return f32(numeric_value), true
-	case json.Float:   return f32(numeric_value), true
+	case json.Integer:
+		return f32(numeric_value), true
+	case json.Float:
+		return f32(numeric_value), true
 	}
 	return 0, false
 }

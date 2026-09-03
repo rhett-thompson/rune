@@ -46,7 +46,7 @@ read_vector3 :: proc(data: json.Value, result: ^[3]f32) -> bool {
 
 	for value, index in array {
 		number, number_ok := read_number(value)
-		if !number_ok { return false }
+		if !number_ok {return false}
 		result[index] = number
 	}
 	return true

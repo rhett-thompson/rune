@@ -1,6 +1,13 @@
 # Rune
 
-Rune is a small, code-first game engine written in Odin. Projects, scenes, and later prefabs are readable JSON files; gameplay behavior remains Odin code.
+Rune is a lightweight, code-first game engine written in Odin. Projects,
+scenes, prefabs, materials, and input mappings are readable JSON files;
+gameplay behavior remains Odin code.
+
+Rune uses raylib for its platform layer, 2D rendering, input, and audio; r3d
+provides the advanced 3D rendering path; and Odin's vendor bindings provide
+Box2D and Box3D physics. The project remains usable without an editor: an
+editor is an optional future view over the same code and JSON files.
 
 ## JSON editing
 
@@ -10,15 +17,46 @@ The checked-in VS Code settings associate each Rune JSON filename pattern with
 its schema automatically. Custom Odin component blocks remain valid, although
 their game-specific fields are not completed by the built-in schemas.
 
-## Current slice
+## Current capabilities
 
-The initial scaffold provides:
+- raylib-backed engine lifecycle and registered update/draw systems;
+- JSON projects, scenes, prefabs, materials, input mappings, and schemas;
+- a typed ECS with reflected Odin/JSON custom components and hierarchy;
+- cached, hot-reloadable texture, model, material, font, and audio assets;
+- scene-owned sprites, tilemaps, text, 3D models, PBR materials, lights, and shadows;
+- input actions and runtime rebinding, audio components, tweening, and navigation;
+- fixed-step Box2D physics and Box3D rigid bodies;
+- runtime console, gizmos, validation tools, and complete example games.
 
-- a raylib-backed engine loop;
-- JSON `project.json` loading and scene-to-world instantiation;
-- a strict typed ECS with reflected Odin/JSON custom components;
-- cached texture assets and scene-owned 2D sprite rendering;
-- a runnable hello-world example.
+See [ROADMAP.md](ROADMAP.md) for current priorities.
+
+## Setup
+
+Clone with submodules so the pinned r3d Odin binding is available:
+
+```powershell
+git clone --recurse-submodules <repository-url>
+```
+
+For an existing checkout:
+
+```powershell
+git submodule update --init --recursive
+```
+
+Run the complete headless validation suite and representative builds with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/validate.ps1
+```
+
+Pass `-AllExamples` to compile every launcher example.
+
+## Screenshots
+
+![Rune textured 3D material example](docs/images/textured_model_3d_capture.png)
+
+Additional renderer probe captures are kept in [`docs/images`](docs/images).
 
 ## Example launcher
 

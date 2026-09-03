@@ -23,7 +23,7 @@ on_draw :: proc(game: ^rune.Engine) {
 	r3d.DrawMesh(sphere, material, {0, 0, 0}, 1)
 	r3d.End()
 	if capture && frame == 30 {
-		rl.TakeScreenshot("r3d_engine_probe.png")
+		rl.TakeScreenshot("build/r3d_engine_probe.png")
 	}
 	frame += 1
 	if capture && frame > 32 {

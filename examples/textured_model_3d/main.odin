@@ -66,7 +66,7 @@ on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	rl.DrawText(material_view_name(material_view), 150, 94, 18, rl.RAYWHITE)
 	rl.DrawFPS(24, 128)
 	if capture_mode && capture_frame == 30 {
-		rl.TakeScreenshot("textured_model_3d_capture.png")
+		rl.TakeScreenshot("build/textured_model_3d_capture.png")
 	}
 	capture_frame += 1
 	if capture_mode && capture_frame > 32 {
