@@ -173,6 +173,12 @@ input actions. A gameplay system that needs exclusive controls should check
 `console.is_open(rune.developer_console(game))` and skip its input handling
 while the console is open.
 
+Runtime asset failures are written to stderr and copied into this console. The
+message identifies the asset type, load or reload operation, source material or
+component field, referenced path, and fallback behavior. Repeated failures are
+deduplicated until that asset successfully loads again; invalid hot-reload
+replacements keep the last working texture, font, material, or model.
+
 ## Runtime gizmos
 
 Rune includes a small debug visualization layer for scene data. In projects

@@ -390,6 +390,16 @@ load_model :: proc(
 	defer delete(cpath)
 	loaded := r3d.LoadModel(cpath)
 	if loaded.meshCount <= 0 {
+		assets.report_failure(
+			asset_manager,
+			assets.Diagnostic {
+				kind = .Model,
+				operation = .Reload if already_loaded else .Load,
+				field = "ModelRenderer.model",
+				asset_path = path,
+				detail = "r3d could not load the model; keeping the previous model" if already_loaded else "r3d could not load the model",
+			},
+		)
 		if already_loaded {
 			previous.revision = revision
 			ctx.models[path] = previous
@@ -397,6 +407,7 @@ load_model :: proc(
 		}
 		return {}, false
 	}
+	assets.resolve_asset_failure(asset_manager, "", "ModelRenderer.model", path)
 	if already_loaded {
 		r3d.UnloadModel(previous.model, false)
 	}
@@ -495,12 +506,38 @@ material_from_data :: proc(
 		if albedo, loaded := load_albedo_map(ctx, data); loaded {
 			material.albedo = albedo
 			asset.owns_albedo = true
+			assets.resolve_asset_failure(asset_manager, path, "$.albedo", data.texture)
+		} else {
+			assets.report_failure(
+				asset_manager,
+				assets.Diagnostic {
+					kind = .Texture,
+					operation = .Load,
+					source_path = path,
+					field = "$.albedo",
+					asset_path = data.texture,
+					detail = "r3d could not load the albedo map; using the material color",
+				},
+			)
 		}
 	}
 	if asset_manager != nil && len(data.normal) > 0 {
 		if normal, loaded := load_normal_map(ctx, data); loaded {
 			material.normal = normal
 			asset.owns_normal = true
+			assets.resolve_asset_failure(asset_manager, path, "$.normal", data.normal)
+		} else {
+			assets.report_failure(
+				asset_manager,
+				assets.Diagnostic {
+					kind = .Texture,
+					operation = .Load,
+					source_path = path,
+					field = "$.normal",
+					asset_path = data.normal,
+					detail = "r3d could not load the normal map; using the default normal",
+				},
+			)
 		}
 	}
 	material.normal.scale = data.normal_scale
@@ -515,6 +552,19 @@ material_from_data :: proc(
 		if emission, loaded := load_emission_map(ctx, data); loaded {
 			material.emission = emission
 			asset.owns_emission = true
+			assets.resolve_asset_failure(asset_manager, path, "$.emission", data.emission)
+		} else {
+			assets.report_failure(
+				asset_manager,
+				assets.Diagnostic {
+					kind = .Texture,
+					operation = .Load,
+					source_path = path,
+					field = "$.emission",
+					asset_path = data.emission,
+					detail = "r3d could not load the emission map; using the material emission color",
+				},
+			)
 		}
 	}
 	has_orm_texture := false
@@ -523,9 +573,22 @@ material_from_data :: proc(
 			material.orm = orm
 			has_orm_texture = true
 			asset.owns_orm = true
+			assets.resolve_asset_failure(asset_manager, path, "$.orm", data.orm_texture)
+		} else {
+			assets.report_failure(
+				asset_manager,
+				assets.Diagnostic {
+					kind = .Texture,
+					operation = .Load,
+					source_path = path,
+					field = "$.orm",
+					asset_path = data.orm_texture,
+					detail = "r3d could not load the ORM map; using scalar material values",
+				},
+			)
 		}
 	} else if asset_manager != nil {
-		if orm, loaded := assets.material_orm_texture(asset_manager, data); loaded {
+		if orm, loaded := assets.material_orm_texture(asset_manager, data, path); loaded {
 			material.orm.texture = orm
 			has_orm_texture = true
 		}

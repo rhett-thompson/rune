@@ -58,7 +58,7 @@ draw_sprite_tree :: proc(
 	}
 
 	if sprite, found := ecs.get_sprite_renderer(world, entity); found {
-		texture, _ := assets.texture(asset_manager, sprite.texture)
+		texture, _ := assets.texture(asset_manager, sprite.texture, "", "SpriteRenderer.texture")
 		source := rl.Rectangle{0, 0, f32(texture.width), f32(texture.height)}
 		destination := rl.Rectangle {
 			position[0],
@@ -91,7 +91,12 @@ draw_tilemap :: proc(
 	rotation: f32,
 	camera: rl.Camera2D,
 ) {
-	texture, loaded := assets.texture(asset_manager, tilemap.texture)
+	texture, loaded := assets.texture(
+		asset_manager,
+		tilemap.texture,
+		"",
+		"TilemapRenderer.texture",
+	)
 	if !loaded {return}
 	columns := i32(f32(texture.width) / tilemap.tile_size[0])
 	rows := i32(f32(texture.height) / tilemap.tile_size[1])
@@ -164,7 +169,7 @@ draw_text :: proc(
 	position, scale: [2]f32,
 	rotation: f32,
 ) {
-	font, loaded := assets.font(asset_manager, text.font)
+	font, loaded := assets.font(asset_manager, text.font, "", "TextRenderer.font")
 	if !loaded {return}
 	content, _ := strings.clone_to_cstring(text.text)
 	font_size := text.font_size * scale[0]

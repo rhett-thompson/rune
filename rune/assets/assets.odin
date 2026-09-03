@@ -68,8 +68,9 @@ Asset_Manager :: struct {
 	generated_orm_textures:   map[string]Texture_Asset,
 	material_texture_watches: map[string]i64,
 	material_revision:        u64,
-	missing_textures:         map[string]bool,
+	missing_textures:         map[string]i64,
 	missing_texture:          rl.Texture2D,
+	diagnostics:              Diagnostic_Log,
 }
 
 // init must run after raylib creates a window because it creates the small
@@ -86,18 +87,42 @@ init :: proc(root: string) -> Asset_Manager {
 		generated_orm_textures = make(map[string]Texture_Asset),
 		material_texture_watches = make(map[string]i64),
 		material_revision = 1,
-		missing_textures = make(map[string]bool),
+		missing_textures = make(map[string]i64),
 		missing_texture = rl.LoadTextureFromImage(missing_image),
+		diagnostics = init_diagnostic_log(),
 	}
 }
 
-font :: proc(manager: ^Asset_Manager, path: string) -> (rl.Font, bool) {
+font :: proc(
+	manager: ^Asset_Manager,
+	path: string,
+	source_path := "",
+	field := "font",
+) -> (
+	rl.Font,
+	bool,
+) {
 	if len(path) == 0 {return {}, false}
 	if asset, found := manager.fonts[path]; found {return asset.font, true}
 	full_path := resolve_path(manager, path)
 	path_cstring, _ := strings.clone_to_cstring(full_path)
 	loaded := rl.LoadFont(path_cstring)
-	if !rl.IsFontValid(loaded) {return {}, false}
+	delete(path_cstring)
+	if !rl.IsFontValid(loaded) {
+		report_failure(
+			manager,
+			Diagnostic {
+				kind = .Font,
+				operation = .Load,
+				source_path = source_path,
+				field = field,
+				asset_path = path,
+				detail = "raylib could not load the font",
+			},
+		)
+		return {}, false
+	}
+	resolve_asset_failure(manager, source_path, field, path)
 	manager.fonts[path] = Font_Asset {
 		font          = loaded,
 		modified_time = modified_time(full_path),
@@ -112,7 +137,20 @@ model_revision :: proc(manager: ^Asset_Manager, path: string) -> (u64, bool) {
 	if asset, found := manager.models[path]; found {return asset.revision, true}
 	full_path := resolve_path(manager, path)
 	current_time := modified_time(full_path)
-	if current_time < 0 {return 0, false}
+	if current_time < 0 {
+		report_failure(
+			manager,
+			Diagnostic {
+				kind = .Model,
+				operation = .Load,
+				field = "ModelRenderer.model",
+				asset_path = path,
+				detail = "model file does not exist",
+			},
+		)
+		return 0, false
+	}
+	resolve_asset_failure(manager, "", "ModelRenderer.model", path)
 	manager.models[path] = Model_Asset {
 		modified_time = current_time,
 		revision      = 1,
@@ -133,7 +171,21 @@ material_data :: proc(manager: ^Asset_Manager, path: string) -> (Material_Data, 
 	}
 	full_path := resolve_path(manager, path)
 	data, loaded := load_material_data(full_path)
-	if !loaded {return {}, false}
+	if !loaded {
+		report_failure(
+			manager,
+			Diagnostic {
+				kind = .Material,
+				operation = .Load,
+				source_path = path,
+				field = "$",
+				asset_path = path,
+				detail = "could not read or parse material JSON",
+			},
+		)
+		return {}, false
+	}
+	resolve_asset_failure(manager, path, "$", path)
 	manager.materials[path] = Material_Asset {
 		data          = data,
 		modified_time = modified_time(full_path),
@@ -150,24 +202,56 @@ material_asset_revision :: proc(manager: ^Asset_Manager) -> u64 {
 // texture returns a cached texture for a project-relative asset path. Missing
 // files return the shared fallback, and are remembered so they are not loaded
 // from disk every frame.
-texture :: proc(manager: ^Asset_Manager, path: string) -> (rl.Texture2D, bool) {
+texture :: proc(
+	manager: ^Asset_Manager,
+	path: string,
+	source_path := "",
+	field := "texture",
+) -> (
+	rl.Texture2D,
+	bool,
+) {
 	if len(path) == 0 {
 		return manager.missing_texture, false
 	}
 	if asset, found := manager.textures[path]; found {
 		return asset.texture, true
 	}
-	if manager.missing_textures[path] {
+	if _, missing := manager.missing_textures[path]; missing {
+		report_failure(
+			manager,
+			Diagnostic {
+				kind = .Texture,
+				operation = .Load,
+				source_path = source_path,
+				field = field,
+				asset_path = path,
+				detail = "raylib could not load the texture",
+			},
+		)
 		return manager.missing_texture, false
 	}
 
 	full_path := resolve_path(manager, path)
 	path_cstring, _ := strings.clone_to_cstring(full_path)
 	loaded := rl.LoadTexture(path_cstring)
+	delete(path_cstring)
 	if !rl.IsTextureValid(loaded) {
-		manager.missing_textures[path] = true
+		manager.missing_textures[path] = modified_time(full_path)
+		report_failure(
+			manager,
+			Diagnostic {
+				kind = .Texture,
+				operation = .Load,
+				source_path = source_path,
+				field = field,
+				asset_path = path,
+				detail = "raylib could not load the texture",
+			},
+		)
 		return manager.missing_texture, false
 	}
+	resolve_asset_failure(manager, source_path, field, path)
 	manager.textures[path] = Texture_Asset {
 		texture       = loaded,
 		modified_time = modified_time(full_path),
@@ -186,11 +270,13 @@ material_texture :: proc(
 	manager: ^Asset_Manager,
 	path, filter: string,
 	mipmaps: bool,
+	source_path := "",
+	field := "texture",
 ) -> (
 	rl.Texture2D,
 	bool,
 ) {
-	loaded_texture, loaded := texture(manager, path)
+	loaded_texture, loaded := texture(manager, path, source_path, field)
 	if !loaded {return loaded_texture, false}
 	asset := manager.textures[path]
 	if mipmaps && asset.texture.mipmaps <= 1 {
@@ -204,13 +290,21 @@ material_texture :: proc(
 material_orm_texture :: proc(
 	manager: ^Asset_Manager,
 	data: Material_Data,
+	material_path := "",
 ) -> (
 	rl.Texture2D,
 	bool,
 ) {
 	if manager == nil {return {}, false}
 	if len(data.orm_texture) > 0 {
-		return material_texture(manager, data.orm_texture, data.filter, data.mipmaps)
+		return material_texture(
+			manager,
+			data.orm_texture,
+			data.filter,
+			data.mipmaps,
+			material_path,
+			"$.orm",
+		)
 	}
 	if len(data.ao_texture) == 0 &&
 	   len(data.roughness_texture) == 0 &&
@@ -221,7 +315,7 @@ material_orm_texture :: proc(
 	if asset, found := manager.generated_orm_textures[key]; found {
 		return asset.texture, true
 	}
-	texture, loaded := generate_orm_texture(manager, data)
+	texture, loaded := generate_orm_texture(manager, data, material_path)
 	if !loaded {return {}, false}
 	manager.generated_orm_textures[key] = Texture_Asset {
 		texture = texture,
@@ -248,13 +342,29 @@ generated_orm_key :: proc(manager: ^Asset_Manager, data: Material_Data) -> strin
 generate_orm_texture :: proc(
 	manager: ^Asset_Manager,
 	data: Material_Data,
+	material_path: string,
 ) -> (
 	rl.Texture2D,
 	bool,
 ) {
-	ao_image, has_ao := load_material_image(manager, data.ao_texture)
-	roughness_image, has_roughness := load_material_image(manager, data.roughness_texture)
-	metallic_image, has_metallic := load_material_image(manager, data.metallic_texture)
+	ao_image, has_ao := load_material_image(
+		manager,
+		data.ao_texture,
+		material_path,
+		"$.ao_texture",
+	)
+	roughness_image, has_roughness := load_material_image(
+		manager,
+		data.roughness_texture,
+		material_path,
+		"$.roughness_texture",
+	)
+	metallic_image, has_metallic := load_material_image(
+		manager,
+		data.metallic_texture,
+		material_path,
+		"$.metallic_texture",
+	)
 	defer {
 		if has_ao {rl.UnloadImage(ao_image)}
 		if has_roughness {rl.UnloadImage(roughness_image)}
@@ -315,13 +425,33 @@ generate_orm_texture :: proc(
 	return texture, true
 }
 
-load_material_image :: proc(manager: ^Asset_Manager, path: string) -> (rl.Image, bool) {
+load_material_image :: proc(
+	manager: ^Asset_Manager,
+	path, source_path, field: string,
+) -> (
+	rl.Image,
+	bool,
+) {
 	if len(path) == 0 {return {}, false}
 	full_path := resolve_path(manager, path)
 	path_cstring, _ := strings.clone_to_cstring(full_path)
 	defer delete(path_cstring)
 	image := rl.LoadImage(path_cstring)
-	if !rl.IsImageValid(image) {return {}, false}
+	if !rl.IsImageValid(image) {
+		report_failure(
+			manager,
+			Diagnostic {
+				kind = .Texture,
+				operation = .Load,
+				source_path = source_path,
+				field = field,
+				asset_path = path,
+				detail = "raylib could not load the material channel image; using its scalar fallback",
+			},
+		)
+		return {}, false
+	}
+	resolve_asset_failure(manager, source_path, field, path)
 	return image, true
 }
 
@@ -370,13 +500,51 @@ scalar_to_channel :: proc(value: f32) -> u8 {
 // replacement files leave the currently working texture in place.
 refresh :: proc(manager: ^Asset_Manager) {
 	orm_sources_changed := false
+	recovered_textures := make([dynamic]string)
+	defer delete(recovered_textures)
+	for path, failed_time in manager.missing_textures {
+		full_path := resolve_path(manager, path)
+		current_time := modified_time(full_path)
+		if current_time == failed_time {continue}
+		path_cstring, _ := strings.clone_to_cstring(full_path)
+		loaded := rl.LoadTexture(path_cstring)
+		delete(path_cstring)
+		if !rl.IsTextureValid(loaded) {
+			manager.missing_textures[path] = current_time
+			continue
+		}
+		manager.textures[path] = Texture_Asset {
+			texture       = loaded,
+			modified_time = current_time,
+		}
+		append(&recovered_textures, path)
+		resolve_asset_path_failures(manager, path)
+		orm_sources_changed = true
+	}
+	for path in recovered_textures {
+		delete_key(&manager.missing_textures, path)
+	}
 	for path, asset in manager.textures {
 		full_path := resolve_path(manager, path)
 		current_time := modified_time(full_path)
 		if current_time == asset.modified_time {continue}
 		path_cstring, _ := strings.clone_to_cstring(full_path)
 		replacement := rl.LoadTexture(path_cstring)
-		if !rl.IsTextureValid(replacement) {continue}
+		delete(path_cstring)
+		if !rl.IsTextureValid(replacement) {
+			report_failure(
+				manager,
+				Diagnostic {
+					kind = .Texture,
+					operation = .Reload,
+					field = "texture",
+					asset_path = path,
+					detail = "replacement is invalid; keeping the previous texture",
+				},
+			)
+			continue
+		}
+		resolve_asset_path_failures(manager, path)
 		rl.UnloadTexture(asset.texture)
 		updated_asset := asset
 		updated_asset.texture = replacement
@@ -390,7 +558,21 @@ refresh :: proc(manager: ^Asset_Manager) {
 		if current_time == asset.modified_time {continue}
 		path_cstring, _ := strings.clone_to_cstring(full_path)
 		replacement := rl.LoadFont(path_cstring)
-		if !rl.IsFontValid(replacement) {continue}
+		delete(path_cstring)
+		if !rl.IsFontValid(replacement) {
+			report_failure(
+				manager,
+				Diagnostic {
+					kind = .Font,
+					operation = .Reload,
+					field = "font",
+					asset_path = path,
+					detail = "replacement is invalid; keeping the previous font",
+				},
+			)
+			continue
+		}
+		resolve_asset_path_failures(manager, path)
 		rl.UnloadFont(asset.font)
 		updated_asset := asset
 		updated_asset.font = replacement
@@ -409,7 +591,21 @@ refresh_materials :: proc(manager: ^Asset_Manager) {
 		current_time := modified_time(full_path)
 		if current_time == asset.modified_time {continue}
 		data, loaded := load_material_data(full_path)
-		if !loaded {continue}
+		if !loaded {
+			report_failure(
+				manager,
+				Diagnostic {
+					kind = .Material,
+					operation = .Reload,
+					source_path = path,
+					field = "$",
+					asset_path = path,
+					detail = "invalid material JSON; keeping the previous material",
+				},
+			)
+			continue
+		}
+		resolve_asset_failure(manager, path, "$", path)
 		manager.materials[path] = Material_Asset {
 			data          = data,
 			modified_time = current_time,
@@ -714,4 +910,5 @@ shutdown :: proc(manager: ^Asset_Manager) {
 	delete(manager.materials)
 	delete(manager.material_texture_watches)
 	delete(manager.missing_textures)
+	destroy_diagnostic_log(&manager.diagnostics)
 }

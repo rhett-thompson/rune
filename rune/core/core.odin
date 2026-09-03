@@ -412,6 +412,7 @@ run_callbacks :: proc(engine: ^Engine, on_update: Update_Proc, on_draw: Draw_Pro
 		rl.BeginDrawing()
 		clear_background(engine)
 		on_draw(engine)
+		flush_asset_diagnostics(engine)
 		console.draw(&engine.console)
 		rl.EndDrawing()
 	}
@@ -470,6 +471,7 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 		render.draw_scene_2d(world, &engine.assets)
 		run_draw_systems(engine, world)
 		gizmos.draw_scene(world, engine.gizmos)
+		flush_asset_diagnostics(engine)
 		console.draw(&engine.console)
 		rl.EndDrawing()
 	}
@@ -567,6 +569,7 @@ begin_frame :: proc(engine: ^Engine) {
 	   engine.project.hot_reload.materials {
 		assets.refresh_materials(&engine.assets)
 	}
+	flush_asset_diagnostics(engine)
 	if rl.IsKeyPressed(.F3) {
 		engine.gizmos.enabled = !engine.gizmos.enabled
 		if engine.gizmos.enabled {
@@ -577,6 +580,16 @@ begin_frame :: proc(engine: ^Engine) {
 	}
 	input.update(&engine.input)
 	console.update(&engine.console)
+}
+
+flush_asset_diagnostics :: proc(engine: ^Engine) {
+	if engine == nil {return}
+	for diagnostic in assets.pending_diagnostics(&engine.assets) {
+		message := assets.format_diagnostic(diagnostic)
+		console.error(&engine.console, message)
+		delete(message)
+	}
+	assets.clear_pending_diagnostics(&engine.assets)
 }
 
 clear_background :: proc(engine: ^Engine) {
