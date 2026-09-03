@@ -1,0 +1,10 @@
+{
+  "name": "Invalid Asset Fixture",
+  "startup_scene": "scenes/main.scene.json",
+  "input": "input/default.input.json",
+  "window": {
+    "width": 320,
+    "height": 180,
+    "title": "Invalid Asset Fixture"
+  }
+}

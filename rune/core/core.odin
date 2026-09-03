@@ -99,6 +99,7 @@ Engine :: struct {
 	has_active_world:   bool,
 	scene_loop_active:  bool,
 	is_running:         bool,
+	exit_requested:     bool,
 }
 
 Update_Proc :: #type proc(engine: ^Engine)
@@ -404,7 +405,7 @@ file_modified_time :: proc(path: string) -> i64 {
 run_callbacks :: proc(engine: ^Engine, on_update: Update_Proc, on_draw: Draw_Proc) {
 	defer shutdown(engine)
 
-	for !rl.WindowShouldClose() {
+	for !engine.exit_requested && !rl.WindowShouldClose() {
 		begin_frame(engine)
 		on_update(engine)
 
@@ -452,7 +453,7 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 		run_shutdown_systems(engine, world)
 		engine.scene_loop_active = false
 	}
-	for !rl.WindowShouldClose() {
+	for !engine.exit_requested && !rl.WindowShouldClose() {
 		begin_frame(engine)
 		if len(engine.active_scene_path) > 0 &&
 		   reload_scene_if_changed(engine, world, engine.active_scene_path) {
@@ -472,6 +473,12 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 		console.draw(&engine.console)
 		rl.EndDrawing()
 	}
+}
+
+// request_exit stops the active loop after the current frame. GPU-backed
+// systems are then shut down before the engine closes the raylib window.
+request_exit :: proc(engine: ^Engine) {
+	if engine != nil {engine.exit_requested = true}
 }
 
 run_start_systems :: proc(engine: ^Engine, world: ^ecs.World) {

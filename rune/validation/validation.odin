@@ -21,9 +21,9 @@ Report :: struct {
 
 is_valid :: proc(report: ^Report) -> bool {return len(report.diagnostics) == 0}
 
-field_path :: proc(path, name: string) -> string {return fmt.tprint(path, ".", name)}
-index_path :: proc(path: string, index: int) -> string {return fmt.tprint(path, "[", index, "]")}
-layer_path :: proc(name: string) -> string {return fmt.tprint("$.layers.", name)}
+field_path :: proc(path, name: string) -> string {return fmt.tprintf("%s.%s", path, name)}
+index_path :: proc(path: string, index: int) -> string {return fmt.tprintf("%s[%d]", path, index)}
+layer_path :: proc(name: string) -> string {return fmt.tprintf("$.layers.%s", name)}
 
 add :: proc(report: ^Report, file, path, message: string) {
 	append(&report.diagnostics, Diagnostic{file = file, path = path, message = message})
@@ -375,6 +375,15 @@ validate_components :: proc(
 			component,
 			project_directory,
 		)
+		if name == "ModelRenderer" {
+			validate_material_overrides(
+				report,
+				file,
+				field_path(path, name),
+				component,
+				project_directory,
+			)
+		}
 	}
 }
 
@@ -392,6 +401,16 @@ validate_component_assets :: proc(
 		if !ok ||
 		   len(asset) ==
 			   0 {add(report, file, field_path(path, field), "must be a non-empty asset path"); continue}
+		if field == "texture" {
+			validate_texture_reference(
+				report,
+				file,
+				field_path(path, field),
+				asset,
+				project_directory,
+			)
+			continue
+		}
 		if len(project_directory) > 0 && !file_exists(path_from(project_directory, asset)) {
 			add(
 				report,
@@ -402,23 +421,13 @@ validate_component_assets :: proc(
 		}
 	}
 	if material_path, found := component["material"]; found {
-		material, ok := material_path.(json.String)
-		if !ok ||
-		   len(material) ==
-			   0 {add(report, file, field_path(path, "material"), "must be a non-empty material path"); return}
-		if len(project_directory) > 0 {
-			resolved := path_from(project_directory, material)
-			if !file_exists(resolved) {
-				add(
-					report,
-					file,
-					field_path(path, "material"),
-					fmt.tprint("referenced material does not exist: ", material),
-				)
-				return
-			}
-			validate_material(report, resolved, project_directory)
-		}
+		validate_material_reference(
+			report,
+			file,
+			field_path(path, "material"),
+			material_path,
+			project_directory,
+		)
 	}
 }
 
@@ -494,14 +503,13 @@ validate_material :: proc(report: ^Report, material_path, project_directory: str
 			add(report, material_path, field_path("$", field), "must be a non-empty asset path")
 			continue
 		}
-		if len(project_directory) > 0 && !file_exists(path_from(project_directory, asset)) {
-			add(
-				report,
-				material_path,
-				field_path("$", field),
-				fmt.tprint("referenced asset does not exist: ", asset),
-			)
-		}
+		validate_texture_reference(
+			report,
+			material_path,
+			field_path("$", field),
+			asset,
+			project_directory,
+		)
 	}
 	if lighting_value, found := material["lighting"]; found {
 		if _, ok := lighting_value.(json.Boolean); !ok {

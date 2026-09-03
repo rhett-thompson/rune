@@ -9,7 +9,6 @@ import "core:strings"
 import "core:time"
 import "rune:jsonutil"
 import rl "vendor:raylib"
-import rlgl "vendor:raylib/rlgl"
 
 Texture_Asset :: struct {
 	texture:       rl.Texture2D,
@@ -17,8 +16,8 @@ Texture_Asset :: struct {
 }
 
 Model_Asset :: struct {
-	model:         rl.Model,
 	modified_time: i64,
+	revision:      u64,
 }
 
 Font_Asset :: struct {
@@ -61,14 +60,16 @@ Material_Asset :: struct {
 
 // Asset paths are the first asset identifiers. Stable IDs can be layered on later.
 Asset_Manager :: struct {
-	root:                   string,
-	textures:               map[string]Texture_Asset,
-	models:                 map[string]Model_Asset,
-	fonts:                  map[string]Font_Asset,
-	materials:              map[string]Material_Asset,
-	generated_orm_textures: map[string]Texture_Asset,
-	missing_textures:       map[string]bool,
-	missing_texture:        rl.Texture2D,
+	root:                     string,
+	textures:                 map[string]Texture_Asset,
+	models:                   map[string]Model_Asset,
+	fonts:                    map[string]Font_Asset,
+	materials:                map[string]Material_Asset,
+	generated_orm_textures:   map[string]Texture_Asset,
+	material_texture_watches: map[string]i64,
+	material_revision:        u64,
+	missing_textures:         map[string]bool,
+	missing_texture:          rl.Texture2D,
 }
 
 // init must run after raylib creates a window because it creates the small
@@ -83,6 +84,8 @@ init :: proc(root: string) -> Asset_Manager {
 		fonts = make(map[string]Font_Asset),
 		materials = make(map[string]Material_Asset),
 		generated_orm_textures = make(map[string]Texture_Asset),
+		material_texture_watches = make(map[string]i64),
+		material_revision = 1,
 		missing_textures = make(map[string]bool),
 		missing_texture = rl.LoadTextureFromImage(missing_image),
 	}
@@ -102,20 +105,19 @@ font :: proc(manager: ^Asset_Manager, path: string) -> (rl.Font, bool) {
 	return loaded, true
 }
 
-// model returns a cached model loaded from a project-relative path.
-model :: proc(manager: ^Asset_Manager, path: string) -> (rl.Model, bool) {
-	if len(path) == 0 {return {}, false}
-	if asset, found := manager.models[path]; found {return asset.model, true}
+// model_revision registers a project-relative model for timestamp polling and
+// returns the generation consumed by renderer-specific model caches.
+model_revision :: proc(manager: ^Asset_Manager, path: string) -> (u64, bool) {
+	if manager == nil || len(path) == 0 {return 0, false}
+	if asset, found := manager.models[path]; found {return asset.revision, true}
 	full_path := resolve_path(manager, path)
-	path_cstring, _ := strings.clone_to_cstring(full_path)
-	loaded := rl.LoadModel(path_cstring)
-	if !rl.IsModelValid(loaded) {return {}, false}
-	ensure_model_tangents(&loaded)
+	current_time := modified_time(full_path)
+	if current_time < 0 {return 0, false}
 	manager.models[path] = Model_Asset {
-		model         = loaded,
-		modified_time = modified_time(full_path),
+		modified_time = current_time,
+		revision      = 1,
 	}
-	return loaded, true
+	return 1, true
 }
 
 // material returns a cached material JSON definition. r3d owns the shader
@@ -136,7 +138,13 @@ material_data :: proc(manager: ^Asset_Manager, path: string) -> (Material_Data, 
 		data          = data,
 		modified_time = modified_time(full_path),
 	}
+	watch_material_textures(manager, data)
 	return data, true
+}
+
+material_asset_revision :: proc(manager: ^Asset_Manager) -> u64 {
+	if manager == nil {return 0}
+	return manager.material_revision
 }
 
 // texture returns a cached texture for a project-relative asset path. Missing
@@ -406,10 +414,19 @@ refresh_materials :: proc(manager: ^Asset_Manager) {
 			data          = data,
 			modified_time = current_time,
 		}
+		watch_material_textures(manager, data)
+		materials_changed = true
+	}
+	for path, previous_time in manager.material_texture_watches {
+		current_time := modified_time(resolve_path(manager, path))
+		if current_time == previous_time {continue}
+		manager.material_texture_watches[path] = current_time
 		materials_changed = true
 	}
 	if materials_changed {
 		clear_generated_orm_textures(manager)
+		manager.material_revision += 1
+		if manager.material_revision == 0 {manager.material_revision = 1}
 	}
 }
 
@@ -418,15 +435,29 @@ refresh_models :: proc(manager: ^Asset_Manager) {
 		full_path := resolve_path(manager, path)
 		current_time := modified_time(full_path)
 		if current_time == asset.modified_time {continue}
-		path_cstring, _ := strings.clone_to_cstring(full_path)
-		replacement := rl.LoadModel(path_cstring)
-		if !rl.IsModelValid(replacement) {continue}
-		ensure_model_tangents(&replacement)
-		rl.UnloadModel(asset.model)
 		updated_asset := asset
-		updated_asset.model = replacement
 		updated_asset.modified_time = current_time
+		updated_asset.revision += 1
+		if updated_asset.revision == 0 {updated_asset.revision = 1}
 		manager.models[path] = updated_asset
+	}
+}
+
+watch_material_textures :: proc(manager: ^Asset_Manager, data: Material_Data) {
+	paths := [8]string {
+		data.texture,
+		data.normal,
+		data.emission,
+		data.orm_texture,
+		data.roughness_texture,
+		data.metallic_texture,
+		data.ao_texture,
+		data.height_texture,
+	}
+	for path in paths {
+		if len(path) == 0 {continue}
+		if _, watched := manager.material_texture_watches[path]; watched {continue}
+		manager.material_texture_watches[path] = modified_time(resolve_path(manager, path))
 	}
 }
 
@@ -443,43 +474,6 @@ resolve_path :: proc(manager: ^Asset_Manager, path: string) -> string {
 	if filepath.is_abs(path) {return path}
 	full_path, _ := filepath.join({manager.root, path})
 	return full_path
-}
-
-ensure_model_tangents :: proc(model: ^rl.Model) {
-	for mesh_index in 0 ..< model.meshCount {
-		mesh := &model.meshes[mesh_index]
-		if mesh.vertexCount <= 0 || mesh.texcoords == nil || mesh.normals == nil {continue}
-		if mesh.tangents == nil {
-			rl.GenMeshTangents(mesh)
-		}
-		if mesh.tangents != nil {
-			upload_mesh_tangents(mesh)
-		}
-	}
-}
-
-upload_mesh_tangents :: proc(mesh: ^rl.Mesh) {
-	if mesh.vaoId == 0 || mesh.vboId == nil || mesh.tangents == nil {return}
-	tangent_attribute_index := c.uint(rl.ShaderLocationIndex.VERTEX_TANGENT)
-	tangent_byte_count := c.int(int(mesh.vertexCount) * 4 * size_of(f32))
-	if mesh.vboId[int(tangent_attribute_index)] != 0 {
-		rlgl.UpdateVertexBuffer(
-			mesh.vboId[int(tangent_attribute_index)],
-			rawptr(mesh.tangents),
-			tangent_byte_count,
-			0,
-		)
-		return
-	}
-	if !rlgl.EnableVertexArray(mesh.vaoId) {return}
-	mesh.vboId[int(tangent_attribute_index)] = rlgl.LoadVertexBuffer(
-		rawptr(mesh.tangents),
-		tangent_byte_count,
-		false,
-	)
-	rlgl.SetVertexAttribute(tangent_attribute_index, 4, rlgl.FLOAT, false, 0, 0)
-	rlgl.EnableVertexAttribute(tangent_attribute_index)
-	rlgl.DisableVertexArray()
 }
 
 load_material_data :: proc(full_path: string) -> (Material_Data, bool) {
@@ -707,9 +701,6 @@ shutdown :: proc(manager: ^Asset_Manager) {
 	for _, asset in manager.textures {
 		rl.UnloadTexture(asset.texture)
 	}
-	for _, asset in manager.models {
-		rl.UnloadModel(asset.model)
-	}
 	for _, asset in manager.fonts {
 		rl.UnloadFont(asset.font)
 	}
@@ -717,4 +708,10 @@ shutdown :: proc(manager: ^Asset_Manager) {
 		rl.UnloadTexture(manager.missing_texture)
 	}
 	delete(manager.generated_orm_textures)
+	delete(manager.textures)
+	delete(manager.models)
+	delete(manager.fonts)
+	delete(manager.materials)
+	delete(manager.material_texture_watches)
+	delete(manager.missing_textures)
 }

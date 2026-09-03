@@ -1,7 +1,7 @@
 {
   "$schema": "../../../../schemas/material.schema.json",
   "base_color": [255, 255, 255, 255],
-  "albedo": "assets/textures/basecolor.jpg",
+  "albedo": "assets/textures/basecolor.png",
   "filter": "anisotropic_16x",
   "mipmaps": true,
   "lighting": false

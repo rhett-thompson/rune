@@ -1,0 +1,32 @@
+{
+  "name": "Invalid Assets",
+  "entities": [
+    {
+      "id": "unsupported_sprite",
+      "components": {
+        "SpriteRenderer": {
+          "texture": "assets/unsupported.jpg"
+        }
+      }
+    },
+    {
+      "id": "unsupported_material",
+      "components": {
+        "ModelRenderer": {
+          "material": "materials/unsupported.material.json"
+        }
+      }
+    },
+    {
+      "id": "unsupported_override",
+      "components": {
+        "ModelRenderer": {
+          "materials": {
+            "0": "materials/unsupported_override.material.json",
+            "bad": "materials/unsupported_override.material.json"
+          }
+        }
+      }
+    }
+  ]
+}

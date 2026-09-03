@@ -52,6 +52,9 @@ powershell -ExecutionPolicy Bypass -File tools/validate.ps1
 
 Pass `-AllExamples` to compile every launcher example.
 
+GitLab CI runs the same all-examples validation on every branch and merge
+request using the Odin release pinned in `.gitlab-ci.yml`.
+
 ## Screenshots
 
 ![Rune textured 3D material example](docs/images/textured_model_3d_capture.png)
@@ -367,8 +370,9 @@ The example loads `project.json`; `scene.load` then reads `scenes/main.scene.jso
 
 Use the non-windowed validator before running a project or in CI. It follows
 the startup scene and its prefabs, checks entity IDs and layers, confirms
-referenced input and asset files exist, and reports failures as
-`file: $.json.path: message`.
+referenced input, material, and asset files exist, validates model material-slot
+overrides, and rejects texture formats unavailable in the bundled raylib build.
+Failures are reported as `file: $.json.path: message`.
 
 ```powershell
 odin run tools/project_validator -collection:rune=rune -- examples/hello_world/project.json
@@ -697,12 +701,14 @@ the normal choice for 3D models viewed at oblique angles. Use `"filter":
 high-frequency texture still shimmers in motion, use a small positive
 `lod_bias` value to sample a softer mip level.
 
+Use PNG, BMP, GIF, QOI, or DDS texture files. The project validator reports
+other extensions before the game reaches runtime.
+
 Set `"lighting": true` for normal r3d lighting, or `"lighting": false` for
-unlit materials. The current r3d bridge maps `albedo`, `normal`,
-`base_color`, `roughness`, and `metallic`. Separate roughness, metallic, AO,
-and height textures remain in the material format for asset authoring, but the
-r3d bridge needs a follow-up ORM/height migration step before those maps affect
-rendering:
+unlit materials. The r3d bridge maps `albedo`, `normal`, `base_color`,
+`roughness`, and `metallic`; separate roughness, metallic, and AO textures are
+packed into a runtime ORM texture. Height textures remain authoring metadata
+until the renderer gains parallax or displacement support:
 
 ```json
 {

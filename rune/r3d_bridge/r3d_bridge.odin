@@ -16,16 +16,18 @@ Scene3D_Settings :: struct {
 }
 
 Model_Asset :: struct {
-	model: r3d.Model,
+	model:    r3d.Model,
+	revision: u64,
 }
 
 R3D_Material_Asset :: struct {
-	material:      r3d.Material,
-	signature:     string,
-	owns_albedo:   bool,
-	owns_emission: bool,
-	owns_normal:   bool,
-	owns_orm:      bool,
+	material:       r3d.Material,
+	signature:      string,
+	asset_revision: u64,
+	owns_albedo:    bool,
+	owns_emission:  bool,
+	owns_normal:    bool,
+	owns_orm:       bool,
 }
 
 Context :: struct {
@@ -75,7 +77,7 @@ shutdown :: proc(ctx: ^Context) {
 	if !ctx.initialized {return}
 	destroy_scene_lights(ctx)
 	for _, asset in ctx.models {
-		r3d.UnloadModel(asset.model, true)
+		r3d.UnloadModel(asset.model, false)
 	}
 	for _, asset in ctx.r3d_materials {
 		unload_owned_material_maps(asset)
@@ -226,7 +228,7 @@ draw_entity :: proc(
 	}
 	if model_renderer, has_model := ecs.get_model_renderer(world, entity); has_model {
 		if pass != .Non_Plane {return}
-		loaded_model, loaded := load_model(ctx, model_renderer.model)
+		loaded_model, loaded := load_model(ctx, asset_manager, model_renderer.model)
 		if !loaded {return}
 		apply_model_materials(ctx, asset_manager, &loaded_model, model_renderer)
 		r3d.DrawModelEx(
@@ -370,19 +372,48 @@ destroy_scene_lights :: proc(ctx: ^Context) {
 	}
 }
 
-load_model :: proc(ctx: ^Context, path: string) -> (r3d.Model, bool) {
+load_model :: proc(
+	ctx: ^Context,
+	asset_manager: ^assets.Asset_Manager,
+	path: string,
+) -> (
+	r3d.Model,
+	bool,
+) {
 	if len(path) == 0 {return {}, false}
-	if asset, found := ctx.models[path]; found {return asset.model, true}
+	revision, watched := assets.model_revision(asset_manager, path)
+	if !watched {return {}, false}
+	previous, already_loaded := ctx.models[path]
+	if already_loaded && previous.revision == revision {return previous.model, true}
 	full_path := resolve_path(ctx.root, path)
 	cpath, _ := strings.clone_to_cstring(full_path)
 	defer delete(cpath)
 	loaded := r3d.LoadModel(cpath)
-	if loaded.meshCount <= 0 {return {}, false}
+	if loaded.meshCount <= 0 {
+		if already_loaded {
+			previous.revision = revision
+			ctx.models[path] = previous
+			return previous.model, true
+		}
+		return {}, false
+	}
+	if already_loaded {
+		r3d.UnloadModel(previous.model, false)
+	}
+	unload_imported_materials(&loaded)
 	enable_model_shadows(&loaded)
 	ctx.models[path] = Model_Asset {
-		model = loaded,
+		model    = loaded,
+		revision = revision,
 	}
 	return loaded, true
+}
+
+unload_imported_materials :: proc(model: ^r3d.Model) {
+	for index in 0 ..< model.materialCount {
+		r3d.UnloadMaterial(model.materials[index])
+		model.materials[index] = r3d.GetDefaultMaterial()
+	}
 }
 
 enable_model_shadows :: proc(model: ^r3d.Model) {
@@ -439,9 +470,10 @@ material_from_data :: proc(
 	data: assets.Material_Data,
 ) -> r3d.Material {
 	signature := material_signature(data)
+	asset_revision := assets.material_asset_revision(asset_manager)
 	if len(path) > 0 {
 		if cached, found := ctx.r3d_materials[path]; found {
-			if cached.signature == signature {
+			if cached.signature == signature && cached.asset_revision == asset_revision {
 				return cached.material
 			}
 			unload_owned_material_maps(cached)
@@ -456,7 +488,8 @@ material_from_data :: proc(
 		data.base_color[3],
 	}
 	asset := R3D_Material_Asset {
-		signature = signature,
+		signature      = signature,
+		asset_revision = asset_revision,
 	}
 	if asset_manager != nil && len(data.texture) > 0 {
 		if albedo, loaded := load_albedo_map(ctx, data); loaded {

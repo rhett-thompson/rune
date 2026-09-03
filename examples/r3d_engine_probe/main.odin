@@ -2,8 +2,8 @@ package main
 
 import "core:fmt"
 import "core:os"
-import rune "rune:core"
 import r3d "r3d:r3d"
+import rune "rune:core"
 import rl "vendor:raylib"
 
 capture: bool
@@ -27,7 +27,7 @@ on_draw :: proc(game: ^rune.Engine) {
 	}
 	frame += 1
 	if capture && frame > 32 {
-		rl.CloseWindow()
+		rune.request_exit(game)
 	}
 }
 
@@ -63,10 +63,10 @@ main :: proc() {
 	r3d.EnableShadow(light)
 
 	camera = {
-		position = {0, 2, 2},
-		target = {0, 0, 0},
-		up = {0, 1, 0},
-		fovy = 60,
+		position   = {0, 2, 2},
+		target     = {0, 0, 0},
+		up         = {0, 1, 0},
+		fovy       = 60,
 		projection = .PERSPECTIVE,
 	}
 	rune.run(&game, on_update, on_draw)
