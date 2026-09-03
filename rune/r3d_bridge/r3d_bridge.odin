@@ -1,6 +1,5 @@
 package r3d_bridge
 
-import "core:fmt"
 import "core:path/filepath"
 import "core:strings"
 import r3d "r3d:r3d"
@@ -22,7 +21,7 @@ Model_Asset :: struct {
 
 R3D_Material_Asset :: struct {
 	material:       r3d.Material,
-	signature:      string,
+	signature:      u64,
 	asset_revision: u64,
 	owns_albedo:    bool,
 	owns_emission:  bool,
@@ -40,6 +39,7 @@ Context :: struct {
 	sphere_no_shadow: r3d.Mesh,
 	models:           map[string]Model_Asset,
 	r3d_materials:    map[string]R3D_Material_Asset,
+	retained_paths:   map[string]string,
 	scene_lights:     map[ecs.Entity]r3d.Light,
 	world_generation: u32,
 	initialized:      bool,
@@ -62,6 +62,7 @@ init :: proc(root: string, width, height: i32) -> (Context, bool) {
 		sphere_no_shadow = r3d.GenMeshSphere(1, 24, 32),
 		models           = make(map[string]Model_Asset),
 		r3d_materials    = make(map[string]R3D_Material_Asset),
+		retained_paths   = make(map[string]string),
 		scene_lights     = make(map[ecs.Entity]r3d.Light),
 		initialized      = true,
 	}
@@ -91,6 +92,7 @@ shutdown :: proc(ctx: ^Context) {
 	delete(ctx.models)
 	delete(ctx.r3d_materials)
 	delete(ctx.scene_lights)
+	destroy_retained_paths(ctx)
 	r3d.Close()
 	ctx.initialized = false
 }
@@ -413,7 +415,7 @@ load_model :: proc(
 	}
 	unload_imported_materials(&loaded)
 	enable_model_shadows(&loaded)
-	ctx.models[path] = Model_Asset {
+	ctx.models[retain_path(ctx, path)] = Model_Asset {
 		model    = loaded,
 		revision = revision,
 	}
@@ -606,37 +608,28 @@ material_from_data :: proc(
 	material.unlit = !data.lighting
 	asset.material = material
 	if len(path) > 0 {
-		ctx.r3d_materials[path] = asset
+		ctx.r3d_materials[retain_path(ctx, path)] = asset
 	}
 	return material
 }
 
-material_signature :: proc(data: assets.Material_Data) -> string {
-	return fmt.tprintf(
-		"base=%v|albedo=%s|normal=%s|normal_scale=%f|emission=%s|emission_color=%v|emission_energy=%f|orm=%s|ao=%s|rough_map=%s|metal_map=%s|ao_strength=%f|rough=%f|metal=%f|spec=%f|alpha=%f|filter=%s|mips=%v|lighting=%v|trans=%s|blend=%s|cull=%s",
-		data.base_color,
-		data.texture,
-		data.normal,
-		data.normal_scale,
-		data.emission,
-		data.emission_color,
-		data.emission_energy,
-		data.orm_texture,
-		data.ao_texture,
-		data.roughness_texture,
-		data.metallic_texture,
-		data.ao_strength,
-		data.roughness,
-		data.metallic,
-		data.specular,
-		data.alpha_cutoff,
-		data.filter,
-		data.mipmaps,
-		data.lighting,
-		data.transparency,
-		data.blend,
-		data.cull,
-	)
+material_signature :: proc(data: assets.Material_Data) -> u64 {
+	return assets.material_data_signature(data)
+}
+
+retain_path :: proc(ctx: ^Context, path: string) -> string {
+	if owned, found := ctx.retained_paths[path]; found {return owned}
+	owned, _ := strings.clone(path)
+	ctx.retained_paths[owned] = owned
+	return owned
+}
+
+destroy_retained_paths :: proc(ctx: ^Context) {
+	paths := make([dynamic]string)
+	defer delete(paths)
+	for path in ctx.retained_paths {append(&paths, path)}
+	delete(ctx.retained_paths)
+	for path in paths {delete(path)}
 }
 
 load_albedo_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.AlbedoMap, bool) {

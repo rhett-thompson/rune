@@ -2,9 +2,10 @@ package assets
 
 import "core:c"
 import "core:encoding/json"
-import "core:fmt"
+import "core:hash"
 import "core:os"
 import "core:path/filepath"
+import core_slice "core:slice"
 import "core:strings"
 import "core:time"
 import "rune:jsonutil"
@@ -65,12 +66,13 @@ Asset_Manager :: struct {
 	models:                   map[string]Model_Asset,
 	fonts:                    map[string]Font_Asset,
 	materials:                map[string]Material_Asset,
-	generated_orm_textures:   map[string]Texture_Asset,
+	generated_orm_textures:   map[u64]Texture_Asset,
 	material_texture_watches: map[string]i64,
 	material_revision:        u64,
 	missing_textures:         map[string]i64,
 	missing_texture:          rl.Texture2D,
 	diagnostics:              Diagnostic_Log,
+	retained_paths:           map[string]string,
 }
 
 // init must run after raylib creates a window because it creates the small
@@ -84,12 +86,13 @@ init :: proc(root: string) -> Asset_Manager {
 		models = make(map[string]Model_Asset),
 		fonts = make(map[string]Font_Asset),
 		materials = make(map[string]Material_Asset),
-		generated_orm_textures = make(map[string]Texture_Asset),
+		generated_orm_textures = make(map[u64]Texture_Asset),
 		material_texture_watches = make(map[string]i64),
 		material_revision = 1,
 		missing_textures = make(map[string]i64),
 		missing_texture = rl.LoadTextureFromImage(missing_image),
 		diagnostics = init_diagnostic_log(),
+		retained_paths = make(map[string]string),
 	}
 }
 
@@ -123,7 +126,7 @@ font :: proc(
 		return {}, false
 	}
 	resolve_asset_failure(manager, source_path, field, path)
-	manager.fonts[path] = Font_Asset {
+	manager.fonts[retain_path(manager, path)] = Font_Asset {
 		font          = loaded,
 		modified_time = modified_time(full_path),
 	}
@@ -151,7 +154,7 @@ model_revision :: proc(manager: ^Asset_Manager, path: string) -> (u64, bool) {
 		return 0, false
 	}
 	resolve_asset_failure(manager, "", "ModelRenderer.model", path)
-	manager.models[path] = Model_Asset {
+	manager.models[retain_path(manager, path)] = Model_Asset {
 		modified_time = current_time,
 		revision      = 1,
 	}
@@ -186,7 +189,7 @@ material_data :: proc(manager: ^Asset_Manager, path: string) -> (Material_Data, 
 		return {}, false
 	}
 	resolve_asset_failure(manager, path, "$", path)
-	manager.materials[path] = Material_Asset {
+	manager.materials[retain_path(manager, path)] = Material_Asset {
 		data          = data,
 		modified_time = modified_time(full_path),
 	}
@@ -237,7 +240,7 @@ texture :: proc(
 	loaded := rl.LoadTexture(path_cstring)
 	delete(path_cstring)
 	if !rl.IsTextureValid(loaded) {
-		manager.missing_textures[path] = modified_time(full_path)
+		manager.missing_textures[retain_path(manager, path)] = modified_time(full_path)
 		report_failure(
 			manager,
 			Diagnostic {
@@ -252,7 +255,7 @@ texture :: proc(
 		return manager.missing_texture, false
 	}
 	resolve_asset_failure(manager, source_path, field, path)
-	manager.textures[path] = Texture_Asset {
+	manager.textures[retain_path(manager, path)] = Texture_Asset {
 		texture       = loaded,
 		modified_time = modified_time(full_path),
 	}
@@ -323,20 +326,21 @@ material_orm_texture :: proc(
 	return texture, true
 }
 
-generated_orm_key :: proc(manager: ^Asset_Manager, data: Material_Data) -> string {
-	return fmt.tprintf(
-		"orm|ao=%s:%d|rough=%s:%d|metal=%s:%d|r=%f|m=%f|filter=%s|mips=%v",
-		data.ao_texture,
-		path_modified_time(manager, data.ao_texture),
-		data.roughness_texture,
-		path_modified_time(manager, data.roughness_texture),
-		data.metallic_texture,
-		path_modified_time(manager, data.metallic_texture),
-		data.roughness,
-		data.metallic,
-		data.filter,
-		data.mipmaps,
-	)
+generated_orm_key :: proc(manager: ^Asset_Manager, data: Material_Data) -> u64 {
+	result := hash_string(0xcbf29ce484222325, data.ao_texture)
+	ao_time := path_modified_time(manager, data.ao_texture)
+	result = hash_value(result, ao_time)
+	result = hash_string(result, data.roughness_texture)
+	roughness_time := path_modified_time(manager, data.roughness_texture)
+	result = hash_value(result, roughness_time)
+	result = hash_string(result, data.metallic_texture)
+	metallic_time := path_modified_time(manager, data.metallic_texture)
+	result = hash_value(result, metallic_time)
+	result = hash_value(result, data.roughness)
+	result = hash_value(result, data.metallic)
+	result = hash_string(result, data.filter)
+	result = hash_value(result, data.mipmaps)
+	return result
 }
 
 generate_orm_texture :: proc(
@@ -606,10 +610,12 @@ refresh_materials :: proc(manager: ^Asset_Manager) {
 			continue
 		}
 		resolve_asset_failure(manager, path, "$", path)
+		previous_data := asset.data
 		manager.materials[path] = Material_Asset {
 			data          = data,
 			modified_time = current_time,
 		}
+		destroy_material_data(&previous_data)
 		watch_material_textures(manager, data)
 		materials_changed = true
 	}
@@ -653,7 +659,8 @@ watch_material_textures :: proc(manager: ^Asset_Manager, data: Material_Data) {
 	for path in paths {
 		if len(path) == 0 {continue}
 		if _, watched := manager.material_texture_watches[path]; watched {continue}
-		manager.material_texture_watches[path] = modified_time(resolve_path(manager, path))
+		owned_path := retain_path(manager, path)
+		manager.material_texture_watches[owned_path] = modified_time(resolve_path(manager, path))
 	}
 }
 
@@ -666,6 +673,61 @@ clear_generated_orm_textures :: proc(manager: ^Asset_Manager) {
 	clear(&manager.generated_orm_textures)
 }
 
+material_data_signature :: proc(data: Material_Data) -> u64 {
+	result := hash_value(0xcbf29ce484222325, data.base_color)
+	result = hash_string(result, data.texture)
+	result = hash_string(result, data.normal)
+	result = hash_string(result, data.emission)
+	result = hash_string(result, data.orm_texture)
+	result = hash_string(result, data.roughness_texture)
+	result = hash_string(result, data.metallic_texture)
+	result = hash_string(result, data.ao_texture)
+	result = hash_string(result, data.height_texture)
+	result = hash_string(result, data.filter)
+	result = hash_value(result, data.mipmaps)
+	result = hash_value(result, data.lod_bias)
+	result = hash_value(result, data.lighting)
+	result = hash_value(result, data.emission_color)
+	result = hash_value(result, data.emission_energy)
+	result = hash_value(result, data.normal_scale)
+	result = hash_value(result, data.ao_strength)
+	result = hash_value(result, data.roughness)
+	result = hash_value(result, data.metallic)
+	result = hash_value(result, data.specular)
+	result = hash_value(result, data.alpha_cutoff)
+	result = hash_string(result, data.transparency)
+	result = hash_string(result, data.blend)
+	result = hash_string(result, data.cull)
+	result = hash_value(result, data.height_scale)
+	return result
+}
+
+hash_string :: proc(seed: u64, value: string) -> u64 {
+	length := len(value)
+	result := hash_value(seed, length)
+	return hash.fnv64a(transmute([]byte)value, result)
+}
+
+hash_value :: proc(seed: u64, value: $T) -> u64 {
+	copy := value
+	return hash.fnv64a(core_slice.bytes_from_ptr(rawptr(&copy), size_of(T)), seed)
+}
+
+retain_path :: proc(manager: ^Asset_Manager, path: string) -> string {
+	if owned, found := manager.retained_paths[path]; found {return owned}
+	owned, _ := strings.clone(path)
+	manager.retained_paths[owned] = owned
+	return owned
+}
+
+destroy_retained_paths :: proc(manager: ^Asset_Manager) {
+	paths := make([dynamic]string)
+	defer delete(paths)
+	for path in manager.retained_paths {append(&paths, path)}
+	delete(manager.retained_paths)
+	for path in paths {delete(path)}
+}
+
 resolve_path :: proc(manager: ^Asset_Manager, path: string) -> string {
 	if filepath.is_abs(path) {return path}
 	full_path, _ := filepath.join({manager.root, path})
@@ -675,8 +737,10 @@ resolve_path :: proc(manager: ^Asset_Manager, path: string) -> string {
 load_material_data :: proc(full_path: string) -> (Material_Data, bool) {
 	file_data, read_error := os.read_entire_file(full_path, context.allocator)
 	if read_error != nil {return {}, false}
+	defer delete(file_data)
 	value: json.Value
 	if json.unmarshal(file_data, &value) != nil {return {}, false}
+	defer json.destroy_value(value)
 	object, ok := value.(json.Object)
 	if !ok {return {}, false}
 	result := Material_Data {
@@ -812,7 +876,47 @@ load_material_data :: proc(full_path: string) -> (Material_Data, bool) {
 		result.height_scale, ok = jsonutil.number(value)
 		if !ok || result.height_scale < 0 || result.height_scale > 0.2 {return {}, false}
 	}
-	return result, true
+	return clone_material_data(result), true
+}
+
+clone_material_data :: proc(data: Material_Data) -> Material_Data {
+	result := data
+	result.texture = clone_asset_string(data.texture)
+	result.normal = clone_asset_string(data.normal)
+	result.emission = clone_asset_string(data.emission)
+	result.orm_texture = clone_asset_string(data.orm_texture)
+	result.roughness_texture = clone_asset_string(data.roughness_texture)
+	result.metallic_texture = clone_asset_string(data.metallic_texture)
+	result.ao_texture = clone_asset_string(data.ao_texture)
+	result.height_texture = clone_asset_string(data.height_texture)
+	result.filter = clone_asset_string(data.filter)
+	result.transparency = clone_asset_string(data.transparency)
+	result.blend = clone_asset_string(data.blend)
+	result.cull = clone_asset_string(data.cull)
+	return result
+}
+
+destroy_material_data :: proc(data: ^Material_Data) {
+	if data == nil {return}
+	delete(data.texture)
+	delete(data.normal)
+	delete(data.emission)
+	delete(data.orm_texture)
+	delete(data.roughness_texture)
+	delete(data.metallic_texture)
+	delete(data.ao_texture)
+	delete(data.height_texture)
+	delete(data.filter)
+	delete(data.transparency)
+	delete(data.blend)
+	delete(data.cull)
+	data^ = {}
+}
+
+clone_asset_string :: proc(value: string) -> string {
+	if len(value) == 0 {return ""}
+	result, _ := strings.clone(value)
+	return result
 }
 
 read_color :: proc(data: json.Value, result: ^[4]u8) -> bool {
@@ -900,6 +1004,10 @@ shutdown :: proc(manager: ^Asset_Manager) {
 	for _, asset in manager.fonts {
 		rl.UnloadFont(asset.font)
 	}
+	for _, asset in manager.materials {
+		data := asset.data
+		destroy_material_data(&data)
+	}
 	if rl.IsTextureValid(manager.missing_texture) {
 		rl.UnloadTexture(manager.missing_texture)
 	}
@@ -911,4 +1019,5 @@ shutdown :: proc(manager: ^Asset_Manager) {
 	delete(manager.material_texture_watches)
 	delete(manager.missing_textures)
 	destroy_diagnostic_log(&manager.diagnostics)
+	destroy_retained_paths(manager)
 }

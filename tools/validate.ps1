@@ -32,7 +32,11 @@ try {
     }
 
     Get-ChildItem "tools" -Directory | Sort-Object Name | ForEach-Object {
-        Invoke-OdinBuild -Name $_.Name -Package $_.FullName | Out-Null
+        $collections = @()
+        if ($_.Name -eq "r3d_cache_validation") {
+            $collections += "-collection:r3d=third_party/r3d-odin"
+        }
+        Invoke-OdinBuild -Name $_.Name -Package $_.FullName -Collections $collections | Out-Null
     }
 
     Get-ChildItem "build/*_validation.exe" | Sort-Object Name | ForEach-Object {
@@ -81,4 +85,3 @@ if ($failures.Count -gt 0) {
 }
 
 Write-Host "Rune validation passed."
-

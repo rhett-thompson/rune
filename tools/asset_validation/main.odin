@@ -25,6 +25,7 @@ main :: proc() {
 		),
 	)
 	validate_runtime_diagnostics()
+	validate_asset_cache_ownership()
 	fmt.println("Asset reference validation passed")
 }
 
@@ -49,6 +50,33 @@ validate_runtime_diagnostics :: proc() {
 	delete(message)
 	assets.resolve_failure(&log, diagnostic.source_path, diagnostic.field, diagnostic.asset_path)
 	assert(assets.record_failure(&log, diagnostic))
+}
+
+validate_asset_cache_ownership :: proc() {
+	manager := assets.Asset_Manager {
+		retained_paths = make(map[string]string),
+	}
+	source, _ := strings.clone("assets/textures/test.png")
+	retained := assets.retain_path(&manager, source)
+	bytes := transmute([]u8)source
+	bytes[0] = 'X'
+	assert(retained == "assets/textures/test.png")
+	assert(assets.retain_path(&manager, retained) == retained)
+	assert(len(manager.retained_paths) == 1)
+	delete(source)
+	assets.destroy_retained_paths(&manager)
+
+	borrowed := assets.Material_Data {
+		texture      = "assets/textures/test.png",
+		filter       = "point",
+		transparency = "disabled",
+		blend        = "mix",
+		cull         = "back",
+	}
+	owned := assets.clone_material_data(borrowed)
+	assert(owned.texture == borrowed.texture)
+	assert(owned.filter == borrowed.filter)
+	assets.destroy_material_data(&owned)
 }
 
 has_diagnostic :: proc(report: ^validation.Report, path, message: string) -> bool {
