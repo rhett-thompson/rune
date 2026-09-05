@@ -1,0 +1,10 @@
+{
+  "$schema": "../../../schemas/input.schema.json",
+  "actions": {
+    "pause": [{ "type": "keyboard", "key": "P" }],
+    "resume": [{ "type": "keyboard", "key": "R" }],
+    "bend": [{ "type": "keyboard", "key": "1" }],
+    "sway": [{ "type": "keyboard", "key": "2" }]
+  },
+  "axes": {}
+}

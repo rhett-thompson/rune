@@ -45,6 +45,9 @@ Default_Layer: u8 : 0
 Default_Layer_Mask: u64 : u64(1) << Default_Layer
 
 World :: struct {
+	model_animators: map[Entity]ModelAnimator,
+	model_animation_states: map[Entity]Model_Animation_State,
+	physics_2d, physics_3d: Physics_State,
 	generation:                  u32,
 	next_entity:                 u32,
 	entity_count:                int,
@@ -149,6 +152,8 @@ init :: proc() -> World {
 		scene_strings = make(map[string]string),
 		transforms = make(map[Entity]Transform),
 		sprite_renderers = make(map[Entity]SpriteRenderer),
+		model_animators = make(map[Entity]ModelAnimator),
+		model_animation_states = make(map[Entity]Model_Animation_State),
 		sprite_animators = make(map[Entity]SpriteAnimator),
 		sprite_animation_states = make(map[Entity]Sprite_Animation_State),
 		mesh_renderers = make(map[Entity]MeshRenderer),
@@ -165,6 +170,8 @@ init :: proc() -> World {
 		rigid_bodies_2d = make(map[Entity]RigidBody2D),
 		box_colliders_2d = make(map[Entity]BoxCollider2D),
 		circle_colliders_2d = make(map[Entity]CircleCollider2D),
+		physics_2d = physics_state_init(),
+		physics_3d = physics_state_init(),
 		box2d_bodies = make(map[Entity]b2.BodyId),
 		rigid_bodies_3d = make(map[Entity]RigidBody3D),
 		box3d_bodies = make(map[Entity]b3.BodyId),
@@ -217,6 +224,8 @@ destroy :: proc(world: ^World) {
 	delete(world.scene_strings)
 	delete(world.transforms)
 	delete(world.sprite_renderers)
+	delete(world.model_animators)
+	delete(world.model_animation_states)
 	delete(world.sprite_animators)
 	delete(world.sprite_animation_states)
 	delete(world.mesh_renderers)
@@ -233,6 +242,8 @@ destroy :: proc(world: ^World) {
 	delete(world.rigid_bodies_2d)
 	delete(world.box_colliders_2d)
 	delete(world.circle_colliders_2d)
+	physics_state_destroy(&world.physics_2d)
+	physics_state_destroy(&world.physics_3d)
 	delete(world.box2d_bodies)
 	delete(world.rigid_bodies_3d)
 	delete(world.box3d_bodies)
@@ -371,6 +382,7 @@ add_component_owned :: proc(
 
 	transform: Transform
 	sprite_renderer: SpriteRenderer
+	model_animator: ModelAnimator
 	sprite_animator: SpriteAnimator
 	mesh_renderer: MeshRenderer
 	sphere_renderer: SphereRenderer
@@ -408,6 +420,10 @@ add_component_owned :: proc(
 	}
 	if name ==
 	   "SpriteRenderer" {sprite_renderer, parse_ok = sprite_renderer_from_json(data); if !parse_ok {return false}}
+	if name == "ModelAnimator" {
+		model_animator, parse_ok = model_animator_from_json(data)
+		if !parse_ok {return false}
+	}
 	if name ==
 	   "SpriteAnimator" {sprite_animator, parse_ok = sprite_animator_from_json(data); if !parse_ok {return false}}
 	if name ==
@@ -487,6 +503,8 @@ add_component_owned :: proc(
 		commit_component_value(world, entity, name, &world.transforms, transform, kind)
 	case "SpriteRenderer":
 		commit_component_value(world, entity, name, &world.sprite_renderers, sprite_renderer, kind)
+	case "ModelAnimator":
+		commit_component_value(world, entity, name, &world.model_animators, model_animator, kind)
 	case "SpriteAnimator":
 		commit_component_value(world, entity, name, &world.sprite_animators, sprite_animator, kind)
 	case "MeshRenderer":
@@ -595,6 +613,10 @@ remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
 		delete_key(&world.transforms, entity)
 	}
 	if name == "SpriteRenderer" {delete_key(&world.sprite_renderers, entity)}
+	if name == "ModelAnimator" {
+		delete_key(&world.model_animators, entity)
+		delete_key(&world.model_animation_states, entity)
+	}
 	if name == "SpriteAnimator" {
 		delete_key(&world.sprite_animators, entity)
 		delete_key(&world.sprite_animation_states, entity)

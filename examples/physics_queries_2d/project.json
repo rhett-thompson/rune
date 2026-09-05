@@ -1,0 +1,7 @@
+{
+  "$schema": "../../schemas/project.schema.json",
+  "name": "Physics Queries 2D",
+  "startup_scene": "scenes/main.scene.json",
+  "window": { "width": 960, "height": 540, "title": "Rune - Physics Queries", "vsync": true },
+  "input": "input/default.input.json"
+}

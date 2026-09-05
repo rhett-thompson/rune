@@ -80,6 +80,9 @@ get :: proc(world: ^World, entity: Entity, $T: typeid) -> (T, bool) {
 	else when T == SpriteRenderer {
 		return get_sprite_renderer(world, entity)
 	}
+	else when T == ModelAnimator {
+		return get_model_animator(world, entity)
+	}
 	else when T == SpriteAnimator {
 		return get_sprite_animator(world, entity)
 	}
@@ -181,6 +184,9 @@ set :: proc(world: ^World, entity: Entity, value: $T) -> bool {
 	}
 	else when T == SpriteRenderer {
 		return set_sprite_renderer(world, entity, value)
+	}
+	else when T == ModelAnimator {
+		return set_model_animator(world, entity, value)
 	}
 	else when T == SpriteAnimator {
 		return set_sprite_animator(world, entity, value)

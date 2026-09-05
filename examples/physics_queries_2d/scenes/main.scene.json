@@ -1,0 +1,49 @@
+{
+  "$schema": "../../../schemas/scene.schema.json",
+  "name": "Physics Queries",
+  "entities": [
+    {
+      "id": "player",
+      "components": {
+        "Transform": { "position": [150, 280, 0] },
+        "RigidBody2D": { "gravity_scale": 0 },
+        "BoxCollider2D": { "size": [32, 40] }
+      }
+    },
+    {
+      "id": "left_wall",
+      "components": {
+        "Transform": { "position": [60, 280, 0] },
+        "BoxCollider2D": { "size": [24, 160] }
+      }
+    },
+    {
+      "id": "right_wall",
+      "components": {
+        "Transform": { "position": [840, 280, 0] },
+        "BoxCollider2D": { "size": [24, 160] }
+      }
+    },
+    {
+      "id": "pickup_a",
+      "components": {
+        "Transform": { "position": [310, 280, 0] },
+        "BoxCollider2D": { "size": [22, 28], "is_sensor": true }
+      }
+    },
+    {
+      "id": "pickup_b",
+      "components": {
+        "Transform": { "position": [470, 280, 0] },
+        "BoxCollider2D": { "size": [22, 28], "is_sensor": true }
+      }
+    },
+    {
+      "id": "pickup_c",
+      "components": {
+        "Transform": { "position": [630, 280, 0] },
+        "BoxCollider2D": { "size": [22, 28], "is_sensor": true }
+      }
+    }
+  ]
+}

@@ -111,7 +111,7 @@ set_entity_metadata :: proc(
 	world.entity_ids[entity] = owned_id
 	world.entity_names[entity] = owned_name
 	world.entity_tags[entity] = owned_tag
-	world.layer_masks[entity] = layer_mask
+	set_entity_layer_mask(world, entity, layer_mask)
 	return true
 }
 
@@ -176,6 +176,9 @@ entity_layer_mask :: proc(world: ^World, entity: Entity) -> (u64, bool) {
 
 set_entity_layer_mask :: proc(world: ^World, entity: Entity, layer_mask: u64) -> bool {
 	if !is_alive(world, entity) || layer_mask == 0 {return false}
+	if world.layer_masks[entity] == layer_mask {return true}
+	physics_2d_remove_entity(world, entity)
+	physics_3d_remove_entity(world, entity)
 	world.layer_masks[entity] = layer_mask
 	return true
 }

@@ -20,7 +20,22 @@ $request = Join-Path $inbox "$requestId.cmd"
 $reply = Join-Path $inbox "$requestId.result.json"
 try {
     [IO.File]::WriteAllText($staging, $Command, [Text.UTF8Encoding]::new($false))
-    Move-Item -LiteralPath $staging -Destination $request
+    # Publish with a single rename; the game may claim the destination immediately.
+    $publishDeadline = [DateTime]::UtcNow.AddSeconds(2)
+    while ($true) {
+        try {
+            [IO.File]::Move($staging, $request)
+            break
+        }
+        catch {
+            $errorCode = $_.Exception.GetBaseException().HResult -band 0xffff
+            if ($errorCode -notin @(32, 33) -or [DateTime]::UtcNow -ge $publishDeadline -or
+                !(Test-Path -LiteralPath $staging) -or (Test-Path -LiteralPath $request)) { throw }
+            # A file scanner can briefly lock the unpublished staging file.
+            # Retry the same atomic rename, never a dispatched command.
+            Start-Sleep -Milliseconds 25
+        }
+    }
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     while (-not (Test-Path -LiteralPath $reply)) {
         if ([DateTime]::UtcNow -ge $deadline) {

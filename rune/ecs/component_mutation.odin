@@ -27,6 +27,8 @@ component_value_valid :: proc(value: $T) -> bool {
 		when T == SphereCollider {
 			return finite_nonnegative(value.friction) && finite_nonnegative(value.restitution) && finite_nonnegative(value.rolling_resistance)
 		}
+	} else when T == ModelAnimator {
+		return value.speed != 0 && !math.is_nan(value.speed) && !math.is_inf(value.speed)
 	} else when T == SpriteAnimator {
 		return value.animation != "" && value.clip != "" && value.speed > 0 && !math.is_inf(value.speed)
 	} else when T == AudioPlayer {
@@ -66,6 +68,10 @@ commit_component_value :: proc(
 		if !existed || previous != value {physics_2d_remove_entity(world, entity)}
 	} else when T == BoxCollider || T == SphereCollider {
 		if !existed || previous != value {physics_3d_remove_entity(world, entity)}
+	} else when T == ModelAnimator {
+		if !existed || previous.clip != value.clip || previous.autoplay != value.autoplay {
+			world.model_animation_states[entity] = {}
+		}
 	} else when T == SpriteAnimator {
 		if !existed || previous.animation != value.animation ||
 		   previous.clip != value.clip || previous.autoplay != value.autoplay {

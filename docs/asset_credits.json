@@ -1,0 +1,50 @@
+{
+  "groups": [
+    {
+      "name": "Skeletal animation fixture",
+      "paths": ["examples/skeletal_animation_3d/assets/*"],
+      "status": "documented",
+      "license": "Rune's own project licensing decision applies; no third-party source assets.",
+      "evidence": "examples/skeletal_animation_3d/generate_fixture.ps1",
+      "notes": "Original procedural two-joint geometry and animation clips generated for this example."
+    },
+    {
+      "name": "Brackeys platformer asset pack",
+      "paths": ["examples/assets/brackeys_platformer_assets/*"],
+      "status": "documented",
+      "license": "CC0, as stated in the bundled LICENSE & CREDITS.txt",
+      "evidence": "examples/assets/brackeys_platformer_assets/LICENSE & CREDITS.txt",
+      "notes": "Keep the complete bundled credits, including analogStudios_, RottingPixels, Brackeys, Sofia Thirslund, Asbjørn Thirslund, and Jayvee Enaguas / HarvettFox96."
+    },
+    {
+      "name": "Dungeon crawler and sprite-scene art/audio",
+      "paths": ["examples/dungeoncrawler/assets/*", "examples/sprite_scene_2d/assets/*"],
+      "status": "source-needed",
+      "notes": "Record the original packs, creators, source URLs, and license evidence. Similar filenames or appearance are not sufficient provenance."
+    },
+    {
+      "name": "Arcade game audio",
+      "paths": ["examples/asteroids/assets/*", "examples/pong/assets/*", "examples/tanks/assets/*", "examples/tetris/assets/*", "examples/assets/shared/*"],
+      "status": "source-needed",
+      "notes": "Confirm which sounds/music were created for Rune and which came from external packs. Record the source and license for each external pack."
+    },
+    {
+      "name": "Example bitmap font",
+      "paths": ["examples/hello_world/assets/fonts/*"],
+      "status": "source-needed",
+      "notes": "Confirm the origin and license of mecha.png."
+    },
+    {
+      "name": "Example bell sound",
+      "paths": ["examples/audio_components/assets/*"],
+      "status": "source-needed",
+      "notes": "Confirm the origin of bell.wav, including whether it was generated for this repository."
+    },
+    {
+      "name": "Example models and material textures",
+      "paths": ["examples/model_scene_3d/assets/*", "examples/textured_model_3d/assets/*"],
+      "status": "source-needed",
+      "notes": "Confirm authorship of the OBJ models and provenance/license of the crate material texture set."
+    }
+  ]
+}

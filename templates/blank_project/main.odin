@@ -4,9 +4,9 @@ import "core:fmt"
 import rune "rune:core"
 
 main :: proc() {
-	engine, ok := rune.init("templates/blank_project/project.json")
+	engine, ok := rune.init("project.json")
 	if !ok {
-		fmt.eprintln("Could not load templates/blank_project/project.json")
+		fmt.eprintln("Could not load project.json; run from the game project directory.")
 		return
 	}
 	defer rune.shutdown(&engine)

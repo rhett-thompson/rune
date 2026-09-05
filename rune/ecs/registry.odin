@@ -59,6 +59,7 @@ register_builtin_components :: proc(registry: ^Component_Registry) -> bool {
 	ok := true
 	ok = register_builtin_component(registry, "Transform", Transform, "Position, rotation, and scale for an entity") && ok
 	ok = register_builtin_component(registry, "SpriteRenderer", SpriteRenderer, "2D texture renderer") && ok
+	ok = register_builtin_component(registry, "ModelAnimator", ModelAnimator, "Skeletal animation playback through R3D") && ok
 	ok = register_builtin_component(registry, "SpriteAnimator", SpriteAnimator, "Sprite-sheet animation playback") && ok
 	ok = register_builtin_component(registry, "MeshRenderer", MeshRenderer, "Primitive 3D mesh renderer") && ok
 	ok = register_builtin_component(registry, "SphereRenderer", SphereRenderer, "Sphere 3D renderer") && ok

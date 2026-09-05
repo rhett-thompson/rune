@@ -32,28 +32,38 @@ See [ROADMAP.md](ROADMAP.md) for current priorities.
 
 ## Setup
 
-Clone with submodules so the pinned r3d Odin binding is available:
+The initial release target is Windows AMD64. Install Git, PowerShell 7, and the
+Odin toolchain recorded in [toolchain.json](toolchain.json): `dev-2026-09`, tested
+with `dev-2026-09-nightly:a2fb372`. Keep Odin's `base`, `core`, and `vendor`
+directories with the compiler, and put its directory on `PATH`.
 
-```powershell
-git clone --recurse-submodules <repository-url>
-```
+On Windows, Odin also requires MSVC and the Windows SDK from Visual Studio's
+Desktop development with C++ workload. See the
+[official Odin installation guide](https://odin-lang.org/docs/install/) for setup.
+Linux and macOS runtime behavior has not been verified for this alpha.
 
-For an existing checkout:
+Use the official GitHub repository's clone URL with `git clone --recurse-submodules`.
+Inside the resulting Rune checkout, initialize any missing submodules and check
+the compiler:
 
 ```powershell
 git submodule update --init --recursive
+odin version
 ```
 
 Run the complete headless validation suite and representative builds with:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools/validate.ps1
+pwsh -NoProfile -File tools/validate.ps1 -AllExamples
 ```
 
-Pass `-AllExamples` to compile every launcher example.
+This compiles all 25 examples and the launcher, runs the validators, and checks
+the project files. Omit `-AllExamples` for representative builds only. The
+compiler's vendor packages supply raylib, Box2D, and Box3D; the recursive submodule
+supplies the pinned r3d binding and native libraries for the advanced 3D examples.
 
-GitLab CI runs the same all-examples validation on every branch and merge
-request using the Odin release pinned in `.gitlab-ci.yml`.
+For an isolated export and first-project test, see [the release check](docs/release.md).
+Licensing and asset-credit work is tracked in [THIRD_PARTY.md](THIRD_PARTY.md).
 
 ## Example launcher
 
@@ -68,11 +78,26 @@ remains an independent Odin program and can still be run directly with its
 usual `odin run examples/<name> -collection:rune=rune` command. Launcher
 entries and descriptions live in `examples/examples.json`.
 
-The minimal starter project lives under `templates/blank_project` rather than
-in the example launcher. Build it directly with:
+Create an independent game from the starter template, without modifying an
+example. From the engine checkout:
 
 ```powershell
-odin run templates/blank_project -collection:rune=rune
+$runeRoot = (Get-Location).Path
+./tools/new_project.ps1 -Path ../MyGame -Name 'My Game'
+Push-Location ../MyGame
+./build.ps1 -RuneRoot $runeRoot -Run
+Pop-Location
+```
+
+The new folder contains code, scene/input JSON, local schemas, and a build script.
+The initial scene is empty. The script builds into the game's `build/` directory
+and runs from the correct working directory. Engine paths containing spaces work.
+The project-creation helper refuses to overwrite an existing directory.
+
+To run the template directly from the engine checkout:
+
+```powershell
+./templates/blank_project/build.ps1 -RuneRoot . -Run
 ```
 
 ## Runtime lifecycle
@@ -85,6 +110,7 @@ rune.register_system(&game, rune.System{
     name = "movement",
     start = acquire_scene_state,
     fixed_update = update_physics_controls,
+    post_physics = handle_physics_events,
     update = update_gameplay,
     pre_draw = draw_background,
     draw = draw_overlay,
@@ -97,11 +123,14 @@ if !rune.run(&game) {
 }
 ```
 
-The scene loop updates input, fixed-step systems and physics, normal systems,
+The scene loop updates input, fixed-step systems and physics, post-physics systems, normal systems,
 audio, background drawing, automatic 2D scene rendering, overlay drawing,
 gizmos, and the console. `pre_draw` is for custom content that must appear
 behind automatic scene rendering; normal UI and debug drawing belongs in
 `draw`.
+`post_physics` runs after both native physics backends on every fixed step.
+Use it for contact/sensor events so a frame containing several steps does not
+skip intermediate events.
 `rune.run(&game, on_update, on_draw)` remains available as a low-level callback
 loop for focused utilities and probes that intentionally do not use an
 engine-owned scene or registered systems.
@@ -1025,7 +1054,24 @@ separately for wall sliding. The tilemap example combines these pieces with an
 animated knight: use WASD to move, switch between idle and run clips, and
 collide with the walls and multi-cell trees.
 
+## Skeletal animation
+
+`ModelAnimator` plays named clips embedded in a `ModelRenderer` asset through
+R3D. Each entity owns its playback state while model and clip data are shared.
+Call `r3d_bridge.update_animations` from a simulation update callback; the
+existing bridge draw functions render the animated pose.
+
+See the [animation API and lifetime rules](docs/model-animation.md) and
+[skeletal_animation_3d example](examples/skeletal_animation_3d/main.odin) for
+pause/resume, seeking, reverse playback, looping, and model hot reload.
+
 ## Fixed-step 2D physics
+
+Raycasts, exact box/circle/sphere overlaps, sensor colliders, and buffered
+contact events are available for both Box2D and Box3D. See
+[physics queries and events](docs/physics.md) for the API, ownership rules,
+and direct backend access. The [physics_queries_2d example](examples/physics_queries_2d)
+demonstrates pickups, interaction rays, proximity queries, and solid contacts.
 
 `RigidBody2D` is an engine-owned JSON component backed by Odin's `vendor:box2d`
 package.

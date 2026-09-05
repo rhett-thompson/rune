@@ -8,6 +8,7 @@ $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $buildDirectory = Join-Path $repositoryRoot "build"
 $r3dDirectory = Join-Path $repositoryRoot "third_party/r3d-odin"
 $failures = [System.Collections.Generic.List[string]]::new()
+$builtValidators = [System.Collections.Generic.List[string]]::new()
 
 New-Item -ItemType Directory -Path $buildDirectory -Force | Out-Null
 Push-Location $repositoryRoot
@@ -28,21 +29,24 @@ try {
             return $false
         }
         Write-Host "PASS build $Name"
+        if ($Name.EndsWith('_validation')) {
+            $builtValidators.Add((Join-Path $buildDirectory "$Name.exe"))
+        }
         return $true
     }
 
     Get-ChildItem "tools" -Directory | Sort-Object Name | ForEach-Object {
         $collections = @()
-        if ($_.Name -eq "r3d_cache_validation") {
+        if ($_.Name -in @("r3d_cache_validation", "model_animation_validation")) {
             $collections += "-collection:r3d=third_party/r3d-odin"
         }
         Invoke-OdinBuild -Name $_.Name -Package $_.FullName -Collections $collections | Out-Null
     }
 
-    Get-ChildItem "build/*_validation.exe" | Sort-Object Name | ForEach-Object {
-        & $_.FullName
+    $builtValidators | Sort-Object | ForEach-Object {
+        & $_
         if ($LASTEXITCODE -ne 0) {
-            $failures.Add("run $($_.BaseName)")
+            $failures.Add("run $([IO.Path]::GetFileNameWithoutExtension($_))")
         }
     }
 
@@ -70,6 +74,7 @@ try {
     }
 
     if ($AllExamples) {
+        Invoke-OdinBuild -Name "launcher" -Package "examples/launcher" | Out-Null
         $manifest = Get-Content "examples/examples.json" -Raw | ConvertFrom-Json
         foreach ($example in $manifest.examples) {
             $collections = @()

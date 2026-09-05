@@ -201,6 +201,8 @@ apply_snapshot_component_value :: proc(
 		commit_component_value(world, target_entity, name, &world.transforms, snapshot.transforms[snapshot_entity])
 	case "SpriteRenderer":
 		commit_component_value(world, target_entity, name, &world.sprite_renderers, snapshot.sprite_renderers[snapshot_entity])
+	case "ModelAnimator":
+		commit_component_value(world, target_entity, name, &world.model_animators, snapshot.model_animators[snapshot_entity])
 	case "SpriteAnimator":
 		commit_component_value(world, target_entity, name, &world.sprite_animators, snapshot.sprite_animators[snapshot_entity])
 	case "MeshRenderer":
@@ -437,6 +439,11 @@ rehome_component_map_names :: proc(world, snapshot: ^World) {
 }
 
 rehome_builtin_strings :: proc(world, snapshot: ^World) {
+	for entity, value in world.model_animators {
+		owned := value
+		owned.clip = retain_scene_string(snapshot, value.clip)
+		world.model_animators[entity] = owned
+	}
 	for entity, value in world.sprite_renderers {
 		owned := value
 		owned.texture = retain_scene_string(snapshot, value.texture)

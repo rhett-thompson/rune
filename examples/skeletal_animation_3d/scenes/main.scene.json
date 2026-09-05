@@ -1,0 +1,27 @@
+{
+  "$schema": "../../../schemas/scene.schema.json",
+  "name": "Independent Animation Players",
+  "entities": [
+    { "id": "camera", "components": {
+      "Transform": { "position": [4, 3.5, 8] },
+      "Camera3D": { "target": [0, 1, 0], "active": true, "fovy": 45 }
+    } },
+    { "id": "ambient", "components": { "AmbientLight": { "color": [255,255,255,255], "intensity": 0.6 } } },
+    { "id": "sun", "components": { "DirectionalLight": { "direction": [-1,-2,-1], "color": [255,255,255,255], "intensity": 3 } } },
+    { "id": "left", "components": {
+      "Transform": { "position": [-2,0,0] },
+      "ModelRenderer": { "model": "assets/arm.gltf", "tint": [80,180,255,255] },
+      "ModelAnimator": { "clip": "bend", "speed": 1 }
+    } },
+    { "id": "middle", "components": {
+      "Transform": { "position": [0,0,0] },
+      "ModelRenderer": { "model": "assets/arm.gltf", "tint": [255,190,70,255] },
+      "ModelAnimator": { "clip": "bend", "speed": 0.5 }
+    } },
+    { "id": "right", "components": {
+      "Transform": { "position": [2,0,0] },
+      "ModelRenderer": { "model": "assets/arm.gltf", "tint": [90,230,160,255] },
+      "ModelAnimator": { "clip": "sway" }
+    } }
+  ]
+}

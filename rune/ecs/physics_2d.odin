@@ -13,9 +13,11 @@ RigidBody2D :: struct {
 }
 
 BoxCollider2D :: struct {
+	is_sensor: bool,
 	size: [2]f32,
 }
 CircleCollider2D :: struct {
+	is_sensor: bool,
 	radius: f32,
 }
 
@@ -51,6 +53,10 @@ box_collider_2d_from_json :: proc(data: json.Value) -> (BoxCollider2D, bool) {
 	}
 	if value, found := object["size"];
 	   found && !read_vector2(value, &result.size) {return {}, false}
+	if value, found := object["is_sensor"]; found {
+		result.is_sensor, ok = value.(json.Boolean)
+		if !ok {return {}, false}
+	}
 	return result, component_value_valid(result)
 }
 
@@ -62,10 +68,15 @@ circle_collider_2d_from_json :: proc(data: json.Value) -> (CircleCollider2D, boo
 	}
 	if value, found := object["radius"];
 	   found {result.radius, ok = read_number(value); if !ok || result.radius <= 0 {return {}, false}}
+	if value, found := object["is_sensor"]; found {
+		result.is_sensor, ok = value.(json.Boolean)
+		if !ok {return {}, false}
+	}
 	return result, component_value_valid(result)
 }
 
 physics_2d_update :: proc(world: ^World, dt: f32) {
+	physics_begin_update(&world.physics_2d)
 	if dt <= 0 ||
 	   (len(world.rigid_bodies_2d) == 0 &&
 			   len(world.box_colliders_2d) == 0 &&
@@ -76,6 +87,7 @@ physics_2d_update :: proc(world: ^World, dt: f32) {
 	for world.physics_2d_accumulator >= Physics2D_Fixed_Delta && steps < 8 {
 		sync_bodies_to_box2d(world)
 		b2.World_Step(world.box2d_world, Physics2D_Fixed_Delta, 4)
+		collect_box2d_events(world)
 		sync_bodies_from_box2d(world)
 		world.physics_2d_accumulator -= Physics2D_Fixed_Delta
 		steps += 1
@@ -86,6 +98,7 @@ physics_2d_update :: proc(world: ^World, dt: f32) {
 // physics_2d_shutdown releases the native Box2D objects. Engine scene reloads
 // call this before replacing a World; standalone callers should do the same.
 physics_2d_shutdown :: proc(world: ^World) {
+	physics_state_reset(&world.physics_2d)
 	for _, native in world.box2d_bodies {if b2.Body_IsValid(native) {b2.DestroyBody(native)}}
 	delete(world.box2d_bodies)
 	world.box2d_bodies = make(map[Entity]b2.BodyId)
@@ -97,7 +110,9 @@ physics_2d_shutdown :: proc(world: ^World) {
 }
 
 physics_2d_remove_entity :: proc(world: ^World, entity: Entity) {
+	world.physics_2d.needs_sync = true
 	if native, found := world.box2d_bodies[entity]; found {
+		physics_forget_entity(&world.physics_2d, entity)
 		if b2.Body_IsValid(native) {b2.DestroyBody(native)}
 		delete_key(&world.box2d_bodies, entity)
 	}
@@ -125,7 +140,10 @@ physics_2d_transform_edited :: proc(world: ^World, entity: Entity, previous, val
 
 physics_2d_body_edited :: proc(world: ^World, entity: Entity, previous, value: RigidBody2D) {
 	native, found := world.box2d_bodies[entity]
-	if !found || !b2.Body_IsValid(native) {return}
+	if !found || !b2.Body_IsValid(native) {
+		world.physics_2d.needs_sync = true
+		return
+	}
 	type_changed := previous.body_type != value.body_type
 	if type_changed {b2.Body_SetType(native, box2d_body_type(value.body_type))}
 	if previous.gravity_scale != value.gravity_scale {b2.Body_SetGravityScale(native, value.gravity_scale)}
@@ -133,7 +151,8 @@ physics_2d_body_edited :: proc(world: ^World, entity: Entity, previous, value: R
 	if previous != value {b2.Body_SetAwake(native, true)}
 }
 
-sync_bodies_to_box2d :: proc(world: ^World) {
+sync_bodies_to_box2d :: proc(world: ^World, apply_velocities := true) {
+	defer world.physics_2d.needs_sync = false
 	for entity, body in world.rigid_bodies_2d {
 		if _, found := world.box2d_bodies[entity]; found {continue}
 		create_box2d_body(world, entity, body)
@@ -146,9 +165,11 @@ sync_bodies_to_box2d :: proc(world: ^World) {
 		if _, exists := world.box2d_bodies[entity]; exists {continue}
 		if _, found := world.rigid_bodies_2d[entity]; !found {create_circle2d_static(world, entity)}
 	}
-	for entity, body in world.rigid_bodies_2d {
-		native, found := world.box2d_bodies[entity]
-		if found {b2.Body_SetLinearVelocity(native, {body.velocity[0], body.velocity[1]})}
+	if apply_velocities {
+		for entity, body in world.rigid_bodies_2d {
+			native, found := world.box2d_bodies[entity]
+			if found {b2.Body_SetLinearVelocity(native, {body.velocity[0], body.velocity[1]})}
+		}
 	}
 }
 
@@ -159,7 +180,7 @@ create_box2d_body :: proc(world: ^World, entity: Entity, body: RigidBody2D) {
 	if collider, has_collider := world.box_colliders_2d[entity]; has_collider {
 		native := create_box2d_body_id(world, body, transform.position[0], transform.position[1])
 		create_box2d_box_shape(
-			native,
+			world, entity, native, collider.is_sensor,
 			collider.size[0] * transform.scale[0] * 0.5,
 			collider.size[1] * transform.scale[1] * 0.5,
 			mask,
@@ -169,7 +190,7 @@ create_box2d_body :: proc(world: ^World, entity: Entity, body: RigidBody2D) {
 		scale :=
 			transform.scale[0] if transform.scale[0] > transform.scale[1] else transform.scale[1]
 		native := create_box2d_body_id(world, body, transform.position[0], transform.position[1])
-		create_box2d_circle_shape(native, collider.radius * scale, mask)
+		create_box2d_circle_shape(world, entity, native, collider.is_sensor, collider.radius * scale, mask)
 		world.box2d_bodies[entity] = native
 	}
 }
@@ -188,7 +209,7 @@ create_box2d_static :: proc(world: ^World, entity: Entity) {
 		transform.position[1],
 	)
 	create_box2d_box_shape(
-		body,
+		world, entity, body, collider.is_sensor,
 		collider.size[0] * transform.scale[0] * 0.5,
 		collider.size[1] * transform.scale[1] * 0.5,
 		mask,
@@ -210,7 +231,7 @@ create_circle2d_static :: proc(world: ^World, entity: Entity) {
 		transform.position[0],
 		transform.position[1],
 	)
-	create_box2d_circle_shape(body, collider.radius * scale, mask)
+	create_box2d_circle_shape(world, entity, body, collider.is_sensor, collider.radius * scale, mask)
 	world.box2d_bodies[entity] = body
 }
 
@@ -244,27 +265,32 @@ create_box2d_body_id :: proc(world: ^World, body: RigidBody2D, x, y: f32) -> b2.
 	return b2.CreateBody(world.box2d_world, def)
 }
 
-create_box2d_shape_def :: proc(layer_mask: u64) -> b2.ShapeDef {
+create_box2d_shape_def :: proc(layer_mask: u64, sensor: bool) -> b2.ShapeDef {
 	def := b2.DefaultShapeDef()
 	def.density = 1
+	def.isSensor = sensor
+	def.enableSensorEvents = true
+	def.enableContactEvents = true
 	def.material.friction = 0.6
 	def.filter.categoryBits = layer_mask
 	def.filter.maskBits = layer_mask
 	return def
 }
 
-create_box2d_box_shape :: proc(body: b2.BodyId, half_width, half_height: f32, layer_mask: u64) {
-	def := create_box2d_shape_def(layer_mask)
+create_box2d_box_shape :: proc(world: ^World, entity: Entity, body: b2.BodyId, sensor: bool, half_width, half_height: f32, layer_mask: u64) {
+	def := create_box2d_shape_def(layer_mask, sensor)
 	shape := b2.MakeBox(half_width, half_height)
-	_ = b2.CreatePolygonShape(body, def, &shape)
+	id := b2.CreatePolygonShape(body, def, &shape)
+	world.physics_2d.shapes[transmute(u64)id] = {entity, "BoxCollider2D"}
 }
 
-create_box2d_circle_shape :: proc(body: b2.BodyId, radius: f32, layer_mask: u64) {
-	def := create_box2d_shape_def(layer_mask)
+create_box2d_circle_shape :: proc(world: ^World, entity: Entity, body: b2.BodyId, sensor: bool, radius: f32, layer_mask: u64) {
+	def := create_box2d_shape_def(layer_mask, sensor)
 	shape := b2.Circle {
 		radius = radius,
 	}
-	_ = b2.CreateCircleShape(body, def, &shape)
+	id := b2.CreateCircleShape(body, def, &shape)
+	world.physics_2d.shapes[transmute(u64)id] = {entity, "CircleCollider2D"}
 }
 
 box2d_is_grounded :: proc(body: b2.BodyId) -> bool {

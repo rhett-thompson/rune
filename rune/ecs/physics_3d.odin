@@ -47,6 +47,7 @@ rigid_body_3d_from_json :: proc(data: json.Value) -> (RigidBody3D, bool) {
 }
 
 physics_3d_update :: proc(world: ^World, dt: f32) {
+	physics_begin_update(&world.physics_3d)
 	if dt <= 0 ||
 	   (len(world.rigid_bodies_3d) == 0 &&
 			   len(world.box_colliders) == 0 &&
@@ -57,6 +58,7 @@ physics_3d_update :: proc(world: ^World, dt: f32) {
 	for world.physics_3d_accumulator >= Physics3D_Fixed_Delta && steps < 8 {
 		sync_bodies_to_box3d(world)
 		b3.World_Step(world.box3d_world, Physics3D_Fixed_Delta, 4)
+		collect_box3d_events(world)
 		sync_bodies_from_box3d(world)
 		world.physics_3d_accumulator -= Physics3D_Fixed_Delta
 		steps += 1
@@ -66,6 +68,7 @@ physics_3d_update :: proc(world: ^World, dt: f32) {
 
 physics_3d_shutdown :: proc(world: ^World) {
 	if world == nil {return}
+	physics_state_reset(&world.physics_3d)
 	if !b3.IS_NULL(world.box3d_world) && b3.World_IsValid(world.box3d_world) {
 		b3.DestroyWorld(world.box3d_world)
 	}
@@ -76,7 +79,9 @@ physics_3d_shutdown :: proc(world: ^World) {
 }
 
 physics_3d_remove_entity :: proc(world: ^World, entity: Entity) {
+	world.physics_3d.needs_sync = true
 	if native, found := world.box3d_bodies[entity]; found {
+		physics_forget_entity(&world.physics_3d, entity)
 		if !b3.IS_NULL(native) && b3.Body_IsValid(native) {b3.DestroyBody(native)}
 		delete_key(&world.box3d_bodies, entity)
 	}
@@ -122,7 +127,10 @@ physics_3d_body_edited :: proc(world: ^World, entity: Entity, previous, value: R
 		return
 	}
 	native, found := physics_3d_native_body(world, entity)
-	if !found {return}
+	if !found {
+		world.physics_3d.needs_sync = true
+		return
+	}
 	type_changed := previous.body_type != value.body_type
 	if type_changed {b3.Body_SetType(native, box3d_body_type(value.body_type))}
 	if previous.gravity_scale != value.gravity_scale {b3.Body_SetGravityScale(native, value.gravity_scale)}
@@ -134,6 +142,7 @@ physics_3d_body_edited :: proc(world: ^World, entity: Entity, previous, value: R
 }
 
 sync_bodies_to_box3d :: proc(world: ^World) {
+	defer world.physics_3d.needs_sync = false
 	for entity, body in world.rigid_bodies_3d {
 		if _, found := world.box3d_bodies[entity]; found {continue}
 		create_box3d_body(world, entity, body)
@@ -239,6 +248,8 @@ create_box3d_shape_def :: proc(
 ) -> b3.ShapeDef {
 	def := b3.DefaultShapeDef()
 	def.density = 1
+	def.enableSensorEvents = true
+	def.enableContactEvents = true
 	def.baseMaterial.friction = friction
 	def.baseMaterial.restitution = restitution
 	def.baseMaterial.rollingResistance = rolling_resistance
@@ -263,12 +274,14 @@ create_box3d_box_shape :: proc(
 		collider.restitution,
 		collider.rolling_resistance,
 	)
+	def.isSensor = collider.is_sensor
 	box := b3.MakeBoxHull(
 		collider.size[0] * transform.scale[0] * 0.5,
 		collider.size[1] * transform.scale[1] * 0.5,
 		collider.size[2] * transform.scale[2] * 0.5,
 	)
-	_ = b3.CreateHullShape(body, def, &box.base)
+	id := b3.CreateHullShape(body, def, &box.base)
+	world.physics_3d.shapes[b3.StoreShapeId(id)] = {entity, "BoxCollider"}
 }
 
 create_box3d_sphere_shape :: proc(
@@ -285,13 +298,15 @@ create_box3d_sphere_shape :: proc(
 		collider.restitution,
 		collider.rolling_resistance,
 	)
+	def.isSensor = collider.is_sensor
 	scale := transform.scale[0]
 	if transform.scale[1] > scale {scale = transform.scale[1]}
 	if transform.scale[2] > scale {scale = transform.scale[2]}
 	sphere := b3.Sphere {
 		radius = collider.radius * scale,
 	}
-	_ = b3.CreateSphereShape(body, def, &sphere)
+	id := b3.CreateSphereShape(body, def, &sphere)
+	world.physics_3d.shapes[b3.StoreShapeId(id)] = {entity, "SphereCollider"}
 }
 
 box3d_body_type :: proc(body_type: string) -> b3.BodyType {

@@ -17,6 +17,9 @@ Scene3D_Settings :: struct {
 Model_Asset :: struct {
 	model:    r3d.Model,
 	revision: u64,
+	animations: r3d.AnimationLib,
+	animations_loaded: bool,
+	animations_attempted: bool,
 }
 
 R3D_Material_Asset :: struct {
@@ -38,6 +41,8 @@ Context :: struct {
 	sphere:           r3d.Mesh,
 	sphere_no_shadow: r3d.Mesh,
 	models:           map[string]Model_Asset,
+	animation_players: map[ecs.Entity]Model_Player,
+	animation_world_generation: u32,
 	r3d_materials:    map[string]R3D_Material_Asset,
 	retained_paths:   map[string]string,
 	scene_lights:     map[ecs.Entity]r3d.Light,
@@ -60,6 +65,7 @@ init :: proc(root: string, width, height: i32) -> (Context, bool) {
 		sphere           = r3d.GenMeshSphere(1, 24, 32),
 		sphere_no_shadow = r3d.GenMeshSphere(1, 24, 32),
 		models           = make(map[string]Model_Asset),
+		animation_players = make(map[ecs.Entity]Model_Player),
 		r3d_materials    = make(map[string]R3D_Material_Asset),
 		retained_paths   = make(map[string]string),
 		scene_lights     = make(map[ecs.Entity]r3d.Light),
@@ -77,7 +83,9 @@ init :: proc(root: string, width, height: i32) -> (Context, bool) {
 shutdown :: proc(ctx: ^Context) {
 	if !ctx.initialized {return}
 	destroy_scene_lights(ctx)
+	destroy_animation_players(ctx)
 	for _, asset in ctx.models {
+		if asset.animations_loaded {r3d.UnloadAnimationLib(asset.animations)}
 		r3d.UnloadModel(asset.model, false)
 	}
 	for _, asset in ctx.r3d_materials {
@@ -90,6 +98,7 @@ shutdown :: proc(ctx: ^Context) {
 	if r3d.IsMeshValid(ctx.sphere) {r3d.UnloadMesh(ctx.sphere)}
 	if r3d.IsMeshValid(ctx.sphere_no_shadow) {r3d.UnloadMesh(ctx.sphere_no_shadow)}
 	delete(ctx.models)
+	delete(ctx.animation_players)
 	delete(ctx.r3d_materials)
 	delete(ctx.scene_lights)
 	destroy_retained_paths(ctx)
@@ -112,6 +121,7 @@ draw_scene_ex :: proc(
 	settings: Scene3D_Settings,
 ) -> bool {
 	if !ctx.initialized {return false}
+	prepare_animations(ctx, world, asset_manager, 0, false)
 	entity, camera_component, found := ecs.active_camera_3d(world)
 	if !found {return false}
 	transform, has_transform := ecs.get_transform(world, entity)
@@ -233,12 +243,13 @@ draw_entity :: proc(
 		loaded_model, loaded := load_model(ctx, asset_manager, model_renderer.model)
 		if !loaded {return}
 		apply_model_materials(ctx, asset_manager, &loaded_model, model_renderer)
-		r3d.DrawModelEx(
-			loaded_model,
-			transform.position,
-			rotation_quaternion(transform),
-			transform.scale,
-		)
+		if animated, found := ctx.animation_players[entity]; found && animated.ready {
+			r3d.DrawAnimatedModelEx(loaded_model, animated.player, transform.position,
+				rotation_quaternion(transform), transform.scale)
+		} else {
+			r3d.DrawModelEx(loaded_model, transform.position,
+				rotation_quaternion(transform), transform.scale)
+		}
 	}
 }
 
@@ -410,14 +421,34 @@ load_model :: proc(
 		return {}, false
 	}
 	assets.resolve_asset_failure(asset_manager, "", "ModelRenderer.model", path)
+	animations: r3d.AnimationLib
+	if already_loaded && previous.animations_loaded {
+		animations = r3d.LoadAnimationLib(cpath)
+		if !animation_library_valid(loaded, animations) {
+			r3d.UnloadAnimationLib(animations)
+			r3d.UnloadModel(loaded, true)
+			previous.revision = revision
+			ctx.models[path] = previous
+			report_animation_failure(asset_manager, path, "reloaded model has no compatible animations; keeping the previous model")
+			return previous.model, true
+		}
+	}
 	if already_loaded {
+		invalidate_model_players(ctx, path)
+		if previous.animations_loaded {r3d.UnloadAnimationLib(previous.animations)}
 		r3d.UnloadModel(previous.model, false)
 	}
 	unload_imported_materials(&loaded)
 	enable_model_shadows(&loaded)
+	if already_loaded && previous.animations_loaded {
+		assets.resolve_asset_failure(asset_manager, "", "ModelAnimator.clip", path)
+	}
 	ctx.models[retain_path(ctx, path)] = Model_Asset {
 		model    = loaded,
 		revision = revision,
+		animations = animations,
+		animations_loaded = already_loaded && previous.animations_loaded,
+		animations_attempted = already_loaded && previous.animations_loaded,
 	}
 	return loaded, true
 }

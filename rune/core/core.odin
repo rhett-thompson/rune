@@ -79,6 +79,7 @@ System :: struct {
 	name:              string,
 	start:             System_Update_Proc,
 	fixed_update:      System_Update_Proc,
+	post_physics:      System_Update_Proc,
 	update:            System_Update_Proc,
 	pre_draw:          System_Draw_Proc,
 	draw:              System_Draw_Proc,
@@ -654,6 +655,9 @@ run_fixed_pipeline :: proc(engine: ^Engine, world: ^ecs.World) {
 		}
 		ecs.physics_2d_update(world, engine.fixed_delta_time)
 		ecs.physics_3d_update(world, engine.fixed_delta_time)
+		for system in engine.systems {
+			if system.post_physics != nil {system.post_physics(engine, world)}
+		}
 		engine.debug.fixed_steps += 1
 		engine.fixed_accumulator -= engine.fixed_delta_time
 		steps += 1

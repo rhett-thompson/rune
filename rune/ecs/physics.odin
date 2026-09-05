@@ -6,6 +6,7 @@ import "core:encoding/json"
 // first supported environment geometry; their size is multiplied by Transform
 // scale so a unit collider matches the engine's cube debug primitive.
 BoxCollider :: struct {
+	is_sensor: bool,
 	size:               [3]f32,
 	is_static:          bool,
 	friction:           f32,
@@ -17,6 +18,7 @@ BoxCollider :: struct {
 // the largest Transform scale axis so non-uniformly scaled entities remain
 // conservative for collision purposes.
 SphereCollider :: struct {
+	is_sensor: bool,
 	radius:             f32,
 	is_static:          bool,
 	friction:           f32,
@@ -57,6 +59,10 @@ box_collider_from_json :: proc(data: json.Value) -> (BoxCollider, bool) {
 		&result.restitution,
 		&result.rolling_resistance,
 	) {return {}, false}
+	if value, found := object["is_sensor"]; found {
+		result.is_sensor, ok = value.(json.Boolean)
+		if !ok {return {}, false}
+	}
 	return result, component_value_valid(result)
 }
 
@@ -82,6 +88,10 @@ sphere_collider_from_json :: proc(data: json.Value) -> (SphereCollider, bool) {
 		&result.restitution,
 		&result.rolling_resistance,
 	) {return {}, false}
+	if value, found := object["is_sensor"]; found {
+		result.is_sensor, ok = value.(json.Boolean)
+		if !ok {return {}, false}
+	}
 	return result, component_value_valid(result)
 }
 
@@ -205,7 +215,7 @@ move_character_axis :: proc(
 	for collider_entity, collider in world.box_colliders {
 		if collider_entity == entity ||
 		   !collides_by_layer(world, entity, collider_entity) {continue}
-		if !collider.is_static {continue}
+		if !collider.is_static || collider.is_sensor {continue}
 		if !character_intersects_box(
 			world,
 			controller,
@@ -222,7 +232,7 @@ move_character_axis :: proc(
 	for collider_entity, collider in world.sphere_colliders {
 		if collider_entity == entity ||
 		   !collides_by_layer(world, entity, collider_entity) {continue}
-		if !collider.is_static ||
+		if !collider.is_static || collider.is_sensor ||
 		   !character_intersects_sphere(
 				   world,
 				   controller,

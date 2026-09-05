@@ -11,6 +11,7 @@
     "MeshRenderer": { "$ref": "#/$defs/meshRenderer" },
     "SphereRenderer": { "$ref": "#/$defs/sphereRenderer" },
     "ModelRenderer": { "$ref": "#/$defs/modelRenderer" },
+    "ModelAnimator": { "$ref": "#/$defs/modelAnimator" },
     "AmbientLight": { "$ref": "#/$defs/ambientLight" },
     "DirectionalLight": { "$ref": "#/$defs/directionalLight" },
     "PointLight": { "$ref": "#/$defs/pointLight" },
@@ -42,6 +43,16 @@
     "description": "Data for a custom component registered by game code."
   },
   "$defs": {
+    "modelAnimator": {
+      "type": "object",
+      "properties": {
+        "clip": { "type": "string", "default": "", "description": "Embedded clip name; empty selects the first clip." },
+        "speed": { "type": "number", "not": { "const": 0 }, "default": 1 },
+        "loop": { "type": "boolean", "default": true },
+        "autoplay": { "type": "boolean", "default": true }
+      },
+      "additionalProperties": false
+    },
     "vec2": {
       "type": "array",
       "items": { "type": "number" },
@@ -325,12 +336,18 @@
     },
     "boxCollider2D": {
       "type": "object",
-      "properties": { "size": { "$ref": "#/$defs/vec2", "default": [16, 16] } },
+      "properties": {
+        "size": { "$ref": "#/$defs/vec2", "default": [16, 16] },
+        "is_sensor": { "type": "boolean", "default": false }
+      },
       "additionalProperties": false
     },
     "circleCollider2D": {
       "type": "object",
-      "properties": { "radius": { "type": "number", "exclusiveMinimum": 0, "default": 8 } },
+      "properties": {
+        "radius": { "type": "number", "exclusiveMinimum": 0, "default": 8 },
+        "is_sensor": { "type": "boolean", "default": false }
+      },
       "additionalProperties": false
     },
     "physicsMaterial": {
@@ -347,6 +364,7 @@
       "properties": {
         "size": { "$ref": "#/$defs/vec3", "default": [1, 1, 1] },
         "is_static": { "type": "boolean", "default": true },
+        "is_sensor": { "type": "boolean", "default": false },
         "friction": { "type": "number", "minimum": 0, "default": 0.6 },
         "restitution": { "type": "number", "minimum": 0, "default": 0 },
         "rolling_resistance": { "type": "number", "minimum": 0, "default": 0 },
@@ -359,6 +377,7 @@
       "properties": {
         "radius": { "type": "number", "exclusiveMinimum": 0, "default": 0.5 },
         "is_static": { "type": "boolean", "default": true },
+        "is_sensor": { "type": "boolean", "default": false },
         "friction": { "type": "number", "minimum": 0, "default": 0.6 },
         "restitution": { "type": "number", "minimum": 0, "default": 0 },
         "rolling_resistance": { "type": "number", "minimum": 0, "default": 0 },
