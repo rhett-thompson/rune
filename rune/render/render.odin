@@ -1,6 +1,7 @@
 package render
 
 import "core:fmt"
+import "core:slice"
 import "core:strings"
 import "rune:assets"
 import "rune:ecs"
@@ -10,6 +11,21 @@ import rl "vendor:raylib"
 // rendering lives in rune:r3d_bridge.
 Renderer :: struct {
 	clear_color: [4]u8,
+}
+
+Render_2D_Kind :: enum {
+	Sprite,
+	Tilemap,
+	Text,
+}
+
+Render_2D_Command :: struct {
+	entity:     ecs.Entity,
+	kind:       Render_2D_Kind,
+	draw_order: i32,
+	position:   [2]f32,
+	scale:      [2]f32,
+	rotation:   f32,
 }
 
 init :: proc() -> Renderer {
@@ -30,21 +46,26 @@ draw_scene_2d :: proc(world: ^ecs.World, asset_manager: ^assets.Asset_Manager) -
 		rotation = camera_component.rotation,
 		zoom     = camera_component.zoom,
 	}
-	rl.BeginMode2D(camera)
+	commands := make([dynamic]Render_2D_Command, context.temp_allocator)
 	for root in ecs.root_entities(world) {
-		draw_sprite_tree(world, asset_manager, root, {0, 0}, {1, 1}, 0, camera)
+		collect_render_commands_2d(world, root, {0, 0}, {1, 1}, 0, &commands)
+	}
+	slice.sort_by(commands[:], render_command_2d_less)
+
+	rl.BeginMode2D(camera)
+	for command in commands {
+		draw_render_command_2d(world, asset_manager, command, camera)
 	}
 	rl.EndMode2D()
 	return true
 }
 
-draw_sprite_tree :: proc(
+collect_render_commands_2d :: proc(
 	world: ^ecs.World,
-	asset_manager: ^assets.Asset_Manager,
 	entity: ecs.Entity,
 	parent_position, parent_scale: [2]f32,
 	parent_rotation: f32,
-	camera: rl.Camera2D,
+	commands: ^[dynamic]Render_2D_Command,
 ) {
 	position := parent_position
 	scale := parent_scale
@@ -59,6 +80,68 @@ draw_sprite_tree :: proc(
 	}
 
 	if sprite, found := ecs.get_sprite_renderer(world, entity); found {
+		append(
+			commands,
+			Render_2D_Command {
+				entity = entity,
+				kind = .Sprite,
+				draw_order = sprite.draw_order,
+				position = position,
+				scale = scale,
+				rotation = rotation,
+			},
+		)
+	}
+	if tilemap, found := ecs.get_tilemap_renderer(world, entity); found {
+		append(
+			commands,
+			Render_2D_Command {
+				entity = entity,
+				kind = .Tilemap,
+				draw_order = tilemap.draw_order,
+				position = position,
+				scale = scale,
+				rotation = rotation,
+			},
+		)
+	}
+	if text_renderer, found := ecs.get_text_renderer(world, entity); found {
+		append(
+			commands,
+			Render_2D_Command {
+				entity = entity,
+				kind = .Text,
+				draw_order = text_renderer.draw_order,
+				position = position,
+				scale = scale,
+				rotation = rotation,
+			},
+		)
+	}
+
+	for child in ecs.child_entities(world, entity) {
+		collect_render_commands_2d(world, child, position, scale, rotation, commands)
+	}
+}
+
+render_command_2d_less :: proc(a, b: Render_2D_Command) -> bool {
+	if a.draw_order != b.draw_order {return a.draw_order < b.draw_order}
+	a_index := ecs.entity_index(a.entity)
+	b_index := ecs.entity_index(b.entity)
+	if a_index != b_index {return a_index < b_index}
+	return int(a.kind) < int(b.kind)
+}
+
+draw_render_command_2d :: proc(
+	world: ^ecs.World,
+	asset_manager: ^assets.Asset_Manager,
+	command: Render_2D_Command,
+	camera: rl.Camera2D,
+) {
+	#partial switch command.kind {
+	case .Sprite:
+		sprite, found := ecs.get_sprite_renderer(world, command.entity)
+		if !found {return}
 		texture, _ := assets.texture(asset_manager, sprite.texture, "", "SpriteRenderer.texture")
 		source := rl.Rectangle {
 			sprite.source[0],
@@ -74,10 +157,10 @@ draw_sprite_tree :: proc(
 		if sprite.flip_x {source.width = -source.width}
 		if sprite.flip_y {source.height = -source.height}
 		destination := rl.Rectangle {
-			position[0],
-			position[1],
-			frame_width * scale[0],
-			frame_height * scale[1],
+			command.position[0],
+			command.position[1],
+			frame_width * command.scale[0],
+			frame_height * command.scale[1],
 		}
 		origin := rl.Vector2 {
 			destination.width * sprite.origin[0],
@@ -88,19 +171,26 @@ draw_sprite_tree :: proc(
 			source,
 			destination,
 			origin,
-			rotation,
+			command.rotation,
 			to_raylib_color(sprite.tint),
 		)
-	}
-	if tilemap, found := ecs.get_tilemap_renderer(world, entity); found {
-		draw_tilemap(asset_manager, tilemap, position, scale, rotation, camera)
-	}
-	if text, found := ecs.get_text_renderer(world, entity); found {
-		draw_text(asset_manager, text, position, scale, rotation)
-	}
-
-	for child in ecs.child_entities(world, entity) {
-		draw_sprite_tree(world, asset_manager, child, position, scale, rotation, camera)
+	case .Tilemap:
+		tilemap, found := ecs.get_tilemap_renderer(world, command.entity)
+		if found {
+			draw_tilemap(
+				asset_manager,
+				tilemap,
+				command.position,
+				command.scale,
+				command.rotation,
+				camera,
+			)
+		}
+	case .Text:
+		text, found := ecs.get_text_renderer(world, command.entity)
+		if found {
+			draw_text(asset_manager, text, command.position, command.scale, command.rotation)
+		}
 	}
 }
 
@@ -264,12 +354,14 @@ draw_text :: proc(
 ) {
 	font, loaded := assets.font(asset_manager, text.font, "", "TextRenderer.font")
 	if !loaded {return}
-	content, _ := strings.clone_to_cstring(text.text)
-	defer delete(content)
+	content, _ := strings.clone_to_cstring(text.text, context.temp_allocator)
 	font_size := text.font_size * scale[0]
 	spacing := text.spacing * scale[0]
-	measured := rl.MeasureTextEx(font, content, font_size, spacing)
-	origin := rl.Vector2{measured.x * text.origin[0], measured.y * text.origin[1]}
+	origin: rl.Vector2
+	if text.origin[0] != 0 || text.origin[1] != 0 {
+		measured := rl.MeasureTextEx(font, content, font_size, spacing)
+		origin = {measured.x * text.origin[0], measured.y * text.origin[1]}
+	}
 	rl.DrawTextPro(
 		font,
 		content,

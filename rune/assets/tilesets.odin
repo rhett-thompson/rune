@@ -6,10 +6,17 @@ import "core:strconv"
 import "core:strings"
 import "rune:jsonutil"
 
+Tileset_Collision :: struct {
+	offset: [2]f32,
+	size:   [2]f32,
+}
+
 Tileset_Tile :: struct {
-	name:   string,
-	source: [2]i32,
-	size:   [2]i32,
+	name:          string,
+	source:        [2]i32,
+	size:          [2]i32,
+	collision:     Tileset_Collision,
+	has_collision: bool,
 }
 
 Tileset_Data :: struct {
@@ -104,6 +111,25 @@ load_tileset_data :: proc(full_path: string) -> (Tileset_Data, bool) {
 			tile.size, size_ok = read_tileset_vector2(size_value, false)
 			if !size_ok {return {}, false}
 		}
+		if collision_value, found := tile_object["collision"]; found {
+			collision_object, collision_ok := collision_value.(json.Object)
+			if !collision_ok {return {}, false}
+			offset_value, has_offset := collision_object["offset"]
+			collision_size_value, has_collision_size := collision_object["size"]
+			if !has_offset || !has_collision_size {return {}, false}
+			tile.collision.offset, collision_ok = read_tileset_float_vector2(offset_value, true)
+			if !collision_ok {return {}, false}
+			tile.collision.size, collision_ok = read_tileset_float_vector2(
+				collision_size_value,
+				false,
+			)
+			if !collision_ok ||
+			   tile.collision.offset[0] + tile.collision.size[0] > f32(tile.size[0]) ||
+			   tile.collision.offset[1] + tile.collision.size[1] > f32(tile.size[1]) {
+				return {}, false
+			}
+			tile.has_collision = true
+		}
 		if name_value, found := tile_object["name"]; found {
 			name, name_ok := name_value.(json.String)
 			if !name_ok || len(name) == 0 {return {}, false}
@@ -114,6 +140,23 @@ load_tileset_data :: proc(full_path: string) -> (Tileset_Data, bool) {
 		result.tiles[index] = tile
 	}
 	valid = true
+	return result, true
+}
+
+read_tileset_float_vector2 :: proc(value: json.Value, allow_zero: bool) -> ([2]f32, bool) {
+	array, ok := value.(json.Array)
+	if !ok || len(array) != 2 {return {}, false}
+	result: [2]f32
+	for coordinate_value, index in array {
+		coordinate, coordinate_ok := jsonutil.number(coordinate_value)
+		if !coordinate_ok {return {}, false}
+		if allow_zero {
+			if coordinate < 0 {return {}, false}
+		} else if coordinate <= 0 {
+			return {}, false
+		}
+		result[index] = coordinate
+	}
 	return result, true
 }
 

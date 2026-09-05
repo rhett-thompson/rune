@@ -54,6 +54,13 @@ remove_component_instance :: proc(
 			delete_key(&components, entity)
 			world.component_data[component_name] = components
 		}
+	} else {
+		components := world.component_data[component_name]
+		if object, ok := components[entity].(json.Object); ok {
+			delete_key(&object, instance_name)
+			components[entity] = object
+		}
 	}
+	record_component_change(world, entity, component_name, .Changed if has_remaining else .Removed)
 	return true
 }

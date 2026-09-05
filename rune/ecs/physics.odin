@@ -57,7 +57,7 @@ box_collider_from_json :: proc(data: json.Value) -> (BoxCollider, bool) {
 		&result.restitution,
 		&result.rolling_resistance,
 	) {return {}, false}
-	return result, true
+	return result, component_value_valid(result)
 }
 
 sphere_collider_from_json :: proc(data: json.Value) -> (SphereCollider, bool) {
@@ -82,7 +82,7 @@ sphere_collider_from_json :: proc(data: json.Value) -> (SphereCollider, bool) {
 		&result.restitution,
 		&result.rolling_resistance,
 	) {return {}, false}
-	return result, true
+	return result, component_value_valid(result)
 }
 
 physics_material_fields_from_json :: proc(
@@ -138,7 +138,7 @@ character_controller_from_json :: proc(data: json.Value) -> (CharacterController
 	if value, found := object["jump_speed"];
 	   found {result.jump_speed, ok = read_number(value); if !ok || result.jump_speed <= 0 {return {}, false}}
 	if result.eye_height > result.height {return {}, false}
-	return result, true
+	return result, component_value_valid(result)
 }
 
 // move_character applies horizontal movement, gravity, jumping, and collision

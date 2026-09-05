@@ -1,6 +1,7 @@
 package main
 
 import "core:fmt"
+import "core:mem"
 import "core:os"
 import "core:strings"
 import "rune:input"
@@ -10,6 +11,7 @@ restore_file :: proc(path: string, data: []byte) {
 }
 
 main :: proc() {
+	validate_binding_names()
 	invalid_input_path := "build/input_validation_invalid.input.json"
 	defer os.remove(invalid_input_path)
 	missing_axes_json: string = `{"actions":{}}`
@@ -77,4 +79,22 @@ main :: proc() {
 	}
 
 	fmt.println("Input mapping validation passed")
+}
+
+validate_binding_names :: proc() {
+	arena: mem.Dynamic_Arena
+	mem.dynamic_arena_init(&arena)
+	defer mem.dynamic_arena_destroy(&arena)
+	context.temp_allocator = mem.dynamic_arena_allocator(&arena)
+	for _ in 0..<100 {
+		assert(input.key_from_name("left_shift").key == .LEFT_SHIFT)
+		assert(input.key_from_name("Left_Ctrl").key == .LEFT_CONTROL)
+		assert(input.key_from_name("d").key == .D)
+		assert(input.key_from_name("9").valid)
+		assert(!input.key_from_name("not_a_key").valid)
+		assert(input.button_from_name("right_bumper").button == .RIGHT_TRIGGER_1)
+		assert(input.mouse_button_from_name("mIdDlE").button == .MIDDLE)
+	}
+	assert(len(arena.used_blocks) == 0, "ASCII binding lookup must not allocate scratch memory")
+	assert(input.key_from_name("ſ").key == .S, "Unicode normalization must retain its previous behavior")
 }

@@ -62,7 +62,8 @@ record_failure :: proc(log: ^Diagnostic_Log, diagnostic: Diagnostic) -> bool {
 }
 
 resolve_failure :: proc(log: ^Diagnostic_Log, source_path, field, asset_path: string) {
-	if log == nil {return}
+	// Animation updates check recovery every frame, usually with no failures.
+	if log == nil || len(log.reported) == 0 {return}
 	lookup := diagnostic_key(source_path, field, asset_path)
 	owned_key := ""
 	for key in log.reported {
@@ -115,7 +116,7 @@ resolve_asset_failure :: proc(manager: ^Asset_Manager, source_path, field, asset
 }
 
 resolve_asset_path_failures :: proc(manager: ^Asset_Manager, asset_path: string) {
-	if manager == nil {return}
+	if manager == nil || len(manager.diagnostics.reported) == 0 {return}
 	suffix := fmt.aprintf("\x1f%s", asset_path)
 	defer delete(suffix)
 	matching_keys := make([dynamic]string)

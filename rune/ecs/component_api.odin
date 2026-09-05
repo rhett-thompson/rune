@@ -47,7 +47,7 @@ get_typed_component :: proc(world: ^World, entity: Entity, name: string, $T: typ
 
 set_typed_component :: proc(world: ^World, entity: Entity, name: string, value: $T) -> bool {
 	if !is_alive(world, entity) || world.typed_component_arena == nil {return false}
-	descriptor, descriptor_found := world.typed_component_descriptors[name]
+	descriptor, descriptor_found := world.component_descriptors[name]
 	if !descriptor_found || descriptor.type_id != typeid_of(T) {return false}
 	components, components_found := world.typed_component_data[name]
 	if !components_found {
@@ -74,7 +74,97 @@ set_typed_component :: proc(world: ^World, entity: Entity, name: string, value: 
 // get is the normal component access path for both built-in and custom typed
 // components. The serialized JSON name is resolved from registration once.
 get :: proc(world: ^World, entity: Entity, $T: typeid) -> (T, bool) {
-	when T == Transform {return get_transform(world, entity)} else when T == SpriteRenderer {return get_sprite_renderer(world, entity)} else when T == SpriteAnimator {return get_sprite_animator(world, entity)} else when T == MeshRenderer {return get_mesh_renderer(world, entity)} else when T == SphereRenderer {return get_sphere_renderer(world, entity)} else when T == ModelRenderer {return get_model_renderer(world, entity)} else when T == AmbientLight {return get_ambient_light(world, entity)} else when T == DirectionalLight {return get_directional_light(world, entity)} else when T == PointLight {return get_point_light(world, entity)} else when T == SpotLight {return get_spot_light(world, entity)} else when T == TilemapRenderer {return get_tilemap_renderer(world, entity)} else when T == TextRenderer {return get_text_renderer(world, entity)} else when T == TilemapCollider {return get_tilemap_collider(world, entity)} else when T == TopDownController {return get_top_down_controller(world, entity)} else when T == RigidBody2D {return get_rigid_body_2d(world, entity)} else when T == BoxCollider2D {return get_box_collider_2d(world, entity)} else when T == CircleCollider2D {return get_circle_collider_2d(world, entity)} else when T == RigidBody3D {return get_rigid_body_3d(world, entity)} else when T == BoxCollider {return get_box_collider(world, entity)} else when T == SphereCollider {return get_sphere_collider(world, entity)} else when T == CharacterController {return get_character_controller(world, entity)} else when T == Orbit {return get_orbit(world, entity)} else when T == Rotator {return get_rotator(world, entity)} else when T == Camera2D {return get_camera_2d(world, entity)} else when T == Camera3D {return get_camera_3d(world, entity)} else when T == OrbitCamera3D {return get_orbit_camera_3d(world, entity)} else when T == AudioListener {return get_audio_listener(world, entity)} else when T == NavGrid2D {return get_nav_grid_2d(world, entity)} else when T == NavAgent2D {return get_nav_agent_2d(world, entity)} else {
+	when T == Transform {
+		return get_transform(world, entity)
+	}
+	else when T == SpriteRenderer {
+		return get_sprite_renderer(world, entity)
+	}
+	else when T == SpriteAnimator {
+		return get_sprite_animator(world, entity)
+	}
+	else when T == MeshRenderer {
+		return get_mesh_renderer(world, entity)
+	}
+	else when T == SphereRenderer {
+		return get_sphere_renderer(world, entity)
+	}
+	else when T == ModelRenderer {
+		return get_model_renderer(world, entity)
+	}
+	else when T == AmbientLight {
+		return get_ambient_light(world, entity)
+	}
+	else when T == DirectionalLight {
+		return get_directional_light(world, entity)
+	}
+	else when T == PointLight {
+		return get_point_light(world, entity)
+	}
+	else when T == SpotLight {
+		return get_spot_light(world, entity)
+	}
+	else when T == TilemapRenderer {
+		return get_tilemap_renderer(world, entity)
+	}
+	else when T == TextRenderer {
+		return get_text_renderer(world, entity)
+	}
+	else when T == TilemapCollider {
+		return get_tilemap_collider(world, entity)
+	}
+	else when T == TopDownController {
+		return get_top_down_controller(world, entity)
+	}
+	else when T == RigidBody2D {
+		return get_rigid_body_2d(world, entity)
+	}
+	else when T == BoxCollider2D {
+		return get_box_collider_2d(world, entity)
+	}
+	else when T == CircleCollider2D {
+		return get_circle_collider_2d(world, entity)
+	}
+	else when T == RigidBody3D {
+		return get_rigid_body_3d(world, entity)
+	}
+	else when T == BoxCollider {
+		return get_box_collider(world, entity)
+	}
+	else when T == SphereCollider {
+		return get_sphere_collider(world, entity)
+	}
+	else when T == CharacterController {
+		return get_character_controller(world, entity)
+	}
+	else when T == Orbit {
+		return get_orbit(world, entity)
+	}
+	else when T == Rotator {
+		return get_rotator(world, entity)
+	}
+	else when T == Camera2D {
+		return get_camera_2d(world, entity)
+	}
+	else when T == CameraFollow2D {
+		return get_camera_follow_2d(world, entity)
+	}
+	else when T == Camera3D {
+		return get_camera_3d(world, entity)
+	}
+	else when T == OrbitCamera3D {
+		return get_orbit_camera_3d(world, entity)
+	}
+	else when T == AudioListener {
+		return get_audio_listener(world, entity)
+	}
+	else when T == NavGrid2D {
+		return get_nav_grid_2d(world, entity)
+	}
+	else when T == NavAgent2D {
+		return get_nav_agent_2d(world, entity)
+	}
+	else {
 		name, found := world.component_names_by_type[typeid_of(T)]
 		if !found {return {}, false}
 		return get_typed_component(world, entity, name, T)
@@ -86,15 +176,97 @@ get :: proc(world: ^World, entity: Entity, $T: typeid) -> (T, bool) {
 set :: proc(world: ^World, entity: Entity, value: $T) -> bool {
 	name, registered := world.component_names_by_type[typeid_of(T)]
 	if !registered {return false}
-	when T == Transform {if !set_transform(world, entity, value) {return false}} else when T == SpriteRenderer {if !set_sprite_renderer(world, entity, value) {return false}} else when T == SpriteAnimator {if !set_sprite_animator(world, entity, value) {return false}} else when T == MeshRenderer {if !set_mesh_renderer(world, entity, value) {return false}} else when T == SphereRenderer {if !set_sphere_renderer(world, entity, value) {return false}} else when T == ModelRenderer {if !set_model_renderer(world, entity, value) {return false}} else when T == AmbientLight {if !set_ambient_light(world, entity, value) {return false}} else when T == DirectionalLight {if !set_directional_light(world, entity, value) {return false}} else when T == PointLight {if !set_point_light(world, entity, value) {return false}} else when T == SpotLight {if !set_spot_light(world, entity, value) {return false}} else when T == TilemapRenderer {if !set_tilemap_renderer(world, entity, value) {return false}} else when T == TextRenderer {if !set_text_renderer(world, entity, value) {return false}} else when T == TilemapCollider {if !set_tilemap_collider(world, entity, value) {return false}} else when T == TopDownController {if !set_top_down_controller(world, entity, value) {return false}} else when T == RigidBody2D {if !set_rigid_body_2d(world, entity, value) {return false}} else when T == BoxCollider2D {
-		if !has_component_data(world, entity, name) {return false}
-		world.box_colliders_2d[entity] = value
-	} else when T == CircleCollider2D {
-		if !has_component_data(world, entity, name) {return false}
-		world.circle_colliders_2d[entity] = value
-	} else when T == RigidBody3D {if !set_rigid_body_3d(world, entity, value) {return false}} else when T == BoxCollider {if !set_box_collider(world, entity, value) {return false}} else when T == SphereCollider {if !set_sphere_collider(world, entity, value) {return false}} else when T == CharacterController {if !set_character_controller(world, entity, value) {return false}} else when T == Orbit {if !set_orbit(world, entity, value) {return false}} else when T == Rotator {if !set_rotator(world, entity, value) {return false}} else when T == Camera2D {if !set_camera_2d(world, entity, value) {return false}} else when T == Camera3D {if !set_camera_3d(world, entity, value) {return false}} else when T == OrbitCamera3D {if !set_orbit_camera_3d(world, entity, value) {return false}} else when T == AudioListener {if !set_audio_listener(world, entity, value) {return false}} else when T == NavGrid2D {if !set_nav_grid_2d(world, entity, value) {return false}} else when T == NavAgent2D {if !set_nav_agent_2d(world, entity, value) {return false}} else {return set_typed_component(world, entity, name, value)}
-	record_component_change(world, entity, name, .Changed)
-	return true
+	when T == Transform {
+		return set_transform(world, entity, value)
+	}
+	else when T == SpriteRenderer {
+		return set_sprite_renderer(world, entity, value)
+	}
+	else when T == SpriteAnimator {
+		return set_sprite_animator(world, entity, value)
+	}
+	else when T == MeshRenderer {
+		return set_mesh_renderer(world, entity, value)
+	}
+	else when T == SphereRenderer {
+		return set_sphere_renderer(world, entity, value)
+	}
+	else when T == ModelRenderer {
+		return set_model_renderer(world, entity, value)
+	}
+	else when T == AmbientLight {
+		return set_ambient_light(world, entity, value)
+	}
+	else when T == DirectionalLight {
+		return set_directional_light(world, entity, value)
+	}
+	else when T == PointLight {
+		return set_point_light(world, entity, value)
+	}
+	else when T == SpotLight {
+		return set_spot_light(world, entity, value)
+	}
+	else when T == TilemapRenderer {
+		return set_tilemap_renderer(world, entity, value)
+	}
+	else when T == TextRenderer {
+		return set_text_renderer(world, entity, value)
+	}
+	else when T == TilemapCollider {
+		return set_tilemap_collider(world, entity, value)
+	}
+	else when T == TopDownController {
+		return set_top_down_controller(world, entity, value)
+	}
+	else when T == RigidBody2D {
+		return set_rigid_body_2d(world, entity, value)
+	}
+	else when T == BoxCollider2D {
+		return set_box_collider_2d(world, entity, value)
+	}
+	else when T == CircleCollider2D {
+		return set_circle_collider_2d(world, entity, value)
+	}
+	else when T == RigidBody3D {
+		return set_rigid_body_3d(world, entity, value)
+	}
+	else when T == BoxCollider {
+		return set_box_collider(world, entity, value)
+	}
+	else when T == SphereCollider {
+		return set_sphere_collider(world, entity, value)
+	}
+	else when T == CharacterController {
+		return set_character_controller(world, entity, value)
+	}
+	else when T == Orbit {
+		return set_orbit(world, entity, value)
+	}
+	else when T == Rotator {
+		return set_rotator(world, entity, value)
+	}
+	else when T == Camera2D {
+		return set_camera_2d(world, entity, value)
+	}
+	else when T == CameraFollow2D {
+		return set_camera_follow_2d(world, entity, value)
+	}
+	else when T == Camera3D {
+		return set_camera_3d(world, entity, value)
+	}
+	else when T == OrbitCamera3D {
+		return set_orbit_camera_3d(world, entity, value)
+	}
+	else when T == AudioListener {
+		return set_audio_listener(world, entity, value)
+	}
+	else when T == NavGrid2D {
+		return set_nav_grid_2d(world, entity, value)
+	}
+	else when T == NavAgent2D {
+		return set_nav_agent_2d(world, entity, value)
+	}
+	else {return set_typed_component(world, entity, name, value)}
 }
 
 add :: proc(world: ^World, registry: ^Component_Registry, entity: Entity, value: $T) -> bool {

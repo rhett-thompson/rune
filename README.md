@@ -55,12 +55,6 @@ Pass `-AllExamples` to compile every launcher example.
 GitLab CI runs the same all-examples validation on every branch and merge
 request using the Odin release pinned in `.gitlab-ci.yml`.
 
-## Screenshots
-
-![Rune textured 3D material example](docs/images/textured_model_3d_capture.png)
-
-Additional renderer probe captures are kept in [`docs/images`](docs/images).
-
 ## Example launcher
 
 Browse, build, and run the examples from one small launcher:
@@ -73,6 +67,13 @@ Use the arrow keys and Enter, or the mouse, to choose an example. Each example
 remains an independent Odin program and can still be run directly with its
 usual `odin run examples/<name> -collection:rune=rune` command. Launcher
 entries and descriptions live in `examples/examples.json`.
+
+The minimal starter project lives under `templates/blank_project` rather than
+in the example launcher. Build it directly with:
+
+```powershell
+odin run templates/blank_project -collection:rune=rune
+```
 
 ## Runtime lifecycle
 
@@ -140,17 +141,40 @@ rune.register_system(&game, rune.System{
 rune.run(&game)
 ```
 
-```powershell
-odin run examples/registered_systems -collection:rune=rune
-```
-
 ## Runtime console
 
 Every Rune engine instance includes a lightweight developer console. Press the
 grave/backtick key (`` ` ``) to open it, `Esc` to close it, and use the up/down
-arrows to navigate command history. The built-in `help` and `clear` commands
+arrows to navigate command history. The built-in `help`, `clear`, and `capture` commands
 are always available. The console is rendered after game draw callbacks and
 registered draw systems, so it remains visible over both 2D and 3D scenes.
+
+`capture` saves the current rendered frame to `build/captures/frame-<timestamp>.png`.
+Use `capture build/captures/example.png` to choose a PNG path. Paths are relative
+to the game's working directory, and parent directories are created as needed.
+The capture includes game UI and gizmos but excludes the developer console.
+It runs after drawing completes, so the success message means the PNG was saved.
+
+For local tools or coding agents, enable a command inbox when launching a game:
+
+```powershell
+./build/tilemap_2d.exe --console-dir=build/console/tilemap
+```
+
+From another terminal, send any registered command through the same dispatcher:
+
+```powershell
+./tools/console.ps1 -Directory build/console/tilemap -Command 'help'
+./tools/console.ps1 -Directory build/console/tilemap -Command 'capture build/captures/tilemap.png'
+```
+
+Add `-Json` for structured replies with `ok`, `lines`, and `data`. Commands can
+inspect current component values, pause and step simulation, inject input,
+validate runtime edits, reload a scene, read logs, and profile CPU timings.
+Runtime edits do not save source files.
+
+See [Runtime console commands for coding agents](AGENTS.md#runtime-console-commands-for-coding-agents)
+for the command reference, repeatable inspection workflow, and inbox limits.
 
 Register game-specific commands from Odin. Command handlers own the game
 behavior; the JSON formats remain declarative.
@@ -167,6 +191,18 @@ dev_console := rune.developer_console(&game)
 console.register(dev_console, "spawn", "Spawn a test entity.", spawn_command)
 console.info(dev_console, "Game initialized")
 ```
+
+Handlers can return structured data with `console.set_result`. It copies values
+into frame scratch storage; deferred handlers must set their result on the frame
+they finish. `console.read_logs` and `ecs.runtime_component_json` return independent
+snapshots using `context.temp_allocator` by default. Pass a longer-lived allocator
+to retain a snapshot across frames or scene reloads.
+
+Code can also call `console.execute(dev_console, "spawn")`. Handlers report
+failures with `console.error`; local replies contain the command's recent console
+output and an `ok` flag. Custom game loops should call `console.update` before
+updates and `console.finish_frame` after scene drawing but before `console.draw`
+and `EndDrawing`, as both engine-owned loops already do.
 
 The overlay handles text entry, but it does not automatically suppress project
 input actions. A gameplay system that needs exclusive controls should check
@@ -268,6 +304,15 @@ odin run examples/third_person_3d -collection:rune=rune -collection:r3d=third_pa
 ```
 
 ## Project display settings
+
+The window title includes a one-second average FPS counter, for example
+`My Game | 60 FPS`. Set `window.show_fps` to `false` in `project.json` to disable
+it. FPS uses elapsed wall time, including frame limiting and window stalls.
+
+Engine-owned loops reset and reuse a frame scratch arena after each frame.
+Values allocated with `context.temp_allocator` during update/draw callbacks
+(including ECS query results) must be copied to persistent storage if needed
+in later frames. Custom loops are responsible for their own scratch lifetime.
 
 `project.json` can set the window clear color as an RGBA byte array. Projects
 without this field retain the default white background.
@@ -446,9 +491,28 @@ for entity in ecs.query2(world, ecs.Transform, Mover) {
 
 `ecs.destroy_entity` recursively removes an entity, its children, components,
 audio instances, and native physics bodies. `ecs.change_version` and
-`ecs.changes_since` expose added, changed, and removed component events from
-scene reload, runtime creation, `ecs.set`, and destruction. Typed World-wide
-system state can live in `ecs.add_resource` / `ecs.resource` instead of globals.
+`ecs.changes_since` expose added, changed, and removed components from scene
+reload, runtime creation, setters, simulation, and destruction. The latest
+change per entity/component is retained. Both `ecs.set` and named setters such
+as `ecs.set_transform` record one change for each successful write. A value-only
+reload records one change per changed component, including grouped audio
+instances. Invalid writes leave the value and change version untouched.
+
+JSON is validated before committing a value. Typed setters share the value
+constraints for transforms, physics, animation, and audio without converting
+gameplay updates to JSON. Motion and supported body settings update existing
+native bodies in place; scale, collider, and fast-rotation construction changes
+rebuild the affected body. Physics simulation records its resulting changes
+without feeding them back through the native update path.
+
+Authored edits preserve character-controller solver state and animation playback
+progress. Changing an animator's asset, clip, or autoplay setting resets playback;
+changing speed does not. Typed gameplay setters can explicitly change controller
+solver state. Use the setters for component writes: direct assignments to World
+storage bypass validation, notifications, and cache updates.
+
+Typed World-wide system state can live in `ecs.add_resource` / `ecs.resource`
+instead of globals.
 
 ## Audio component data
 
@@ -564,7 +628,11 @@ r3d_bridge.draw_scene_ex(&bridge, &world, rune.asset_manager(game), scene_view)
 `MeshRenderer` currently draws the `cube` primitive and `SphereRenderer` draws
 a sphere through r3d. `SpriteRenderer` loads a project-relative texture path
 through the asset cache and is drawn automatically through the active
-`Camera2D`. Callback-based loops can still call `render.draw_scene_2d`.
+`Camera2D`. `SpriteRenderer`, `TilemapRenderer`, and `TextRenderer` accept an integer
+`draw_order`; lower values draw first, and equal values use deterministic
+entity creation order. Parent transforms are resolved before the global 2D
+draw list is sorted. Callback-based loops can still call
+`render.draw_scene_2d`.
 
 Missing sprite textures use a shared magenta fallback texture rather than
 retrying disk loading every frame.
@@ -892,7 +960,11 @@ one hot-reloadable file:
     "100": {
       "name": "tree_cluster",
       "source": [0, 3],
-      "size": [2, 4]
+      "size": [1, 3],
+      "collision": {
+        "offset": [0, 2],
+        "size": [1, 1]
+      }
     }
   }
 }
@@ -901,14 +973,40 @@ one hot-reloadable file:
 `source` is the top-left atlas cell. `size` defaults to `[1, 1]` and lets one
 sprite span several tile cells. Its map cell is the top-left anchor; leave any
 cells underneath the larger artwork empty when it should not overlap another
-tile.
+tile. An optional `collision` rectangle uses the same base-cell units and must
+fit inside the visual footprint. Fractional offsets and sizes are supported.
 
 ```json
 "TilemapRenderer": {
   "tileset": "assets/world.tileset.json",
+  "draw_order": -100,
   "grid": [[0, 0, -1], [0, 100, -1]]
 }
 ```
+
+Tilemap layers are ordinary scene entities with separate `TilemapRenderer`
+components. This keeps each grid independently editable and lets a scene place
+ground at a negative `draw_order`, gameplay sprites at zero, and foreground
+tiles at a positive order. A layer may also own its own `TilemapCollider`, so
+visual and collision layers can be split without introducing a second map
+format.
+
+An active camera can follow a stable scene entity ID declaratively:
+
+```json
+"CameraFollow2D": {
+  "target": "knight",
+  "dead_zone": [180, 120],
+  "smoothing": 8,
+  "bounds": [0, 0, 1440, 576]
+}
+```
+
+The dead zone and optional bounds use world units. `smoothing` is exponential
+responsiveness per second; zero snaps immediately. Bounds account for the
+camera offset, zoom, and viewport size so the view never exposes space beyond
+the configured level rectangle. Camera children move with the view, which is
+useful for scene-authored HUD text.
 
 Run the example with:
 
@@ -916,16 +1014,16 @@ Run the example with:
 odin run examples/tilemap_2d -collection:rune=rune
 ```
 
-`TilemapCollider` uses the same grid and blocks IDs in `solid_tiles`. Collision
-remains cell-based: a multi-cell visual is one anchored tile unless additional
-occupied cells are authored for collision.
+`TilemapCollider` uses the same grid and blocks IDs in `solid_tiles`. A solid
+tile uses its tileset `collision` rectangle when present, or its full visual
+`size` otherwise. The map still stores only its top-left anchor. In the example,
+only the tree trunk blocks movement, so the knight can move through its canopy
+area.
 `TopDownController` gives an entity a 2D collision size and movement speed;
 game code supplies input deltas to `ecs.move_top_down`, which resolves X and Y
-separately for wall sliding. Run the collision example with:
-
-```powershell
-odin run examples/tilemap_collision_2d -collection:rune=rune
-```
+separately for wall sliding. The tilemap example combines these pieces with an
+animated knight: use WASD to move, switch between idle and run clips, and
+collide with the walls and multi-cell trees.
 
 ## Fixed-step 2D physics
 

@@ -13,6 +13,16 @@ Camera2D :: struct {
 	active:   bool,
 }
 
+// CameraFollow2D moves a Camera2D entity's Transform toward a stable scene
+// entity reference. Dead-zone and bounds values are expressed in world units.
+CameraFollow2D :: struct {
+	target:     Entity_Ref,
+	dead_zone:  [2]f32,
+	smoothing:  f32,
+	bounds:     [4]f32,
+	has_bounds: bool,
+}
+
 // Camera3D uses the entity Transform position as its world-space position.
 // Target and up remain explicit because they describe the view direction.
 Camera3D :: struct {
@@ -85,6 +95,121 @@ camera_2d_from_json :: proc(data: json.Value) -> (Camera2D, bool) {
 		if !ok {return {}, false}
 	}
 	return result, true
+}
+
+camera_follow_2d_from_json :: proc(data: json.Value) -> (CameraFollow2D, bool) {
+	object, ok := data.(json.Object)
+	if !ok {return {}, false}
+	result: CameraFollow2D
+	target_value, has_target := object["target"]
+	if !has_target {return {}, false}
+	target_id, target_ok := target_value.(json.String)
+	if !target_ok {return {}, false}
+	result.target, target_ok = entity_ref_from_id(target_id)
+	if !target_ok {return {}, false}
+	if value, found := object["dead_zone"]; found {
+		if !read_vector2(value, &result.dead_zone) ||
+		   result.dead_zone[0] < 0 ||
+		   result.dead_zone[1] < 0 {return {}, false}
+	}
+	if value, found := object["smoothing"]; found {
+		result.smoothing, ok = read_number(value)
+		if !ok || result.smoothing < 0 {return {}, false}
+	}
+	if value, found := object["bounds"]; found {
+		if !read_vector4(value, &result.bounds) ||
+		   result.bounds[2] <= result.bounds[0] ||
+		   result.bounds[3] <= result.bounds[1] {return {}, false}
+		result.has_bounds = true
+	}
+	return result, true
+}
+
+update_camera_follows_2d :: proc(world: ^World, dt: f32, viewport_size: [2]f32) {
+	if world == nil || viewport_size[0] <= 0 || viewport_size[1] <= 0 {return}
+	for camera_entity, follow in world.camera_follows_2d {
+		camera, has_camera := get_camera_2d(world, camera_entity)
+		camera_transform, has_camera_transform := get_transform(world, camera_entity)
+		target_entity, target_found := resolve_entity_ref(world, follow.target)
+		if !has_camera || !has_camera_transform || !target_found {continue}
+		target_transform, has_target_transform := get_transform(world, target_entity)
+		if !has_target_transform {continue}
+		camera_transform = camera_follow_2d_transform(
+			camera_transform,
+			camera,
+			follow,
+			target_transform,
+			viewport_size,
+			dt,
+		)
+		set_transform(world, camera_entity, camera_transform)
+	}
+}
+
+camera_follow_2d_transform :: proc(
+	camera_transform: Transform,
+	camera: Camera2D,
+	follow: CameraFollow2D,
+	target_transform: Transform,
+	viewport_size: [2]f32,
+	dt: f32,
+) -> Transform {
+	result := camera_transform
+	desired := [2]f32{result.position[0], result.position[1]}
+	half_dead_zone := follow.dead_zone * 0.5
+	for axis in 0 ..< 2 {
+		target := target_transform.position[axis]
+		if target < desired[axis] - half_dead_zone[axis] {
+			desired[axis] = target + half_dead_zone[axis]
+		} else if target > desired[axis] + half_dead_zone[axis] {
+			desired[axis] = target - half_dead_zone[axis]
+		}
+	}
+	if follow.has_bounds {
+		desired = clamp_camera_2d_target(desired, camera, follow.bounds, viewport_size)
+	}
+	alpha: f32 = 1
+	if follow.smoothing > 0 {
+		alpha = 0
+		if dt > 0 {alpha = 1 - f32(math.exp(f64(-follow.smoothing * dt)))}
+	}
+	for axis in 0 ..< 2 {
+		result.position[axis] += (desired[axis] - result.position[axis]) * alpha
+	}
+	if follow.has_bounds {
+		clamped := clamp_camera_2d_target(
+			{result.position[0], result.position[1]},
+			camera,
+			follow.bounds,
+			viewport_size,
+		)
+		result.position[0] = clamped[0]
+		result.position[1] = clamped[1]
+	}
+	return result
+}
+
+clamp_camera_2d_target :: proc(
+	target: [2]f32,
+	camera: Camera2D,
+	bounds: [4]f32,
+	viewport_size: [2]f32,
+) -> [2]f32 {
+	result := target
+	zoom := camera.zoom
+	if zoom <= 0 {zoom = 1}
+	for axis in 0 ..< 2 {
+		minimum := bounds[axis] + camera.offset[axis] / zoom
+		maximum := bounds[axis + 2] - (viewport_size[axis] - camera.offset[axis]) / zoom
+		if minimum <= maximum {
+			result[axis] = clamp(result[axis], minimum, maximum)
+		} else {
+			bounds_center := (bounds[axis] + bounds[axis + 2]) * 0.5
+			viewport_center_offset := (viewport_size[axis] * 0.5 - camera.offset[axis]) / zoom
+			result[axis] = bounds_center - viewport_center_offset
+		}
+	}
+	return result
 }
 
 camera_3d_from_json :: proc(data: json.Value) -> (Camera3D, bool) {

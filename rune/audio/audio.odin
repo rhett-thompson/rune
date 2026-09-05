@@ -81,48 +81,43 @@ retain_string :: proc(system: ^Audio_System, value: string) -> string {
 update :: proc(system: ^Audio_System, world: ^ecs.World) {
 	if !system.available {return}
 	remove_missing_instances(system, world)
+	if len(world.audio_players) == 0 {return}
 	listener_entity, _, listener_found := ecs.active_audio_listener(world)
-	for entity in ecs.entities_with_component(world, "AudioPlayer") {
-		for instance_name in ecs.component_instance_names(world, entity, "AudioPlayer") {
-			key := ecs.Component_Instance {
-				entity = entity,
-				name   = instance_name,
-			}
-			player, found := ecs.get_audio_player(world, entity, instance_name)
-			if !found {continue}
-			_, instance_exists := system.instances[key]
-			// Deferred players load only when explicitly played.
-			if !instance_exists && !player.play_on_start {continue}
-			if !ensure_instance(system, key, player.sound) {continue}
-			instance := system.instances[key]
-			starting := player.play_on_start && !instance.started
-			restarting :=
-				!instance.streaming &&
-				player.looping &&
-				instance.started &&
-				!rl.IsSoundPlaying(instance.sound)
-			if starting && !instance.streaming && !player.looping {
-				play_one_shot(system, world, key, player, listener_entity, listener_found)
-				instance = system.instances[key]
-				instance.started = true
-				system.instances[key] = instance
-				continue
-			}
-			if starting || restarting {randomize_settings(system, key, player)}
-			apply_settings(system, world, key, player, listener_entity, listener_found)
+	// The typed instance table already contains every entity/name pair. Walking
+	// it once avoids scanning all instances again for each audio entity.
+	for key, player in world.audio_players {
+		_, instance_exists := system.instances[key]
+		// Deferred players load only when explicitly played.
+		if !instance_exists && !player.play_on_start {continue}
+		if !ensure_instance(system, key, player.sound) {continue}
+		instance := system.instances[key]
+		starting := player.play_on_start && !instance.started
+		restarting :=
+			!instance.streaming &&
+			player.looping &&
+			instance.started &&
+			!rl.IsSoundPlaying(instance.sound)
+		if starting && !instance.streaming && !player.looping {
+			play_one_shot(system, world, key, player, listener_entity, listener_found)
 			instance = system.instances[key]
-			if starting {
-				play_instance(instance)
-				instance.started = true
-				system.instances[key] = instance
-			} else if restarting {
-				rl.PlaySound(instance.sound)
-			}
-			if instance.streaming && instance.started {
-				instance.music.looping = player.looping
-				rl.UpdateMusicStream(instance.music)
-				system.instances[key] = instance
-			}
+			instance.started = true
+			system.instances[key] = instance
+			continue
+		}
+		if starting || restarting {randomize_settings(system, key, player)}
+		apply_settings(system, world, key, player, listener_entity, listener_found)
+		instance = system.instances[key]
+		if starting {
+			play_instance(instance)
+			instance.started = true
+			system.instances[key] = instance
+		} else if restarting {
+			rl.PlaySound(instance.sound)
+		}
+		if instance.streaming && instance.started {
+			instance.music.looping = player.looping
+			rl.UpdateMusicStream(instance.music)
+			system.instances[key] = instance
 		}
 	}
 }
@@ -191,9 +186,10 @@ ensure_instance :: proc(system: ^Audio_System, key: ecs.Component_Instance, path
 		delete_key(&system.instances, key)
 	}
 	full_path := path
+	joined_path: string
+	defer if len(joined_path) > 0 {delete(joined_path)}
 	if !filepath.is_abs(full_path) {
-		joined_path, _ := filepath.join({system.root, path})
-		defer delete(joined_path)
+		joined_path, _ = filepath.join({system.root, path})
 		full_path = joined_path
 	}
 	path_cstring, _ := strings.clone_to_cstring(full_path)

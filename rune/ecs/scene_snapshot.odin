@@ -144,7 +144,6 @@ apply_changed_component_values :: proc(
 			if json_values_equal(world_components[target_entity], snapshot_value) {continue}
 			world_components[target_entity] = snapshot_value
 			apply_snapshot_component_value(world, snapshot, target_entity, snapshot_entity, name)
-			record_component_change(world, target_entity, name, .Changed)
 		}
 		world.component_data[name] = world_components
 	}
@@ -167,7 +166,6 @@ apply_changed_component_instance_values :: proc(
 			if name == "AudioPlayer" {
 				world.audio_players[target_key] = snapshot.audio_players[snapshot_key]
 			}
-			record_component_change(world, target_key.entity, name, .Changed)
 		}
 		world.component_instance_data[name] = world_instances
 	}
@@ -179,7 +177,7 @@ apply_snapshot_component_value :: proc(
 	target_entity, snapshot_entity: Entity,
 	name: string,
 ) {
-	if descriptor, typed := snapshot.typed_component_descriptors[name];
+	if descriptor, typed := snapshot.component_descriptors[name];
 	   typed && descriptor.create_typed != nil {
 		if world.typed_component_arena == nil {return}
 		allocator := mem.dynamic_arena_allocator(world.typed_component_arena)
@@ -194,80 +192,80 @@ apply_snapshot_component_value :: proc(
 		if !found {components = make(map[Entity]any)}
 		components[target_entity] = replacement
 		world.typed_component_data[name] = components
-		world.typed_component_descriptors[name] = descriptor
+		world.component_descriptors[name] = descriptor
+		record_component_change(world, target_entity, name, .Changed)
 		return
 	}
-	if name == "Transform" {world.transforms[target_entity] = snapshot.transforms[snapshot_entity]}
-	if name ==
-	   "SpriteRenderer" {world.sprite_renderers[target_entity] = snapshot.sprite_renderers[snapshot_entity]}
-	if name == "SpriteAnimator" {
-		world.sprite_animators[target_entity] = snapshot.sprite_animators[snapshot_entity]
-		world.sprite_animation_states[target_entity] = {}
+	switch name {
+	case "Transform":
+		commit_component_value(world, target_entity, name, &world.transforms, snapshot.transforms[snapshot_entity])
+	case "SpriteRenderer":
+		commit_component_value(world, target_entity, name, &world.sprite_renderers, snapshot.sprite_renderers[snapshot_entity])
+	case "SpriteAnimator":
+		commit_component_value(world, target_entity, name, &world.sprite_animators, snapshot.sprite_animators[snapshot_entity])
+	case "MeshRenderer":
+		commit_component_value(world, target_entity, name, &world.mesh_renderers, snapshot.mesh_renderers[snapshot_entity])
+	case "SphereRenderer":
+		commit_component_value(world, target_entity, name, &world.sphere_renderers, snapshot.sphere_renderers[snapshot_entity])
+	case "ModelRenderer":
+		value := clone_model_renderer_storage(snapshot.model_renderers[snapshot_entity])
+		destroy_model_renderer_storage(world.model_renderers[target_entity])
+		commit_component_value(world, target_entity, name, &world.model_renderers, value)
+	case "AmbientLight":
+		commit_component_value(world, target_entity, name, &world.ambient_lights, snapshot.ambient_lights[snapshot_entity])
+	case "DirectionalLight":
+		commit_component_value(world, target_entity, name, &world.directional_lights, snapshot.directional_lights[snapshot_entity])
+	case "PointLight":
+		commit_component_value(world, target_entity, name, &world.point_lights, snapshot.point_lights[snapshot_entity])
+	case "SpotLight":
+		commit_component_value(world, target_entity, name, &world.spot_lights, snapshot.spot_lights[snapshot_entity])
+	case "TilemapRenderer":
+		value := clone_tilemap_renderer_storage(snapshot.tilemap_renderers[snapshot_entity])
+		destroy_tilemap_renderer_storage(world.tilemap_renderers[target_entity])
+		commit_component_value(world, target_entity, name, &world.tilemap_renderers, value)
+	case "TextRenderer":
+		commit_component_value(world, target_entity, name, &world.text_renderers, snapshot.text_renderers[snapshot_entity])
+	case "TilemapCollider":
+		value := clone_tilemap_collider_storage(snapshot.tilemap_colliders[snapshot_entity])
+		destroy_tilemap_collider_storage(world.tilemap_colliders[target_entity])
+		commit_component_value(world, target_entity, name, &world.tilemap_colliders, value)
+	case "TopDownController":
+		commit_component_value(world, target_entity, name, &world.top_down_controllers, snapshot.top_down_controllers[snapshot_entity])
+	case "RigidBody2D":
+		commit_component_value(world, target_entity, name, &world.rigid_bodies_2d, preserve_simulation_state(world, target_entity, snapshot.rigid_bodies_2d[snapshot_entity]))
+	case "BoxCollider2D":
+		commit_component_value(world, target_entity, name, &world.box_colliders_2d, snapshot.box_colliders_2d[snapshot_entity])
+	case "CircleCollider2D":
+		commit_component_value(world, target_entity, name, &world.circle_colliders_2d, snapshot.circle_colliders_2d[snapshot_entity])
+	case "RigidBody3D":
+		commit_component_value(world, target_entity, name, &world.rigid_bodies_3d, snapshot.rigid_bodies_3d[snapshot_entity])
+	case "BoxCollider":
+		commit_component_value(world, target_entity, name, &world.box_colliders, snapshot.box_colliders[snapshot_entity])
+	case "SphereCollider":
+		commit_component_value(world, target_entity, name, &world.sphere_colliders, snapshot.sphere_colliders[snapshot_entity])
+	case "CharacterController":
+		commit_component_value(world, target_entity, name, &world.character_controllers, preserve_simulation_state(world, target_entity, snapshot.character_controllers[snapshot_entity]))
+	case "Orbit":
+		commit_component_value(world, target_entity, name, &world.orbits, snapshot.orbits[snapshot_entity])
+	case "Rotator":
+		commit_component_value(world, target_entity, name, &world.rotators, snapshot.rotators[snapshot_entity])
+	case "Camera2D":
+		commit_component_value(world, target_entity, name, &world.cameras_2d, snapshot.cameras_2d[snapshot_entity])
+	case "CameraFollow2D":
+		commit_component_value(world, target_entity, name, &world.camera_follows_2d, snapshot.camera_follows_2d[snapshot_entity])
+	case "Camera3D":
+		commit_component_value(world, target_entity, name, &world.cameras_3d, snapshot.cameras_3d[snapshot_entity])
+	case "OrbitCamera3D":
+		commit_component_value(world, target_entity, name, &world.orbit_cameras_3d, snapshot.orbit_cameras_3d[snapshot_entity])
+	case "AudioListener":
+		commit_component_value(world, target_entity, name, &world.audio_listeners, snapshot.audio_listeners[snapshot_entity])
+	case "NavGrid2D":
+		commit_component_value(world, target_entity, name, &world.nav_grids_2d, snapshot.nav_grids_2d[snapshot_entity])
+	case "NavAgent2D":
+		commit_component_value(world, target_entity, name, &world.nav_agents_2d, snapshot.nav_agents_2d[snapshot_entity])
+	case:
+		record_component_change(world, target_entity, name, .Changed)
 	}
-	if name ==
-	   "MeshRenderer" {world.mesh_renderers[target_entity] = snapshot.mesh_renderers[snapshot_entity]}
-	if name ==
-	   "SphereRenderer" {world.sphere_renderers[target_entity] = snapshot.sphere_renderers[snapshot_entity]}
-	if name == "ModelRenderer" {
-		current := world.model_renderers[target_entity]
-		if current.materials != nil {delete(current.materials)}
-		world.model_renderers[target_entity] = clone_model_renderer_storage(
-			snapshot.model_renderers[snapshot_entity],
-		)
-	}
-	if name ==
-	   "AmbientLight" {world.ambient_lights[target_entity] = snapshot.ambient_lights[snapshot_entity]}
-	if name ==
-	   "DirectionalLight" {world.directional_lights[target_entity] = snapshot.directional_lights[snapshot_entity]}
-	if name ==
-	   "PointLight" {world.point_lights[target_entity] = snapshot.point_lights[snapshot_entity]}
-	if name ==
-	   "SpotLight" {world.spot_lights[target_entity] = snapshot.spot_lights[snapshot_entity]}
-	if name == "TilemapRenderer" {
-		current := world.tilemap_renderers[target_entity]
-		if current.tiles != nil {delete(current.tiles)}
-		if current.tile_indices != nil {delete(current.tile_indices)}
-		world.tilemap_renderers[target_entity] = clone_tilemap_renderer_storage(
-			snapshot.tilemap_renderers[snapshot_entity],
-		)
-	}
-	if name ==
-	   "TextRenderer" {world.text_renderers[target_entity] = snapshot.text_renderers[snapshot_entity]}
-	if name == "TilemapCollider" {
-		current := world.tilemap_colliders[target_entity]
-		if current.solid_tiles != nil {delete(current.solid_tiles)}
-		world.tilemap_colliders[target_entity] = clone_tilemap_collider_storage(
-			snapshot.tilemap_colliders[snapshot_entity],
-		)
-	}
-	if name ==
-	   "TopDownController" {world.top_down_controllers[target_entity] = snapshot.top_down_controllers[snapshot_entity]}
-	if name ==
-	   "RigidBody2D" {world.rigid_bodies_2d[target_entity] = snapshot.rigid_bodies_2d[snapshot_entity]}
-	if name ==
-	   "BoxCollider2D" {world.box_colliders_2d[target_entity] = snapshot.box_colliders_2d[snapshot_entity]}
-	if name ==
-	   "CircleCollider2D" {world.circle_colliders_2d[target_entity] = snapshot.circle_colliders_2d[snapshot_entity]}
-	if name ==
-	   "RigidBody3D" {world.rigid_bodies_3d[target_entity] = snapshot.rigid_bodies_3d[snapshot_entity]}
-	if name ==
-	   "BoxCollider" {world.box_colliders[target_entity] = snapshot.box_colliders[snapshot_entity]}
-	if name ==
-	   "SphereCollider" {world.sphere_colliders[target_entity] = snapshot.sphere_colliders[snapshot_entity]}
-	if name ==
-	   "CharacterController" {world.character_controllers[target_entity] = snapshot.character_controllers[snapshot_entity]}
-	if name == "Orbit" {world.orbits[target_entity] = snapshot.orbits[snapshot_entity]}
-	if name == "Rotator" {world.rotators[target_entity] = snapshot.rotators[snapshot_entity]}
-	if name == "Camera2D" {world.cameras_2d[target_entity] = snapshot.cameras_2d[snapshot_entity]}
-	if name == "Camera3D" {world.cameras_3d[target_entity] = snapshot.cameras_3d[snapshot_entity]}
-	if name ==
-	   "OrbitCamera3D" {world.orbit_cameras_3d[target_entity] = snapshot.orbit_cameras_3d[snapshot_entity]}
-	if name ==
-	   "AudioListener" {world.audio_listeners[target_entity] = snapshot.audio_listeners[snapshot_entity]}
-	if name ==
-	   "NavGrid2D" {world.nav_grids_2d[target_entity] = snapshot.nav_grids_2d[snapshot_entity]}
-	if name ==
-	   "NavAgent2D" {world.nav_agents_2d[target_entity] = snapshot.nav_agents_2d[snapshot_entity]}
 }
 
 clone_model_renderer_storage :: proc(value: ModelRenderer) -> ModelRenderer {
@@ -289,6 +287,16 @@ clone_tilemap_renderer_storage :: proc(value: TilemapRenderer) -> TilemapRendere
 		result.tile_indices = make(map[[2]i32]i32)
 		for cell, tile in value.tile_indices {result.tile_indices[cell] = tile}
 	}
+	if value.tile_sizes != nil {
+		result.tile_sizes = make(map[i32][2]i32)
+		for tile, size in value.tile_sizes {result.tile_sizes[tile] = size}
+	}
+	if value.tile_collisions != nil {
+		result.tile_collisions = make(map[i32]Tilemap_Collision_Rect)
+		for tile, collision in value.tile_collisions {
+			result.tile_collisions[tile] = collision
+		}
+	}
 	return result
 }
 
@@ -308,6 +316,8 @@ destroy_model_renderer_storage :: proc(value: ModelRenderer) {
 destroy_tilemap_renderer_storage :: proc(value: TilemapRenderer) {
 	if value.tiles != nil {delete(value.tiles)}
 	if value.tile_indices != nil {delete(value.tile_indices)}
+	if value.tile_sizes != nil {delete(value.tile_sizes)}
+	if value.tile_collisions != nil {delete(value.tile_collisions)}
 }
 
 destroy_tilemap_collider_storage :: proc(value: TilemapCollider) {
@@ -403,11 +413,11 @@ rehome_component_map_names :: proc(world, snapshot: ^World) {
 	world.typed_component_data = typed_data
 
 	descriptors := make(map[string]Component_Descriptor)
-	for name, descriptor in world.typed_component_descriptors {
+	for name, descriptor in world.component_descriptors {
 		descriptors[retain_scene_string(snapshot, name)] = descriptor
 	}
-	delete(world.typed_component_descriptors)
-	world.typed_component_descriptors = descriptors
+	delete(world.component_descriptors)
+	world.component_descriptors = descriptors
 
 	names_by_type := make(map[typeid]string)
 	for id, name in world.component_names_by_type {
@@ -487,6 +497,11 @@ rehome_builtin_strings :: proc(world, snapshot: ^World) {
 		owned.pitch_axis = retain_scene_string(snapshot, value.pitch_axis)
 		owned.zoom_axis = retain_scene_string(snapshot, value.zoom_axis)
 		world.orbit_cameras_3d[entity] = owned
+	}
+	for entity, value in world.camera_follows_2d {
+		owned := value
+		owned.target.id = retain_scene_string(snapshot, value.target.id)
+		world.camera_follows_2d[entity] = owned
 	}
 	audio_players := make(map[Component_Instance]AudioPlayer)
 	for key, value in world.audio_players {

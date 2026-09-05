@@ -1,38 +1,128 @@
 {
   "$schema": "../../../schemas/scene.schema.json",
-  "name": "Tilemap Scene",
+  "name": "Scrolling Tilemap Scene",
   "entities": [
     {
       "id": "camera",
       "components": {
-        "Transform": { "position": [0, 0, 0] },
-        "Camera2D": { "offset": [0, 0], "zoom": 1, "active": true }
-      }
+        "Transform": { "position": [480, 306, 0] },
+        "Camera2D": { "offset": [480, 270], "zoom": 1, "active": true },
+        "CameraFollow2D": {
+          "target": "knight",
+          "dead_zone": [180, 120],
+          "smoothing": 8,
+          "bounds": [0, 0, 1440, 576]
+        }
+      },
+      "children": [
+        {
+          "id": "instructions",
+          "components": {
+            "Transform": { "position": [-456, 180, 0] },
+            "TextRenderer": {
+              "text": "WASD: explore    Smooth bounded camera",
+              "font": "../hello_world/assets/fonts/mecha.png",
+              "font_size": 18,
+              "spacing": 1,
+              "color": [255, 255, 255, 255],
+              "origin": [0, 0],
+              "draw_order": 1000
+            }
+          }
+        }
+      ]
     },
     {
-      "id": "dungeon",
-      "name": "Dungeon Tilemap",
+      "id": "ground_layer",
+      "name": "Ground Layer",
       "components": {
         "Transform": { "position": [0, 0, 0], "scale": [3, 3, 1] },
         "TilemapRenderer": {
           "tileset": "assets/world.tileset.json",
+          "draw_order": -100,
           "grid": [
-            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-            [1, -1, -1, 100, -1, -1, -1, -1, -1, -1, -1, -1, 100, -1, -1, -1, -1, -1, -1, 1],
-            [1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1],
-            [1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1],
-            [1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1],
-            [1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1],
-            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1],
+            [1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1],
+            [1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1],
+            [1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1],
+            [1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1],
+            [1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1],
+            [1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1],
+            [1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1],
+            [1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1],
+            [1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1],
+            []
           ]
-        }
+        },
+        "TilemapCollider": { "solid_tiles": [1] }
       }
     },
     {
-      "id": "skeleton",
+      "id": "object_layer",
+      "name": "Object Layer",
       "components": {
-        "Transform": { "position": [480, 270, 0], "scale": [2, 2, 1] },
-        "SpriteRenderer": { "texture": "../sprite_scene_2d/assets/skeletonWarrior.png", "origin": [0.5, 0.5] }
+        "Transform": { "position": [0, 0, 0], "scale": [3, 3, 1] },
+        "TilemapRenderer": {
+          "tileset": "assets/world.tileset.json",
+          "draw_order": -25,
+          "grid": [
+            [],
+            [],
+            [-1, -1, -1, 100, -1, -1, -1, -1, -1, -1, 100, -1, -1, -1, -1, -1, -1, 100, -1, -1, -1, -1, -1, -1, 100],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            []
+          ]
+        },
+        "TilemapCollider": { "solid_tiles": [100] }
+      }
+    },
+    {
+      "id": "foreground_layer",
+      "name": "Foreground Layer",
+      "components": {
+        "Transform": { "position": [0, 0, 0], "scale": [3, 3, 1] },
+        "TilemapRenderer": {
+          "tileset": "assets/world.tileset.json",
+          "draw_order": 100,
+          "grid": [
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+          ]
+        },
+        "TilemapCollider": { "solid_tiles": [0] }
+      }
+    },
+    {
+      "id": "knight",
+      "name": "Animated Knight",
+      "components": {
+        "Transform": { "position": [480, 510, 0], "scale": [3, 3, 1] },
+        "SpriteRenderer": { "origin": [0.5, 0.5], "draw_order": 0 },
+        "TopDownController": { "size": [28, 36], "speed": 180 },
+        "SpriteAnimator": {
+          "animation": "../sprite_animation_2d/animations/knight.animation.json",
+          "clip": "idle",
+          "autoplay": true,
+          "speed": 1
+        }
       }
     }
   ]

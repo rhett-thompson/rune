@@ -59,6 +59,7 @@ main :: proc() {
 	validate_text_renderer()
 	validate_motion_components()
 	validate_camera_components()
+	validate_camera_follow_2d()
 	validate_audio_components()
 	validate_named_audio_instances()
 	fmt.println("Typed built-in component validation passed")
@@ -348,6 +349,50 @@ validate_camera_components :: proc() {
 	assert(has_camera_2d && camera_2d.zoom == 0.2)
 }
 
+validate_camera_follow_2d :: proc() {
+	registry := ecs.init_registry()
+	defer ecs.destroy_registry(&registry)
+	assert(ecs.register_builtin_components(&registry))
+	world, loaded := scene.load("examples/tilemap_2d/scenes/main.scene.json", &registry)
+	assert(loaded)
+	defer ecs.destroy(&world)
+	camera_entity, camera_found := ecs.find_entity_by_id(&world, "camera")
+	knight, knight_found := ecs.find_entity_by_id(&world, "knight")
+	assert(camera_found && knight_found)
+	camera, has_camera := ecs.get_camera_2d(&world, camera_entity)
+	follow, has_follow := ecs.get(&world, camera_entity, ecs.CameraFollow2D)
+	assert(has_camera && has_follow)
+	assert(camera.offset == [2]f32{480, 270})
+	assert(follow.target.id == "knight")
+	assert(follow.dead_zone == [2]f32{180, 120} && follow.smoothing == 8)
+	assert(follow.has_bounds && follow.bounds == [4]f32{0, 0, 1440, 576})
+	target, target_found := ecs.resolve_entity_ref(&world, follow.target)
+	assert(target_found && target == knight)
+
+	knight_transform, has_transform := ecs.get_transform(&world, knight)
+	assert(has_transform)
+	knight_transform.position[0] = 900
+	assert(ecs.set_transform(&world, knight, knight_transform))
+	ecs.update_camera_follows_2d(&world, 0.25, {960, 540})
+	camera_transform, has_camera_transform := ecs.get_transform(&world, camera_entity)
+	assert(has_camera_transform)
+	assert(camera_transform.position[0] > 480 && camera_transform.position[0] < 810)
+	assert(camera_transform.position[1] == 306)
+
+	follow.smoothing = 0
+	assert(ecs.set(&world, camera_entity, follow))
+	knight_transform.position[0] = 2000
+	assert(ecs.set_transform(&world, knight, knight_transform))
+	ecs.update_camera_follows_2d(&world, 1, {960, 540})
+	camera_transform, _ = ecs.get_transform(&world, camera_entity)
+	assert(camera_transform.position[0] == 960)
+	knight_transform.position[0] = -100
+	assert(ecs.set_transform(&world, knight, knight_transform))
+	ecs.update_camera_follows_2d(&world, 1, {960, 540})
+	camera_transform, _ = ecs.get_transform(&world, camera_entity)
+	assert(camera_transform.position[0] == 480)
+}
+
 validate_mesh_renderer :: proc() {
 	registry := ecs.init_registry()
 	assert(ecs.register_builtin_components(&registry))
@@ -470,11 +515,18 @@ validate_tilemap_renderer :: proc() {
 	assert(ecs.register_builtin_components(&registry))
 	world, loaded := scene.load("examples/tilemap_2d/scenes/main.scene.json", &registry)
 	assert(loaded)
-	tilemap_entity, found := ecs.find_entity_by_id(&world, "dungeon")
-	assert(found)
-	tilemap, has_tilemap := ecs.get_tilemap_renderer(&world, tilemap_entity)
-	assert(has_tilemap)
+	ground, ground_found := ecs.find_entity_by_id(&world, "ground_layer")
+	objects, objects_found := ecs.find_entity_by_id(&world, "object_layer")
+	foreground, foreground_found := ecs.find_entity_by_id(&world, "foreground_layer")
+	assert(ground_found && objects_found && foreground_found)
+	tilemap, has_tilemap := ecs.get_tilemap_renderer(&world, ground)
+	object_tilemap, has_object_tilemap := ecs.get_tilemap_renderer(&world, objects)
+	foreground_tilemap, has_foreground_tilemap := ecs.get_tilemap_renderer(&world, foreground)
+	assert(has_tilemap && has_object_tilemap && has_foreground_tilemap)
 	assert(tilemap.tileset == "assets/world.tileset.json")
+	assert(tilemap.draw_order == -100)
+	assert(object_tilemap.draw_order == -25)
+	assert(foreground_tilemap.draw_order == 100)
 	// The engine resolves texture and tile size from the tileset before the
 	// fixed/update pipeline. Standalone scene loading intentionally stays IO-only.
 	assert(len(tilemap.texture) == 0)
@@ -485,7 +537,10 @@ validate_tilemap_renderer :: proc() {
 validate_tilemap_collision :: proc() {
 	registry := ecs.init_registry()
 	assert(ecs.register_builtin_components(&registry))
-	world, loaded := scene.load("examples/tilemap_collision_2d/scenes/main.scene.json", &registry)
+	world, loaded := scene.load(
+		"tools/component_validation/fixtures/tilemap.scene.json",
+		&registry,
+	)
 	assert(loaded)
 	player, found := ecs.find_entity_by_id(&world, "player")
 	assert(found)
@@ -503,11 +558,14 @@ validate_tilemap_collision :: proc() {
 validate_text_renderer :: proc() {
 	registry := ecs.init_registry()
 	assert(ecs.register_builtin_components(&registry))
-	world, loaded := scene.load("examples/tilemap_collision_2d/scenes/main.scene.json", &registry)
+	world, loaded := scene.load(
+		"tools/component_validation/fixtures/tilemap.scene.json",
+		&registry,
+	)
 	assert(loaded)
 	instructions, found := ecs.find_entity_by_id(&world, "instructions")
 	assert(found)
 	text, has_text := ecs.get_text_renderer(&world, instructions)
-	assert(has_text && text.text == "WASD: move through the dungeon walls")
-	assert(text.font == "../hello_world/assets/fonts/mecha.png" && text.font_size == 18)
+	assert(has_text && text.text == "Tilemap component validation")
+	assert(text.font == "font.png" && text.font_size == 18)
 }

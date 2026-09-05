@@ -8,12 +8,13 @@ Color :: struct {
 }
 
 SpriteRenderer :: struct {
-	texture: string,
-	origin:  [2]f32,
-	source:  [4]f32,
-	tint:    Color,
-	flip_x:  bool,
-	flip_y:  bool,
+	texture:    string,
+	origin:     [2]f32,
+	source:     [4]f32,
+	tint:       Color,
+	flip_x:     bool,
+	flip_y:     bool,
+	draw_order: i32,
 }
 
 // SpriteAnimator selects a declarative clip from an animation asset. Playback
@@ -58,6 +59,11 @@ Tilemap_Tile :: struct {
 	x, y, index: i32,
 }
 
+Tilemap_Collision_Rect :: struct {
+	offset: [2]f32,
+	size:   [2]f32,
+}
+
 TilemapRenderer :: struct {
 	tileset:          string,
 	texture:          string,
@@ -66,15 +72,20 @@ TilemapRenderer :: struct {
 	grid_size:        [2]i32,
 	tiles:            []Tilemap_Tile,
 	tile_indices:     map[[2]i32]i32,
+	tile_sizes:       map[i32][2]i32,
+	tile_collisions:  map[i32]Tilemap_Collision_Rect,
+	max_tile_size:    [2]i32,
+	draw_order:       i32,
 }
 
 TextRenderer :: struct {
-	text:      string,
-	font:      string,
-	font_size: f32,
-	spacing:   f32,
-	color:     Color,
-	origin:    [2]f32,
+	text:       string,
+	font:       string,
+	font_size:  f32,
+	spacing:    f32,
+	color:      Color,
+	origin:     [2]f32,
+	draw_order: i32,
 }
 
 sprite_renderer_from_json :: proc(data: json.Value) -> (SpriteRenderer, bool) {
@@ -102,6 +113,8 @@ sprite_renderer_from_json :: proc(data: json.Value) -> (SpriteRenderer, bool) {
 		result.flip_y, ok = value.(json.Boolean)
 		if !ok {return {}, false}
 	}
+	if value, found := object["draw_order"];
+	   found && !read_draw_order(value, &result.draw_order) {return {}, false}
 	return result, true
 }
 
@@ -127,7 +140,7 @@ sprite_animator_from_json :: proc(data: json.Value) -> (SpriteAnimator, bool) {
 		result.speed, ok = read_number(value)
 		if !ok || result.speed <= 0 {return {}, false}
 	}
-	return result, true
+	return result, component_value_valid(result)
 }
 
 mesh_renderer_from_json :: proc(data: json.Value) -> (MeshRenderer, bool) {
@@ -225,6 +238,8 @@ tilemap_renderer_from_json :: proc(data: json.Value) -> (TilemapRenderer, bool) 
 		if !read_vector2(value, &result.tile_size) {return {}, false}
 		if result.tile_size[0] <= 0 || result.tile_size[1] <= 0 {return {}, false}
 	}
+	if value, found := object["draw_order"];
+	   found && !read_draw_order(value, &result.draw_order) {return {}, false}
 	if len(result.tileset) == 0 &&
 	   (len(result.texture) == 0 || result.tile_size[0] <= 0 || result.tile_size[1] <= 0) {
 		return {}, false
@@ -280,6 +295,8 @@ text_renderer_from_json :: proc(data: json.Value) -> (TextRenderer, bool) {
 	   found && !read_color(value, &result.color) {return {}, false}
 	if value, found := object["origin"];
 	   found && !read_vector2(value, &result.origin) {return {}, false}
+	if value, found := object["draw_order"];
+	   found && !read_draw_order(value, &result.draw_order) {return {}, false}
 	return result, true
 }
 
@@ -314,5 +331,14 @@ read_color :: proc(data: json.Value, result: ^Color) -> bool {
 		if !number_ok || number < 0 || number > 255 || number != f32(i32(number)) {return false}
 		values[index]^ = u8(number)
 	}
+	return true
+}
+
+read_draw_order :: proc(data: json.Value, result: ^i32) -> bool {
+	number, ok := read_number(data)
+	if !ok || number < -1000000 || number > 1000000 || number != f32(i32(number)) {
+		return false
+	}
+	result^ = i32(number)
 	return true
 }

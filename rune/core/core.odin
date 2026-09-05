@@ -1,6 +1,7 @@
 package core
 
 import "core:encoding/json"
+import "core:fmt"
 import "core:mem"
 import "core:os"
 import "core:path/filepath"
@@ -24,6 +25,7 @@ Window_Settings :: struct {
 	fullscreen: bool,
 	vsync:      bool,
 	msaa_4x:    bool,
+	show_fps:   bool,
 }
 
 Hot_Reload_Settings :: struct {
@@ -85,6 +87,7 @@ System :: struct {
 }
 
 Engine :: struct {
+	debug:              Debug_State,
 	project:            Project,
 	project_directory:  string,
 	registry:           ecs.Component_Registry,
@@ -106,6 +109,8 @@ Engine :: struct {
 	scene_loop_active:  bool,
 	is_running:         bool,
 	exit_requested:     bool,
+	fps_sample_started: f64,
+	fps_sample_frames:  u64,
 }
 
 Update_Proc :: #type proc(engine: ^Engine)
@@ -125,6 +130,7 @@ load_project :: proc(path: string) -> (Project, bool) {
 	mem.dynamic_arena_init(arena)
 	allocator := mem.dynamic_arena_allocator(arena)
 	project := Project {
+		window = Window_Settings{show_fps = true},
 		hot_reload = default_hot_reload_settings(),
 		gizmos     = gizmos.default_settings(),
 		arena      = arena,
@@ -221,6 +227,16 @@ init :: proc(project_path: string) -> (Engine, bool) {
 
 	asset_manager := assets.init(project_directory)
 	audio_system := audio.init(project_directory)
+	dev_console := console.init()
+	register_debug_commands(&dev_console)
+	for argument in os.args[1:] {
+		prefix :: "--console-dir="
+		if strings.has_prefix(argument, prefix) {
+			if !console.enable_remote(&dev_console, argument[len(prefix):]) {
+				console.error(&dev_console, "Could not enable local console inbox.")
+			}
+		}
+	}
 	return Engine {
 			project = project,
 			project_directory = project_directory,
@@ -228,12 +244,13 @@ init :: proc(project_path: string) -> (Engine, bool) {
 			assets = asset_manager,
 			audio = audio_system,
 			gizmos = project.gizmos,
-			console = console.init(),
+			console = dev_console,
 			input = input_data,
 			systems = make([dynamic]System),
 			scene_watches = make(map[string]map[string]i64),
 			fixed_delta_time = ecs.Physics2D_Fixed_Delta,
 			is_running = true,
+			fps_sample_started = rl.GetTime(),
 		},
 		true
 }
@@ -256,7 +273,10 @@ project_value :: proc(engine: ^Engine, key: string) -> (json.Value, bool) {
 
 // developer_console exposes the engine-owned runtime console. Register
 // project-specific commands and write diagnostic messages through this value.
-developer_console :: proc(engine: ^Engine) -> ^console.Console {return &engine.console}
+developer_console :: proc(engine: ^Engine) -> ^console.Console {
+	engine.console.user_data = engine
+	return &engine.console
+}
 
 // component_registry exposes the engine-initialized registry. Built-in
 // components are ready after init; games only register their own components.
@@ -335,9 +355,10 @@ load_scene :: proc(engine: ^Engine, path: string) -> (ecs.World, bool) {
 // World. Tools and advanced code can continue using load_scene directly.
 load_active_scene :: proc(engine: ^Engine, path: string) -> bool {
 	resolved_path := path
+	joined_path: string
+	defer if len(joined_path) > 0 {delete(joined_path)}
 	if !filepath.is_abs(resolved_path) {
-		joined_path, _ := filepath.join({engine.project_directory, resolved_path})
-		defer delete(joined_path)
+		joined_path, _ = filepath.join({engine.project_directory, resolved_path})
 		resolved_path = joined_path
 	}
 	world, loaded := load_scene(engine, resolved_path)
@@ -355,9 +376,10 @@ load_active_scene :: proc(engine: ^Engine, path: string) -> bool {
 change_scene :: proc(engine: ^Engine, path: string) -> bool {
 	if engine == nil || !engine.has_active_world || len(path) == 0 {return false}
 	resolved_path := path
+	joined_path: string
+	defer if len(joined_path) > 0 {delete(joined_path)}
 	if !filepath.is_abs(resolved_path) {
-		joined_path, _ := filepath.join({engine.project_directory, resolved_path})
-		defer delete(joined_path)
+		joined_path, _ = filepath.join({engine.project_directory, resolved_path})
 		resolved_path = joined_path
 	}
 	next_world, loaded := scene.load_with_layers(
@@ -467,17 +489,39 @@ file_modified_time :: proc(path: string) -> i64 {
 // component systems never have to mix simulation with raylib draw calls.
 run_callbacks :: proc(engine: ^Engine, on_update: Update_Proc, on_draw: Draw_Proc) {
 	defer shutdown(engine)
+	bind_debug_console(engine, nil)
+	frame_arena: mem.Dynamic_Arena
+	mem.dynamic_arena_init(&frame_arena)
+	defer mem.dynamic_arena_destroy(&frame_arena)
 
 	for !engine.exit_requested && !rl.WindowShouldClose() {
+		context.temp_allocator = mem.dynamic_arena_allocator(&frame_arena)
+		defer {
+			engine.console.result_data = {}
+			engine.console.frame_metadata = {}
+			mem.dynamic_arena_reset(&frame_arena)
+		}
 		begin_frame(engine)
-		on_update(engine)
+		if debug_simulation_tick(engine) {
+			started := rl.GetTime()
+			on_update(engine)
+			engine.debug.sample.update_ms = (rl.GetTime() - started) * 1000
+			if engine.debug.paused {engine.debug.fixed_steps += 1}
+			debug_simulation_finished(engine)
+		}
 
+		draw_started := rl.GetTime()
 		rl.BeginDrawing()
 		clear_background(engine)
 		on_draw(engine)
 		flush_asset_diagnostics(engine)
+		engine.console.frame_metadata = debug_frame_metadata(engine)
+		console.finish_frame(&engine.console)
 		console.draw(&engine.console)
+		engine.debug.sample.render_ms = (rl.GetTime() - draw_started) * 1000
 		rl.EndDrawing()
+		update_fps_title(engine)
+		debug_profile_finished_frame(engine)
 	}
 }
 
@@ -511,25 +555,51 @@ run_scene :: proc(engine: ^Engine, world: ^ecs.World) {
 }
 
 run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
+	bind_debug_console(engine, world)
 	engine.scene_loop_active = true
 	run_start_systems(engine, world)
 	defer {
 		run_shutdown_systems(engine, world)
 		engine.scene_loop_active = false
+		engine.debug.world = nil
 	}
+	frame_arena: mem.Dynamic_Arena
+	mem.dynamic_arena_init(&frame_arena)
+	defer mem.dynamic_arena_destroy(&frame_arena)
 	for !engine.exit_requested && !rl.WindowShouldClose() {
+		// Scratch results belong to this frame; keep blocks for reuse without
+		// resetting temporary allocations owned by the caller of run_scene.
+		context.temp_allocator = mem.dynamic_arena_allocator(&frame_arena)
+		defer {
+			engine.console.result_data = {}
+			engine.console.frame_metadata = {}
+			mem.dynamic_arena_reset(&frame_arena)
+		}
 		begin_frame(engine)
 		if len(engine.active_scene_path) > 0 &&
 		   reload_scene_if_changed(engine, world, engine.active_scene_path) {
 			run_scene_reload_systems(engine, world)
 		}
 		render.update_tilesets(world, &engine.assets)
-		run_fixed_pipeline(engine, world)
-		update_orbit_cameras_3d(engine, world)
-		run_update_systems(engine, world)
-		render.update_sprite_animators(world, &engine.assets, engine.delta_time)
+		if debug_simulation_tick(engine) {
+			fixed_started := rl.GetTime()
+			run_fixed_pipeline(engine, world)
+			engine.debug.sample.fixed_update_ms = (rl.GetTime() - fixed_started) * 1000
+			update_started := rl.GetTime()
+			update_orbit_cameras_3d(engine, world)
+			run_update_systems(engine, world)
+			ecs.update_camera_follows_2d(
+				world,
+				engine.delta_time,
+				{f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight())},
+			)
+			render.update_sprite_animators(world, &engine.assets, engine.delta_time)
+			engine.debug.sample.update_ms = (rl.GetTime() - update_started) * 1000
+			debug_simulation_finished(engine)
+		}
 		audio.update(&engine.audio, world)
 
+		draw_started := rl.GetTime()
 		rl.BeginDrawing()
 		clear_background(engine)
 		run_pre_draw_systems(engine, world)
@@ -537,9 +607,30 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 		run_draw_systems(engine, world)
 		gizmos.draw_scene(world, engine.gizmos)
 		flush_asset_diagnostics(engine)
+		engine.console.frame_metadata = debug_frame_metadata(engine)
+		console.finish_frame(&engine.console)
 		console.draw(&engine.console)
+		engine.debug.sample.render_ms = (rl.GetTime() - draw_started) * 1000
 		rl.EndDrawing()
+		update_fps_title(engine)
+		debug_profile_finished_frame(engine)
 	}
+}
+
+// Measure completed frames against wall time, including presentation/frame
+// limiting. Simulation delta is capped and would overstate FPS after stalls.
+update_fps_title :: proc(engine: ^Engine) {
+	engine.fps_sample_frames += 1
+	now := rl.GetTime()
+	elapsed := now - engine.fps_sample_started
+	if elapsed < 1 {return}
+	fps := u64(f64(engine.fps_sample_frames) / elapsed + 0.5)
+	engine.debug.fps = f64(engine.fps_sample_frames) / elapsed
+	if engine.project.window.show_fps {
+		rl.SetWindowTitle(fmt.ctprintf("%s | %d FPS", engine.project.window.title, fps))
+	}
+	engine.fps_sample_started = now
+	engine.fps_sample_frames = 0
 }
 
 // request_exit stops the active loop after the current frame. GPU-backed
@@ -563,6 +654,7 @@ run_fixed_pipeline :: proc(engine: ^Engine, world: ^ecs.World) {
 		}
 		ecs.physics_2d_update(world, engine.fixed_delta_time)
 		ecs.physics_3d_update(world, engine.fixed_delta_time)
+		engine.debug.fixed_steps += 1
 		engine.fixed_accumulator -= engine.fixed_delta_time
 		steps += 1
 	}
@@ -614,6 +706,9 @@ update_orbit_cameras_3d :: proc(engine: ^Engine, world: ^ecs.World) {
 }
 
 begin_frame :: proc(engine: ^Engine) {
+	engine.debug.frame += 1
+	engine.debug.frame_started = rl.GetTime()
+	engine.debug.sample = {}
 	engine.delta_time = rl.GetFrameTime()
 	if engine.delta_time > Max_Simulation_Delta {
 		engine.delta_time = Max_Simulation_Delta
@@ -689,6 +784,12 @@ hot_reload_poll_due :: proc(engine: ^Engine) -> bool {
 
 shutdown :: proc(engine: ^Engine) {
 	if engine.is_running {
+		if engine.console.defer_reply {
+			engine.console.defer_reply = false
+			engine.console.result_data = {}
+			console.error(&engine.console, "Engine stopped before the command completed.")
+			console.finish_remote(&engine.console)
+		}
 		if engine.has_active_world {
 			ecs.destroy(&engine.active_world)
 			engine.has_active_world = false

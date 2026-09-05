@@ -89,5 +89,5 @@ audio_player_from_json :: proc(data: json.Value) -> (AudioPlayer, bool) {
 	}
 	if value, found := object["play_on_start"];
 	   found {result.play_on_start, ok = value.(json.Boolean); if !ok {return {}, false}}
-	return result, true
+	return result, component_value_valid(result)
 }

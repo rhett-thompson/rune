@@ -40,7 +40,7 @@ rigid_body_2d_from_json :: proc(data: json.Value) -> (RigidBody2D, bool) {
 				   result.body_type != "kinematic" &&
 				   result.body_type != "static") {return {}, false}
 	}
-	return result, true
+	return result, component_value_valid(result)
 }
 
 box_collider_2d_from_json :: proc(data: json.Value) -> (BoxCollider2D, bool) {
@@ -51,7 +51,7 @@ box_collider_2d_from_json :: proc(data: json.Value) -> (BoxCollider2D, bool) {
 	}
 	if value, found := object["size"];
 	   found && !read_vector2(value, &result.size) {return {}, false}
-	return result, result.size[0] > 0 && result.size[1] > 0
+	return result, component_value_valid(result)
 }
 
 circle_collider_2d_from_json :: proc(data: json.Value) -> (CircleCollider2D, bool) {
@@ -62,7 +62,7 @@ circle_collider_2d_from_json :: proc(data: json.Value) -> (CircleCollider2D, boo
 	}
 	if value, found := object["radius"];
 	   found {result.radius, ok = read_number(value); if !ok || result.radius <= 0 {return {}, false}}
-	return result, true
+	return result, component_value_valid(result)
 }
 
 physics_2d_update :: proc(world: ^World, dt: f32) {
@@ -110,13 +110,42 @@ ensure_box2d_world :: proc(world: ^World) {
 	world.box2d_world = b2.CreateWorld(def)
 }
 
+physics_2d_transform_edited :: proc(world: ^World, entity: Entity, previous, value: Transform) {
+	if previous.scale != value.scale {
+		physics_2d_remove_entity(world, entity)
+		return
+	}
+	if native, found := world.box2d_bodies[entity]; found && b2.Body_IsValid(native) {
+		if previous.position != value.position {
+			b2.Body_SetTransform(native, {value.position[0], value.position[1]}, b2.Body_GetRotation(native))
+			b2.Body_SetAwake(native, true)
+		}
+	}
+}
+
+physics_2d_body_edited :: proc(world: ^World, entity: Entity, previous, value: RigidBody2D) {
+	native, found := world.box2d_bodies[entity]
+	if !found || !b2.Body_IsValid(native) {return}
+	type_changed := previous.body_type != value.body_type
+	if type_changed {b2.Body_SetType(native, box2d_body_type(value.body_type))}
+	if previous.gravity_scale != value.gravity_scale {b2.Body_SetGravityScale(native, value.gravity_scale)}
+	if type_changed || previous.velocity != value.velocity {b2.Body_SetLinearVelocity(native, {value.velocity[0], value.velocity[1]})}
+	if previous != value {b2.Body_SetAwake(native, true)}
+}
+
 sync_bodies_to_box2d :: proc(world: ^World) {
 	for entity, body in world.rigid_bodies_2d {
 		if _, found := world.box2d_bodies[entity]; found {continue}
 		create_box2d_body(world, entity, body)
 	}
-	for entity in world.box_colliders_2d {if _, found := world.rigid_bodies_2d[entity]; !found {create_box2d_static(world, entity)}}
-	for entity in world.circle_colliders_2d {if _, found := world.rigid_bodies_2d[entity]; !found {create_circle2d_static(world, entity)}}
+	for entity in world.box_colliders_2d {
+		if _, exists := world.box2d_bodies[entity]; exists {continue}
+		if _, found := world.rigid_bodies_2d[entity]; !found {create_box2d_static(world, entity)}
+	}
+	for entity in world.circle_colliders_2d {
+		if _, exists := world.box2d_bodies[entity]; exists {continue}
+		if _, found := world.rigid_bodies_2d[entity]; !found {create_circle2d_static(world, entity)}
+	}
 	for entity, body in world.rigid_bodies_2d {
 		native, found := world.box2d_bodies[entity]
 		if found {b2.Body_SetLinearVelocity(native, {body.velocity[0], body.velocity[1]})}
@@ -198,6 +227,8 @@ sync_bodies_from_box2d :: proc(world: ^World) {
 		body.velocity[0] = velocity.x
 		body.velocity[1] = velocity.y
 		body.grounded = box2d_is_grounded(native)
+		if world.transforms[entity] != transform {record_component_change(world, entity, "Transform", .Changed)}
+		if world.rigid_bodies_2d[entity] != body {record_component_change(world, entity, "RigidBody2D", .Changed)}
 		world.transforms[entity] = transform
 		world.rigid_bodies_2d[entity] = body
 	}

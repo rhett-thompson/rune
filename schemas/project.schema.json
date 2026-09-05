@@ -18,7 +18,8 @@
         "title": { "type": "string" },
         "fullscreen": { "type": "boolean", "default": false },
         "vsync": { "type": "boolean", "default": false },
-        "msaa_4x": { "type": "boolean", "default": false }
+        "msaa_4x": { "type": "boolean", "default": false },
+        "show_fps": { "type": "boolean", "default": true }
       },
       "additionalProperties": false
     },

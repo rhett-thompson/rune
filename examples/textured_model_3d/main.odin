@@ -1,7 +1,6 @@
 package main
 
 import "core:fmt"
-import "core:os"
 import rune "rune:core"
 import "rune:ecs"
 import "rune:r3d_bridge"
@@ -15,8 +14,6 @@ scene_view := r3d_bridge.Scene3D_Settings {
 bridge: r3d_bridge.Context
 crate: ecs.Entity
 material_view: Material_View
-capture_mode: bool
-capture_frame: int
 
 Material_View :: enum i32 {
 	Final,
@@ -75,13 +72,6 @@ on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	rl.DrawText("Material view:", 24, 94, 18, rl.RAYWHITE)
 	rl.DrawText(material_view_name(material_view), 150, 94, 18, rl.RAYWHITE)
 	rl.DrawFPS(24, 128)
-	if capture_mode && capture_frame == 30 {
-		rl.TakeScreenshot("build/textured_model_3d_capture.png")
-	}
-	capture_frame += 1
-	if capture_mode && capture_frame > 32 {
-		rune.request_exit(game)
-	}
 }
 
 apply_material_view :: proc(world: ^ecs.World) {
@@ -132,7 +122,6 @@ material_view_name :: proc(view: Material_View) -> cstring {
 }
 
 main :: proc() {
-	capture_mode = len(os.args) > 1 && os.args[1] == "--capture"
 	game, ok := rune.init("examples/textured_model_3d/project.json")
 	if !ok {
 		fmt.eprintln("Could not load examples/textured_model_3d/project.json")

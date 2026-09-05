@@ -88,19 +88,29 @@ top_down_blocked :: proc(
 		   map_transform.scale[1] <= 0 {continue}
 		tile_width := tilemap.tile_size[0] * map_transform.scale[0]
 		tile_height := tilemap.tile_size[1] * map_transform.scale[1]
-		min_x := i32(math.floor(f64((player_min[0] - map_transform.position[0]) / tile_width)))
+		maximum_size := tilemap.max_tile_size
+		if maximum_size[0] <= 0 {maximum_size[0] = 1}
+		if maximum_size[1] <= 0 {maximum_size[1] = 1}
+		min_x :=
+			i32(math.floor(f64((player_min[0] - map_transform.position[0]) / tile_width))) -
+			(maximum_size[0] - 1)
 		max_x := i32(math.floor(f64((player_max[0] - map_transform.position[0]) / tile_width)))
-		min_y := i32(math.floor(f64((player_min[1] - map_transform.position[1]) / tile_height)))
+		min_y :=
+			i32(math.floor(f64((player_min[1] - map_transform.position[1]) / tile_height))) -
+			(maximum_size[1] - 1)
 		max_y := i32(math.floor(f64((player_max[1] - map_transform.position[1]) / tile_height)))
 		for y := min_y; y <= max_y; y += 1 {
 			for x := min_x; x <= max_x; x += 1 {
 				index, has_tile := tilemap.tile_indices[{x, y}]
 				if !has_tile || !tile_is_solid(collider, index) {continue}
+				collision := tilemap_tile_collision_rect(tilemap, index)
 				tile_min := [2]f32 {
-					map_transform.position[0] + f32(x) * tile_width,
-					map_transform.position[1] + f32(y) * tile_height,
+					map_transform.position[0] + (f32(x) + collision.offset[0]) * tile_width,
+					map_transform.position[1] + (f32(y) + collision.offset[1]) * tile_height,
 				}
-				tile_max := tile_min + [2]f32{tile_width, tile_height}
+				tile_max :=
+					tile_min +
+					[2]f32{tile_width * collision.size[0], tile_height * collision.size[1]}
 				if player_min[0] < tile_max[0] &&
 				   player_max[0] > tile_min[0] &&
 				   player_min[1] < tile_max[1] &&
@@ -111,6 +121,25 @@ top_down_blocked :: proc(
 		}
 	}
 	return false
+}
+
+tilemap_tile_collision_rect :: proc(
+	tilemap: TilemapRenderer,
+	index: i32,
+) -> Tilemap_Collision_Rect {
+	if collision, found := tilemap.tile_collisions[index];
+	   found && collision.size[0] > 0 && collision.size[1] > 0 {
+		return collision
+	}
+	footprint := tilemap_tile_footprint(tilemap, index)
+	return {size = {f32(footprint[0]), f32(footprint[1])}}
+}
+
+tilemap_tile_footprint :: proc(tilemap: TilemapRenderer, index: i32) -> [2]i32 {
+	if size, found := tilemap.tile_sizes[index]; found && size[0] > 0 && size[1] > 0 {
+		return size
+	}
+	return {1, 1}
 }
 
 tile_is_solid :: proc(collider: TilemapCollider, index: i32) -> bool {

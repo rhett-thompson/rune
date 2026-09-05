@@ -14,7 +14,11 @@
     "100": {
       "name": "large_tree",
       "source": [0, 3],
-      "size": [2, 4]
+      "size": [1, 3],
+      "collision": {
+        "offset": [0, 2],
+        "size": [1, 1]
+      }
     }
   }
 }

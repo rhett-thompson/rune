@@ -1,0 +1,43 @@
+{
+  "$schema": "../../../schemas/scene.schema.json",
+  "name": "Tilemap component validation fixture",
+  "entities": [
+    {
+      "id": "dungeon",
+      "components": {
+        "Transform": { "position": [0, 0, 0], "scale": [3, 3, 1] },
+        "TilemapRenderer": {
+          "texture": "unused.png",
+          "tile_size": [16, 16],
+          "grid": [
+            [0, 0, 0],
+            [0, -1, 0],
+            [0, 0, 0]
+          ]
+        },
+        "TilemapCollider": { "solid_tiles": [0] }
+      }
+    },
+    {
+      "id": "player",
+      "components": {
+        "Transform": { "position": [72, 72, 0] },
+        "TopDownController": { "size": [24, 24], "speed": 180 }
+      }
+    },
+    {
+      "id": "instructions",
+      "components": {
+        "Transform": { "position": [24, 120, 0] },
+        "TextRenderer": {
+          "text": "Tilemap component validation",
+          "font": "font.png",
+          "font_size": 18,
+          "spacing": 1,
+          "color": [255, 255, 255, 255],
+          "origin": [0, 0]
+        }
+      }
+    }
+  ]
+}

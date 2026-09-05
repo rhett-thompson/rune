@@ -21,7 +21,11 @@ Component_Descriptor :: struct {
 	type_id:        typeid,
 	default_value:  any,
 	create_typed:   Typed_Component_Create_Proc,
+	serialize:      Component_Serialize_Proc,
 }
+
+// Serializers return an independent JSON snapshot owned by allocator.
+Component_Serialize_Proc :: #type proc(world: ^World, entity: Entity, name: string, allocator: mem.Allocator) -> (json.Value, bool)
 
 Component_Registry :: struct {
 	components:           map[string]Component_Descriptor,
@@ -52,220 +56,45 @@ destroy_registry :: proc(registry: ^Component_Registry) {
 }
 
 register_builtin_components :: proc(registry: ^Component_Registry) -> bool {
-	transform_registered := register_builtin_component(
-		registry,
-		"Transform",
-		Transform,
-		"Position, rotation, and scale for an entity",
-	)
-	sprite_registered := register_builtin_component(
-		registry,
-		"SpriteRenderer",
-		SpriteRenderer,
-		"2D texture renderer",
-	)
-	sprite_animator_registered := register_builtin_component(
-		registry,
-		"SpriteAnimator",
-		SpriteAnimator,
-		"Sprite-sheet animation playback",
-	)
-	mesh_registered := register_builtin_component(
-		registry,
-		"MeshRenderer",
-		MeshRenderer,
-		"Primitive 3D mesh renderer",
-	)
-	sphere_registered := register_builtin_component(
-		registry,
-		"SphereRenderer",
-		SphereRenderer,
-		"Sphere 3D renderer",
-	)
-	model_registered := register_builtin_component(
-		registry,
-		"ModelRenderer",
-		ModelRenderer,
-		"Asset-backed 3D model renderer",
-	)
-	ambient_light_registered := register_builtin_component(
-		registry,
-		"AmbientLight",
-		AmbientLight,
-		"Scene ambient light color and intensity",
-	)
-	directional_light_registered := register_builtin_component(
-		registry,
-		"DirectionalLight",
-		DirectionalLight,
-		"Directional scene light for lit 3D materials",
-	)
-	point_light_registered := register_builtin_component(
-		registry,
-		"PointLight",
-		PointLight,
-		"Local point light for lit 3D materials",
-	)
-	spot_light_registered := register_builtin_component(
-		registry,
-		"SpotLight",
-		SpotLight,
-		"Cone-shaped local light for lit 3D materials",
-	)
-	tilemap_registered := register_builtin_component(
-		registry,
-		"TilemapRenderer",
-		TilemapRenderer,
-		"Texture-atlas 2D tile grid",
-	)
-	text_registered := register_builtin_component(
-		registry,
-		"TextRenderer",
-		TextRenderer,
-		"Scene-authored 2D text",
-	)
-	tilemap_collider_registered := register_builtin_component(
-		registry,
-		"TilemapCollider",
-		TilemapCollider,
-		"Solid-tile collision for a TilemapRenderer",
-	)
-	top_down_controller_registered := register_builtin_component(
-		registry,
-		"TopDownController",
-		TopDownController,
-		"2D tilemap collision controller",
-	)
-	rigid_body_2d_registered := register_builtin_component(
-		registry,
-		"RigidBody2D",
-		RigidBody2D,
-		"Fixed-step 2D physics body",
-	)
-	box_collider_2d_registered := register_builtin_component(
-		registry,
-		"BoxCollider2D",
-		BoxCollider2D,
-		"2D axis-aligned box collider",
-	)
-	circle_collider_2d_registered := register_builtin_component(
-		registry,
-		"CircleCollider2D",
-		CircleCollider2D,
-		"2D circle collider",
-	)
-	rigid_body_3d_registered := register_builtin_component(
-		registry,
-		"RigidBody3D",
-		RigidBody3D,
-		"Box3D-backed 3D rigid body",
-	)
-	box_collider_registered := register_builtin_component(
-		registry,
-		"BoxCollider",
-		BoxCollider,
-		"Axis-aligned static collision volume",
-	)
-	sphere_collider_registered := register_builtin_component(
-		registry,
-		"SphereCollider",
-		SphereCollider,
-		"Sphere-shaped static collision volume",
-	)
-	character_controller_registered := register_builtin_component(
-		registry,
-		"CharacterController",
-		CharacterController,
-		"Gravity and collision player controller",
-	)
-	orbit_registered := register_builtin_component(
-		registry,
-		"Orbit",
-		Orbit,
-		"Moves an entity around its parent on the XZ plane",
-	)
-	rotator_registered := register_builtin_component(
-		registry,
-		"Rotator",
-		Rotator,
-		"Spins an entity around its local Y axis",
-	)
-	camera_2d_registered := register_builtin_component(
-		registry,
-		"Camera2D",
-		Camera2D,
-		"2D view controlled by an entity Transform",
-	)
-	camera_3d_registered := register_builtin_component(
-		registry,
-		"Camera3D",
-		Camera3D,
-		"3D view controlled by an entity Transform",
-	)
-	orbit_camera_3d_registered := register_builtin_component(
-		registry,
-		"OrbitCamera3D",
-		OrbitCamera3D,
-		"Input-driven orbit controller for a Camera3D entity",
-	)
-	audio_listener_registered := register_builtin_component(
-		registry,
-		"AudioListener",
-		AudioListener,
-		"Scene audio reference point, normally attached to the active camera",
-	)
-	audio_player_registered := register_component(
-		registry,
-		Component_Descriptor {
-			name = "AudioPlayer",
-			description = "Named entity sound playback settings",
-			allow_multiple = true,
-		},
-	)
-	nav_grid_2d_registered := register_builtin_component(
-		registry,
-		"NavGrid2D",
-		NavGrid2D,
-		"Scene-wide 2D navigation grid settings",
-	)
-	nav_agent_2d_registered := register_builtin_component(
-		registry,
-		"NavAgent2D",
-		NavAgent2D,
-		"2D pathfinding agent settings",
-	)
-	return(
-		transform_registered &&
-		sprite_registered &&
-		sprite_animator_registered &&
-		mesh_registered &&
-		sphere_registered &&
-		model_registered &&
-		ambient_light_registered &&
-		directional_light_registered &&
-		point_light_registered &&
-		spot_light_registered &&
-		tilemap_registered &&
-		text_registered &&
-		tilemap_collider_registered &&
-		top_down_controller_registered &&
-		rigid_body_2d_registered &&
-		box_collider_2d_registered &&
-		circle_collider_2d_registered &&
-		rigid_body_3d_registered &&
-		box_collider_registered &&
-		sphere_collider_registered &&
-		character_controller_registered &&
-		orbit_registered &&
-		rotator_registered &&
-		camera_2d_registered &&
-		camera_3d_registered &&
-		orbit_camera_3d_registered &&
-		audio_listener_registered &&
-		audio_player_registered &&
-		nav_grid_2d_registered &&
-		nav_agent_2d_registered \
-	)
+	ok := true
+	ok = register_builtin_component(registry, "Transform", Transform, "Position, rotation, and scale for an entity") && ok
+	ok = register_builtin_component(registry, "SpriteRenderer", SpriteRenderer, "2D texture renderer") && ok
+	ok = register_builtin_component(registry, "SpriteAnimator", SpriteAnimator, "Sprite-sheet animation playback") && ok
+	ok = register_builtin_component(registry, "MeshRenderer", MeshRenderer, "Primitive 3D mesh renderer") && ok
+	ok = register_builtin_component(registry, "SphereRenderer", SphereRenderer, "Sphere 3D renderer") && ok
+	ok = register_builtin_component(registry, "ModelRenderer", ModelRenderer, "Asset-backed 3D model renderer") && ok
+	ok = register_builtin_component(registry, "AmbientLight", AmbientLight, "Scene ambient light color and intensity") && ok
+	ok = register_builtin_component(registry, "DirectionalLight", DirectionalLight, "Directional scene light for lit 3D materials") && ok
+	ok = register_builtin_component(registry, "PointLight", PointLight, "Local point light for lit 3D materials") && ok
+	ok = register_builtin_component(registry, "SpotLight", SpotLight, "Cone-shaped local light for lit 3D materials") && ok
+	ok = register_builtin_component(registry, "TilemapRenderer", TilemapRenderer, "Texture-atlas 2D tile grid") && ok
+	ok = register_builtin_component(registry, "TextRenderer", TextRenderer, "Scene-authored 2D text") && ok
+	ok = register_builtin_component(registry, "TilemapCollider", TilemapCollider, "Solid-tile collision for a TilemapRenderer") && ok
+	ok = register_builtin_component(registry, "TopDownController", TopDownController, "2D tilemap collision controller") && ok
+	ok = register_builtin_component(registry, "RigidBody2D", RigidBody2D, "Fixed-step 2D physics body") && ok
+	ok = register_builtin_component(registry, "BoxCollider2D", BoxCollider2D, "2D axis-aligned box collider") && ok
+	ok = register_builtin_component(registry, "CircleCollider2D", CircleCollider2D, "2D circle collider") && ok
+	ok = register_builtin_component(registry, "RigidBody3D", RigidBody3D, "Box3D-backed 3D rigid body") && ok
+	ok = register_builtin_component(registry, "BoxCollider", BoxCollider, "Axis-aligned static collision volume") && ok
+	ok = register_builtin_component(registry, "SphereCollider", SphereCollider, "Sphere-shaped static collision volume") && ok
+	ok = register_builtin_component(registry, "CharacterController", CharacterController, "Gravity and collision player controller") && ok
+	ok = register_builtin_component(registry, "Orbit", Orbit, "Moves an entity around its parent on the XZ plane") && ok
+	ok = register_builtin_component(registry, "Rotator", Rotator, "Spins an entity around its local Y axis") && ok
+	ok = register_builtin_component(registry, "Camera2D", Camera2D, "2D view controlled by an entity Transform") && ok
+	ok = register_builtin_component(registry, "CameraFollow2D", CameraFollow2D, "Dead-zone, smoothed, bounded 2D camera follow") && ok
+	ok = register_builtin_component(registry, "Camera3D", Camera3D, "3D view controlled by an entity Transform") && ok
+	ok = register_builtin_component(registry, "OrbitCamera3D", OrbitCamera3D, "Input-driven orbit controller for a Camera3D entity") && ok
+	ok = register_builtin_component(registry, "AudioListener", AudioListener, "Scene audio reference point, normally attached to the active camera") && ok
+	ok = register_builtin_component(registry, "NavGrid2D", NavGrid2D, "Scene-wide 2D navigation grid settings") && ok
+	ok = register_builtin_component(registry, "NavAgent2D", NavAgent2D, "2D pathfinding agent settings") && ok
+	ok = register_component(registry, Component_Descriptor{
+		name = "AudioPlayer",
+		type_id = typeid_of(AudioPlayer),
+		description = "Named entity sound playback settings",
+		allow_multiple = true,
+		serialize = audio_players_json,
+	}) && ok
+	return ok
 }
 
 register_builtin_component :: proc(
@@ -276,13 +105,16 @@ register_builtin_component :: proc(
 ) -> bool {
 	return register_component(
 		registry,
-		Component_Descriptor{name = name, description = description, type_id = typeid_of(T)},
+		Component_Descriptor{
+			name = name,
+			description = description,
+			type_id = typeid_of(T),
+			serialize = typed_component_serializer(T),
+		},
 	)
 }
 
-// register_component makes a component name available to a World. The component's
-// data is deliberately JSON for now: game code owns its behaviour while scenes and
-// prefabs remain readable and editable without a reflection system.
+// Descriptors bind a scene name to its runtime type and JSON conversion.
 register_component_descriptor :: proc(
 	registry: ^Component_Registry,
 	descriptor: Component_Descriptor,
@@ -347,6 +179,7 @@ register_component_type :: proc(
 		type_id = typeid_of(T),
 		default_value = any{data = defaults, id = typeid_of(T)},
 		create_typed = typed_component_create_proc(T),
+		serialize = custom_component_json,
 	}
 	return register_component(registry, descriptor)
 }

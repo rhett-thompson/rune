@@ -35,6 +35,7 @@ Mappings :: struct {
 	axes:    map[string]Axis,
 }
 Input :: struct {
+	injected:         map[string]Injected_Action,
 	mappings:         Mappings,
 	actions:          map[string]Action_State,
 	axes:             map[string]f32,
@@ -74,6 +75,7 @@ load :: proc(path: string) -> (Input, bool) {
 	}
 	result.mappings = mappings
 	result.actions = make(map[string]Action_State, allocator)
+	result.injected = make(map[string]Injected_Action, allocator)
 	result.axes = make(map[string]f32, allocator)
 	result.path = retain_string(&result, path)
 	return result, true
@@ -263,7 +265,8 @@ Key_Result :: struct {
 	valid: bool,
 }
 key_from_name :: proc(name: string) -> Key_Result {
-	upper := strings.to_upper(name, context.temp_allocator)
+	buffer: [32]u8
+	upper := uppercase_binding_name(name, buffer[:])
 	if len(upper) == 1 {
 		c := upper[0]
 		if c >= 'A' && c <= 'Z' {return {rl.KeyboardKey(c), true}}
@@ -305,7 +308,8 @@ Button_Result :: struct {
 	valid:  bool,
 }
 button_from_name :: proc(name: string) -> Button_Result {
-	upper := strings.to_upper(name, context.temp_allocator)
+	buffer: [32]u8
+	upper := uppercase_binding_name(name, buffer[:])
 	switch upper {
 	case "A":
 		return {.RIGHT_FACE_DOWN, true}
@@ -344,7 +348,8 @@ Mouse_Button_Result :: struct {
 	valid:  bool,
 }
 mouse_button_from_name :: proc(name: string) -> Mouse_Button_Result {
-	upper := strings.to_upper(name, context.temp_allocator)
+	buffer: [32]u8
+	upper := uppercase_binding_name(name, buffer[:])
 	switch upper {
 	case "LEFT":
 		return {.LEFT, true}
@@ -362,4 +367,15 @@ mouse_button_from_name :: proc(name: string) -> Mouse_Button_Result {
 		return {.BACK, true}
 	}
 	return {}
+}
+
+// Supported binding names are short ASCII tokens. Normalize into caller-owned
+// stack storage on the sampling path, preserving Unicode behavior as a fallback.
+uppercase_binding_name :: proc(name: string, buffer: []u8) -> string {
+	if len(name) > len(buffer) {return strings.to_upper(name, context.temp_allocator)}
+	for character, index in transmute([]u8)name {
+		if character >= 128 {return strings.to_upper(name, context.temp_allocator)}
+		buffer[index] = character - ('a' - 'A') if character >= 'a' && character <= 'z' else character
+	}
+	return string(buffer[:len(name)])
 }

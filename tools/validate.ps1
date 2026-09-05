@@ -47,7 +47,11 @@ try {
     }
 
     if (Test-Path "build/project_validator.exe") {
-        Get-ChildItem "examples/*/project.json" | Sort-Object FullName | ForEach-Object {
+        $projectFiles = @(Get-ChildItem "examples/*/project.json")
+        if (Test-Path "templates/blank_project/project.json") {
+            $projectFiles += Get-Item "templates/blank_project/project.json"
+        }
+        $projectFiles | Sort-Object FullName | ForEach-Object {
             & "build/project_validator.exe" $_.FullName
             if ($LASTEXITCODE -ne 0) {
                 $failures.Add("validate $($_.FullName)")
@@ -55,6 +59,7 @@ try {
         }
     }
 
+    Invoke-OdinBuild -Name "blank_project_template" -Package "templates/blank_project" | Out-Null
     Invoke-OdinBuild -Name "hello_world" -Package "examples/hello_world" | Out-Null
 
     $hasR3d = Test-Path (Join-Path $r3dDirectory "r3d")

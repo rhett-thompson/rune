@@ -197,11 +197,12 @@ draw_tilemap_colliders_2d :: proc(world: ^ecs.World) {
 		if tile_width == 0 || tile_height == 0 {continue}
 		for tile in tilemap.tiles {
 			if !collider.solid_tiles[tile.index] {continue}
+			collision := ecs.tilemap_tile_collision_rect(tilemap, tile.index)
 			rect := rl.Rectangle {
-				transform.position[0] + f32(tile.x) * tile_width,
-				transform.position[1] + f32(tile.y) * tile_height,
-				tile_width,
-				tile_height,
+				transform.position[0] + (f32(tile.x) + collision.offset[0]) * tile_width,
+				transform.position[1] + (f32(tile.y) + collision.offset[1]) * tile_height,
+				tile_width * collision.size[0],
+				tile_height * collision.size[1],
 			}
 			rl.DrawRectangleLinesEx(rect, 1, rl.SKYBLUE)
 		}

@@ -36,6 +36,33 @@
       "minItems": 2,
       "maxItems": 2
     },
+    "nonNegativeVector2": {
+      "type": "array",
+      "items": { "type": "number", "minimum": 0 },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "positiveVector2": {
+      "type": "array",
+      "items": { "type": "number", "exclusiveMinimum": 0 },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "collision": {
+      "type": "object",
+      "required": ["offset", "size"],
+      "properties": {
+        "offset": {
+          "$ref": "#/$defs/nonNegativeVector2",
+          "description": "Collision offset from the tile's top-left anchor, in base tile cells."
+        },
+        "size": {
+          "$ref": "#/$defs/positiveVector2",
+          "description": "Collision width and height in base tile cells."
+        }
+      },
+      "additionalProperties": false
+    },
     "tile": {
       "type": "object",
       "required": ["source"],
@@ -49,6 +76,10 @@
           "$ref": "#/$defs/size",
           "description": "Width and height in base tile cells; defaults to one cell.",
           "default": [1, 1]
+        },
+        "collision": {
+          "$ref": "#/$defs/collision",
+          "description": "Optional collision rectangle within the tile's visual footprint."
         }
       },
       "additionalProperties": false

@@ -35,7 +35,7 @@ transform_from_json :: proc(data: json.Value) -> (Transform, bool) {
 		return {}, false
 	}
 
-	return transform, true
+	return transform, component_value_valid(transform)
 }
 
 read_vector3 :: proc(data: json.Value, result: ^[3]f32) -> bool {

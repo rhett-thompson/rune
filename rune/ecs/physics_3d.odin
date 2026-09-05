@@ -43,7 +43,7 @@ rigid_body_3d_from_json :: proc(data: json.Value) -> (RigidBody3D, bool) {
 				   result.body_type != "kinematic" &&
 				   result.body_type != "static") {return {}, false}
 	}
-	return result, true
+	return result, component_value_valid(result)
 }
 
 physics_3d_update :: proc(world: ^World, dt: f32) {
@@ -99,6 +99,38 @@ ensure_box3d_world :: proc(world: ^World) {
 	def := b3.DefaultWorldDef()
 	def.gravity = {0, Physics3D_Gravity, 0}
 	world.box3d_world = b3.CreateWorld(def)
+}
+
+physics_3d_transform_edited :: proc(world: ^World, entity: Entity, previous, value: Transform) {
+	if previous.scale != value.scale {
+		physics_3d_remove_entity(world, entity)
+		return
+	}
+	if native, found := physics_3d_native_body(world, entity); found {
+		if previous.position != value.position || previous.rotation != value.rotation {
+			rotation := b3.Body_GetRotation(native)
+			if previous.rotation != value.rotation {rotation = transform_rotation_quat(value)}
+			b3.Body_SetTransform(native, {value.position[0], value.position[1], value.position[2]}, rotation)
+			b3.Body_SetAwake(native, true)
+		}
+	}
+}
+
+physics_3d_body_edited :: proc(world: ^World, entity: Entity, previous, value: RigidBody3D) {
+	if previous.allow_fast_rotation != value.allow_fast_rotation {
+		physics_3d_remove_entity(world, entity)
+		return
+	}
+	native, found := physics_3d_native_body(world, entity)
+	if !found {return}
+	type_changed := previous.body_type != value.body_type
+	if type_changed {b3.Body_SetType(native, box3d_body_type(value.body_type))}
+	if previous.gravity_scale != value.gravity_scale {b3.Body_SetGravityScale(native, value.gravity_scale)}
+	if previous.linear_damping != value.linear_damping {b3.Body_SetLinearDamping(native, value.linear_damping)}
+	if previous.angular_damping != value.angular_damping {b3.Body_SetAngularDamping(native, value.angular_damping)}
+	if type_changed || previous.velocity != value.velocity {b3.Body_SetLinearVelocity(native, {value.velocity[0], value.velocity[1], value.velocity[2]})}
+	if type_changed || previous.angular_velocity != value.angular_velocity {b3.Body_SetAngularVelocity(native, {value.angular_velocity[0], value.angular_velocity[1], value.angular_velocity[2]})}
+	if previous != value {b3.Body_SetAwake(native, true)}
 }
 
 sync_bodies_to_box3d :: proc(world: ^World) {
@@ -175,6 +207,8 @@ sync_bodies_from_box3d :: proc(world: ^World) {
 		transform.position = {f32(position.x), f32(position.y), f32(position.z)}
 		body.velocity = {velocity.x, velocity.y, velocity.z}
 		body.angular_velocity = {angular_velocity.x, angular_velocity.y, angular_velocity.z}
+		if world.transforms[entity] != transform {record_component_change(world, entity, "Transform", .Changed)}
+		if world.rigid_bodies_3d[entity] != body {record_component_change(world, entity, "RigidBody3D", .Changed)}
 		world.transforms[entity] = transform
 		world.rigid_bodies_3d[entity] = body
 	}

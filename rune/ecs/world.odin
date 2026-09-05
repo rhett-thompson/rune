@@ -64,7 +64,7 @@ World :: struct {
 	component_data:              map[string]map[Entity]json.Value,
 	component_instance_data:     map[string]map[Component_Instance]json.Value,
 	typed_component_data:        map[string]map[Entity]any,
-	typed_component_descriptors: map[string]Component_Descriptor,
+	component_descriptors: map[string]Component_Descriptor,
 	component_names_by_type:     map[typeid]string,
 	component_change_version:    u64,
 	component_changes:           map[Component_Change_Key]Component_Change,
@@ -103,6 +103,7 @@ World :: struct {
 	orbits:                      map[Entity]Orbit,
 	rotators:                    map[Entity]Rotator,
 	cameras_2d:                  map[Entity]Camera2D,
+	camera_follows_2d:           map[Entity]CameraFollow2D,
 	cameras_3d:                  map[Entity]Camera3D,
 	orbit_cameras_3d:            map[Entity]OrbitCamera3D,
 	audio_listeners:             map[Entity]AudioListener,
@@ -139,7 +140,7 @@ init :: proc() -> World {
 		component_data = make(map[string]map[Entity]json.Value),
 		component_instance_data = make(map[string]map[Component_Instance]json.Value),
 		typed_component_data = make(map[string]map[Entity]any),
-		typed_component_descriptors = make(map[string]Component_Descriptor),
+		component_descriptors = make(map[string]Component_Descriptor),
 		component_names_by_type = make(map[typeid]string),
 		component_changes = make(map[Component_Change_Key]Component_Change),
 		resources = make(map[typeid]any),
@@ -173,6 +174,7 @@ init :: proc() -> World {
 		orbits = make(map[Entity]Orbit),
 		rotators = make(map[Entity]Rotator),
 		cameras_2d = make(map[Entity]Camera2D),
+		camera_follows_2d = make(map[Entity]CameraFollow2D),
 		cameras_3d = make(map[Entity]Camera3D),
 		orbit_cameras_3d = make(map[Entity]OrbitCamera3D),
 		audio_listeners = make(map[Entity]AudioListener),
@@ -208,7 +210,7 @@ destroy :: proc(world: ^World) {
 	delete(world.component_data)
 	delete(world.component_instance_data)
 	delete(world.typed_component_data)
-	delete(world.typed_component_descriptors)
+	delete(world.component_descriptors)
 	delete(world.component_names_by_type)
 	delete(world.component_changes)
 	delete(world.resources)
@@ -240,6 +242,7 @@ destroy :: proc(world: ^World) {
 	delete(world.orbits)
 	delete(world.rotators)
 	delete(world.cameras_2d)
+	delete(world.camera_follows_2d)
 	delete(world.cameras_3d)
 	delete(world.orbit_cameras_3d)
 	delete(world.audio_listeners)
@@ -247,7 +250,7 @@ destroy :: proc(world: ^World) {
 	delete(world.nav_grids_2d)
 	delete(world.nav_agents_2d)
 	world.typed_component_data = nil
-	world.typed_component_descriptors = nil
+	world.component_descriptors = nil
 	world.component_names_by_type = nil
 	world.component_changes = nil
 	world.resources = nil
@@ -311,7 +314,7 @@ add_component_owned :: proc(
 		if !typed_found {typed_components = make(map[Entity]any)}
 		typed_components[entity] = typed_value
 		world.typed_component_data[name] = typed_components
-		world.typed_component_descriptors[name] = descriptor
+		world.component_descriptors[name] = descriptor
 		record_component_change(world, entity, name, .Changed if already_present else .Added)
 		return true
 	}
@@ -361,6 +364,7 @@ add_component_owned :: proc(
 		if !components_found {components = make(map[Entity]json.Value)}
 		components[entity] = data
 		world.component_data[name] = components
+		world.component_descriptors[name] = descriptor
 		record_component_change(world, entity, name, .Changed if already_present else .Added)
 		return true
 	}
@@ -389,6 +393,7 @@ add_component_owned :: proc(
 	orbit: Orbit
 	rotator: Rotator
 	camera_2d: Camera2D
+	camera_follow_2d: CameraFollow2D
 	camera_3d: Camera3D
 	orbit_camera_3d: OrbitCamera3D
 	audio_listener: AudioListener
@@ -446,6 +451,8 @@ add_component_owned :: proc(
 	if name ==
 	   "Camera2D" {camera_2d, parse_ok = camera_2d_from_json(data); if !parse_ok {return false}}
 	if name ==
+	   "CameraFollow2D" {camera_follow_2d, parse_ok = camera_follow_2d_from_json(data); if !parse_ok {return false}}
+	if name ==
 	   "Camera3D" {camera_3d, parse_ok = camera_3d_from_json(data); if !parse_ok {return false}}
 	if name ==
 	   "OrbitCamera3D" {orbit_camera_3d, parse_ok = orbit_camera_3d_from_json(data); if !parse_ok {return false}}
@@ -474,41 +481,72 @@ add_component_owned :: proc(
 	components[entity] = data
 	world.component_data[name] = components
 
-	if name == "Transform" {
-		world.transforms[entity] = transform
+	kind: Component_Change_Kind = .Changed if already_present else .Added
+	switch name {
+	case "Transform":
+		commit_component_value(world, entity, name, &world.transforms, transform, kind)
+	case "SpriteRenderer":
+		commit_component_value(world, entity, name, &world.sprite_renderers, sprite_renderer, kind)
+	case "SpriteAnimator":
+		commit_component_value(world, entity, name, &world.sprite_animators, sprite_animator, kind)
+	case "MeshRenderer":
+		commit_component_value(world, entity, name, &world.mesh_renderers, mesh_renderer, kind)
+	case "SphereRenderer":
+		commit_component_value(world, entity, name, &world.sphere_renderers, sphere_renderer, kind)
+	case "ModelRenderer":
+		commit_component_value(world, entity, name, &world.model_renderers, model_renderer, kind)
+	case "AmbientLight":
+		commit_component_value(world, entity, name, &world.ambient_lights, ambient_light, kind)
+	case "DirectionalLight":
+		commit_component_value(world, entity, name, &world.directional_lights, directional_light, kind)
+	case "PointLight":
+		commit_component_value(world, entity, name, &world.point_lights, point_light, kind)
+	case "SpotLight":
+		commit_component_value(world, entity, name, &world.spot_lights, spot_light, kind)
+	case "TilemapRenderer":
+		commit_component_value(world, entity, name, &world.tilemap_renderers, tilemap_renderer, kind)
+	case "TextRenderer":
+		commit_component_value(world, entity, name, &world.text_renderers, text_renderer, kind)
+	case "TilemapCollider":
+		commit_component_value(world, entity, name, &world.tilemap_colliders, tilemap_collider, kind)
+	case "TopDownController":
+		commit_component_value(world, entity, name, &world.top_down_controllers, top_down_controller, kind)
+	case "RigidBody2D":
+		commit_component_value(world, entity, name, &world.rigid_bodies_2d, preserve_simulation_state(world, entity, rigid_body_2d), kind)
+	case "BoxCollider2D":
+		commit_component_value(world, entity, name, &world.box_colliders_2d, box_collider_2d, kind)
+	case "CircleCollider2D":
+		commit_component_value(world, entity, name, &world.circle_colliders_2d, circle_collider_2d, kind)
+	case "RigidBody3D":
+		commit_component_value(world, entity, name, &world.rigid_bodies_3d, rigid_body_3d, kind)
+	case "BoxCollider":
+		commit_component_value(world, entity, name, &world.box_colliders, box_collider, kind)
+	case "SphereCollider":
+		commit_component_value(world, entity, name, &world.sphere_colliders, sphere_collider, kind)
+	case "CharacterController":
+		commit_component_value(world, entity, name, &world.character_controllers, preserve_simulation_state(world, entity, character_controller), kind)
+	case "Orbit":
+		commit_component_value(world, entity, name, &world.orbits, orbit, kind)
+	case "Rotator":
+		commit_component_value(world, entity, name, &world.rotators, rotator, kind)
+	case "Camera2D":
+		commit_component_value(world, entity, name, &world.cameras_2d, camera_2d, kind)
+	case "CameraFollow2D":
+		commit_component_value(world, entity, name, &world.camera_follows_2d, camera_follow_2d, kind)
+	case "Camera3D":
+		commit_component_value(world, entity, name, &world.cameras_3d, camera_3d, kind)
+	case "OrbitCamera3D":
+		commit_component_value(world, entity, name, &world.orbit_cameras_3d, orbit_camera_3d, kind)
+	case "AudioListener":
+		commit_component_value(world, entity, name, &world.audio_listeners, audio_listener, kind)
+	case "NavGrid2D":
+		commit_component_value(world, entity, name, &world.nav_grids_2d, nav_grid_2d, kind)
+	case "NavAgent2D":
+		commit_component_value(world, entity, name, &world.nav_agents_2d, nav_agent_2d, kind)
+	case:
+		record_component_change(world, entity, name, kind)
 	}
-	if name == "SpriteRenderer" {world.sprite_renderers[entity] = sprite_renderer}
-	if name == "SpriteAnimator" {
-		world.sprite_animators[entity] = sprite_animator
-		world.sprite_animation_states[entity] = {}
-	}
-	if name == "MeshRenderer" {world.mesh_renderers[entity] = mesh_renderer}
-	if name == "SphereRenderer" {world.sphere_renderers[entity] = sphere_renderer}
-	if name == "ModelRenderer" {world.model_renderers[entity] = model_renderer}
-	if name == "AmbientLight" {world.ambient_lights[entity] = ambient_light}
-	if name == "DirectionalLight" {world.directional_lights[entity] = directional_light}
-	if name == "PointLight" {world.point_lights[entity] = point_light}
-	if name == "SpotLight" {world.spot_lights[entity] = spot_light}
-	if name == "TilemapRenderer" {world.tilemap_renderers[entity] = tilemap_renderer}
-	if name == "TextRenderer" {world.text_renderers[entity] = text_renderer}
-	if name == "TilemapCollider" {world.tilemap_colliders[entity] = tilemap_collider}
-	if name == "TopDownController" {world.top_down_controllers[entity] = top_down_controller}
-	if name == "RigidBody2D" {world.rigid_bodies_2d[entity] = rigid_body_2d}
-	if name == "BoxCollider2D" {world.box_colliders_2d[entity] = box_collider_2d}
-	if name == "CircleCollider2D" {world.circle_colliders_2d[entity] = circle_collider_2d}
-	if name == "RigidBody3D" {world.rigid_bodies_3d[entity] = rigid_body_3d}
-	if name == "BoxCollider" {world.box_colliders[entity] = box_collider}
-	if name == "SphereCollider" {world.sphere_colliders[entity] = sphere_collider}
-	if name == "CharacterController" {world.character_controllers[entity] = character_controller}
-	if name == "Orbit" {world.orbits[entity] = orbit}
-	if name == "Rotator" {world.rotators[entity] = rotator}
-	if name == "Camera2D" {world.cameras_2d[entity] = camera_2d}
-	if name == "Camera3D" {world.cameras_3d[entity] = camera_3d}
-	if name == "OrbitCamera3D" {world.orbit_cameras_3d[entity] = orbit_camera_3d}
-	if name == "AudioListener" {world.audio_listeners[entity] = audio_listener}
-	if name == "NavGrid2D" {world.nav_grids_2d[entity] = nav_grid_2d}
-	if name == "NavAgent2D" {world.nav_agents_2d[entity] = nav_agent_2d}
-	record_component_change(world, entity, name, .Changed if already_present else .Added)
+	world.component_descriptors[name] = descriptor
 	return true
 }
 // add_typed_component attaches a runtime-created custom component without
@@ -546,12 +584,7 @@ remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
 	}
 
 	record_component_change(world, entity, name, .Removed)
-	if name == "RigidBody2D" || name == "BoxCollider2D" || name == "CircleCollider2D" {
-		physics_2d_remove_entity(world, entity)
-	}
-	if name == "RigidBody3D" || name == "BoxCollider" || name == "SphereCollider" {
-		physics_3d_remove_entity(world, entity)
-	}
+	invalidate_component_physics(world, entity, name)
 	delete_key(&components, entity)
 	world.component_data[name] = components
 	if typed_components, typed_found := world.typed_component_data[name]; typed_found {
@@ -597,6 +630,7 @@ remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
 	if name == "Orbit" {delete_key(&world.orbits, entity)}
 	if name == "Rotator" {delete_key(&world.rotators, entity)}
 	if name == "Camera2D" {delete_key(&world.cameras_2d, entity)}
+	if name == "CameraFollow2D" {delete_key(&world.camera_follows_2d, entity)}
 	if name == "Camera3D" {delete_key(&world.cameras_3d, entity)}
 	if name == "OrbitCamera3D" {delete_key(&world.orbit_cameras_3d, entity)}
 	if name == "AudioListener" {delete_key(&world.audio_listeners, entity)}

@@ -27,7 +27,7 @@
         },
         "AudioPlayer": {
           "music": {
-            "sound": "assets/music.mp3",
+            "sound": "../assets/shared/arcade_music.mp3",
             "volume": 0.35,
             "looping": true,
             "play_on_start": true

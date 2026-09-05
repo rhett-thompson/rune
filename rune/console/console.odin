@@ -1,6 +1,7 @@
 package console
 
 import "core:strings"
+import "core:encoding/json"
 import rl "vendor:raylib"
 
 // Console is a small runtime developer console. It intentionally owns no game
@@ -19,6 +20,7 @@ Log_Level :: enum {
 }
 
 Log_Line :: struct {
+	sequence: u64,
 	level: Log_Level,
 	text:  [Max_Line_Length]u8,
 	len:   int,
@@ -46,6 +48,15 @@ Console :: struct {
 	history_index: int,
 	commands:      [Max_Commands]Command,
 	command_count: int,
+	log_sequence:  u64,
+	error_count:   u64,
+	capture:       Capture_Request,
+	remote:        Remote_Console,
+	user_data:     rawptr,
+	// Borrow frame scratch until the reply is written; never retain across frames.
+	result_data:   json.Value,
+	defer_reply:   bool,
+	frame_metadata: Frame_Metadata,
 }
 
 init :: proc() -> Console {
@@ -54,6 +65,8 @@ init :: proc() -> Console {
 	}
 	register(&result, "clear", "Clear console output.", clear_command)
 	register(&result, "help", "List registered console commands.", help_command)
+	register(&result, "capture", "Save this frame: capture [path.png] (without console overlay).", capture_command)
+	register(&result, "logs", "Read logs after a sequence: logs [since-sequence].", logs_command)
 	log(&result, .Info, "Rune console ready. Press ` to toggle; type help for commands.")
 	return result
 }
@@ -82,6 +95,8 @@ register :: proc(console: ^Console, name, description: string, handler: Command_
 }
 
 log :: proc(console: ^Console, level: Log_Level, message: string) {
+	console.log_sequence += 1
+	if level == .Error {console.error_count += 1}
 	index := (console.line_start + console.line_count) % Max_Log_Lines
 	if console.line_count == Max_Log_Lines {
 		console.line_start = (console.line_start + 1) % Max_Log_Lines
@@ -89,6 +104,7 @@ log :: proc(console: ^Console, level: Log_Level, message: string) {
 		console.line_count += 1
 	}
 	line := &console.lines[index]
+	line.sequence = console.log_sequence
 	line.level = level
 	line.len = min(len(message), Max_Line_Length)
 	copy(line.text[:line.len], message[:line.len])
@@ -113,6 +129,8 @@ error :: proc(console: ^Console, message: string) {log(console, .Error, message)
 // update handles console-only keyboard input. It runs before game systems;
 // systems that need exclusive input can query is_open and skip their controls.
 update :: proc(console: ^Console) {
+	poll_remote(console, rl.GetTime())
+	if console.remote.result_len > 0 || console.defer_reply {return}
 	if rl.IsKeyPressed(.GRAVE) {
 		console.is_open = !console.is_open
 		discard_characters()
@@ -145,12 +163,35 @@ update :: proc(console: ^Console) {
 // submit executes the current input line. It is public so headless validation
 // tools can exercise registered commands without a raylib window.
 submit :: proc(console: ^Console) {
-	line := strings.trim_space(string(console.input[:console.input_len]))
-	if len(line) == 0 {return}
-	log_parts(console, .Info, {"> ", line})
-	add_history(console, line)
+	buffer := console.input
+	line := string(buffer[:console.input_len])
 	console.input_len = 0
 	console.history_index = -1
+	execute(console, line)
+}
+
+// execute dispatches the same commands as interactive input, without changing
+// the line the user is currently typing. Arguments are borrowed for this call.
+execute :: proc(console: ^Console, command_line: string) -> bool {
+	if console.defer_reply {
+		warning(console, "A step/profile command is still running.")
+		return false
+	}
+	console.result_data = {}
+	if len(command_line) > Max_Input_Length {
+		error(console, "Command exceeds 256 bytes.")
+		return false
+	}
+	for character in command_line {
+		if character == '\n' || character == '\r' || character == 0 {
+			error(console, "Expected one command line.")
+			return false
+		}
+	}
+	line := strings.trim_space(command_line)
+	if len(line) == 0 {return false}
+	log_parts(console, .Info, {"> ", line})
+	add_history(console, line)
 
 	name_end := 0
 	for name_end < len(line) && line[name_end] != ' ' && line[name_end] != '\t' {name_end += 1}
@@ -160,10 +201,11 @@ submit :: proc(console: ^Console) {
 		command := &console.commands[index]
 		if command_name(command) == name {
 			command.handler(console, arguments)
-			return
+			return true
 		}
 	}
 	log_parts(console, .Error, {"Unknown command: ", name})
+	return false
 }
 
 draw :: proc(console: ^Console) {

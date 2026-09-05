@@ -18,6 +18,7 @@
     "TilemapRenderer": { "$ref": "#/$defs/tilemapRenderer" },
     "TextRenderer": { "$ref": "#/$defs/textRenderer" },
     "Camera2D": { "$ref": "#/$defs/camera2D" },
+    "CameraFollow2D": { "$ref": "#/$defs/cameraFollow2D" },
     "Camera3D": { "$ref": "#/$defs/camera3D" },
     "OrbitCamera3D": { "$ref": "#/$defs/orbitCamera3D" },
     "RigidBody2D": { "$ref": "#/$defs/rigidBody2D" },
@@ -87,7 +88,8 @@
         "source": { "$ref": "#/$defs/vec4", "default": [0, 0, 0, 0], "description": "Texture source rectangle. Zero width or height selects the full texture." },
         "tint": { "$ref": "#/$defs/color", "default": [255, 255, 255, 255] },
         "flip_x": { "type": "boolean", "default": false },
-        "flip_y": { "type": "boolean", "default": false }
+        "flip_y": { "type": "boolean", "default": false },
+        "draw_order": { "type": "integer", "minimum": -1000000, "maximum": 1000000, "default": 0 }
       },
       "additionalProperties": false
     },
@@ -213,6 +215,7 @@
           "minItems": 2,
           "maxItems": 2
         },
+        "draw_order": { "type": "integer", "minimum": -1000000, "maximum": 1000000, "default": 0 },
         "grid": {
           "type": "array",
           "items": {
@@ -232,7 +235,8 @@
         "font_size": { "type": "number", "exclusiveMinimum": 0, "default": 20 },
         "spacing": { "type": "number", "default": 0 },
         "color": { "$ref": "#/$defs/color" },
-        "origin": { "$ref": "#/$defs/vec2" }
+        "origin": { "$ref": "#/$defs/vec2" },
+        "draw_order": { "type": "integer", "minimum": -1000000, "maximum": 1000000, "default": 0 }
       },
       "additionalProperties": false
     },
@@ -243,6 +247,26 @@
         "zoom": { "type": "number", "exclusiveMinimum": 0, "default": 1 },
         "rotation": { "type": "number", "default": 0 },
         "active": { "type": "boolean", "default": false }
+      },
+      "additionalProperties": false
+    },
+    "cameraFollow2D": {
+      "type": "object",
+      "required": ["target"],
+      "properties": {
+        "target": { "type": "string", "minLength": 1, "description": "Scene entity ID to follow." },
+        "dead_zone": {
+          "type": "array",
+          "items": { "type": "number", "minimum": 0 },
+          "minItems": 2,
+          "maxItems": 2,
+          "default": [0, 0]
+        },
+        "smoothing": { "type": "number", "minimum": 0, "default": 0 },
+        "bounds": {
+          "$ref": "#/$defs/vec4",
+          "description": "Optional world bounds [min_x, min_y, max_x, max_y]."
+        }
       },
       "additionalProperties": false
     },
