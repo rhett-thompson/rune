@@ -1,0 +1,40 @@
+{
+  "$schema": "../../../schemas/scene.schema.json",
+  "name": "Particles 2D",
+  "entities": [
+    {
+      "id": "camera", "components": { "Transform": {}, "Camera2D": { "active": true, "zoom": 1 } }
+    },
+    {
+      "id": "fountain", "components": {
+        "Transform": { "position": [200, 410, 0] },
+        "ParticleEmitter2D": {
+          "max_particles": 512, "rate": 160, "lifetime": [0.8, 1.6], "speed": [180, 290],
+          "angle": -90, "spread": 38, "gravity": [0, 230], "start_size": 7, "end_size": 1,
+          "start_color": [255, 217, 127, 255], "end_color": [255, 80, 20, 0], "additive": true
+        }
+      }
+    },
+    {
+      "id": "smoke", "components": {
+        "Transform": { "position": [475, 410, 0] },
+        "ParticleEmitter2D": {
+          "max_particles": 256, "rate": 32, "lifetime": [1.8, 3.1], "speed": [50, 85],
+          "angle": -90, "spread": 25, "gravity": [9, -12], "start_size": 18, "end_size": 80,
+          "start_color": [154, 181, 213, 150], "end_color": [98, 120, 157, 0],
+          "texture": "assets/soft.png", "seed": 27
+        }
+      }
+    },
+    {
+      "id": "burst", "components": {
+        "Transform": { "position": [760, 295, 0] },
+        "ParticleEmitter2D": {
+          "max_particles": 512, "emitting": false, "speed": [70, 210], "spread": 360,
+          "lifetime": [0.6, 1.4], "gravity": [0, 60], "start_size": 9, "end_size": 0,
+          "start_color": [140, 255, 220, 255], "end_color": [40, 140, 235, 0], "additive": true, "seed": 83
+        }
+      }
+    }
+  ]
+}

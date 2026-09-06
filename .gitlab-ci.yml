@@ -3,7 +3,6 @@ stages:
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
-  ODIN_RELEASE: dev-2026-09
 
 validate:
   stage: validate
@@ -17,28 +16,19 @@ validate:
       build-essential
       ca-certificates
       clang
+      cmake
       curl
       git
       libasound2-dev
       libgl1-mesa-dev
+      libx11-dev
       libxcursor-dev
       libxi-dev
       libxinerama-dev
-      libxrandr-dev &&
+      libxrandr-dev
+      zlib1g-dev &&
       rm -rf /var/lib/apt/lists/*
-    - mkdir -p .ci/odin
-    - >-
-      curl --fail --silent --show-error --location
-      "https://api.github.com/repos/odin-lang/Odin/releases/tags/${ODIN_RELEASE}"
-      --output .ci/odin-release.json
-    - >-
-      ODIN_URL="$(sed -n
-      's/.*"browser_download_url": "\([^"]*linux-amd64[^"]*\.tar\.gz\)".*/\1/p'
-      .ci/odin-release.json | head -n 1)" &&
-      test -n "${ODIN_URL}" &&
-      curl --fail --silent --show-error --location
-      "${ODIN_URL}" --output .ci/odin.tar.gz
-    - tar -xzf .ci/odin.tar.gz -C .ci/odin
+    - pwsh -NoProfile -File tools/install_odin.ps1 -Destination .ci/odin
     - >-
       ODIN_BIN="$(find "${CI_PROJECT_DIR}/.ci/odin" -type f -name odin
       -perm /111 | head -n 1)" &&

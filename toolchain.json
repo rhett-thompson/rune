@@ -2,6 +2,17 @@
   "odin_release": "dev-2026-09",
   "tested_odin_version": "dev-2026-09-nightly:a2fb372",
   "tested_platforms": ["windows-amd64"],
+  "target_platforms": ["windows-amd64", "linux-amd64"],
   "powershell": "7.x",
-  "tested_powershell_version": "7.6.5"
+  "tested_powershell_version": "7.6.5",
+  "archives": {
+    "windows-amd64": {
+      "name": "odin-windows-amd64-dev-2026-09.zip",
+      "sha256": "8ed8abd95b82e0af1eb7e86cb75f380fd8bde104947721817b35929f5fc19388"
+    },
+    "linux-amd64": {
+      "name": "odin-linux-amd64-dev-2026-09.tar.gz",
+      "sha256": "167c3e1d7056419dad2e04bb3bd98715b7ff286d4c125f3c5a5ee337c6254283"
+    }
+  }
 }

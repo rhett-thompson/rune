@@ -525,7 +525,7 @@ validate_tilemap_renderer :: proc() {
 	assert(has_tilemap && has_object_tilemap && has_foreground_tilemap)
 	assert(tilemap.tileset == "assets/world.tileset.json")
 	assert(tilemap.draw_order == -100)
-	assert(object_tilemap.draw_order == -25)
+	assert(object_tilemap.draw_order == 25)
 	assert(foreground_tilemap.draw_order == 100)
 	// The engine resolves texture and tile size from the tileset before the
 	// fixed/update pipeline. Standalone scene loading intentionally stays IO-only.

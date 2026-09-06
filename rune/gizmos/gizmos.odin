@@ -2,6 +2,7 @@ package gizmos
 
 import "core:math"
 import "rune:ecs"
+import "rune:render"
 import rl "vendor:raylib"
 
 Settings :: struct {
@@ -55,7 +56,7 @@ draw_scene_2d :: proc(world: ^ecs.World, settings: Settings) -> bool {
 		rotation = camera_component.rotation,
 		zoom     = camera_component.zoom,
 	}
-	rl.BeginMode2D(camera)
+	render.begin_camera_2d(camera)
 	if settings.tilemaps {draw_tilemap_colliders_2d(world)}
 	if settings.physics_2d {draw_physics_2d(world)}
 	if settings.cameras {draw_cameras_2d(world)}

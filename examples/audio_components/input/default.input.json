@@ -1,6 +1,9 @@
 {
   "$schema": "../../../schemas/input.schema.json",
   "actions": {
+    "mute_sfx": [{ "type": "keyboard", "key": "M" }],
+    "fade_sfx": [{ "type": "keyboard", "key": "F" }],
+    "restore_sfx": [{ "type": "keyboard", "key": "R" }],
     "play_bell": [
       { "type": "mouse_button", "button": "LEFT" }
     ]

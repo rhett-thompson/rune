@@ -8,6 +8,14 @@ set_parent :: proc(world: ^World, child, parent: Entity) -> bool {
 	   child == parent {
 		return false
 	}
+	// Walk the proposed parent's ancestry before changing the existing tree.
+	// A cycle would hide entities from root traversal and break destruction.
+	ancestor := parent
+	for ancestor != Entity(0) {
+		if ancestor == child {return false}
+		ancestor = world.parents[ancestor]
+	}
+	if world.parents[child] == parent {return true}
 	if parent == Entity(0) {
 		delete_key(&world.parents, child)
 	} else {

@@ -65,7 +65,7 @@
         "Transform": { "position": [0, 0, 0], "scale": [3, 3, 1] },
         "TilemapRenderer": {
           "tileset": "assets/world.tileset.json",
-          "draw_order": -25,
+          "draw_order": 25,
           "grid": [
             [],
             [],

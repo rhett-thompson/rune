@@ -3,11 +3,14 @@ package r3d_bridge
 import "core:fmt"
 import "core:math"
 import "core:strings"
+import rl "vendor:raylib"
 import r3d "r3d:r3d"
 import "rune:assets"
 import "rune:ecs"
 
 Model_Player :: struct {
+	blend_pose: []rl.Matrix,
+	blend_elapsed, blend_duration: f32,
 	player:     r3d.AnimationPlayer,
 	path:       string,
 	clip_index: i32,
@@ -17,6 +20,7 @@ Model_Player :: struct {
 
 destroy_animation_players :: proc(ctx: ^Context) {
 	for entity, cached in ctx.animation_players {
+		delete(cached.blend_pose)
 		r3d.UnloadAnimationPlayer(cached.player)
 		delete_key(&ctx.animation_players, entity)
 	}
@@ -25,6 +29,7 @@ destroy_animation_players :: proc(ctx: ^Context) {
 invalidate_model_players :: proc(ctx: ^Context, path: string) {
 	for entity, cached in ctx.animation_players {
 		if cached.path != path {continue}
+		delete(cached.blend_pose)
 		r3d.UnloadAnimationPlayer(cached.player)
 		delete_key(&ctx.animation_players, entity)
 	}
@@ -127,6 +132,7 @@ prepare_animations :: proc(
 		   !rendered ||
 		   !animated ||
 		   renderer.model != cached.path {
+			delete(cached.blend_pose)
 			r3d.UnloadAnimationPlayer(cached.player)
 			delete_key(&ctx.animation_players, entity)
 		}
@@ -172,6 +178,15 @@ prepare_animations :: proc(
 		}
 		assets.resolve_asset_failure(manager, entity_id, "ModelAnimator.clip", renderer.model)
 		clip := (cast([^]r3d.Animation)asset.animations.animations)[index]
+		if cached.ready && cached.clip_index != index {
+			delete(cached.blend_pose)
+			cached.blend_pose = nil
+			cached.blend_duration, cached.blend_elapsed = animator.blend_time, 0
+			if animator.blend_time > 0 {
+				cached.blend_pose = make([]rl.Matrix,cached.player.skeleton.boneCount)
+				copy(cached.blend_pose,cached.player.localPose[:cached.player.skeleton.boneCount])
+			}
+		}
 		state := world.model_animation_states[entity]
 		if !state.initialized {
 			state.playing = animator.autoplay
@@ -198,8 +213,18 @@ prepare_animations :: proc(
 			!animator.loop &&
 			!state.playing &&
 			(state.elapsed >= state.duration if animator.speed > 0 else state.elapsed <= 0)
-		if !cached.ready || cached.clip_index != index || cached.pose_time != state.elapsed {
-			r3d.ComputeAnimationPose(&cached.player)
+		blending := len(cached.blend_pose)>0
+		if blending && publish && (state.playing || state.finished) {cached.blend_elapsed += dt}
+		if !cached.ready || cached.clip_index != index || cached.pose_time != state.elapsed || blending {
+			r3d.ComputeAnimationLocalPose(&cached.player)
+			if blending {
+				weight := clamp(cached.blend_elapsed/cached.blend_duration,0,1)
+				for pose, bone in cached.blend_pose {
+					cached.player.localPose[bone] = blend_local_pose(pose,cached.player.localPose[bone],weight)
+				}
+				if weight == 1 {delete(cached.blend_pose); cached.blend_pose=nil}
+			}
+			r3d.ComputeAnimationModelPose(&cached.player)
 			r3d.UploadAnimationPose(&cached.player)
 		}
 		cached.ready = true

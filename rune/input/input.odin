@@ -35,6 +35,8 @@ Mappings :: struct {
 	axes:    map[string]Axis,
 }
 Input :: struct {
+	// UI capture lasts for one rendered frame and gates gameplay queries.
+	captured:         bool,
 	injected:         map[string]Injected_Action,
 	mappings:         Mappings,
 	actions:          map[string]Action_State,
@@ -149,6 +151,7 @@ validate_mappings :: proc(mappings: Mappings) -> bool {
 // update must be called once per frame after raylib polls input and before game
 // systems query actions. Engine.run performs this automatically.
 update :: proc(input: ^Input) {
+	input.captured = false
 	for action_name, bindings in input.mappings.actions {
 		state: Action_State
 		for binding in bindings {
@@ -186,6 +189,7 @@ update :: proc(input: ^Input) {
 }
 
 action :: proc(input: ^Input, name: string) -> Action_State {
+	if input.captured {return {}}
 	// update samples every binding once per frame. Queries must only read that
 	// cached state so systems do not rescan bindings or allocate uppercase names.
 	return input.actions[name]
@@ -234,6 +238,7 @@ pressed :: proc(input: ^Input, name: string) -> bool {return action(input, name)
 released :: proc(input: ^Input, name: string) -> bool {return action(input, name).released}
 strength :: proc(input: ^Input, name: string) -> f32 {return action(input, name).strength}
 axis :: proc(input: ^Input, name: string) -> f32 {
+	if input.captured {return 0}
 	axis_data, found := input.mappings.axes[name]
 	if !found {return 0}
 	if len(axis_data.type) != 0 {return input.axes[name]}

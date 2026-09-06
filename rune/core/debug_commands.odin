@@ -35,6 +35,7 @@ Profile_Sample :: struct {
 }
 
 register_debug_commands :: proc(dev: ^console.Console) {
+	console.register(dev, "window", "Inspect display or change mode: window [windowed|borderless|fullscreen].", window_command)
 	console.register(dev, "status", "Report scene, timing, camera, entity count, and errors.", status_command)
 	console.register(dev, "entities", "List entities: entities [component].", entities_command)
 	console.register(dev, "inspect", "Current data: inspect <entity-id> [component].", inspect_command)
@@ -131,7 +132,7 @@ debug_status :: proc(engine: ^Engine) {
 		simulation_updates: u64,
 		entity_count: int,
 		recent_errors: []console.Log_Entry,
-	}{debug_frame_metadata(engine), engine.debug.paused, engine.debug.fps,
+	}{debug_frame_metadata(engine), is_paused(engine), engine.debug.fps,
 		engine.fixed_delta_time, engine.debug.simulation_updates, count, errors[:]})
 }
 
@@ -230,7 +231,7 @@ debug_frame_count :: proc(dev: ^console.Console, arguments: string, fallback: in
 step_command :: proc(dev: ^console.Console, arguments: string) {
 	engine, ok := command_engine(dev)
 	if !ok {return}
-	if !engine.debug.paused {
+	if !is_paused(engine) {
 		console.error(dev, "Pause simulation before stepping.")
 		return
 	}
@@ -315,7 +316,7 @@ profile_command :: proc(dev: ^console.Console, arguments: string) {
 // Select a simulation tick only after console commands have been dispatched.
 // Paused frames still sample real input, draw, poll files, and accept commands.
 debug_simulation_tick :: proc(engine: ^Engine) -> bool {
-	if engine.debug.paused {
+	if is_paused(engine) || engine.debug.steps_remaining > 0 {
 		if engine.debug.steps_remaining == 0 {
 			engine.delta_time = 0
 			return false
@@ -330,7 +331,7 @@ debug_simulation_tick :: proc(engine: ^Engine) -> bool {
 debug_simulation_finished :: proc(engine: ^Engine) {
 	engine.debug.simulation_time += f64(engine.delta_time)
 	engine.debug.simulation_updates += 1
-	if engine.debug.paused && engine.debug.steps_remaining > 0 {
+	if engine.debug.steps_remaining > 0 {
 		engine.debug.steps_remaining -= 1
 		if engine.debug.steps_remaining == 0 {
 			engine.console.defer_reply = false

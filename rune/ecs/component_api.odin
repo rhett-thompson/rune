@@ -35,6 +35,8 @@ get_component :: proc(world: ^World, entity: Entity, name: string) -> (json.Valu
 }
 
 // get_typed_component returns a copy of a registered custom component struct.
+// Reference fields are borrowed and read-only until the next successful write,
+// removal, or reload of that component (or World destruction). Set copies them.
 // Call set_typed_component after changing it so the World remains the mutation
 // boundary for future change tracking and reactive systems.
 get_typed_component :: proc(world: ^World, entity: Entity, name: string, $T: typeid) -> (T, bool) {
@@ -53,28 +55,49 @@ set_typed_component :: proc(world: ^World, entity: Entity, name: string, value: 
 	if !components_found {
 		return false
 	}
-	if _, value_found := components[entity]; !value_found {return false}
+	previous, value_found := components[entity]
+	if !value_found || previous.id != typeid_of(T) {return false}
+	if descriptor.copy_value {
+		candidate := value
+		if !typed_copy_value_valid(&candidate, type_info_of(T)) {return false}
+		(^T)(previous.data)^ = value
+		record_component_change(world, entity, name, .Changed)
+		return true
+	}
 
-	allocator := mem.dynamic_arena_allocator(world.typed_component_arena)
+	// JSON conversion handles ownership of strings, slices and maps.
+	// Its output belongs only to this value, never to the scene-lifetime arena.
+	bytes, marshal_error := json.marshal(value)
+	defer delete(bytes)
+	if marshal_error != nil {return false}
+	arena := new_typed_value_arena()
+	if arena == nil {return false}
+	allocator := mem.dynamic_arena_allocator(arena)
 	replacement, allocation_error := mem.new(T, allocator)
-	if allocation_error != nil {return false}
-	bytes, marshal_error := json.marshal(value, allocator = allocator)
-	if marshal_error != nil || json.unmarshal(bytes, replacement, allocator = allocator) != nil {
+	if allocation_error != nil || json.unmarshal(bytes, replacement, allocator = allocator) != nil {
+		destroy_typed_value_arena(arena)
 		return false
 	}
+	// The named API may receive a name borrowed from the old component too.
+	owned_name := retain_scene_string(world, name)
+	release_typed_value(world, previous)
+	world.typed_value_arenas[replacement] = arena
 	components[entity] = any {
 		data = replacement,
 		id   = typeid_of(T),
 	}
-	world.typed_component_data[name] = components
-	record_component_change(world, entity, name, .Changed)
+	world.typed_component_data[owned_name] = components
+	record_component_change(world, entity, owned_name, .Changed)
 	return true
 }
 
 // get is the normal component access path for both built-in and custom typed
 // components. The serialized JSON name is resolved from registration once.
 get :: proc(world: ^World, entity: Entity, $T: typeid) -> (T, bool) {
-	when T == Transform {
+	when T == ParticleEmitter2D {
+		return get_particle_emitter_2d(world, entity)
+	}
+	else when T == Transform {
 		return get_transform(world, entity)
 	}
 	else when T == SpriteRenderer {
@@ -179,7 +202,10 @@ get :: proc(world: ^World, entity: Entity, $T: typeid) -> (T, bool) {
 set :: proc(world: ^World, entity: Entity, value: $T) -> bool {
 	name, registered := world.component_names_by_type[typeid_of(T)]
 	if !registered {return false}
-	when T == Transform {
+	when T == ParticleEmitter2D {
+		return set_particle_emitter_2d(world, entity, value)
+	}
+	else when T == Transform {
 		return set_transform(world, entity, value)
 	}
 	else when T == SpriteRenderer {
@@ -276,6 +302,11 @@ set :: proc(world: ^World, entity: Entity, value: $T) -> bool {
 }
 
 add :: proc(world: ^World, registry: ^Component_Registry, entity: Entity, value: $T) -> bool {
+	when T == ParticleEmitter2D {
+		if !component_value_valid(value) {return false}
+		data, ok := runtime_json(value)
+		return ok && add_component(world, registry, entity, "ParticleEmitter2D", data)
+	}
 	name, found := component_name_for_type(registry, T)
 	if !found {return false}
 	return add_typed_component(world, registry, entity, name, value)

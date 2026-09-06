@@ -170,6 +170,7 @@ validate_project :: proc(project_path: string) -> Report {
 	)
 	input_path, input_ok := string_field(&report, project_path, "$", project, "input", true)
 	validate_window(&report, project_path, project)
+	validate_render_2d(&report, project_path, project)
 	layers := validate_layers(&report, project_path, project)
 	if input_ok && len(input_path) > 0 {
 		resolved_input := path_from(&report, project_directory, input_path)
@@ -186,6 +187,28 @@ validate_project :: proc(project_path: string) -> Report {
 		)
 	}
 	return report
+}
+
+validate_render_2d :: proc(report: ^Report, file: string, project: json.Object) {
+	value, found := project["render_2d"]
+	if !found {return}
+	settings, ok := value.(json.Object)
+	if !ok {add(report,file,"$.render_2d","must be an object"); return}
+	policy: string = "native"
+	if value, found := settings["policy"]; found {
+		policy, ok = value.(json.String)
+		if !ok || (policy!="native" && policy!="fit" && policy!="stretch" && policy!="integer") {
+			add(report,file,"$.render_2d.policy","must be native, fit, stretch, or integer")
+		}
+	}
+	for field in ([2]string{"width","height"}) {
+		value, found := settings[field]
+		if !found && policy=="native" {continue}
+		number, ok := jsonutil.number(value)
+		if !found || !ok || number<1 || number>8192 || number!=f32(i32(number)) {
+			add(report,file,field_path("$.render_2d",field),"must be an integer from 1 to 8192")
+		}
+	}
 }
 
 validate_window :: proc(report: ^Report, file: string, project: json.Object) {
@@ -205,6 +228,17 @@ validate_window :: proc(report: ^Report, file: string, project: json.Object) {
 	if value, has_title := settings["title"]; has_title {
 		if _, title_ok := value.(json.String);
 		   !title_ok {add(report, file, "$.window.title", "must be a string")}
+	}
+	for field in ([]string{"fullscreen", "high_dpi", "resizable", "vsync", "msaa_4x", "show_fps"}) {
+		if value, found := settings[field]; found {
+			if _, ok := value.(json.Boolean); !ok {add(report, file, field_path("$.window", field), "must be a boolean")}
+		}
+	}
+	if value, found := settings["mode"]; found {
+		mode, ok := value.(json.String)
+		if !ok || (mode != "windowed" && mode != "borderless" && mode != "fullscreen") {
+			add(report, file, "$.window.mode", "must be windowed, borderless, or fullscreen")
+		}
 	}
 }
 
@@ -402,6 +436,7 @@ validate_components :: proc(
 			field_path(path, name),
 			component,
 			project_directory,
+			allow_empty_texture = name == "ParticleEmitter2D",
 		)
 		if name == "ModelRenderer" {
 			validate_material_overrides(
@@ -429,12 +464,14 @@ validate_component_assets :: proc(
 	file, path: string,
 	component: json.Object,
 	project_directory: string,
+	allow_empty_texture: bool = false,
 ) {
 	asset_fields := [6]string{"texture", "model", "font", "sound", "animation", "tileset"}
 	for field in asset_fields {
 		asset_path, found := component[field]
 		if !found {continue}
 		asset, ok := asset_path.(json.String)
+		if allow_empty_texture && field == "texture" && ok && asset == "" {continue}
 		if !ok ||
 		   len(asset) ==
 			   0 {add(report, file, field_path(path, field), "must be a non-empty asset path"); continue}

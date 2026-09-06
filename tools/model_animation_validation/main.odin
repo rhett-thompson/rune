@@ -10,6 +10,7 @@ import "rune:ecs"
 import bridge "rune:r3d_bridge"
 import "rune:scene"
 import rl "vendor:raylib"
+import r3d "r3d:r3d"
 
 Root :: "examples/skeletal_animation_3d"
 Scene :: Root + "/scenes/main.scene.json"
@@ -78,7 +79,7 @@ validate_components :: proc(registry: ^ecs.Component_Registry) {
 
 validate_runtime :: proc(registry: ^ecs.Component_Registry) {
 	rl.SetTraceLogLevel(.WARNING)
-	rl.SetConfigFlags({.WINDOW_HIDDEN})
+	rl.SetConfigFlags({.WINDOW_HIDDEN,.WINDOW_HIGHDPI,.WINDOW_RESIZABLE})
 	rl.InitWindow(640, 480, "Rune animation validation")
 	defer rl.CloseWindow()
 	ctx, ok := bridge.init(Root, 640, 480)
@@ -111,6 +112,25 @@ validate_runtime :: proc(registry: ^ecs.Component_Registry) {
 		rl.EndDrawing()
 	}
 	assert(state(&world, left) == before, "draw never advances or publishes simulation state")
+	// The bridge follows physical framebuffer size without changing simulation.
+	rl.SetWindowSize(800, 600)
+	for _ in 0..<3 {
+		rl.BeginDrawing()
+		assert(bridge.draw_scene(&ctx, &world, &manager))
+		rl.EndDrawing()
+	}
+	render_width, render_height: i32
+	r3d.GetResolution(&render_width, &render_height)
+	assert(render_width == rl.GetRenderWidth() && render_height == rl.GetRenderHeight(), "3D targets follow DPI and resize")
+	ctx.match_framebuffer = false
+	r3d.SetResolution(320, 240)
+	rl.BeginDrawing()
+	assert(bridge.draw_scene(&ctx, &world, &manager))
+	rl.EndDrawing()
+	r3d.GetResolution(&render_width, &render_height)
+	assert(render_width == 320 && render_height == 240, "fixed internal resolution opt-out")
+	ctx.match_framebuffer = true
+	assert(state(&world, left) == before, "display changes preserve animation state")
 	assert(ecs.pause_model_animation(&world, left))
 	bridge.update_animations(&ctx, &world, &manager, 0.25)
 	assert(near(state(&world, left).elapsed, 0.5) && !state(&world, left).playing)
@@ -169,6 +189,40 @@ validate_runtime :: proc(registry: ^ecs.Component_Registry) {
 	world = load(registry)
 	bridge.update_animations(&ctx, &world, &manager, 0)
 	assert(world.generation != old_generation && len(ctx.animation_players) == 3)
+	left, _ = ecs.find_entity_by_id(&world,"left")
+	validate_transitions(&ctx,&world,&manager,left)
+}
+
+validate_transitions :: proc(ctx: ^bridge.Context, world: ^ecs.World, manager: ^assets.Asset_Manager, entity: ecs.Entity) {
+	assert(ecs.play_model_animation(world,entity,"bend"))
+	bridge.update_animations(ctx,world,manager,0.5)
+	player := ctx.animation_players[entity].player
+	pose := make([]rl.Matrix,player.skeleton.boneCount)
+	defer delete(pose)
+	copy(pose,player.localPose[:len(pose)])
+	assert(ecs.transition_model_animation(world,entity,"sway",0.4))
+	bridge.update_animations(ctx,world,manager,0)
+	for m,i in pose {assert(m==player.localPose[i],"transition starts at previous displayed pose")}
+	bridge.update_animations(ctx,world,manager,0.2)
+	assert(near(ctx.animation_players[entity].blend_elapsed,0.2))
+	copy(pose,player.localPose[:len(pose)])
+	assert(ecs.pause_model_animation(world,entity))
+	bridge.update_animations(ctx,world,manager,1)
+	for m,i in pose {assert(m==player.localPose[i],"pause freezes transition pose")}
+	assert(near(ctx.animation_players[entity].blend_elapsed,0.2))
+	assert(ecs.resume_model_animation(world,entity))
+	bridge.update_animations(ctx,world,manager,0.3)
+	assert(len(ctx.animation_players[entity].blend_pose)==0,"completed blend storage released")
+	assert(ecs.transition_model_animation(world,entity,"bend",0.5))
+	bridge.update_animations(ctx,world,manager,0.1)
+	copy(pose,player.localPose[:len(pose)])
+	assert(ecs.transition_model_animation(world,entity,"sway",0.4))
+	bridge.update_animations(ctx,world,manager,0)
+	for m,i in pose {assert(m==player.localPose[i],"interrupted transition stays continuous")}
+	assert(!ecs.transition_model_animation(world,entity,"bend",-1))
+	assert(ecs.transition_model_animation(world,entity,"bend",0))
+	bridge.update_animations(ctx,world,manager,0)
+	assert(len(ctx.animation_players[entity].blend_pose)==0,"zero duration switches immediately")
 }
 
 validate_reload :: proc(ctx: ^bridge.Context, manager: ^assets.Asset_Manager, world: ^ecs.World) {
@@ -231,6 +285,11 @@ validate_failed_reload :: proc(
 }
 
 main :: proc() {
+	a := rl.MatrixTranslate(0,2,0)
+	b := rl.MatrixTranslate(10,4,0)*rl.MatrixRotateZ(math.PI/2)
+	middle := bridge.blend_local_pose(a,b,0.5)
+	assert(near(middle[0,3],5) && near(middle[1,3],3))
+	assert(near(middle[0,0],f32(math.sqrt(0.5))) && near(middle[1,0],f32(math.sqrt(0.5))),"rotation slerp preserves length")
 	arena: mem.Dynamic_Arena
 	mem.dynamic_arena_init(&arena)
 	defer mem.dynamic_arena_destroy(&arena)

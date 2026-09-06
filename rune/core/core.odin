@@ -23,6 +23,10 @@ Window_Settings :: struct {
 	height:     i32,
 	title:      string,
 	fullscreen: bool,
+	// mode takes precedence over the legacy fullscreen flag.
+	mode:       string,
+	high_dpi:   bool,
+	resizable:  bool,
 	vsync:      bool,
 	msaa_4x:    bool,
 	show_fps:   bool,
@@ -55,6 +59,7 @@ default_hot_reload_settings :: proc() -> Hot_Reload_Settings {
 }
 
 Project :: struct {
+	render_2d:        render.Resolution_Settings,
 	name:             string,
 	startup_scene:    string,
 	window:           Window_Settings,
@@ -81,13 +86,19 @@ System :: struct {
 	fixed_update:      System_Update_Proc,
 	post_physics:      System_Update_Proc,
 	update:            System_Update_Proc,
+	// Runs every rendered frame, before simulation, including while paused.
+	ui_update:         System_Update_Proc,
 	pre_draw:          System_Draw_Proc,
 	draw:              System_Draw_Proc,
+	// Draw after the reference canvas is presented, at native UI resolution.
+	draw_ui:           System_Draw_Proc,
 	on_scene_reloaded: System_Reload_Proc,
 	shutdown:          System_Update_Proc,
 }
 
 Engine :: struct {
+	canvas:             render.Canvas,
+	window:             Window_State,
 	debug:              Debug_State,
 	project:            Project,
 	project_directory:  string,
@@ -103,6 +114,8 @@ Engine :: struct {
 	hot_reload_elapsed: f32,
 	hot_reload_due:     bool,
 	delta_time:         f32,
+	frame_delta_time:   f32,
+	game_paused:        bool,
 	fixed_delta_time:   f32,
 	fixed_accumulator:  f32,
 	active_world:       ecs.World,
@@ -131,7 +144,7 @@ load_project :: proc(path: string) -> (Project, bool) {
 	mem.dynamic_arena_init(arena)
 	allocator := mem.dynamic_arena_allocator(arena)
 	project := Project {
-		window = Window_Settings{show_fps = true},
+		window = Window_Settings{show_fps = true, high_dpi = true},
 		hot_reload = default_hot_reload_settings(),
 		gizmos     = gizmos.default_settings(),
 		arena      = arena,
@@ -150,6 +163,7 @@ load_project :: proc(path: string) -> (Project, bool) {
 		destroy_project(&project)
 		return {}, false
 	}
+	if !render.resolution_valid(project.render_2d) {destroy_project(&project); return {},false}
 	for layer_name, layer_index in project.layers {
 		if layer_name == "Default" || layer_index == ecs.Default_Layer || layer_index >= 64 {
 			destroy_project(&project)
@@ -218,10 +232,13 @@ init :: proc(project_path: string) -> (Engine, bool) {
 
 	title, _ := strings.clone_to_cstring(project.window.title)
 	defer delete(title)
-	if project.window.msaa_4x {
-		rl.SetConfigFlags({rl.ConfigFlag.MSAA_4X_HINT})
-	}
+	flags: rl.ConfigFlags
+	if project.window.msaa_4x {flags += {.MSAA_4X_HINT}}
+	if project.window.high_dpi {flags += {.WINDOW_HIGHDPI}}
+	if project.window.resizable {flags += {.WINDOW_RESIZABLE}}
+	rl.SetConfigFlags(flags)
 	rl.InitWindow(project.window.width, project.window.height, title)
+	fit_window_to_monitor()
 	if project.window.vsync {
 		rl.SetTargetFPS(60)
 	}
@@ -238,7 +255,7 @@ init :: proc(project_path: string) -> (Engine, bool) {
 			}
 		}
 	}
-	return Engine {
+	engine := Engine {
 			project = project,
 			project_directory = project_directory,
 			registry = registry,
@@ -252,8 +269,11 @@ init :: proc(project_path: string) -> (Engine, bool) {
 			fixed_delta_time = ecs.Physics2D_Fixed_Delta,
 			is_running = true,
 			fps_sample_started = rl.GetTime(),
-		},
-		true
+		}
+	mode := Window_Mode.Fullscreen if project.window.fullscreen else Window_Mode.Windowed
+	if project.window.mode != "" {mode, _ = parse_window_mode(project.window.mode)}
+	set_window_mode(&engine, mode)
+	return engine, true
 }
 
 // input_state exposes project-defined input actions and axes to game systems.
@@ -507,14 +527,16 @@ run_callbacks :: proc(engine: ^Engine, on_update: Update_Proc, on_draw: Draw_Pro
 			started := rl.GetTime()
 			on_update(engine)
 			engine.debug.sample.update_ms = (rl.GetTime() - started) * 1000
-			if engine.debug.paused {engine.debug.fixed_steps += 1}
+			if engine.debug.steps_remaining > 0 {engine.debug.fixed_steps += 1}
 			debug_simulation_finished(engine)
 		}
 
 		draw_started := rl.GetTime()
 		rl.BeginDrawing()
+		if !render.begin_canvas(&engine.canvas,engine.project.render_2d) {request_exit(engine)}
 		clear_background(engine)
 		on_draw(engine)
+		render.end_canvas(&engine.canvas)
 		flush_asset_diagnostics(engine)
 		engine.console.frame_metadata = debug_frame_metadata(engine)
 		console.finish_frame(&engine.console)
@@ -582,6 +604,9 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 			run_scene_reload_systems(engine, world)
 		}
 		render.update_tilesets(world, &engine.assets)
+		for system in engine.systems {
+			if system.ui_update != nil {system.ui_update(engine, world)}
+		}
 		if debug_simulation_tick(engine) {
 			fixed_started := rl.GetTime()
 			run_fixed_pipeline(engine, world)
@@ -592,21 +617,25 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 			ecs.update_camera_follows_2d(
 				world,
 				engine.delta_time,
-				{f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight())},
+				canvas_size(engine),
 			)
 			render.update_sprite_animators(world, &engine.assets, engine.delta_time)
+			ecs.update_particles_2d(world, engine.delta_time)
 			engine.debug.sample.update_ms = (rl.GetTime() - update_started) * 1000
 			debug_simulation_finished(engine)
 		}
-		audio.update(&engine.audio, world)
+		audio.update(&engine.audio, world, engine.frame_delta_time)
 
 		draw_started := rl.GetTime()
 		rl.BeginDrawing()
+		if !render.begin_canvas(&engine.canvas,engine.project.render_2d) {request_exit(engine)}
 		clear_background(engine)
 		run_pre_draw_systems(engine, world)
 		render.draw_scene_2d(world, &engine.assets)
 		run_draw_systems(engine, world)
 		gizmos.draw_scene(world, engine.gizmos)
+		render.end_canvas(&engine.canvas)
+		for system in engine.systems {if system.draw_ui != nil {system.draw_ui(engine,world)}}
 		flush_asset_diagnostics(engine)
 		engine.console.frame_metadata = debug_frame_metadata(engine)
 		console.finish_frame(&engine.console)
@@ -638,6 +667,18 @@ update_fps_title :: proc(engine: ^Engine) {
 // systems are then shut down before the engine closes the raylib window.
 request_exit :: proc(engine: ^Engine) {
 	if engine != nil {engine.exit_requested = true}
+}
+
+// Game pause is independent of the developer console's pause/step controls.
+// UI updates, rendering, file polling, and audio servicing continue.
+set_paused :: proc(engine: ^Engine, paused: bool) {
+	if engine == nil || engine.game_paused == paused {return}
+	engine.game_paused = paused
+	engine.fixed_accumulator = 0
+}
+
+is_paused :: proc(engine: ^Engine) -> bool {
+	return engine != nil && (engine.game_paused || engine.debug.paused)
 }
 
 run_start_systems :: proc(engine: ^Engine, world: ^ecs.World) {
@@ -717,6 +758,7 @@ begin_frame :: proc(engine: ^Engine) {
 	if engine.delta_time > Max_Simulation_Delta {
 		engine.delta_time = Max_Simulation_Delta
 	}
+	engine.frame_delta_time = engine.delta_time
 	engine.hot_reload_due = hot_reload_poll_due(engine)
 	if engine.hot_reload_due &&
 	   engine.project.hot_reload.enabled &&
@@ -799,6 +841,7 @@ shutdown :: proc(engine: ^Engine) {
 			engine.has_active_world = false
 		}
 		audio.shutdown(&engine.audio)
+		render.destroy_canvas(&engine.canvas)
 		assets.shutdown(&engine.assets)
 		ecs.destroy_registry(&engine.registry)
 		scene_paths := make([dynamic]string)

@@ -1,7 +1,9 @@
+#requires -Version 7.0
 [CmdletBinding()]
 param(
     [string]$RuneRoot = $env:RUNE_ROOT,
     [switch]$Run,
+    [switch]$Release,
     [string[]]$GameArguments = @()
 )
 
@@ -17,12 +19,14 @@ $compiler = (Get-Command odin -ErrorAction Stop).Source
 $gameRoot = $PSScriptRoot
 $outputDirectory = Join-Path $gameRoot 'build'
 New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
-$executableName = if ($env:OS -eq 'Windows_NT') { 'game.exe' } else { 'game' }
+$executableName = if ($IsWindows) { 'game.exe' } else { 'game' }
 $executable = Join-Path $outputDirectory $executableName
 
 Push-Location $gameRoot
 try {
-    & $compiler build . "-collection:rune=$(Join-Path $engineRoot 'rune')" "-out:$executable"
+    $buildArguments = @('build', '.', "-collection:rune=$(Join-Path $engineRoot 'rune')", "-out:$executable")
+    if ($Release) { $buildArguments += '-o:speed' }
+    & $compiler @buildArguments
     if ($LASTEXITCODE -ne 0) { throw "Game build failed (exit $LASTEXITCODE)." }
     Write-Host "Built $executable"
     if ($Run) {

@@ -1,0 +1,10 @@
+{
+  "$schema": "../../schemas/project.schema.json",
+  "name": "Rune Particles 2D",
+  "startup_scene": "scenes/main.scene.json",
+  "background_color": [13, 19, 32, 255],
+  "render_2d": { "policy": "fit", "width": 960, "height": 550 },
+  "window": { "width": 960, "height": 550, "title": "Rune - Particles 2D", "vsync": false, "resizable": true },
+  "input": "input/default.input.json",
+  "hot_reload": { "enabled": true, "scenes": true, "textures": true }
+}

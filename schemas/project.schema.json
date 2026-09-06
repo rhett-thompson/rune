@@ -10,13 +10,27 @@
     "startup_scene": { "type": "string", "minLength": 1 },
     "input": { "type": "string", "minLength": 1 },
     "background_color": { "$ref": "#/$defs/color" },
+    "render_2d": {
+      "type": "object",
+      "properties": {
+        "policy": { "type": "string", "enum": ["native", "fit", "stretch", "integer"], "default": "native" },
+        "width": { "type": "integer", "minimum": 1, "maximum": 8192 },
+        "height": { "type": "integer", "minimum": 1, "maximum": 8192 }
+      },
+      "if": { "properties": { "policy": { "enum": ["fit", "stretch", "integer"] } }, "required": ["policy"] },
+      "then": { "required": ["width", "height"] },
+      "additionalProperties": false
+    },
     "window": {
       "type": "object",
       "properties": {
         "width": { "type": "integer", "exclusiveMinimum": 0, "default": 1280 },
         "height": { "type": "integer", "exclusiveMinimum": 0, "default": 720 },
         "title": { "type": "string" },
-        "fullscreen": { "type": "boolean", "default": false },
+        "mode": { "type": "string", "enum": ["windowed", "borderless", "fullscreen"], "description": "Overrides the legacy fullscreen flag." },
+        "high_dpi": { "type": "boolean", "default": true },
+        "resizable": { "type": "boolean", "default": false },
+        "fullscreen": { "type": "boolean", "default": false, "deprecated": true },
         "vsync": { "type": "boolean", "default": false },
         "msaa_4x": { "type": "boolean", "default": false },
         "show_fps": { "type": "boolean", "default": true }

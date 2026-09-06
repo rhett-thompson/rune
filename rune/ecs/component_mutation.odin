@@ -1,11 +1,14 @@
 package ecs
 
 import "core:math"
+import "rune:particles"
 
 // These constraints are shared by JSON readers and typed setters. Keep checks
 // on hot gameplay paths scalar: no JSON serialization or scratch allocation.
 component_value_valid :: proc(value: $T) -> bool {
-	when T == Transform {
+	when T == ParticleEmitter2D {
+		return particles.valid(value)
+	} else when T == Transform {
 		for v in value.position {if math.is_nan(v) || math.is_inf(v) {return false}}
 		for v in value.rotation {if math.is_nan(v) || math.is_inf(v) {return false}}
 		for v in value.scale {if math.is_nan(v) || math.is_inf(v) {return false}}
@@ -28,10 +31,11 @@ component_value_valid :: proc(value: $T) -> bool {
 			return finite_nonnegative(value.friction) && finite_nonnegative(value.restitution) && finite_nonnegative(value.rolling_resistance)
 		}
 	} else when T == ModelAnimator {
-		return value.speed != 0 && !math.is_nan(value.speed) && !math.is_inf(value.speed)
+		return value.speed != 0 && !math.is_nan(value.speed) && !math.is_inf(value.speed) && finite_nonnegative(value.blend_time)
 	} else when T == SpriteAnimator {
 		return value.animation != "" && value.clip != "" && value.speed > 0 && !math.is_inf(value.speed)
 	} else when T == AudioPlayer {
+		if value.bus < .master || value.bus > .ui {return false}
 		return value.sound != "" && finite_nonnegative(value.volume) && value.pitch > 0 && !math.is_inf(value.pitch) &&
 		       finite_nonnegative(value.random_volume) && finite_nonnegative(value.random_pitch) && value.max_voices >= 1 &&
 		       finite_nonnegative(value.min_distance) && value.max_distance >= value.min_distance && !math.is_inf(value.max_distance)
@@ -57,7 +61,13 @@ commit_component_value :: proc(
 	kind: Component_Change_Kind = .Changed,
 ) {
 	previous, existed := storage^[entity]
-	when T == Transform {
+	when T == ParticleEmitter2D {
+		// Capacity/seed changes restart the bounded pool. Appearance and rate
+		// edits preserve existing particles and apply to subsequent births.
+		if !existed || previous.max_particles != value.max_particles || previous.seed != value.seed {
+			remove_particle_state_2d(world, entity)
+		}
+	} else when T == Transform {
 		physics_2d_transform_edited(world, entity, previous, value)
 		physics_3d_transform_edited(world, entity, previous, value)
 	} else when T == RigidBody2D {

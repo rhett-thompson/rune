@@ -1,5 +1,7 @@
 {
   "examples": [
+    { "name": "Clay UI", "path": "clay_ui", "description": "A responsive pause menu with mouse, keyboard/gamepad focus, a volume slider, and gameplay input capture." },
+    { "name": "Particles 2D", "path": "particles_2d", "description": "JSON particle emitters, textured smoke, additive sparks, and Odin-triggered bursts." },
     { "name": "Hello World", "path": "hello_world", "description": "The smallest Rune project and JSON scene." },
     { "name": "Sprite Scene 2D", "path": "sprite_scene_2d", "description": "JSON-driven transforms and sprite rendering." },
     { "name": "Sprite Animation 2D", "path": "sprite_animation_2d", "description": "Hot-reloadable JSON sprite-sheet clips and runtime playback controls." },

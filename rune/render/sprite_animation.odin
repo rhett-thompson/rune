@@ -18,6 +18,17 @@ update_sprite_animators :: proc(
 		if !has_animator || !has_sprite || !has_state {continue}
 		animation, revision, loaded := assets.animation(asset_manager, animator.animation)
 		if !loaded {continue}
+		if state.finished && state.next_clip != "" {
+			if _, valid := animation.clips[state.next_clip]; valid {
+				ecs.play_sprite_animation(world,entity,state.next_clip)
+				animator, _ = ecs.get_sprite_animator(world,entity)
+				state, _ = ecs.get_sprite_animation_state(world,entity)
+			} else {
+				assets.report_failure(asset_manager,{kind=.Animation,operation=.Load,source_path=animator.animation,
+					field="SpriteAnimator.next_clip",asset_path=state.next_clip,detail="queued clip is not defined"})
+				state.next_clip = ""
+			}
+		}
 		clip, has_clip := animation.clips[animator.clip]
 		if !has_clip || len(clip.frames) == 0 {
 			assets.report_failure(
@@ -49,6 +60,7 @@ update_sprite_animators :: proc(
 			state.asset_revision = revision
 			state.elapsed = 0
 			state.frame = 0
+			state.finished = false
 		}
 		advance_animation_state(
 			&state,
@@ -141,6 +153,7 @@ advance_animation_state :: proc(
 		state.frame = frame_count - 1
 		state.elapsed = 0
 		state.playing = false
+		state.finished = true
 		return
 	}
 	state.frame += steps

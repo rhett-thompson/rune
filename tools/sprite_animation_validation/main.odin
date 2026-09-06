@@ -1,10 +1,12 @@
 package main
 
 import "core:fmt"
+import "core:os"
 import "rune:assets"
 import "rune:ecs"
 import "rune:render"
 import "rune:scene"
+import rl "vendor:raylib"
 
 main :: proc() {
 	data, loaded := assets.load_animation_data(
@@ -75,6 +77,33 @@ main :: proc() {
 	render.advance_animation_state(&state, 4, 10, false, 1, 0.2)
 	assert(state.frame == 3 && !state.playing)
 	assert(ecs.stop_sprite_animation(&world, coin))
+	for arg in os.args[1:] {if arg=="--runtime" {validate_queue(&world,knight)}}
 
 	fmt.println("sprite animation validation passed")
+}
+
+validate_queue :: proc(world: ^ecs.World, knight: ecs.Entity) {
+	rl.SetConfigFlags({.WINDOW_HIDDEN})
+	rl.InitWindow(320,180,"Sprite transition validation")
+	defer rl.CloseWindow()
+	manager := assets.init("examples/sprite_animation_2d")
+	defer assets.shutdown(&manager)
+	assert(ecs.play_sprite_animation(world,knight,"roll"))
+	assert(ecs.queue_sprite_animation(world,knight,"idle"))
+	assert(ecs.pause_sprite_animation(world,knight))
+	render.update_sprite_animators(world,&manager,2)
+	animator, _ := ecs.get_sprite_animator(world,knight)
+	assert(animator.clip=="roll","pause does not consume queued transitions")
+	assert(ecs.resume_sprite_animation(world,knight))
+	render.update_sprite_animators(world,&manager,2)
+	state, _ := ecs.get_sprite_animation_state(world,knight)
+	assert(state.finished)
+	render.update_sprite_animators(world,&manager,0)
+	animator, _ = ecs.get_sprite_animator(world,knight)
+	state, _ = ecs.get_sprite_animation_state(world,knight)
+	assert(animator.clip=="idle" && state.playing && state.next_clip=="")
+	assert(ecs.queue_sprite_animation(world,knight,"hit"))
+	assert(ecs.stop_sprite_animation(world,knight))
+	state, _ = ecs.get_sprite_animation_state(world,knight)
+	assert(state.next_clip=="" && !state.finished)
 }

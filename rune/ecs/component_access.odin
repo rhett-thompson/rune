@@ -60,7 +60,9 @@ play_sprite_animation :: proc(
 	if restart || clip_changed {
 		state.elapsed = 0
 		state.frame = 0
+		state.next_clip = ""
 	}
+	state.finished = false
 	state.initialized = true
 	state.playing = true
 	world.sprite_animation_states[entity] = state
@@ -92,6 +94,8 @@ stop_sprite_animation :: proc(world: ^World, entity: Entity) -> bool {
 	state.frame = 0
 	state.initialized = true
 	state.playing = false
+	state.finished = false
+	state.next_clip = ""
 	world.sprite_animation_states[entity] = state
 	return true
 }
@@ -107,7 +111,9 @@ set_sprite_animation_state :: proc(
 	value: Sprite_Animation_State,
 ) -> bool {
 	if _, found := world.sprite_animators[entity]; !found {return false}
-	world.sprite_animation_states[entity] = value
+	owned := value
+	owned.next_clip = retain_scene_string(world,value.next_clip)
+	world.sprite_animation_states[entity] = owned
 	return true
 }
 get_mesh_renderer :: proc(world: ^World, entity: Entity) -> (MeshRenderer, bool) {
@@ -300,6 +306,16 @@ get_circle_collider_2d :: proc(world: ^World, entity: Entity) -> (CircleCollider
 set_box_collider_2d :: proc(world: ^World, entity: Entity, value: BoxCollider2D) -> bool {
 	if !has_component_data(world, entity, "BoxCollider2D") || !component_value_valid(value) {return false}
 	commit_component_value(world, entity, "BoxCollider2D", &world.box_colliders_2d, value)
+	return true
+}
+
+// One pending transition, consumed after a non-looping clip finishes.
+// Empty clip cancels the pending transition. New requests replace the old one.
+queue_sprite_animation :: proc(world: ^World, entity: Entity, clip: string) -> bool {
+	state, found := world.sprite_animation_states[entity]
+	if !found {return false}
+	state.next_clip = retain_scene_string(world,clip)
+	world.sprite_animation_states[entity] = state
 	return true
 }
 

@@ -9,6 +9,13 @@ provides the advanced 3D rendering path; and Odin's vendor bindings provide
 Box2D and Box3D physics. The project remains usable without an editor: an
 editor is an optional future view over the same code and JSON files.
 
+## License
+
+Rune's original code is free and open source under the [zlib license](LICENSE).
+It may be used in commercial and closed-source games without royalties.
+Third-party code and example assets retain their own licenses; see
+[THIRD_PARTY.md](THIRD_PARTY.md) for notices and asset licensing status.
+
 ## JSON editing
 
 Rune schemas in `schemas/` provide completion, hover documentation, and
@@ -19,12 +26,19 @@ their game-specific fields are not completed by the built-in schemas.
 
 ## Current capabilities
 
+- [Audio mixer buses](docs/audio-mixer.md): master/music/SFX/UI volume, mute, and fades.
+- [2D resolution policies](docs/display.md): fit, stretch, integer scaling, and canvas mouse mapping.
+- [Animation transitions](docs/animation-transitions.md): queued sprite clips and skeletal pose blends.
+
 - raylib-backed engine lifecycle and registered update/draw systems;
 - JSON projects, scenes, prefabs, materials, tilesets, sprite animations, input mappings, and schemas;
 - a typed ECS with reflected Odin/JSON custom components and hierarchy;
 - cached, hot-reloadable texture, model, material, tileset, sprite-animation, font, and audio assets;
 - scene-owned sprites, tilemaps, text, 3D models, PBR materials, lights, and shadows;
 - input actions and runtime rebinding, audio components, tweening, and navigation;
+- generic pools for reusable Odin values, with generation-checked handles;
+- reusable 2D particle emitters with JSON settings, textures, and Odin-triggered bursts;
+- optional Clay UI with responsive layouts, buttons, sliders, and mouse/keyboard/gamepad focus;
 - fixed-step Box2D physics and Box3D rigid bodies;
 - runtime console, gizmos, validation tools, and complete example games.
 
@@ -32,7 +46,7 @@ See [ROADMAP.md](ROADMAP.md) for current priorities.
 
 ## Setup
 
-The initial release target is Windows AMD64. Install Git, PowerShell 7, and the
+Windows AMD64 and Linux AMD64 are equal development targets. Install Git, PowerShell 7, and the
 Odin toolchain recorded in [toolchain.json](toolchain.json): `dev-2026-09`, tested
 with `dev-2026-09-nightly:a2fb372`. Keep Odin's `base`, `core`, and `vendor`
 directories with the compiler, and put its directory on `PATH`.
@@ -40,7 +54,10 @@ directories with the compiler, and put its directory on `PATH`.
 On Windows, Odin also requires MSVC and the Windows SDK from Visual Studio's
 Desktop development with C++ workload. See the
 [official Odin installation guide](https://odin-lang.org/docs/install/) for setup.
-Linux and macOS runtime behavior has not been verified for this alpha.
+For Linux dependencies, Bash commands, and runtime testing, see
+[Linux development](docs/linux.md). PowerShell 7 runs on both platforms; no
+Windows installation is needed to use the scripts. Linux verification is pending
+the first successful Linux run; macOS is not yet a release target.
 
 Use the official GitHub repository's clone URL with `git clone --recurse-submodules`.
 Inside the resulting Rune checkout, initialize any missing submodules and check
@@ -57,10 +74,17 @@ Run the complete headless validation suite and representative builds with:
 pwsh -NoProfile -File tools/validate.ps1 -AllExamples
 ```
 
-This compiles all 25 examples and the launcher, runs the validators, and checks
+This compiles all registered examples and the launcher, runs the validators, and checks
 the project files. Omit `-AllExamples` for representative builds only. The
 compiler's vendor packages supply raylib, Box2D, and Box3D; the recursive submodule
 supplies the pinned r3d binding and native libraries for the advanced 3D examples.
+
+Add `-Runtime` to also exercise rendering, animation, window handling, UI,
+particles, and audio using the existing runtime validators. This requires a
+desktop session or a virtual display on Linux. The GitHub
+[validation workflow](.github/workflows/validate.yml) runs the isolated release
+check on Windows and Ubuntu, including those runtime validators and a new-game
+console/capture smoke test. It runs on pushes and pull requests; it does not publish releases.
 
 For an isolated export and first-project test, see [the release check](docs/release.md).
 Licensing and asset-credit work is tracked in [THIRD_PARTY.md](THIRD_PARTY.md).
@@ -93,6 +117,10 @@ The new folder contains code, scene/input JSON, local schemas, and a build scrip
 The initial scene is empty. The script builds into the game's `build/` directory
 and runs from the correct working directory. Engine paths containing spaces work.
 The project-creation helper refuses to overwrite an existing directory.
+
+Pass `-Release` to the generated `build.ps1` for an optimized `-o:speed` build.
+Use optimized builds when profiling; Odin's default build uses minimal optimization.
+Runtime checks remain enabled, and hot reload still follows `project.json`.
 
 To run the template directly from the engine checkout:
 
@@ -332,7 +360,119 @@ the camera, or hold the right mouse button to orbit and turn the player.
 odin run examples/third_person_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin
 ```
 
+## Clay UI
+
+`rune:ui` adds optional Clay layouts, styled buttons and sliders, pointer capture,
+and keyboard/gamepad focus. Build UI in the new `System.ui_update` phase, which
+continues while gameplay is paused, and draw it in `System.draw`. The
+[Clay UI guide](docs/ui.md) covers input ownership, fonts, lifecycle, and the
+resizable pause-menu example:
+
+```powershell
+odin build examples/clay_ui -collection:rune=rune -out:build/clay_ui.exe
+./build/clay_ui.exe
+```
+
+## 2D particles
+
+For scene-owned visual effects, `ParticleEmitter2D` provides continuous emission,
+Odin-triggered bursts, randomized lifetime and velocity, gravity, size/color
+fades, and optional textures with additive blending. The engine updates and
+renders particles automatically through the active 2D camera. See the
+[particle API and example](docs/particles.md).
+
+## Generic object pools
+
+[`rune:pool`](rune/pool/pool.odin) provides reusable storage for engine internals
+and game-owned Odin values such as bullets, particles, or transient work items.
+It is independent of raylib and the ECS. It does not activate/deactivate entities
+or instantiate prefabs; those lifecycles remain the caller's responsibility.
+
+```odin
+import "rune:pool"
+
+Bullet :: struct {
+    position, velocity: [2]f32,
+    life: f32,
+}
+
+bullets: pool.Pool(Bullet)
+if !pool.init(&bullets, 32, .Fixed) { return }
+defer pool.destroy(&bullets)
+
+handle, spawned := pool.acquire(&bullets, Bullet{life = 2})
+if spawned {
+    bullet := pool.get(&bullets, handle)
+    bullet.position = {10, 20}
+    pool.release(&bullets, handle)
+    assert(pool.get(&bullets, handle) == nil)
+}
+
+// Start a fresh cursor for each traversal. Releasing the current item is safe.
+cursor := 0
+for {
+    bullet, handle := pool.next(&bullets, &cursor)
+    if bullet == nil { break }
+    bullet.life -= dt // Your update callback's delta time.
+    if bullet.life <= 0 { pool.release(&bullets, handle) }
+}
+```
+
+- `init` takes an initial capacity, a growth policy, an optional `cleanup`
+  callback, and an optional allocator. Initialize a zero-valued or destroyed
+  pool; a second initialization of a live pool fails.
+- `.Fixed` (the default) makes `acquire` return `false` when full. `.Double`
+  grows on exhaustion, starting at 16 slots for an empty pool. `reserve` can
+  explicitly increase either pool's capacity. Allocation failure leaves
+  existing values and handles intact.
+- `acquire` accepts an initial value or defaults to a zero value. `get` returns
+  a borrowed pointer, or `nil` for an invalid handle. `release` returns `false`
+  for stale handles, handles from another pool, and double releases.
+- `count` reports live values; `capacity` reports allocated slots. `clear`
+  releases all live values and retains capacity. `destroy` also frees storage
+  and is safe to call repeatedly. Old handles stay invalid after reinitializing.
+
+Acquire/release reuse free slots in O(1), with no pool allocations until growth
+is needed. Iteration scans O(capacity) slots and does not allocate. Handles
+survive growth; **borrowed pointers do not**. Fetch a pointer again after any
+operation that grows the pool. Release, clear, and destroy also end the lifetime
+of pointers to the affected values. Releasing another slot does not move live values.
+Do not acquire, reserve, clear, or destroy the same pool during iteration.
+
+The pool shallow-copies values and zeroes them on release. For values owning
+strings, slices, maps, or native resources, supply `cleanup = your_cleanup_proc`
+with signature `proc(value: ^Your_Type)`, or release those resources yourself
+before returning the slot. The callback runs once per live value on release,
+clear, or destroy; it must not mutate the same pool and must use the allocator
+appropriate to its resources. Failed acquisition leaves ownership with the
+caller. Pool backing storage always uses the allocator saved by `init`.
+
+Do not copy an initialized pool or mutate its implementation fields. Stored
+values must tolerate relocation when storage grows (avoid pointers into their
+own inline fields). Pools require external synchronization if shared between
+threads. Pool handles are runtime-only and should not be serialized to JSON.
+
+[`asteroids`](examples/asteroids) uses 32 fixed bullet slots and a particle pool
+starting at 256 slots with automatic growth. Restart clears both pools; scene
+reload and shutdown destroy them. These demonstrate reusable gameplay storage;
+the asteroid entities continue to use the existing ECS lifecycle.
+
+The headless validator checks allocation-free reuse, exhaustion, stale and
+foreign handles, growth, release during iteration, cleanup, and allocation
+failure. It is also discovered automatically by `tools/validate.ps1`:
+
+```powershell
+odin build tools/pool_validation -collection:rune=rune -out:build/pool_validation.exe
+./build/pool_validation.exe
+```
+
 ## Project display settings
+
+High-DPI rendering is enabled by default. Configure `window.mode` as `windowed`,
+`borderless`, or `fullscreen`, and set `window.resizable` to enable resizing.
+The engine fits the initial window to the desktop and restores its geometry
+after runtime mode changes. See [display settings](docs/display.md) for JSON,
+runtime APIs, coordinate conventions, and the `window` console command.
 
 The window title includes a one-second average FPS counter, for example
 `My Game | 60 FPS`. Set `window.show_fps` to `false` in `project.json` to disable
@@ -526,6 +666,18 @@ change per entity/component is retained. Both `ecs.set` and named setters such
 as `ecs.set_transform` record one change for each successful write. A value-only
 reload records one change per changed component, including grouped audio
 instances. Invalid writes leave the value and change version untouched.
+
+Custom components containing ordinary numbers, booleans, fixed arrays, and
+nested structs update in place without allocations or JSON conversion. Custom
+components with strings, collections, or JSON field tags use owned replacement
+storage, released on the next successful replacement or removal. Repeated writes
+do not accumulate old values until scene shutdown.
+
+`ecs.get` returns a struct copy. Its strings and collections borrow component
+storage: treat them as read-only and reacquire them after a successful write,
+removal, or reload of that component. To change a collection, provide your own
+replacement; `ecs.set` copies it before releasing the previous value. Use
+`ecs.runtime_component_json` with an appropriate allocator for a retained snapshot.
 
 JSON is validated before committing a value. Typed setters share the value
 constraints for transforms, physics, animation, and audio without converting

@@ -1,0 +1,5 @@
+{
+  "$schema": "../../../schemas/scene.schema.json",
+  "name": "Clay UI demo",
+  "entities": [{"id":"orb","components":{"Transform":{"position":[180,230,0]}}}]
+}

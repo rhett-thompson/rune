@@ -37,7 +37,7 @@ main :: proc() {
 	foreground_tilemap, has_foreground_tilemap := ecs.get_tilemap_renderer(&world, foreground)
 	assert(has_ground_tilemap && has_tilemap && has_foreground_tilemap)
 	assert(ground_tilemap.draw_order == -100)
-	assert(tilemap.draw_order == -25)
+	assert(tilemap.draw_order == 25)
 	assert(foreground_tilemap.draw_order == 100)
 	assert(has_tilemap && tilemap.tileset == "assets/world.tileset.json")
 	assert(tilemap.tile_indices[{3, 2}] == 100)
@@ -56,8 +56,9 @@ main :: proc() {
 	slice.sort_by(commands[:], render.render_command_2d_less)
 	assert(len(commands) == 5)
 	assert(commands[0].entity == ground && commands[0].draw_order == -100)
-	assert(commands[1].entity == objects && commands[1].draw_order == -25)
-	assert(commands[2].entity == knight && commands[2].draw_order == 0)
+	// Trees must cover the knight when walking behind their canopy.
+	assert(commands[1].entity == knight && commands[1].draw_order == 0)
+	assert(commands[2].entity == objects && commands[2].draw_order == 25)
 	assert(commands[3].entity == foreground && commands[3].draw_order == 100)
 	assert(commands[4].entity == instructions && commands[4].draw_order == 1000)
 

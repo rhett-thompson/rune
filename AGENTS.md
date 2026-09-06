@@ -631,6 +631,21 @@ When making architecture decisions, prefer:
 
 ## Testing / Validation Expectations
 
+### Platform support
+
+- Windows AMD64 and Linux AMD64 are equal development and release targets.
+- Keep project creation, builds, validation, release checks, and console tooling
+  usable on both. PowerShell 7 is an accepted cross-platform tooling dependency.
+- Use platform-appropriate executable names and portable paths. Isolate native
+  OS APIs in platform-specific files; do not add Windows-only requirements to
+  shared engine or gameplay code.
+- Run `pwsh -NoProfile -File tools/validate.ps1 -AllExamples` for headless checks.
+  Add `-Runtime` for the optional graphics/audio validators. Linux runtime checks
+  require a desktop session or Xvfb; see `docs/linux.md`.
+- Require passing Windows and Linux checks before releases. Distinguish source
+  inspection, compilation, virtual-display tests, and real desktop verification.
+  Never mark Linux tested based only on Windows runs or the presence of CI YAML.
+
 ### Build Output
 
 Place generated executables in the repository `build/` directory. When using

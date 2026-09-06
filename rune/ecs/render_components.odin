@@ -27,6 +27,8 @@ SpriteAnimator :: struct {
 }
 
 Sprite_Animation_State :: struct {
+	finished:       bool,
+	next_clip:      string,
 	elapsed:        f32,
 	frame:          int,
 	asset_revision: u64,

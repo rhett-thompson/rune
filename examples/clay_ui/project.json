@@ -1,0 +1,9 @@
+{
+  "$schema": "../../schemas/project.schema.json",
+  "name": "Rune Clay UI",
+  "startup_scene": "scenes/main.scene.json",
+  "background_color": [12, 19, 30, 255],
+  "window": { "width": 1280, "height": 720, "title": "Rune - Clay UI", "vsync": true,
+    "mode": "windowed", "high_dpi": true, "resizable": true },
+  "input": "input/default.input.json"
+}

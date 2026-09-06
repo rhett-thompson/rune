@@ -1,12 +1,14 @@
 # Third-party code and example assets
 
-Rune's own code license is undecided. No root engine license has been added.
-Choosing it does not establish a license for separately sourced example assets.
+Rune's original code is licensed under the [zlib license](LICENSE).
+Third-party code and separately sourced example assets retain their own licenses;
+the root license does not replace their terms or establish missing asset permissions.
 
 ## Runtime dependencies
 
 | Dependency | Location / evidence | Release follow-up |
 | --- | --- | --- |
+| Clay UI layout | Vendored v0.14 snapshot in `third_party/clay`; [source pin](third_party/clay/README.rune.md), [zlib license](third_party/clay/LICENSE.md) | Optional `rune:ui` dependency. Preserve the notice; bindings and prebuilt libraries are pinned together. |
 | r3d Odin bindings and bundled native libraries | Pinned Git submodule in `third_party/r3d-odin`; [bundled license](third_party/r3d-odin/LICENSE) | Preserve that notice. Review the notices required by the bundled r3d, Assimp, and other native libraries before distributing binary packages. |
 | raylib | `vendor:raylib` in the selected Odin toolchain | Preserve the upstream notices appropriate to the toolchain and any distributed binaries. |
 | Box2D and Box3D | `vendor:box2d` and `vendor:box3d` in the selected Odin toolchain | Review the selected toolchain's bundled notices when preparing binary packages. |

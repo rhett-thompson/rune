@@ -21,12 +21,26 @@ destroy_entity :: proc(world: ^World, entity: Entity, recursive := true) -> bool
 	if !is_alive(world, entity) {return false}
 	children := child_entities(world, entity)
 	if len(children) > 0 && !recursive {return false}
-	child_copy := make([]Entity, len(children), context.temp_allocator)
-	copy(child_copy, children)
-	for child in child_copy {
-		if !destroy_entity(world, child, true) {return false}
+	// Collect once while the hierarchy cache is valid, then remove descendants
+	// before their parents. Re-entering destroy_entity would rebuild the entire
+	// index after each sibling and make wide subtree deletion quadratic.
+	if len(children) == 0 {
+		destroy_entity_storage(world, entity)
+		return true
 	}
+	entities := make([dynamic]Entity, context.temp_allocator)
+	append(&entities, entity)
+	for index := 0; index < len(entities); index += 1 {
+		append(&entities, ..world.children_by_parent[entities[index]][:])
+	}
+	for index := len(entities) - 1; index >= 0; index -= 1 {
+		destroy_entity_storage(world, entities[index])
+	}
+	return true
+}
 
+@(private)
+destroy_entity_storage :: proc(world: ^World, entity: Entity) {
 	component_names := make([dynamic]string, context.temp_allocator)
 	for name, components in world.component_data {
 		if _, found := components[entity]; found {append(&component_names, name)}
@@ -46,7 +60,6 @@ destroy_entity :: proc(world: ^World, entity: Entity, recursive := true) -> bool
 	delete_key(&world.entities, entity)
 	world.entity_count -= 1
 	world.hierarchy_dirty = true
-	return true
 }
 
 make_entity :: proc(generation, index: u32) -> Entity {
@@ -106,8 +119,11 @@ set_entity_metadata :: proc(
 		if existing, found := world.entities_by_id[owned_id]; found && existing != entity {
 			return false
 		}
-		world.entities_by_id[owned_id] = entity
 	}
+	if previous_id := world.entity_ids[entity]; previous_id != "" && previous_id != owned_id {
+		delete_key(&world.entities_by_id, previous_id)
+	}
+	if owned_id != "" {world.entities_by_id[owned_id] = entity}
 	world.entity_ids[entity] = owned_id
 	world.entity_names[entity] = owned_name
 	world.entity_tags[entity] = owned_tag

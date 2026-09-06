@@ -31,6 +31,7 @@ Audio_Instance :: struct {
 // Audio_System owns one raylib playback instance per named AudioPlayer
 // component instance. Short clips are buffered Sounds; music formats stream.
 Audio_System :: struct {
+	mixer:            Mixer,
 	root:             string,
 	instances:        map[ecs.Component_Instance]Audio_Instance,
 	retained_strings: map[string]string,
@@ -44,6 +45,7 @@ init :: proc(project_root: string) -> Audio_System {
 	mem.dynamic_arena_init(arena)
 	rl.InitAudioDevice()
 	system := Audio_System {
+		mixer            = default_mixer(),
 		instances        = make(map[ecs.Component_Instance]Audio_Instance),
 		retained_strings = make(map[string]string),
 		arena            = arena,
@@ -78,7 +80,8 @@ retain_string :: proc(system: ^Audio_System, value: string) -> string {
 
 // update synchronizes configured players, starts play_on_start sounds, and
 // restarts looping sounds when raylib reports that their current play ended.
-update :: proc(system: ^Audio_System, world: ^ecs.World) {
+update :: proc(system: ^Audio_System, world: ^ecs.World, dt: f32 = 0) {
+	update_mixer(&system.mixer,dt)
 	if !system.available {return}
 	remove_missing_instances(system, world)
 	if len(world.audio_players) == 0 {return}
@@ -237,23 +240,17 @@ apply_settings :: proc(
 	listener_found: bool,
 ) {
 	instance := system.instances[key]
-	volume := max(0, player.volume + instance.volume_offset)
+	spatial_gain, pan := spatial_factors(world,key.entity,player,listener_entity,listener_found)
+	gain := spatial_gain*bus_gain(&system.mixer,player.bus)
+	volume := max(0, player.volume + instance.volume_offset)*gain
 	pitch := max(0.01, player.pitch + instance.pitch_offset)
-	pan: f32 = 0.5
-	if player.spatial {
-		if listener_found {
-			listener_transform, listener_has_transform := ecs.get_transform(world, listener_entity)
-			player_transform, player_has_transform := ecs.get_transform(world, key.entity)
-			if listener_has_transform && player_has_transform {
-				dx := player_transform.position[0] - listener_transform.position[0]
-				dy := player_transform.position[1] - listener_transform.position[1]
-				dz := player_transform.position[2] - listener_transform.position[2]
-				distance := f32(math.sqrt(f64(dx * dx + dy * dy + dz * dz)))
-				volume *= attenuation(distance, player.min_distance, player.max_distance)
-				if player.max_distance > 0 {
-					pan = clamp(0.5 + 0.5 * dx / player.max_distance, 0, 1)
-				}
-			}
+	if !instance.streaming && !player.looping {
+		// Every alias has independent variation. Update active voices as well as
+		// the source sound so bus fades cannot leave older one-shots audible.
+		for voice in instance.voices {
+			rl.SetSoundVolume(voice.sound,max(0,player.volume+voice.volume_offset)*gain)
+			rl.SetSoundPitch(voice.sound,max(0.01,player.pitch+voice.pitch_offset))
+			rl.SetSoundPan(voice.sound,pan)
 		}
 	}
 	if instance.settings_initialized &&
@@ -264,7 +261,7 @@ apply_settings :: proc(
 		rl.SetMusicVolume(instance.music, volume)
 		rl.SetMusicPitch(instance.music, pitch)
 		rl.SetMusicPan(instance.music, pan)
-	} else {
+	} else if player.looping {
 		rl.SetSoundVolume(instance.sound, volume)
 		rl.SetSoundPitch(instance.sound, pitch)
 		rl.SetSoundPan(instance.sound, pan)
@@ -330,7 +327,7 @@ play_one_shot :: proc(
 		listener_entity,
 		listener_found,
 	)
-	volume := max(0, player.volume + voice.volume_offset) * spatial_gain
+	volume := max(0, player.volume + voice.volume_offset) * spatial_gain * bus_gain(&system.mixer,player.bus)
 	rl.SetSoundVolume(voice.sound, volume)
 	rl.SetSoundPitch(voice.sound, max(0.01, player.pitch + voice.pitch_offset))
 	rl.SetSoundPan(voice.sound, pan)

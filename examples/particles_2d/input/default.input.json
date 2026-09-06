@@ -1,0 +1,9 @@
+{
+  "$schema": "../../../schemas/input.schema.json",
+  "actions": {
+    "burst": [{ "type": "keyboard", "key": "SPACE" }],
+    "toggle": [{ "type": "keyboard", "key": "E" }],
+    "clear": [{ "type": "keyboard", "key": "C" }]
+  },
+  "axes": {}
+}

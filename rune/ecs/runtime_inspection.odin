@@ -113,6 +113,8 @@ audio_players_json :: proc(world: ^World, entity: Entity, name: string, allocato
 		if key.entity != entity {continue}
 		data, valid := runtime_json(player)
 		if !valid {return {}, false}
+		fields := data.(json.Object)
+		fields["bus"] = json.String(audio_bus_name(player.bus))
 		object[key.name] = data
 	}
 	return json.clone_value(object, allocator), true

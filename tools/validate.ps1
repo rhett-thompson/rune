@@ -1,6 +1,8 @@
+#requires -Version 7.0
 [CmdletBinding()]
 param(
-    [switch]$AllExamples
+    [switch]$AllExamples,
+    [switch]$Runtime
 )
 
 $ErrorActionPreference = "Stop"
@@ -9,6 +11,15 @@ $buildDirectory = Join-Path $repositoryRoot "build"
 $r3dDirectory = Join-Path $repositoryRoot "third_party/r3d-odin"
 $failures = [System.Collections.Generic.List[string]]::new()
 $builtValidators = [System.Collections.Generic.List[string]]::new()
+$executableSuffix = if ($IsWindows) { '.exe' } else { '' }
+$runtimeValidators = @(
+    'model_animation_validation', 'sprite_animation_validation',
+    'particle_validation', 'resolution_validation', 'ui_validation',
+    'window_validation', 'mixer_validation'
+)
+if ($Runtime -and $IsLinux -and !$env:DISPLAY -and !$env:WAYLAND_DISPLAY) {
+    throw 'Runtime validation needs a display. On headless Linux, run under xvfb-run -a.'
+}
 
 New-Item -ItemType Directory -Path $buildDirectory -Force | Out-Null
 Push-Location $repositoryRoot
@@ -21,7 +32,7 @@ try {
             [string[]]$Collections = @()
         )
 
-        $arguments = @("build", $Package, "-collection:rune=rune", "-out:build/$Name.exe")
+        $arguments = @("build", $Package, "-collection:rune=rune", "-out:build/$Name$executableSuffix")
         $arguments += $Collections
         & odin @arguments
         if ($LASTEXITCODE -ne 0) {
@@ -30,7 +41,7 @@ try {
         }
         Write-Host "PASS build $Name"
         if ($Name.EndsWith('_validation')) {
-            $builtValidators.Add((Join-Path $buildDirectory "$Name.exe"))
+            $builtValidators.Add((Join-Path $buildDirectory "$Name$executableSuffix"))
         }
         return $true
     }
@@ -50,13 +61,47 @@ try {
         }
     }
 
-    if (Test-Path "build/project_validator.exe") {
+    if ($Runtime) {
+        foreach ($name in $runtimeValidators) {
+            $executable = Join-Path $buildDirectory "$name$executableSuffix"
+            if (!$builtValidators.Contains($executable)) { continue }
+            $stdout = Join-Path $buildDirectory "$name.runtime.stdout.log"
+            $stderr = Join-Path $buildDirectory "$name.runtime.stderr.log"
+            $start = @{
+                FilePath = $executable
+                ArgumentList = '--runtime'
+                WorkingDirectory = $repositoryRoot
+                PassThru = $true
+                RedirectStandardOutput = $stdout
+                RedirectStandardError = $stderr
+            }
+            if ($IsWindows) { $start.WindowStyle = 'Hidden' }
+            $process = Start-Process @start
+            try {
+                if (!$process.WaitForExit(90000)) {
+                    $failures.Add("runtime $name timed out after 90 seconds")
+                } elseif ($process.ExitCode -ne 0) {
+                    $failures.Add("runtime $name (exit $($process.ExitCode))")
+                } else {
+                    Write-Host "PASS runtime $name"
+                }
+            } finally {
+                if (!$process.HasExited) { $process.Kill($true) }
+                $process.WaitForExit()
+                $process.Dispose()
+                Get-Content -LiteralPath $stdout, $stderr | Write-Host
+            }
+        }
+    }
+
+    $projectValidator = Join-Path $buildDirectory "project_validator$executableSuffix"
+    if (Test-Path -LiteralPath $projectValidator) {
         $projectFiles = @(Get-ChildItem "examples/*/project.json")
         if (Test-Path "templates/blank_project/project.json") {
             $projectFiles += Get-Item "templates/blank_project/project.json"
         }
         $projectFiles | Sort-Object FullName | ForEach-Object {
-            & "build/project_validator.exe" $_.FullName
+            & $projectValidator $_.FullName
             if ($LASTEXITCODE -ne 0) {
                 $failures.Add("validate $($_.FullName)")
             }

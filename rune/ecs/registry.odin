@@ -22,6 +22,7 @@ Component_Descriptor :: struct {
 	default_value:  any,
 	create_typed:   Typed_Component_Create_Proc,
 	serialize:      Component_Serialize_Proc,
+	copy_value:     bool,
 }
 
 // Serializers return an independent JSON snapshot owned by allocator.
@@ -57,6 +58,7 @@ destroy_registry :: proc(registry: ^Component_Registry) {
 
 register_builtin_components :: proc(registry: ^Component_Registry) -> bool {
 	ok := true
+	ok = register_builtin_component(registry, "ParticleEmitter2D", ParticleEmitter2D, "World-space 2D particles with continuous emission and code-driven bursts") && ok
 	ok = register_builtin_component(registry, "Transform", Transform, "Position, rotation, and scale for an entity") && ok
 	ok = register_builtin_component(registry, "SpriteRenderer", SpriteRenderer, "2D texture renderer") && ok
 	ok = register_builtin_component(registry, "ModelAnimator", ModelAnimator, "Skeletal animation playback through R3D") && ok
@@ -181,6 +183,7 @@ register_component_type :: proc(
 		default_value = any{data = defaults, id = typeid_of(T)},
 		create_typed = typed_component_create_proc(T),
 		serialize = custom_component_json,
+		copy_value = typed_value_can_copy(type_info_of(T)),
 	}
 	return register_component(registry, descriptor)
 }

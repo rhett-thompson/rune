@@ -179,17 +179,14 @@ apply_snapshot_component_value :: proc(
 ) {
 	if descriptor, typed := snapshot.component_descriptors[name];
 	   typed && descriptor.create_typed != nil {
-		if world.typed_component_arena == nil {return}
-		allocator := mem.dynamic_arena_allocator(world.typed_component_arena)
-		snapshot_components := snapshot.component_data[name]
-		replacement, created := descriptor.create_typed(
-			snapshot_components[snapshot_entity],
-			descriptor.default_value,
-			allocator,
-		)
-		if !created {return}
+		// The snapshot already owns a validated value. Move that ownership so
+		// repeated reloads do not accumulate custom data in the World arena.
+		replacement := snapshot.typed_component_data[name][snapshot_entity]
 		components, found := world.typed_component_data[name]
 		if !found {components = make(map[Entity]any)}
+		release_typed_value(world, components[target_entity])
+		world.typed_value_arenas[replacement.data] = snapshot.typed_value_arenas[replacement.data]
+		delete_key(&snapshot.typed_value_arenas, replacement.data)
 		components[target_entity] = replacement
 		world.typed_component_data[name] = components
 		world.component_descriptors[name] = descriptor
@@ -203,6 +200,8 @@ apply_snapshot_component_value :: proc(
 		commit_component_value(world, target_entity, name, &world.sprite_renderers, snapshot.sprite_renderers[snapshot_entity])
 	case "ModelAnimator":
 		commit_component_value(world, target_entity, name, &world.model_animators, snapshot.model_animators[snapshot_entity])
+	case "ParticleEmitter2D":
+		commit_component_value(world, target_entity, name, &world.particle_emitters_2d, snapshot.particle_emitters_2d[snapshot_entity])
 	case "SpriteAnimator":
 		commit_component_value(world, target_entity, name, &world.sprite_animators, snapshot.sprite_animators[snapshot_entity])
 	case "MeshRenderer":
@@ -439,6 +438,11 @@ rehome_component_map_names :: proc(world, snapshot: ^World) {
 }
 
 rehome_builtin_strings :: proc(world, snapshot: ^World) {
+	for entity, value in world.particle_emitters_2d {
+		owned := value
+		owned.texture = retain_scene_string(snapshot, value.texture)
+		world.particle_emitters_2d[entity] = owned
+	}
 	for entity, value in world.model_animators {
 		owned := value
 		owned.clip = retain_scene_string(snapshot, value.clip)

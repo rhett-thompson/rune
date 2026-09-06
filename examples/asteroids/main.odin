@@ -3,6 +3,7 @@ package main
 import "core:fmt"
 import rune "rune:core"
 import "rune:ecs"
+import "rune:pool"
 
 world: ^ecs.World
 game: Game
@@ -20,19 +21,21 @@ start_asteroids :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 	game.ship_explode_audio, entity_ok = ecs.find_entity_by_id(world, "ship_explode_audio"); config_ok = config_ok && entity_ok
 	if !config_ok { fmt.eprintln("Asteroids startup scene is missing required components or audio entities"); return }
 	game.asteroids = make([dynamic]Asteroid_Instance)
-	game.bullets = make([dynamic]Bullet)
-	game.particles = make([dynamic]Particle)
+	if !pool.init(&game.bullets, MAX_BULLETS, .Fixed) ||
+	   !pool.init(&game.particles, 256, .Double) {
+		fmt.eprintln("Could not allocate Asteroids bullet/particle pools")
+		stop_asteroids(engine, scene_world)
+		return
+	}
 	reset_game(&game)
 	asteroids_ready = true
 }
 
 stop_asteroids :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 	delete(game.asteroids)
-	delete(game.bullets)
-	delete(game.particles)
+	pool.destroy(&game.bullets)
+	pool.destroy(&game.particles)
 	game.asteroids = nil
-	game.bullets = nil
-	game.particles = nil
 	asteroids_ready = false
 }
 

@@ -2,6 +2,7 @@ package ecs
 
 import "core:encoding/json"
 import "core:mem"
+import "rune:particles"
 import b2 "vendor:box2d"
 import b3 "vendor:box3d"
 
@@ -45,6 +46,8 @@ Default_Layer: u8 : 0
 Default_Layer_Mask: u64 : u64(1) << Default_Layer
 
 World :: struct {
+	particle_emitters_2d: map[Entity]ParticleEmitter2D,
+	particle_states_2d: map[Entity]particles.State,
 	model_animators: map[Entity]ModelAnimator,
 	model_animation_states: map[Entity]Model_Animation_State,
 	physics_2d, physics_3d: Physics_State,
@@ -67,6 +70,8 @@ World :: struct {
 	component_data:              map[string]map[Entity]json.Value,
 	component_instance_data:     map[string]map[Component_Instance]json.Value,
 	typed_component_data:        map[string]map[Entity]any,
+	// A nil arena denotes a compact allocation for a value with no references.
+	typed_value_arenas:          map[rawptr]^mem.Dynamic_Arena,
 	component_descriptors: map[string]Component_Descriptor,
 	component_names_by_type:     map[typeid]string,
 	component_change_version:    u64,
@@ -128,6 +133,8 @@ init :: proc() -> World {
 	assert(scene_data_arena != nil)
 	mem.dynamic_arena_init(scene_data_arena)
 	return World {
+		particle_emitters_2d = make(map[Entity]ParticleEmitter2D),
+		particle_states_2d = make(map[Entity]particles.State),
 		generation = generation,
 		next_entity = 1,
 		entities = make(map[Entity]bool),
@@ -143,6 +150,7 @@ init :: proc() -> World {
 		component_data = make(map[string]map[Entity]json.Value),
 		component_instance_data = make(map[string]map[Component_Instance]json.Value),
 		typed_component_data = make(map[string]map[Entity]any),
+		typed_value_arenas = make(map[rawptr]^mem.Dynamic_Arena),
 		component_descriptors = make(map[string]Component_Descriptor),
 		component_names_by_type = make(map[typeid]string),
 		component_changes = make(map[Component_Change_Key]Component_Change),
@@ -196,11 +204,18 @@ init :: proc() -> World {
 // straightforward.
 destroy :: proc(world: ^World) {
 	if world == nil {return}
+	for _, &state in world.particle_states_2d {particles.destroy(&state)}
+	delete(world.particle_states_2d)
+	delete(world.particle_emitters_2d)
 	physics_2d_shutdown(world)
 	physics_3d_shutdown(world)
 	for _, components in world.component_data {delete(components)}
 	for _, instances in world.component_instance_data {delete(instances)}
 	for _, components in world.typed_component_data {delete(components)}
+	for data, arena in world.typed_value_arenas {
+		if arena != nil {destroy_typed_value_arena(arena)} else {mem.free(data)}
+	}
+	delete(world.typed_value_arenas)
 	for _, children in world.children_by_parent {delete(children)}
 	for _, renderer in world.model_renderers {destroy_model_renderer_storage(renderer)}
 	for _, renderer in world.tilemap_renderers {destroy_tilemap_renderer_storage(renderer)}
@@ -312,9 +327,26 @@ add_component_owned :: proc(
 	if descriptor.type_id != nil {world.component_names_by_type[descriptor.type_id] = name}
 	if descriptor.create_typed != nil {
 		if descriptor.allow_multiple || world.typed_component_arena == nil {return false}
-		allocator := mem.dynamic_arena_allocator(world.typed_component_arena)
+		arena := new_typed_value_arena()
+		if arena == nil {return false}
+		allocator := mem.dynamic_arena_allocator(arena)
 		typed_value, created := descriptor.create_typed(data, descriptor.default_value, allocator)
-		if !created {return false}
+		if !created {
+			destroy_typed_value_arena(arena)
+			return false
+		}
+		if descriptor.copy_value {
+			info := type_info_of(descriptor.type_id)
+			storage, err := mem.alloc(max(1, info.size), info.align)
+			if err != nil {
+				destroy_typed_value_arena(arena)
+				return false
+			}
+			mem.copy(storage, typed_value.data, info.size)
+			typed_value.data = storage
+			destroy_typed_value_arena(arena)
+			arena = nil
+		}
 
 		components, components_found := world.component_data[name]
 		if !components_found {components = make(map[Entity]json.Value)}
@@ -323,6 +355,8 @@ add_component_owned :: proc(
 
 		typed_components, typed_found := world.typed_component_data[name]
 		if !typed_found {typed_components = make(map[Entity]any)}
+		release_typed_value(world, typed_components[entity])
+		world.typed_value_arenas[typed_value.data] = arena
 		typed_components[entity] = typed_value
 		world.typed_component_data[name] = typed_components
 		world.component_descriptors[name] = descriptor
@@ -383,6 +417,7 @@ add_component_owned :: proc(
 	transform: Transform
 	sprite_renderer: SpriteRenderer
 	model_animator: ModelAnimator
+	particle_emitter_2d: ParticleEmitter2D
 	sprite_animator: SpriteAnimator
 	mesh_renderer: MeshRenderer
 	sphere_renderer: SphereRenderer
@@ -412,6 +447,11 @@ add_component_owned :: proc(
 	nav_grid_2d: NavGrid2D
 	nav_agent_2d: NavAgent2D
 	parse_ok: bool
+	if name == "ParticleEmitter2D" {
+		particle_emitter_2d, parse_ok = particle_emitter_2d_from_json(data)
+		if !parse_ok {return false}
+		particle_emitter_2d.texture = retain_scene_string(world, particle_emitter_2d.texture)
+	}
 	if name == "Transform" {
 		transform, parse_ok = transform_from_json(data)
 		if !parse_ok {
@@ -505,6 +545,8 @@ add_component_owned :: proc(
 		commit_component_value(world, entity, name, &world.sprite_renderers, sprite_renderer, kind)
 	case "ModelAnimator":
 		commit_component_value(world, entity, name, &world.model_animators, model_animator, kind)
+	case "ParticleEmitter2D":
+		commit_component_value(world, entity, name, &world.particle_emitters_2d, particle_emitter_2d, kind)
 	case "SpriteAnimator":
 		commit_component_value(world, entity, name, &world.sprite_animators, sprite_animator, kind)
 	case "MeshRenderer":
@@ -601,11 +643,13 @@ remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
 		return false
 	}
 
+	name := retain_scene_string(world, name)
 	record_component_change(world, entity, name, .Removed)
 	invalidate_component_physics(world, entity, name)
 	delete_key(&components, entity)
 	world.component_data[name] = components
 	if typed_components, typed_found := world.typed_component_data[name]; typed_found {
+		release_typed_value(world, typed_components[entity])
 		delete_key(&typed_components, entity)
 		world.typed_component_data[name] = typed_components
 	}
@@ -613,6 +657,10 @@ remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
 		delete_key(&world.transforms, entity)
 	}
 	if name == "SpriteRenderer" {delete_key(&world.sprite_renderers, entity)}
+	if name == "ParticleEmitter2D" {
+		remove_particle_state_2d(world, entity)
+		delete_key(&world.particle_emitters_2d, entity)
+	}
 	if name == "ModelAnimator" {
 		delete_key(&world.model_animators, entity)
 		delete_key(&world.model_animation_states, entity)

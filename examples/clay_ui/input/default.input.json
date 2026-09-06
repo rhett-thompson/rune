@@ -1,0 +1,14 @@
+{
+  "$schema": "../../../schemas/input.schema.json",
+  "actions": {
+    "ui_next": [{"type":"keyboard","key":"DOWN"},{"type":"keyboard","key":"TAB"},{"type":"gamepad_button","button":"DPAD_DOWN"}],
+    "ui_previous": [{"type":"keyboard","key":"UP"},{"type":"gamepad_button","button":"DPAD_UP"}],
+    "ui_accept": [{"type":"keyboard","key":"ENTER"},{"type":"gamepad_button","button":"A"}],
+    "ui_cancel": [{"type":"keyboard","key":"ESCAPE"},{"type":"gamepad_button","button":"B"}],
+    "ui_left": [{"type":"keyboard","key":"LEFT"},{"type":"gamepad_button","button":"DPAD_LEFT"}],
+    "ui_right": [{"type":"keyboard","key":"RIGHT"},{"type":"gamepad_button","button":"DPAD_RIGHT"}],
+    "move_left": [{"type":"keyboard","key":"A"}],
+    "move_right": [{"type":"keyboard","key":"D"}]
+  },
+  "axes": {"move":{"negative":"move_left","positive":"move_right"}}
+}

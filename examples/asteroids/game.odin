@@ -6,6 +6,7 @@ import "core:strings"
 import rune "rune:core"
 import "rune:ecs"
 import "rune:input"
+import "rune:pool"
 import rl "vendor:raylib"
 
 MAX_ASTEROIDS :: 96
@@ -35,8 +36,8 @@ Game :: struct {
 	spawner: Asteroid_Spawner,
 	ship: Ship,
 	asteroids: [dynamic]Asteroid_Instance,
-	bullets: [dynamic]Bullet,
-	particles: [dynamic]Particle,
+	bullets: pool.Pool(Bullet),
+	particles: pool.Pool(Particle),
 	thruster_audio, destroy_audio, laser_audio, music_audio, ship_explode_audio: ecs.Entity,
 	score, lives, wave: i32,
 	game_over: bool,
@@ -97,8 +98,8 @@ reset_ship :: proc(game: ^Game) {
 
 reset_game :: proc(game: ^Game) {
 	clear_asteroids(game)
-	clear(&game.bullets)
-	clear(&game.particles)
+	pool.clear(&game.bullets)
+	pool.clear(&game.particles)
 	game.score = 0
 	game.wave = 0
 	game.lives = game.spawner.starting_lives
@@ -111,7 +112,8 @@ emit_particles :: proc(game: ^Game, position: rl.Vector2, count: i32, speed: f32
 	for _ in 0 ..< count {
 		angle := f32(rl.GetRandomValue(0, 6283)) / 1000
 		life := f32(rl.GetRandomValue(30, 90)) / 100
-		append(&game.particles, Particle{
+		// Cosmetic particles may be dropped if the growing pool cannot allocate.
+		pool.acquire(&game.particles, Particle{
 			position = position,
 			velocity = direction(angle) * f32(rl.GetRandomValue(i32(speed / 3), i32(speed))),
 			life = life,
@@ -132,25 +134,28 @@ destroy_ship :: proc(game: ^Game, engine: ^rune.Engine) {
 }
 
 fire :: proc(game: ^Game, engine: ^rune.Engine) {
-	if game.ship.fire_timer > 0 || len(game.bullets) >= MAX_BULLETS { return }
+	if game.ship.fire_timer > 0 { return }
 	dir := direction(game.ship.angle)
-	append(&game.bullets, Bullet{
+	_, acquired := pool.acquire(&game.bullets, Bullet{
 		position = game.ship.position + dir * (game.ship_config.radius + 5),
 		velocity = game.ship.velocity + dir * game.ship_config.bullet_speed,
 		life = game.ship_config.bullet_life,
 	})
+	if !acquired { return }
 	game.ship.fire_timer = game.ship_config.fire_delay
 	rune.play_audio(engine, world, game.laser_audio, "default")
 }
 
 update_particles :: proc(game: ^Game, dt: f32) {
-	for i := len(game.particles) - 1; i >= 0; i -= 1 {
-		p := &game.particles[i]
+	cursor := 0
+	for {
+		p, handle := pool.next(&game.particles, &cursor)
+		if p == nil { break }
 		p.life -= dt
 		p.position += p.velocity * dt
 		p.velocity *= f32(math.pow(.12, f64(dt)))
 		wrap_position(&p.position, f32(game.arena.width), f32(game.arena.height))
-		if p.life <= 0 { unordered_remove(&game.particles, i) }
+		if p.life <= 0 { pool.release(&game.particles, handle) }
 	}
 }
 
@@ -169,7 +174,7 @@ update_ship :: proc(game: ^Game, engine: ^rune.Engine, controls: ^input.Input, d
 		dir := direction(ship.angle)
 		ship.velocity += dir * game.ship_config.thrust * dt
 		if rl.GetRandomValue(0, 2) == 0 {
-			append(&game.particles, Particle{
+			pool.acquire(&game.particles, Particle{
 				position = ship.position - dir * game.ship_config.radius,
 				velocity = ship.velocity - dir * f32(rl.GetRandomValue(80, 150)),
 				life = .25, max_life = .25, size = 2,
@@ -202,8 +207,10 @@ update_asteroids :: proc(game: ^Game, engine: ^rune.Engine, dt: f32) {
 }
 
 update_bullets :: proc(game: ^Game, engine: ^rune.Engine, dt: f32) {
-	for i := len(game.bullets) - 1; i >= 0; i -= 1 {
-		bullet := &game.bullets[i]
+	cursor := 0
+	for {
+		bullet, handle := pool.next(&game.bullets, &cursor)
+		if bullet == nil { break }
 		bullet.life -= dt
 		bullet.position += bullet.velocity * dt
 		wrap_position(&bullet.position, f32(game.arena.width), f32(game.arena.height))
@@ -223,9 +230,9 @@ update_bullets :: proc(game: ^Game, engine: ^rune.Engine, dt: f32) {
 				spawn_asteroid(game, asteroid.position + {-5, 3}, asteroid.tier - 1)
 				spawn_asteroid(game, asteroid.position + {5, -3}, asteroid.tier - 1)
 			}
-			unordered_remove(&game.bullets, i)
+			pool.release(&game.bullets, handle)
 		} else if bullet.life <= 0 {
-			unordered_remove(&game.bullets, i)
+			pool.release(&game.bullets, handle)
 		}
 	}
 }
@@ -340,11 +347,17 @@ draw_game :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 		rl.DrawPixel(x, y, {line.r, line.g, line.b, brightness})
 	}
 	for asteroid in game.asteroids { draw_asteroid(asteroid.component, game.arena, line) }
-	for bullet in game.bullets {
+	bullet_cursor := 0
+	for {
+		bullet, _ := pool.next(&game.bullets, &bullet_cursor)
+		if bullet == nil { break }
 		rl.DrawCircleV(bullet.position, 2.5, accent)
 		rl.DrawCircleV(bullet.position, 6, {accent.r, accent.g, accent.b, 36})
 	}
-	for particle in game.particles {
+	particle_cursor := 0
+	for {
+		particle, _ := pool.next(&game.particles, &particle_cursor)
+		if particle == nil { break }
 		alpha := u8(clamp(particle.life / particle.max_life * 220, 0, 220))
 		particle_color := rl.Color{accent.r, accent.g, accent.b, alpha}
 		if particle.thrust { particle_color = {239, 55, 72, alpha} }

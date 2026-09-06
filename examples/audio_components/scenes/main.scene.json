@@ -19,7 +19,8 @@
         "SphereRenderer": { "radius": 0.6, "color": [255, 161, 0, 255] },
         "AudioPlayer": {
           "bell": {
-            "sound": "assets/bell.wav",
+              "sound": "assets/bell.wav",
+              "bus": "sfx",
             "volume": 0.35,
             "pitch": 1.25,
             "random_volume": 0,

@@ -33,6 +33,8 @@ R3D_Material_Asset :: struct {
 }
 
 Context :: struct {
+	// Follow the window framebuffer by default; disable for a fixed internal resolution.
+	match_framebuffer: bool,
 	root:             string,
 	cube:             r3d.Mesh,
 	cube_no_shadow:   r3d.Mesh,
@@ -58,6 +60,7 @@ init :: proc(root: string, width, height: i32) -> (Context, bool) {
 	if !r3d.Init(width, height) {return {}, false}
 	r3d.SetAntiAliasingMode(.FXAA)
 	result := Context {
+		match_framebuffer = true,
 		cube             = r3d.GenMeshCube(1, 1, 1),
 		cube_no_shadow   = r3d.GenMeshCube(1, 1, 1),
 		plane            = r3d.GenMeshPlane(1, 1, 1, 1),
@@ -121,6 +124,14 @@ draw_scene_ex :: proc(
 	settings: Scene3D_Settings,
 ) -> bool {
 	if !ctx.initialized {return false}
+	if ctx.match_framebuffer {
+		width, height := rl.GetRenderWidth(), rl.GetRenderHeight()
+		current_width, current_height: i32
+		r3d.GetResolution(&current_width, &current_height)
+		if width > 0 && height > 0 && (width != current_width || height != current_height) {
+			r3d.SetResolution(width, height)
+		}
+	}
 	prepare_animations(ctx, world, asset_manager, 0, false)
 	entity, camera_component, found := ecs.active_camera_3d(world)
 	if !found {return false}

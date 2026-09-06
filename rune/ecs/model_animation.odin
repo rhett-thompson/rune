@@ -6,6 +6,7 @@ import "core:math"
 // Clips come from the ModelRenderer model's embedded animation library.
 // Empty clip selects the first clip. R3D resources stay in r3d_bridge.
 ModelAnimator :: struct {
+	blend_time: f32,
 	clip:     string,
 	speed:    f32,
 	loop:     bool,
@@ -27,6 +28,10 @@ model_animator_from_json :: proc(data: json.Value) -> (ModelAnimator, bool) {
 		speed    = 1,
 		loop     = true,
 		autoplay = true,
+	}
+	if value, found := object["blend_time"]; found {
+		result.blend_time, ok = read_number(value)
+		if !ok {return {},false}
 	}
 	if value, found := object["clip"]; found {
 		result.clip, ok = value.(json.String)
@@ -91,6 +96,17 @@ pause_model_animation :: proc(world: ^World, entity: Entity) -> bool {
 	state.playing = false
 	world.model_animation_states[entity] = state
 	return true
+}
+
+// Repeated requests for the active clip preserve playback. The renderer blends
+// from the last displayed local pose; gameplay still decides when to switch.
+transition_model_animation :: proc(world: ^World, entity: Entity, clip: string, seconds: f32 = 0.2) -> bool {
+	animator, found := get_model_animator(world,entity)
+	if !found || !finite_nonnegative(seconds) {return false}
+	if animator.clip == clip {return true}
+	animator.blend_time = seconds
+	if !set_model_animator(world,entity,animator) {return false}
+	return play_model_animation(world,entity,clip,false)
 }
 
 resume_model_animation :: proc(world: ^World, entity: Entity) -> bool {

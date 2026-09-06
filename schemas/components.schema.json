@@ -8,6 +8,7 @@
     "Transform": { "$ref": "#/$defs/transform" },
     "SpriteRenderer": { "$ref": "#/$defs/spriteRenderer" },
     "SpriteAnimator": { "$ref": "#/$defs/spriteAnimator" },
+    "ParticleEmitter2D": { "$ref": "#/$defs/particleEmitter2D" },
     "MeshRenderer": { "$ref": "#/$defs/meshRenderer" },
     "SphereRenderer": { "$ref": "#/$defs/sphereRenderer" },
     "ModelRenderer": { "$ref": "#/$defs/modelRenderer" },
@@ -43,10 +44,34 @@
     "description": "Data for a custom component registered by game code."
   },
   "$defs": {
+    "particleEmitter2D": {
+      "type": "object",
+      "description": "World-space CPU particles. Transform sets emission position/direction and scales diameter; live particles remain independent.",
+      "properties": {
+        "max_particles": { "type": "integer", "minimum": 1, "maximum": 65536, "default": 256 },
+        "emitting": { "type": "boolean", "default": true, "description": "Continuous emission. False lets existing particles finish; Odin bursts still work." },
+        "rate": { "type": "number", "minimum": 0, "maximum": 100000, "default": 30, "description": "Particles per simulation second." },
+        "lifetime": { "type": "array", "items": { "type": "number", "exclusiveMinimum": 0 }, "minItems": 2, "maxItems": 2, "default": [0.5, 1], "description": "Minimum/maximum lifetime in seconds; maximum must be >= minimum." },
+        "speed": { "type": "array", "items": { "type": "number", "minimum": 0 }, "minItems": 2, "maxItems": 2, "default": [40, 100], "description": "Minimum/maximum speed in world units per second; maximum must be >= minimum." },
+        "angle": { "type": "number", "default": -90, "description": "Degrees clockwise from +X; -90 points up. Transform Z rotation is added." },
+        "spread": { "type": "number", "minimum": 0, "maximum": 360, "default": 30, "description": "Full cone angle in degrees, centered on angle." },
+        "gravity": { "$ref": "#/$defs/vec2", "default": [0, 0], "description": "World-space acceleration in units per second squared." },
+        "start_size": { "type": "number", "minimum": 0, "default": 8, "description": "Initial diameter in world units." },
+        "end_size": { "type": "number", "minimum": 0, "default": 0, "description": "Final diameter; interpolated linearly over lifetime." },
+        "start_color": { "$ref": "#/$defs/color", "default": [255, 220, 120, 255] },
+        "end_color": { "$ref": "#/$defs/color", "default": [255, 80, 30, 0] },
+        "texture": { "type": "string", "default": "", "description": "Optional cached texture drawn as a square. Empty draws circles." },
+        "additive": { "type": "boolean", "default": false },
+        "draw_order": { "type": "integer", "minimum": -1000000, "maximum": 1000000, "default": 0 },
+        "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295, "default": 1, "description": "Per-emitter random seed; zero uses 1. Changing seed resets particles." }
+      },
+      "additionalProperties": false
+    },
     "modelAnimator": {
       "type": "object",
       "properties": {
         "clip": { "type": "string", "default": "", "description": "Embedded clip name; empty selects the first clip." },
+        "blend_time": { "type": "number", "minimum": 0, "default": 0 },
         "speed": { "type": "number", "not": { "const": 0 }, "default": 1 },
         "loop": { "type": "boolean", "default": true },
         "autoplay": { "type": "boolean", "default": true }
@@ -433,6 +458,7 @@
       "required": ["sound"],
       "properties": {
         "sound": { "type": "string", "minLength": 1 },
+        "bus": { "type": "string", "enum": ["master", "music", "sfx", "ui"], "default": "sfx" },
         "volume": { "type": "number", "minimum": 0, "default": 1 },
         "pitch": { "type": "number", "exclusiveMinimum": 0, "default": 1 },
         "random_volume": { "type": "number", "minimum": 0, "default": 0 },

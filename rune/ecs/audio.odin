@@ -11,7 +11,20 @@ AudioListener :: struct {
 
 // AudioPlayer describes audio emitted by an entity. Music formats such as MP3,
 // OGG, and FLAC stream automatically; short clips remain buffered sounds.
+Audio_Bus :: enum {master, music, sfx, ui}
+
+audio_bus_name :: proc(bus: Audio_Bus) -> string {
+	switch bus {
+	case .master: return "master"
+	case .music: return "music"
+	case .sfx: return "sfx"
+	case .ui: return "ui"
+	}
+	return ""
+}
+
 AudioPlayer :: struct {
+	bus:           Audio_Bus,
 	sound:         string,
 	volume:        f32,
 	pitch:         f32,
@@ -30,7 +43,7 @@ default_audio_listener :: proc() -> AudioListener {
 }
 
 default_audio_player :: proc() -> AudioPlayer {
-	return AudioPlayer{volume = 1, pitch = 1, max_voices = 4, min_distance = 1, max_distance = 20}
+	return AudioPlayer{bus = .sfx, volume = 1, pitch = 1, max_voices = 4, min_distance = 1, max_distance = 20}
 }
 
 audio_listener_from_json :: proc(data: json.Value) -> (AudioListener, bool) {
@@ -50,6 +63,17 @@ audio_player_from_json :: proc(data: json.Value) -> (AudioPlayer, bool) {
 	if !ok {return {}, false}
 
 	result := default_audio_player()
+	if value, found := object["bus"]; found {
+		name, valid := value.(json.String)
+		if !valid {return {}, false}
+		switch name {
+		case "master": result.bus = .master
+		case "music": result.bus = .music
+		case "sfx": result.bus = .sfx
+		case "ui": result.bus = .ui
+		case: return {}, false
+		}
+	}
 	value, found := object["sound"]
 	if !found {return {}, false}
 	result.sound, ok = value.(json.String)

@@ -5,6 +5,7 @@ import "core:math"
 import rune "rune:core"
 import "rune:ecs"
 import "rune:input"
+import "rune:audio"
 import "rune:r3d_bridge"
 import rl "vendor:raylib"
 
@@ -31,6 +32,10 @@ shutdown_audio_components :: proc(game: ^rune.Engine, world: ^ecs.World) {
 }
 
 play_bell_on_click :: proc(game: ^rune.Engine, scene_world: ^ecs.World) {
+	controls := rune.input_state(game)
+	if input.pressed(controls,"mute_sfx") {audio.mute_bus(&game.audio.mixer,.sfx,!game.audio.mixer.buses[.sfx].muted)}
+	if input.pressed(controls,"fade_sfx") {audio.fade_bus(&game.audio.mixer,.sfx,0,2)}
+	if input.pressed(controls,"restore_sfx") {audio.set_bus_volume(&game.audio.mixer,.sfx,1)}
 	// Move the emitting sphere from two to thirty units away from the listener,
 	// then back again. The audio runtime reads this Transform each frame.
 	bell_phase += game.delta_time * 0.65
@@ -67,6 +72,7 @@ draw_audio_components :: proc(game: ^rune.Engine, scene_world: ^ecs.World) {
 		rl.DrawText("Playing", 24, 282, 18, rl.DARKGREEN)
 	}
 	rl.DrawFPS(24, 312)
+	rl.DrawText(fmt.ctprintf("SFX bus %.0f%%   muted: %t | M mute  F fade  R restore",game.audio.mixer.buses[.sfx].volume*100,game.audio.mixer.buses[.sfx].muted),24,350,18,rl.DARKGRAY)
 }
 
 main :: proc() {

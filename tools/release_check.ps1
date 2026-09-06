@@ -1,3 +1,4 @@
+#requires -Version 7.0
 [CmdletBinding()]
 param(
     [switch]$WorkingTree,
@@ -6,9 +7,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
-if ($Runtime -and $env:OS -ne 'Windows_NT') {
-    throw 'The automated window/runtime check currently supports Windows. Omit -Runtime for build validation.'
+if ($Runtime -and $IsLinux -and !$env:DISPLAY -and !$env:WAYLAND_DISPLAY) {
+    throw 'Runtime checks need a display. On headless Linux, run under xvfb-run -a.'
 }
+$executableSuffix = if ($IsWindows) { '.exe' } else { '' }
 $compilerVersion = (& odin version | Out-String).Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Could not run the Odin compiler.' }
 $sourceCommit = (& git -C $repositoryRoot rev-parse HEAD | Out-String).Trim()
@@ -75,10 +77,13 @@ if (!$compilerVersion.Contains($toolchain.tested_odin_version)) {
 }
 
 $shell = (Get-Process -Id $PID).Path
-Invoke-Checked $shell @('-NoProfile', '-File', (Join-Path $exportRoot 'tools/validate.ps1'), '-AllExamples')
+$validationArguments = @('-NoProfile', '-File', (Join-Path $exportRoot 'tools/validate.ps1'), '-AllExamples')
+if ($Runtime) { $validationArguments += '-Runtime' }
+Invoke-Checked $shell $validationArguments
 & (Join-Path $exportRoot 'tools/new_project.ps1') -Path $gameRoot -Name 'Release Check Game'
 Invoke-Checked $shell @('-NoProfile', '-File', (Join-Path $gameRoot 'build.ps1'), '-RuneRoot', $exportRoot)
-Invoke-Checked (Join-Path $exportRoot 'build/project_validator.exe') @((Join-Path $gameRoot 'project.json'))
+Invoke-Checked $shell @('-NoProfile', '-File', (Join-Path $gameRoot 'build.ps1'), '-RuneRoot', $exportRoot, '-Release')
+Invoke-Checked (Join-Path $exportRoot "build/project_validator$executableSuffix") @((Join-Path $gameRoot 'project.json'))
 foreach ($relativePath in @('project.json', 'scenes/main.scene.json', 'input/default.input.json')) {
     $file = Join-Path $gameRoot $relativePath
     $document = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
@@ -90,7 +95,16 @@ foreach ($relativePath in @('project.json', 'scenes/main.scene.json', 'input/def
 $runtimePassed = $false
 if ($Runtime) {
     $inbox = Join-Path $gameRoot 'build/console'
-    $gameProcess = Start-Process -FilePath (Join-Path $gameRoot 'build/game.exe') -ArgumentList '"--console-dir=build/console"' -WorkingDirectory $gameRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $workspace 'game.stdout.log') -RedirectStandardError (Join-Path $workspace 'game.stderr.log')
+    $start = @{
+        FilePath = Join-Path $gameRoot "build/game$executableSuffix"
+        ArgumentList = '--console-dir=build/console'
+        WorkingDirectory = $gameRoot
+        PassThru = $true
+        RedirectStandardOutput = Join-Path $workspace 'game.stdout.log'
+        RedirectStandardError = Join-Path $workspace 'game.stderr.log'
+    }
+    if ($IsWindows) { $start.WindowStyle = 'Hidden' }
+    $gameProcess = Start-Process @start
     try {
         $deadline = [DateTime]::UtcNow.AddSeconds(15)
         while (!(Test-Path -LiteralPath $inbox)) {
@@ -100,15 +114,21 @@ if ($Runtime) {
         $consoleHelper = Join-Path $exportRoot 'tools/console.ps1'
         $status = & $consoleHelper -Directory $inbox -Command 'status' -Json | ConvertFrom-Json
         if (!$status.ok -or $status.data.recent_errors.Count -gt 0) { throw 'New project reported runtime errors.' }
+        $paused = & $consoleHelper -Directory $inbox -Command 'pause' -Json | ConvertFrom-Json
+        if (!$paused.ok) { throw 'Could not pause the new project.' }
+        $stepped = & $consoleHelper -Directory $inbox -Command 'step 2' -Json | ConvertFrom-Json
+        if (!$stepped.ok) { throw 'Could not step the new project.' }
         $capture = & $consoleHelper -Directory $inbox -Command 'capture build/first-frame.png' -Json | ConvertFrom-Json
         if (!$capture.ok -or !(Test-Path -LiteralPath $capture.data.path)) { throw 'New project capture failed.' }
         $runtimePassed = $true
     }
     finally {
         if (!$gameProcess.HasExited) {
-            $gameProcess.CloseMainWindow() | Out-Null
-            if (!$gameProcess.WaitForExit(5000)) { Stop-Process -Id $gameProcess.Id }
+            if ($IsWindows) { $gameProcess.CloseMainWindow() | Out-Null }
+            if (!$gameProcess.WaitForExit(1000)) { $gameProcess.Kill($true) }
         }
+        $gameProcess.WaitForExit()
+        $gameProcess.Dispose()
     }
 }
 
@@ -134,6 +154,10 @@ $report = [ordered]@{
     source_mode = $(if ($WorkingTree) { 'working-tree' } else { 'committed' })
     dependency_commit = $dependencyCommit
     compiler = $compilerVersion
+    platform = [Runtime.InteropServices.RuntimeInformation]::OSDescription
+    architecture = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+    powershell = $PSVersionTable.PSVersion.ToString()
+    display = $(if ($IsLinux) { @{ x11 = $env:DISPLAY; wayland = $env:WAYLAND_DISPLAY } } else { $null })
     engineering_passed = $true
     runtime_checked = $runtimePassed
     engine_license_present = $licensePresent

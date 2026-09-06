@@ -17,6 +17,7 @@ Render_2D_Kind :: enum {
 	Sprite,
 	Tilemap,
 	Text,
+	Particles,
 }
 
 Render_2D_Command :: struct {
@@ -52,7 +53,7 @@ draw_scene_2d :: proc(world: ^ecs.World, asset_manager: ^assets.Asset_Manager) -
 	}
 	slice.sort_by(commands[:], render_command_2d_less)
 
-	rl.BeginMode2D(camera)
+	begin_camera_2d(camera)
 	for command in commands {
 		draw_render_command_2d(world, asset_manager, command, camera)
 	}
@@ -119,6 +120,9 @@ collect_render_commands_2d :: proc(
 		)
 	}
 
+	if emitter, found := ecs.get_particle_emitter_2d(world, entity); found {
+		append(commands, Render_2D_Command{entity = entity, kind = .Particles, draw_order = emitter.draw_order})
+	}
 	for child in ecs.child_entities(world, entity) {
 		collect_render_commands_2d(world, child, position, scale, rotation, commands)
 	}
@@ -139,6 +143,8 @@ draw_render_command_2d :: proc(
 	camera: rl.Camera2D,
 ) {
 	#partial switch command.kind {
+	case .Particles:
+		draw_particles_2d(world, asset_manager, command.entity)
 	case .Sprite:
 		sprite, found := ecs.get_sprite_renderer(world, command.entity)
 		if !found {return}
@@ -247,7 +253,7 @@ draw_tilemap :: proc(
 		return
 	}
 	minimum := rl.GetScreenToWorld2D({}, camera)
-	maximum := rl.GetScreenToWorld2D({f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight())}, camera)
+	maximum := rl.GetScreenToWorld2D(drawing_size(), camera)
 	tile_width := resolved_tilemap.tile_size[0] * scale[0]
 	tile_height := resolved_tilemap.tile_size[1] * scale[1]
 	min_x := i32((minimum.x - position[0]) / tile_width) - maximum_size[0]

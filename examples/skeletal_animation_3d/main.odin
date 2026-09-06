@@ -27,8 +27,8 @@ update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	controls := rune.input_state(game)
 	if input.pressed(controls, "pause") {ecs.pause_model_animation(world, left)}
 	if input.pressed(controls, "resume") {ecs.resume_model_animation(world, left)}
-	if input.pressed(controls, "bend") {ecs.play_model_animation(world, left, "bend")}
-	if input.pressed(controls, "sway") {ecs.play_model_animation(world, left, "sway")}
+	if input.pressed(controls, "bend") {ecs.transition_model_animation(world, left, "bend",0.35)}
+	if input.pressed(controls, "sway") {ecs.transition_model_animation(world, left, "sway",0.35)}
 	r3d_bridge.update_animations(&bridge, world, rune.asset_manager(game), game.delta_time)
 }
 
@@ -47,7 +47,7 @@ draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 		18,
 		rl.LIGHTGRAY,
 	)
-	rl.DrawText("Left model: 1 bend   2 sway   P pause   R resume", 30, 94, 18, rl.LIGHTGRAY)
+	rl.DrawText("Left model: 1 bend   2 sway (0.35s blend)   P pause   R resume", 30, 94, 18, rl.LIGHTGRAY)
 	if state, found := ecs.get_model_animation_state(world, left); found {
 		rl.DrawText(
 			fmt.ctprintf(
