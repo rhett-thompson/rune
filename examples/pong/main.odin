@@ -24,20 +24,14 @@ register_pong_components :: proc(game: ^rune.Engine) -> bool {
 			Pong_Paddle{},
 			"Player or computer controlled Pong paddle",
 		) &&
-		ecs.register_component(
-			registry,
-			"PongBall",
-			Pong_Ball,
-			Pong_Ball{},
-			"Moving Pong ball and serve settings",
-		) &&
+		ecs.register_component(registry, "PongBall", Pong_Ball, Pong_Ball{}, "Moving Pong ball and serve settings") &&
 		ecs.register_component(
 			registry,
 			"PongMatch",
 			Pong_Match,
 			Pong_Match{},
 			"Pong scoring, mode, and match state",
-		)
+		) \
 	)
 }
 
@@ -76,7 +70,9 @@ main :: proc() {
 	if !rune.register_system(
 		&engine,
 		{name = "pong", start = on_start, update = on_update, draw = on_draw, on_scene_reloaded = on_reload},
-	) {fmt.eprintln("Could not register Pong system"); return}
+	) { fmt.eprintln("Could not register Pong system"); return }
 
-	if !rune.run(&engine) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
+	if !rune.run(&engine) {
+		fmt.eprintln("Could not run startup scene: ", rune.last_scene_error())
+	}
 }

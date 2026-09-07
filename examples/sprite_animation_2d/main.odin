@@ -24,7 +24,7 @@ update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if input.pressed(rune.input_state(game), "next_knight_clip") {
 		knight_clip = (knight_clip + 1) % 5
 		ecs.play_sprite_animation(world, knight, knight_clip_name(knight_clip))
-		if knight_clip==2 || knight_clip==3 {ecs.queue_sprite_animation(world,knight,"idle")}
+		if knight_clip == 2 || knight_clip == 3 { ecs.queue_sprite_animation(world, knight, "idle") }
 	}
 }
 
@@ -48,7 +48,7 @@ draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	rl.DrawText("JSON sprite-sheet animation", 24, 24, 28, rl.RAYWHITE)
 	rl.DrawText("Tab: knight clip   Space: reverse coin", 24, 60, 18, rl.LIGHTGRAY)
 	rl.DrawText("Knight clips: idle, run, roll, hit, death", 24, 88, 18, rl.LIGHTGRAY)
-	rl.DrawText("Roll and hit queue a return to idle",24,116,18,rl.LIGHTGRAY)
+	rl.DrawText("Roll and hit queue a return to idle", 24, 116, 18, rl.LIGHTGRAY)
 }
 
 main :: proc() {
@@ -71,5 +71,7 @@ main :: proc() {
 		fmt.eprintln("Could not register sprite-animation system")
 		return
 	}
-	if !rune.run(&game) {fmt.eprintln("Could not run startup scene: ", rune.last_scene_error())}
+	if !rune.run(&game) {
+		fmt.eprintln("Could not run startup scene: ", rune.last_scene_error())
+	}
 }

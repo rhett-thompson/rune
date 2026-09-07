@@ -30,12 +30,8 @@ Material_View_Count :: 7
 initialize_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if !bridge.initialized {
 		bridge_ok: bool
-		bridge, bridge_ok = r3d_bridge.init(
-			"examples/textured_model_3d",
-			rl.GetScreenWidth(),
-			rl.GetScreenHeight(),
-		)
-		if !bridge_ok {fmt.eprintln("Could not initialize r3d")}
+		bridge, bridge_ok = r3d_bridge.init("examples/textured_model_3d", rl.GetScreenWidth(), rl.GetScreenHeight())
+		if !bridge_ok { fmt.eprintln("Could not initialize r3d") }
 	}
 	crate, _ = ecs.find_entity_by_id(world, "crate")
 	apply_material_view(world)
@@ -51,7 +47,7 @@ on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 		apply_material_view(world)
 	}
 	transform, found := ecs.get_transform(world, crate)
-	if !found {return}
+	if !found { return }
 	transform.rotation[1] += 8 * game.delta_time
 	ecs.set_transform(world, crate, transform)
 }
@@ -62,13 +58,7 @@ on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 		return
 	}
 	rl.DrawText("Rune Textured Model 3D", 24, 24, 28, rl.RAYWHITE)
-	rl.DrawText(
-		"Left mouse: orbit camera   Mouse wheel: zoom   Tab: material view",
-		24,
-		60,
-		18,
-		rl.LIGHTGRAY,
-	)
+	rl.DrawText("Left mouse: orbit camera   Mouse wheel: zoom   Tab: material view", 24, 60, 18, rl.LIGHTGRAY)
 	rl.DrawText("Material view:", 24, 94, 18, rl.RAYWHITE)
 	rl.DrawText(material_view_name(material_view), 150, 94, 18, rl.RAYWHITE)
 	rl.DrawFPS(24, 128)
@@ -76,7 +66,7 @@ on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 
 apply_material_view :: proc(world: ^ecs.World) {
 	renderer, found := ecs.get_model_renderer(world, crate)
-	if !found {return}
+	if !found { return }
 	renderer.material = material_view_path(material_view)
 	ecs.set_model_renderer(world, crate, renderer)
 }
@@ -143,5 +133,7 @@ main :: proc() {
 		fmt.eprintln("Could not register textured-model system")
 		return
 	}
-	if !rune.run(&game) {fmt.eprintln("Could not run startup scene: ", rune.last_scene_error())}
+	if !rune.run(&game) {
+		fmt.eprintln("Could not run startup scene: ", rune.last_scene_error())
+	}
 }

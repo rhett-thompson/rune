@@ -3,16 +3,6 @@
   "name": "Sprite Scene 2D",
   "entities": [
     {
-      "id": "background",
-      "name": "Tiled Wall Background",
-      "components": {
-        "TiledWall": {
-          "texture": "assets/wallDark.png",
-          "tile_scale": 5
-        }
-      }
-    },
-    {
       "id": "camera",
       "name": "Camera",
       "components": {
@@ -27,7 +17,7 @@
         "Transform": {
           "position": [480, 270, 0],
           "rotation": [0, 0, 0],
-          "scale": [2, 2, 1]
+          "scale": [4, 4, 1]
         },
         "SpriteRenderer": {
           "texture": "assets/skeletonWarrior.png",

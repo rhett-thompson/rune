@@ -3,11 +3,11 @@ package main
 import "rune:ecs"
 
 Pong_Paddle :: struct {
-	x, y: f32,
-	width, height: i32,
+	x, y:            f32,
+	width, height:   i32,
 	speed, ai_speed: f32,
-	input_axis: string,
-	computer: bool,
+	input_axis:      string,
+	computer:        bool,
 }
 
 paddle_from_entity :: proc(world: ^ecs.World, entity: ecs.Entity) -> (Pong_Paddle, bool) {

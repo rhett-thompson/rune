@@ -15,7 +15,7 @@ initialize_tilemap :: proc(game: ^rune.Engine, world: ^ecs.World) {
 on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	controller, has_controller := ecs.get_top_down_controller(world, knight)
 	before, has_transform := ecs.get_transform(world, knight)
-	if !has_controller || !has_transform {return}
+	if !has_controller || !has_transform { return }
 
 	controls := rune.input_state(game)
 	move_x := input.axis(controls, "move_x")
@@ -34,14 +34,14 @@ on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	moving := after.position[0] != before.position[0] || after.position[1] != before.position[1]
 	ecs.play_sprite_animation(world, knight, "run" if moving else "idle", false)
 	if sprite, has_sprite := ecs.get_sprite_renderer(world, knight); has_sprite {
-		if after.position[0] < before.position[0] {sprite.flip_x = true}
-		if after.position[0] > before.position[0] {sprite.flip_x = false}
+		if after.position[0] < before.position[0] { sprite.flip_x = true }
+		if after.position[0] > before.position[0] { sprite.flip_x = false }
 		ecs.set_sprite_renderer(world, knight, sprite)
 	}
 }
 main :: proc() {
 	game, ok := rune.init("examples/tilemap_2d/project.json")
-	if !ok {fmt.eprintln("Could not load examples/tilemap_2d/project.json"); return}
+	if !ok { fmt.eprintln("Could not load examples/tilemap_2d/project.json"); return }
 	defer rune.shutdown(&game)
 
 	if !rune.register_system(
@@ -56,5 +56,7 @@ main :: proc() {
 		fmt.eprintln("Could not register tilemap system")
 		return
 	}
-	if !rune.run(&game) {fmt.eprintln("Could not run startup scene: ", rune.last_scene_error())}
+	if !rune.run(&game) {
+		fmt.eprintln("Could not run startup scene: ", rune.last_scene_error())
+	}
 }

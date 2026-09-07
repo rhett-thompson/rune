@@ -4,10 +4,10 @@ import "rune:ecs"
 import rl "vendor:raylib"
 
 Tanks_Arena :: struct {
-	width, height, border: i32,
+	width, height, border:                    i32,
 	background_color, grid_color, wall_color: [4]u8,
-	text_color, muted_text_color: [4]u8,
-	walls: [][4]f32,
+	text_color, muted_text_color:             [4]u8,
+	walls:                                    [][4]f32,
 }
 
 arena_from_entity :: proc(world: ^ecs.World, entity: ecs.Entity) -> (Tanks_Arena, bool) {

@@ -7,18 +7,19 @@ import "rune:input"
 import "rune:tween"
 import rl "vendor:raylib"
 
-Transition_State :: enum { Idle, Fading_To_Black, Fading_From_Black }
+Transition_State :: enum {
+	Idle,
+	Fading_To_Black,
+	Fading_From_Black,
+}
 
-Fade_Duration : f32 : 0.35
+Fade_Duration: f32 : 0.35
 
 scene_index: int
 transition_state: Transition_State
 fade: tween.Tween
 
-scene_paths := [2]string{
-	"scenes/blue.scene.json",
-	"scenes/pink.scene.json",
-}
+scene_paths := [2]string{"scenes/blue.scene.json", "scenes/pink.scene.json"}
 
 scene_names := [2]cstring{"Blue Scene", "Pink Scene"}
 scene_colors := [2]rl.Color{rl.SKYBLUE, rl.PINK}
@@ -64,7 +65,7 @@ on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 
 	rl.DrawText("Runtime scene transition", 32, 28, 30, rl.RAYWHITE)
 	rl.DrawText(scene_names[scene_index], 32, 72, 24, scene_colors[scene_index])
-	rl.DrawText("Left-click to fade to black and load the next JSON scene.", 32, 108, 18, rl.LIGHTGRAY)
+	rl.DrawText("Left-click to change scene", 32, 108, 18, rl.LIGHTGRAY)
 	if transition_state != .Idle {
 		alpha := tween.value_f32(&fade, 0, 1)
 		if transition_state == .Fading_From_Black { alpha = 1 - alpha }
@@ -81,5 +82,7 @@ main :: proc() {
 		fmt.eprintln("Could not register scene-transition system")
 		return
 	}
-	if !rune.run(&game) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
+	if !rune.run(&game) {
+		fmt.eprintln("Could not run startup scene: ", rune.last_scene_error())
+	}
 }

@@ -5,8 +5,8 @@
     {
       "id": "greeting",
       "name": "Greeting",
-	  "tag": "ui",
-	  "layers": ["UI"],
+      "tag": "ui",
+      "layers": ["UI"],
       "components": {
         "Transform": {
           "position": [64, 64, 0],

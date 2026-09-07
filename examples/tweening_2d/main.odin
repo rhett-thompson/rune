@@ -7,21 +7,21 @@ import "rune:input"
 import "rune:tween"
 import rl "vendor:raylib"
 
-orb:   ecs.Entity
+orb: ecs.Entity
 motion: tween.Tween
 easing_index: int
 
-Orb_Start  : [3]f32 : {140, 280, 0}
-Orb_Target : [3]f32 : {820, 280, 0}
+Orb_Start: [3]f32 : {140, 280, 0}
+Orb_Target: [3]f32 : {820, 280, 0}
 Color_Start :: tween.Color{0.25, 0.85, 1.0, 1.0}
 Color_Target :: tween.Color{1.0, 0.30, 0.70, 0.35}
 
 Easing_Option :: struct {
-	name: cstring,
+	name:   cstring,
 	easing: tween.Ease,
 }
 
-easing_options := [6]Easing_Option{
+easing_options := [6]Easing_Option {
 	{"linear", tween.ease_linear},
 	{"ease_in_quad", tween.ease_in_quad},
 	{"ease_out_cubic", tween.ease_out_cubic},
@@ -62,9 +62,8 @@ on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	render_color := rl.Color{u8(color.r * 255), u8(color.g * 255), u8(color.b * 255), u8(color.a * 255)}
 	rl.DrawCircleV({transform.position[0], transform.position[1]}, 38, render_color)
 	rl.DrawText("Tweening and easing", 32, 28, 30, rl.RAYWHITE)
-	rl.DrawText("A JSON-loaded entity is animated by Odin code.", 32, 68, 20, rl.LIGHTGRAY)
-	rl.DrawText("Left-click to change the easing equation.", 32, 100, 18, rl.LIGHTGRAY)
-	rl.DrawText(easing_options[easing_index].name, 32, 132, 22, rl.SKYBLUE)
+	rl.DrawText("Left-click to change easing", 32, 68, 18, rl.LIGHTGRAY)
+	rl.DrawText(easing_options[easing_index].name, 32, 100, 22, rl.SKYBLUE)
 }
 
 main :: proc() {
@@ -72,15 +71,20 @@ main :: proc() {
 	if !ok { fmt.eprintln("Could not load examples/tweening_2d/project.json"); return }
 	defer rune.shutdown(&game)
 
-	if !rune.register_system(&game, {
-		name = "tweening",
-		start = initialize_tween,
-		update = on_update,
-		draw = on_draw,
-		on_scene_reloaded = initialize_tween,
-	}) {
+	if !rune.register_system(
+		&game,
+		{
+			name = "tweening",
+			start = initialize_tween,
+			update = on_update,
+			draw = on_draw,
+			on_scene_reloaded = initialize_tween,
+		},
+	) {
 		fmt.eprintln("Could not register tweening system")
 		return
 	}
-	if !rune.run(&game) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
+	if !rune.run(&game) {
+		fmt.eprintln("Could not run startup scene: ", rune.last_scene_error())
+	}
 }

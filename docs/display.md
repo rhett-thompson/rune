@@ -96,9 +96,9 @@ in the canvas. Camera-follow bounds and tilemap culling use its dimensions.
 The policies are intended for 2D projects; 3D projects should normally use native
 output and the bridge's internal-resolution controls.
 
-The particle example demonstrates all three scaled policies with 1/2/3 and
-F11 for borderless. The complete arrangement of effects and labels stays in
-the same reference canvas as the window changes size.
+The particle example keeps its effects and labels in a 960x550 reference canvas.
+Set `render_2d.policy` in its `project.json` before launching to try another
+policy. The runtime validator below checks fit, stretch, and integer scaling.
 
 ```powershell
 odin build tools/resolution_validation -collection:rune=rune -out:build/resolution_validation.exe

@@ -4,9 +4,9 @@ import "rune:ecs"
 
 Tanks_Match :: struct {
 	left_score, right_score, win_score: i32,
-	two_player, game_over: bool,
-	round_delay, round_timer: f32,
-	winner: i32,
+	two_player, game_over:              bool,
+	round_delay, round_timer:           f32,
+	winner:                             i32,
 }
 
 match_from_entity :: proc(world: ^ecs.World, entity: ecs.Entity) -> (Tanks_Match, bool) {

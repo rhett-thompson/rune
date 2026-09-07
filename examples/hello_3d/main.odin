@@ -6,8 +6,8 @@ import "rune:ecs"
 import "rune:r3d_bridge"
 import rl "vendor:raylib"
 
-scene_view := r3d_bridge.Scene3D_Settings{
-	grid_slices = 20,
+scene_view := r3d_bridge.Scene3D_Settings {
+	grid_slices  = 20,
 	grid_spacing = 1.0,
 }
 
@@ -41,9 +41,6 @@ on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 		rl.DrawText("No active Camera3D entity", 24, 24, 28, rl.MAROON)
 		return
 	}
-	rl.DrawText("Rune 3D Hello World", 24, 24, 28, rl.RAYWHITE)
-	rl.DrawText("A JSON scene with a rotating cube", 24, 60, 18, rl.LIGHTGRAY)
-	rl.DrawFPS(24, 94)
 }
 
 main :: proc() {
@@ -55,16 +52,21 @@ main :: proc() {
 	}
 	defer rune.shutdown(&game)
 
-	if !rune.register_system(&game, {
-		name = "hello_3d",
-		start = initialize_scene,
-		update = on_update,
-		draw = on_draw,
-		on_scene_reloaded = initialize_scene,
-		shutdown = shutdown_scene,
-	}) {
+	if !rune.register_system(
+		&game,
+		{
+			name = "hello_3d",
+			start = initialize_scene,
+			update = on_update,
+			draw = on_draw,
+			on_scene_reloaded = initialize_scene,
+			shutdown = shutdown_scene,
+		},
+	) {
 		fmt.eprintln("Could not register hello-3D system")
 		return
 	}
-	if !rune.run(&game) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
+	if !rune.run(&game) {
+		fmt.eprintln("Could not run startup scene: ", rune.last_scene_error())
+	}
 }

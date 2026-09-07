@@ -15,4 +15,4 @@ arena_from_entity :: proc(world: ^ecs.World, entity: ecs.Entity) -> (Pong_Arena,
 	return result, ok
 }
 
-color :: proc(value: [4]u8) -> rl.Color {return {value[0], value[1], value[2], value[3]}}
+color :: proc(value: [4]u8) -> rl.Color { return {value[0], value[1], value[2], value[3]} }

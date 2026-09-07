@@ -13,7 +13,11 @@ camera_yaw: f32 = 180
 camera_pitch: f32
 cursor_captured := true
 
-scene_view := r3d_bridge.Scene3D_Settings{grid_slices = 24, grid_spacing = 1, draw_colliders = true}
+scene_view := r3d_bridge.Scene3D_Settings {
+	grid_slices    = 24,
+	grid_spacing   = 1,
+	draw_colliders = true,
+}
 
 initialize_player :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if !bridge.initialized {
@@ -68,18 +72,23 @@ main :: proc() {
 		return
 	}
 
-	if !rune.register_system(&game, {
-		name = "first_person_3d",
-		start = initialize_player,
-		update = on_update,
-		draw = on_draw,
-		on_scene_reloaded = initialize_player,
-		shutdown = shutdown_scene,
-	}) {
+	if !rune.register_system(
+		&game,
+		{
+			name = "first_person_3d",
+			start = initialize_player,
+			update = on_update,
+			draw = on_draw,
+			on_scene_reloaded = initialize_player,
+			shutdown = shutdown_scene,
+		},
+	) {
 		fmt.eprintln("Could not register first-person system")
 		return
 	}
 
 	rl.DisableCursor()
-	if !rune.run(&game) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
+	if !rune.run(&game) {
+		fmt.eprintln("Could not run startup scene: ", rune.last_scene_error())
+	}
 }

@@ -16,7 +16,13 @@ first_person_settings :: proc(world: ^ecs.World, entity: ecs.Entity) -> (First_P
 	return settings, valid
 }
 
-first_person_controller_system :: proc(world: ^ecs.World, entity: ecs.Entity, controls: ^input.Input, yaw, pitch: ^f32, dt: f32) {
+first_person_controller_system :: proc(
+	world: ^ecs.World,
+	entity: ecs.Entity,
+	controls: ^input.Input,
+	yaw, pitch: ^f32,
+	dt: f32,
+) {
 	settings, configured := first_person_settings(world, entity)
 	transform, has_transform := ecs.get_transform(world, entity)
 	camera, has_camera := ecs.get_camera_3d(world, entity)
@@ -29,7 +35,7 @@ first_person_controller_system :: proc(world: ^ecs.World, entity: ecs.Entity, co
 
 	yaw_radians := yaw^ * f32(math.PI / 180)
 	pitch_radians := pitch^ * f32(math.PI / 180)
-	forward := [3]f32{
+	forward := [3]f32 {
 		f32(math.sin(f64(yaw_radians))) * f32(math.cos(f64(pitch_radians))),
 		f32(math.sin(f64(pitch_radians))),
 		f32(math.cos(f64(yaw_radians))) * f32(math.cos(f64(pitch_radians))),

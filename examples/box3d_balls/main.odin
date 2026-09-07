@@ -9,7 +9,7 @@ import rl "vendor:raylib"
 
 DEG_TO_RAD :: 0.017453292519943295
 
-camera := rl.Camera3D{
+camera := rl.Camera3D {
 	position   = {10, 8, 12},
 	target     = {0, 3, 0},
 	up         = {0, 1, 0},
@@ -31,17 +31,15 @@ on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	rl.EndMode3D()
 
 	counters, _ := ecs.physics_3d_counters(world)
-	rl.DrawText("Rune ECS + Box3D rolling balls", 24, 24, 28, rl.RAYWHITE)
-	rl.DrawText("Scene JSON: RigidBody3D + SphereCollider/BoxCollider", 24, 60, 18, rl.LIGHTGRAY)
-	rl.DrawText("R: reload scene", 24, 88, 18, rl.LIGHTGRAY)
+	rl.DrawText("Rolling balls", 24, 24, 28, rl.RAYWHITE)
+	rl.DrawText("R: reset", 24, 60, 18, rl.LIGHTGRAY)
 	rl.DrawText(
 		fmt.ctprintf("%d bodies  |  %d contacts", counters.bodyCount, counters.contactCount),
 		24,
-		116,
+		88,
 		18,
 		rl.LIGHTGRAY,
 	)
-	rl.DrawFPS(24, 144)
 }
 
 draw_physics_boxes :: proc(world: ^ecs.World) {
@@ -50,7 +48,7 @@ draw_physics_boxes :: proc(world: ^ecs.World) {
 		collider, has_collider := ecs.get_box_collider(world, entity)
 		if !has_transform || !has_collider { continue }
 
-		size := rl.Vector3{
+		size := rl.Vector3 {
 			collider.size[0] * transform.scale[0],
 			collider.size[1] * transform.scale[1],
 			collider.size[2] * transform.scale[2],
@@ -66,15 +64,15 @@ draw_physics_boxes :: proc(world: ^ecs.World) {
 
 draw_oriented_box :: proc(center, size: rl.Vector3, rotation_degrees: [3]f32, fill, wire: rl.Color) {
 	half := vec3_scale(size, 0.5)
-	corners := [8]rl.Vector3{
+	corners := [8]rl.Vector3 {
 		{-half.x, -half.y, -half.z},
-		{ half.x, -half.y, -half.z},
-		{ half.x,  half.y, -half.z},
-		{-half.x,  half.y, -half.z},
-		{-half.x, -half.y,  half.z},
-		{ half.x, -half.y,  half.z},
-		{ half.x,  half.y,  half.z},
-		{-half.x,  half.y,  half.z},
+		{half.x, -half.y, -half.z},
+		{half.x, half.y, -half.z},
+		{-half.x, half.y, -half.z},
+		{-half.x, -half.y, half.z},
+		{half.x, -half.y, half.z},
+		{half.x, half.y, half.z},
+		{-half.x, half.y, half.z},
 	}
 	for &corner in corners {
 		corner = vec3_add(center, rotate_euler_degrees(corner, rotation_degrees))
@@ -149,7 +147,7 @@ draw_physics_spheres :: proc(world: ^ecs.World) {
 		if native, found := ecs.physics_3d_native_body(world, entity); found {
 			rotation := b3.Body_GetRotation(native)
 			marker := b3.RotateVector(rotation, {radius, radius * 0.25, 0})
-			marker_position := rl.Vector3{
+			marker_position := rl.Vector3 {
 				transform.position[0] + marker.x,
 				transform.position[1] + marker.y,
 				transform.position[2] + marker.z,
@@ -171,5 +169,7 @@ main :: proc() {
 		fmt.eprintln("Could not register Box3D system")
 		return
 	}
-	if !rune.run(&game) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
+	if !rune.run(&game) {
+		fmt.eprintln("Could not run startup scene: ", rune.last_scene_error())
+	}
 }

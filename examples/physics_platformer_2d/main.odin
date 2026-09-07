@@ -44,13 +44,15 @@ draw_platformer :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if ball_found {
 		transform, has_transform := ecs.get_transform(world, ball)
 		collider, has_collider := ecs.get_circle_collider_2d(world, ball)
-		if has_transform && has_collider { rl.DrawCircle(i32(transform.position[0]), i32(transform.position[1]), collider.radius, rl.GOLD) }
+		if has_transform &&
+		   has_collider { rl.DrawCircle(i32(transform.position[0]), i32(transform.position[1]), collider.radius, rl.GOLD) }
 	}
 	pedestal, pedestal_found := ecs.find_entity_by_id(world, "circle_pedestal")
 	if pedestal_found {
 		transform, has_transform := ecs.get_transform(world, pedestal)
 		collider, has_collider := ecs.get_circle_collider_2d(world, pedestal)
-		if has_transform && has_collider { rl.DrawCircleLines(i32(transform.position[0]), i32(transform.position[1]), collider.radius, rl.ORANGE) }
+		if has_transform &&
+		   has_collider { rl.DrawCircleLines(i32(transform.position[0]), i32(transform.position[1]), collider.radius, rl.ORANGE) }
 	}
 	for id in platform_ids {
 		entity, found := ecs.find_entity_by_id(world, id)
@@ -60,8 +62,20 @@ draw_platformer :: proc(game: ^rune.Engine, world: ^ecs.World) {
 		if !transform_found || !collider_found { continue }
 		width := i32(collider.size[0] * transform.scale[0])
 		height := i32(collider.size[1] * transform.scale[1])
-		rl.DrawRectangle(i32(transform.position[0]) - width / 2, i32(transform.position[1]) - height / 2, width, height, rl.DARKBLUE)
-		rl.DrawRectangleLines(i32(transform.position[0]) - width / 2, i32(transform.position[1]) - height / 2, width, height, rl.SKYBLUE)
+		rl.DrawRectangle(
+			i32(transform.position[0]) - width / 2,
+			i32(transform.position[1]) - height / 2,
+			width,
+			height,
+			rl.DARKBLUE,
+		)
+		rl.DrawRectangleLines(
+			i32(transform.position[0]) - width / 2,
+			i32(transform.position[1]) - height / 2,
+			width,
+			height,
+			rl.SKYBLUE,
+		)
 	}
 }
 
@@ -86,10 +100,20 @@ main :: proc() {
 		return
 	}
 
-	if !rune.register_system(&game, {name = "platformer_physics", start = reacquire_platformer_state, fixed_update = update_physics, on_scene_reloaded = reacquire_platformer_state}) ||
+	if !rune.register_system(
+		   &game,
+		   {
+			   name = "platformer_physics",
+			   start = reacquire_platformer_state,
+			   fixed_update = update_physics,
+			   on_scene_reloaded = reacquire_platformer_state,
+		   },
+	   ) ||
 	   !rune.register_system(&game, {name = "platformer_draw", draw = draw_platformer}) {
 		fmt.eprintln("Could not register physics platformer systems")
 		return
 	}
-	if !rune.run(&game) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
+	if !rune.run(&game) {
+		fmt.eprintln("Could not run startup scene: ", rune.last_scene_error())
+	}
 }

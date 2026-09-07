@@ -14,18 +14,18 @@ BOARD_X :: 210
 BOARD_Y :: 36
 
 Piece :: struct {
-	kind: int,
+	kind:     int,
 	rotation: int,
-	x, y: int,
+	x, y:     int,
 }
 
 Game :: struct {
-	board: [BOARD_H][BOARD_W]u8,
-	active: Piece,
-	next_kind: int,
-	score, lines, level: int,
+	board:                  [BOARD_H][BOARD_W]u8,
+	active:                 Piece,
+	next_kind:              int,
+	score, lines, level:    int,
 	fall_timer, move_timer: f32,
-	paused, game_over: bool,
+	paused, game_over:      bool,
 }
 
 world: ^ecs.World
@@ -33,7 +33,7 @@ game: Game
 drop_audio, clear_audio: ecs.Entity
 
 // Four rows packed into a 16-bit mask. The low nibble is the top row.
-SHAPES := [7]u16{
+SHAPES := [7]u16 {
 	0x0F00, // I
 	0x0660, // O
 	0x0720, // T
@@ -43,7 +43,7 @@ SHAPES := [7]u16{
 	0x0740, // L
 }
 
-COLORS := [8]rl.Color{
+COLORS := [8]rl.Color {
 	{0, 0, 0, 0},
 	{53, 214, 255, 255},
 	{255, 211, 64, 255},
@@ -56,7 +56,7 @@ COLORS := [8]rl.Color{
 
 occupied :: proc(kind, rotation, x, y: int) -> bool {
 	rx, ry := x, y
-	for _ in 0..<rotation {
+	for _ in 0 ..< rotation {
 		rx, ry = 3 - ry, rx
 	}
 	bit := ry * 4 + rx
@@ -64,8 +64,8 @@ occupied :: proc(kind, rotation, x, y: int) -> bool {
 }
 
 collides :: proc(g: ^Game, piece: Piece) -> bool {
-	for y in 0..<4 {
-		for x in 0..<4 {
+	for y in 0 ..< 4 {
+		for x in 0 ..< 4 {
 			if !occupied(piece.kind, piece.rotation, x, y) { continue }
 			bx, by := piece.x + x, piece.y + y
 			if bx < 0 || bx >= BOARD_W || by >= BOARD_H { return true }
@@ -78,7 +78,11 @@ collides :: proc(g: ^Game, piece: Piece) -> bool {
 random_kind :: proc() -> int { return int(rl.GetRandomValue(0, 6)) }
 
 spawn_piece :: proc(g: ^Game) {
-	g.active = {kind = g.next_kind, x = 3, y = -1}
+	g.active = {
+		kind = g.next_kind,
+		x    = 3,
+		y    = -1,
+	}
 	g.next_kind = random_kind()
 	if collides(g, g.active) { g.game_over = true }
 }
@@ -95,7 +99,7 @@ clear_lines :: proc(g: ^Game) -> int {
 	y := BOARD_H - 1
 	for y >= 0 {
 		full := true
-		for x in 0..<BOARD_W {
+		for x in 0 ..< BOARD_W {
 			if g.board[y][x] == 0 { full = false; break }
 		}
 		if !full { y -= 1; continue }
@@ -113,8 +117,8 @@ clear_lines :: proc(g: ^Game) -> int {
 }
 
 lock_piece :: proc(g: ^Game, engine: ^rune.Engine) {
-	for y in 0..<4 {
-		for x in 0..<4 {
+	for y in 0 ..< 4 {
+		for x in 0 ..< 4 {
 			if !occupied(g.active.kind, g.active.rotation, x, y) { continue }
 			bx, by := g.active.x + x, g.active.y + y
 			if by < 0 { g.game_over = true; continue }
@@ -185,8 +189,11 @@ update_tetris :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 	game.fall_timer += engine.delta_time
 	if game.fall_timer >= interval {
 		game.fall_timer = 0
-		if !move_piece(&game, 0, 1) { lock_piece(&game, engine) }
-		else if input.is_down(controls, "soft_drop") { game.score += 1 }
+		if !move_piece(
+			&game,
+			0,
+			1,
+		) { lock_piece(&game, engine) } else if input.is_down(controls, "soft_drop") { game.score += 1 }
 	}
 }
 
@@ -207,10 +214,15 @@ draw_cell :: proc(x, y: int, tint: rl.Color, ghost := false) {
 }
 
 draw_piece :: proc(piece: Piece, origin_x, origin_y: int, ghost := false) {
-	for y in 0..<4 {
-		for x in 0..<4 {
+	for y in 0 ..< 4 {
+		for x in 0 ..< 4 {
 			if occupied(piece.kind, piece.rotation, x, y) && piece.y + y >= 0 {
-				draw_cell(origin_x + (piece.x + x) * CELL, origin_y + (piece.y + y) * CELL, COLORS[piece.kind + 1], ghost)
+				draw_cell(
+					origin_x + (piece.x + x) * CELL,
+					origin_y + (piece.y + y) * CELL,
+					COLORS[piece.kind + 1],
+					ghost,
+				)
 			}
 		}
 	}
@@ -233,9 +245,15 @@ draw_tetris :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 
 	rl.DrawRectangle(BOARD_X - 5, BOARD_Y - 5, BOARD_W * CELL + 10, BOARD_H * CELL + 10, {30, 40, 65, 255})
 	rl.DrawRectangle(BOARD_X, BOARD_Y, BOARD_W * CELL, BOARD_H * CELL, {10, 15, 29, 255})
-	for y in 0..<BOARD_H {
-		for x in 0..<BOARD_W {
-			rl.DrawRectangleLines(i32(BOARD_X + x * CELL), i32(BOARD_Y + y * CELL), i32(CELL), i32(CELL), {24, 34, 55, 255})
+	for y in 0 ..< BOARD_H {
+		for x in 0 ..< BOARD_W {
+			rl.DrawRectangleLines(
+				i32(BOARD_X + x * CELL),
+				i32(BOARD_Y + y * CELL),
+				i32(CELL),
+				i32(CELL),
+				{24, 34, 55, 255},
+			)
 			if game.board[y][x] != 0 { draw_cell(BOARD_X + x * CELL, BOARD_Y + y * CELL, COLORS[game.board[y][x]]) }
 		}
 	}
@@ -253,9 +271,13 @@ draw_tetris :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 	panel_x := BOARD_X + BOARD_W * CELL + 38
 	rl.DrawText("NEXT", i32(panel_x), 48, 18, {128, 145, 175, 255})
 	rl.DrawRectangleLines(i32(panel_x), 76, 136, 118, {45, 59, 88, 255})
-	preview := Piece{kind = game.next_kind, x = 0, y = 0}
-	for y in 0..<4 {
-		for x in 0..<4 {
+	preview := Piece {
+		kind = game.next_kind,
+		x    = 0,
+		y    = 0,
+	}
+	for y in 0 ..< 4 {
+		for x in 0 ..< 4 {
 			if occupied(preview.kind, 0, x, y) {
 				draw_cell(panel_x + 12 + x * 24, 88 + y * 24, COLORS[preview.kind + 1])
 			}
@@ -293,9 +315,20 @@ main :: proc() {
 	if !ok { fmt.eprintln("Could not load examples/tetris/project.json"); return }
 	defer rune.shutdown(&engine)
 
-	if !rune.register_system(&engine, {name = "tetris", start = initialize_tetris, update = update_tetris, draw = draw_tetris, on_scene_reloaded = initialize_tetris}) {
+	if !rune.register_system(
+		&engine,
+		{
+			name = "tetris",
+			start = initialize_tetris,
+			update = update_tetris,
+			draw = draw_tetris,
+			on_scene_reloaded = initialize_tetris,
+		},
+	) {
 		fmt.eprintln("Could not register Tetris system")
 		return
 	}
-	if !rune.run(&engine) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
+	if !rune.run(&engine) {
+		fmt.eprintln("Could not run startup scene: ", rune.last_scene_error())
+	}
 }

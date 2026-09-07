@@ -6,7 +6,10 @@ import "rune:ecs"
 import "rune:r3d_bridge"
 import rl "vendor:raylib"
 
-scene_view := r3d_bridge.Scene3D_Settings{grid_slices = 20, grid_spacing = 1}
+scene_view := r3d_bridge.Scene3D_Settings {
+	grid_slices  = 20,
+	grid_spacing = 1,
+}
 bridge: r3d_bridge.Context
 pyramid: ecs.Entity
 
@@ -48,16 +51,21 @@ main :: proc() {
 	}
 	defer rune.shutdown(&game)
 
-	if !rune.register_system(&game, {
-		name = "model_scene_3d",
-		start = initialize_scene,
-		update = on_update,
-		draw = on_draw,
-		on_scene_reloaded = initialize_scene,
-		shutdown = shutdown_scene,
-	}) {
+	if !rune.register_system(
+		&game,
+		{
+			name = "model_scene_3d",
+			start = initialize_scene,
+			update = on_update,
+			draw = on_draw,
+			on_scene_reloaded = initialize_scene,
+			shutdown = shutdown_scene,
+		},
+	) {
 		fmt.eprintln("Could not register model-scene system")
 		return
 	}
-	if !rune.run(&game) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
+	if !rune.run(&game) {
+		fmt.eprintln("Could not run startup scene: ", rune.last_scene_error())
+	}
 }

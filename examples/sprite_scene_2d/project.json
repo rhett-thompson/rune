@@ -2,6 +2,7 @@
   "$schema": "../../schemas/project.schema.json",
   "name": "Rune Sprite Scene",
   "startup_scene": "scenes/main.scene.json",
+  "background_color": [30, 34, 42, 255],
   "window": {
     "width": 960,
     "height": 540,

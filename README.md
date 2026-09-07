@@ -100,7 +100,8 @@ odin run examples/launcher
 Use the arrow keys and Enter, or the mouse, to choose an example. Each example
 remains an independent Odin program and can still be run directly with its
 usual `odin run examples/<name> -collection:rune=rune` command. Launcher
-entries and descriptions live in `examples/examples.json`.
+entries and descriptions live in `examples/examples.json`. See the
+[example guide](examples/README.md) for a learning order, controls, and files to edit.
 
 Create an independent game from the starter template, without modifying an
 example. From the engine checkout:
@@ -834,10 +835,10 @@ odin run examples/hello_3d -collection:rune=rune -collection:r3d=third_party/r3d
 
 ## JSON sprite scene
 
-This separate 2D example defines a game-owned `TiledWall` component in scene
-JSON for the `wallDark.png` background, then renders a randomly moving
-`skeletonWarrior.png` `SpriteRenderer` through the active `Camera2D` and the
-engine texture cache:
+This 2D example loads a stationary `SpriteRenderer` and an active `Camera2D`
+from a scene. Its Odin entry point only initializes and runs the engine.
+Edit the sprite's position, scale, or texture in `scenes/main.scene.json`
+while it runs to see hot reload:
 
 ```powershell
 odin run examples/sprite_scene_2d -collection:rune=rune

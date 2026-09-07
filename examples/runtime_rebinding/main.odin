@@ -45,13 +45,11 @@ on_draw :: proc(game: ^rune.Engine) {
 	}
 	rl.DrawRectangle(28, 190, 904, 4, rl.LIGHTGRAY)
 	rl.DrawCircle(i32(player_x), 192, 28, rl.SKYBLUE)
-	rl.DrawText("The action and move_x axis continue to use the new bindings.", 32, 250, 18, rl.DARKGRAY)
 	if last_save_succeeded {
-		rl.DrawText("Saved to input/default.input.json", 32, 278, 18, rl.DARKGREEN)
+		rl.DrawText("Saved to input/default.input.json", 32, 250, 18, rl.DARKGREEN)
 	} else {
-		rl.DrawText("Could not save input/default.input.json", 32, 278, 18, rl.MAROON)
+		rl.DrawText("Could not save input/default.input.json", 32, 250, 18, rl.MAROON)
 	}
-	rl.DrawFPS(32, 310)
 }
 
 main :: proc() {

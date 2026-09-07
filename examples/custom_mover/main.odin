@@ -13,13 +13,12 @@ on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 }
 
 on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
-	rl.DrawText("Custom Mover updates a typed Transform", 32, 32, 28, rl.DARKGRAY)
-	rl.DrawText("Use A/D or Left/Right. Input comes from input/default.input.json.", 32, 72, 18, rl.GRAY)
+	rl.DrawText("Custom Mover", 32, 32, 28, rl.DARKGRAY)
+	rl.DrawText("A / D or Left / Right to move", 32, 72, 18, rl.GRAY)
 	for entity in ecs.query2(world, ecs.Transform, Mover) {
 		transform, _ := ecs.get(world, entity, ecs.Transform)
 		rl.DrawCircle(i32(transform.position[0]), i32(transform.position[1]), 28, rl.MAROON)
 	}
-	rl.DrawFPS(32, 112)
 }
 
 main :: proc() {
@@ -44,5 +43,7 @@ main :: proc() {
 		fmt.eprintln("Could not register mover system")
 		return
 	}
-	if !rune.run(&game) { fmt.eprintln("Could not run the startup scene: ", rune.last_scene_error()) }
+	if !rune.run(&game) {
+		fmt.eprintln("Could not run the startup scene: ", rune.last_scene_error())
+	}
 }

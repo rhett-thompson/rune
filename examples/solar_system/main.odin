@@ -6,8 +6,8 @@ import "rune:ecs"
 import "rune:r3d_bridge"
 import rl "vendor:raylib"
 
-scene_view := r3d_bridge.Scene3D_Settings{
-	grid_slices = 24,
+scene_view := r3d_bridge.Scene3D_Settings {
+	grid_slices  = 24,
 	grid_spacing = 1.0,
 }
 
@@ -45,9 +45,20 @@ main :: proc() {
 	}
 	defer rune.shutdown(&game)
 
-	if !rune.register_system(&game, {name = "solar_system", start = initialize_scene, update = on_update, draw = on_draw, shutdown = shutdown_scene}) {
+	if !rune.register_system(
+		&game,
+		{
+			name = "solar_system",
+			start = initialize_scene,
+			update = on_update,
+			draw = on_draw,
+			shutdown = shutdown_scene,
+		},
+	) {
 		fmt.eprintln("Could not register solar-system system")
 		return
 	}
-	if !rune.run(&game) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
+	if !rune.run(&game) {
+		fmt.eprintln("Could not run startup scene: ", rune.last_scene_error())
+	}
 }

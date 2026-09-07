@@ -9,6 +9,7 @@ Example :: struct {
 	name:        string,
 	path:        string,
 	description: string,
+	group:       string,
 	collections: []Collection,
 }
 
@@ -21,11 +22,11 @@ Manifest :: struct {
 	examples: []Example,
 }
 
-WINDOW_WIDTH  :: 1000
+WINDOW_WIDTH :: 1000
 WINDOW_HEIGHT :: 820
-ROW_HEIGHT    :: 52
-LIST_TOP      :: 112
-LIST_BOTTOM   :: 756
+ROW_HEIGHT :: 52
+LIST_TOP :: 112
+LIST_BOTTOM :: 756
 
 load_manifest :: proc() -> (Manifest, bool) {
 	data, read_error := os.read_entire_file("examples/examples.json", context.allocator)
@@ -50,15 +51,21 @@ run_example :: proc(example: Example) -> int {
 	append(&command, "run")
 	append(&command, fmt.tprintf("examples/%s", example.path))
 	append(&command, "-collection:rune=rune")
+	output_suffix := ""
+	when ODIN_OS == .Windows {
+		output_suffix = ".exe"
+	}
+	if error := os.make_directory_all("build"); error != nil {
+		fmt.eprintln("Could not create build directory: ", error)
+		return -1
+	}
+	append(&command, fmt.tprintf("-out:build/%s%s", example.path, output_suffix))
 	for collection in example.collections {
 		append(&command, fmt.tprintf("-collection:%s=%s", collection.name, collection.path))
 	}
-	process, start_error := os.process_start({
-		command = command[:],
-		stdin = os.stdin,
-		stdout = os.stdout,
-		stderr = os.stderr,
-	})
+	process, start_error := os.process_start(
+		{command = command[:], stdin = os.stdin, stdout = os.stdout, stderr = os.stderr},
+	)
 	if start_error != nil {
 		fmt.eprintln("Could not start Odin. Make sure `odin` is on PATH.")
 		return -1
@@ -117,10 +124,10 @@ main :: proc() {
 			if index >= len(manifest.examples) {
 				break
 			}
-			row := rl.Rectangle{
-				x = 36,
-				y = f32(LIST_TOP + visible_index * ROW_HEIGHT),
-				width = WINDOW_WIDTH - 72,
+			row := rl.Rectangle {
+				x      = 36,
+				y      = f32(LIST_TOP + visible_index * ROW_HEIGHT),
+				width  = WINDOW_WIDTH - 72,
 				height = ROW_HEIGHT - 5,
 			}
 			if rl.CheckCollisionPointRec(mouse, row) {
@@ -167,6 +174,7 @@ main :: proc() {
 			)
 			rl.DrawText(fmt.ctprintf("%s", example.name), 52, i32(y + 7), 20, rl.RAYWHITE)
 			rl.DrawText(fmt.ctprintf("%s", example.description), 310, i32(y + 10), 16, rl.Color{188, 198, 216, 255})
+			rl.DrawText(fmt.ctprintf("%s", example.group), 866, i32(y + 12), 14, rl.Color{154, 164, 184, 255})
 		}
 
 		footer := "Up/Down or mouse wheel to navigate"

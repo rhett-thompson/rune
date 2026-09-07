@@ -1,8 +1,9 @@
 # 2D particles
 
-The example now uses a 960x550 reference canvas. Keys 1/2/3 select fit, stretch,
-and integer scaling; F11 toggles borderless. Effects and labels share the canvas.
-See [2D resolution policies](display.md).
+The [particle example](../examples/particles_2d/README.md) shows a fountain,
+textured smoke, and a triggered burst on a 960x550 reference canvas. Space emits
+a burst, E toggles continuous emitters, and C clears live particles. For canvas
+configuration, see [2D resolution policies](display.md).
 
 `ParticleEmitter2D` is a built-in JSON component. The scene loop updates its
 particles after gameplay updates and renders them through the active `Camera2D`,

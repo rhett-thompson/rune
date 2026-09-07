@@ -2,10 +2,10 @@ package main
 
 import "core:fmt"
 import "core:math"
+import "rune:audio"
 import rune "rune:core"
 import "rune:ecs"
 import "rune:input"
-import "rune:audio"
 import "rune:r3d_bridge"
 import rl "vendor:raylib"
 
@@ -15,7 +15,10 @@ player_entity: ecs.Entity
 last_play_succeeded: bool
 bell_phase: f32
 
-scene_view := r3d_bridge.Scene3D_Settings{grid_slices = 40, grid_spacing = 1}
+scene_view := r3d_bridge.Scene3D_Settings {
+	grid_slices  = 40,
+	grid_spacing = 1,
+}
 
 initialize_audio_components :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if !bridge.initialized {
@@ -33,9 +36,12 @@ shutdown_audio_components :: proc(game: ^rune.Engine, world: ^ecs.World) {
 
 play_bell_on_click :: proc(game: ^rune.Engine, scene_world: ^ecs.World) {
 	controls := rune.input_state(game)
-	if input.pressed(controls,"mute_sfx") {audio.mute_bus(&game.audio.mixer,.sfx,!game.audio.mixer.buses[.sfx].muted)}
-	if input.pressed(controls,"fade_sfx") {audio.fade_bus(&game.audio.mixer,.sfx,0,2)}
-	if input.pressed(controls,"restore_sfx") {audio.set_bus_volume(&game.audio.mixer,.sfx,1)}
+	if input.pressed(
+		controls,
+		"mute_sfx",
+	) { audio.mute_bus(&game.audio.mixer, .sfx, !game.audio.mixer.buses[.sfx].muted) }
+	if input.pressed(controls, "fade_sfx") { audio.fade_bus(&game.audio.mixer, .sfx, 0, 2) }
+	if input.pressed(controls, "restore_sfx") { audio.set_bus_volume(&game.audio.mixer, .sfx, 1) }
 	// Move the emitting sphere from two to thirty units away from the listener,
 	// then back again. The audio runtime reads this Transform each frame.
 	bell_phase += game.delta_time * 0.65
@@ -72,7 +78,17 @@ draw_audio_components :: proc(game: ^rune.Engine, scene_world: ^ecs.World) {
 		rl.DrawText("Playing", 24, 282, 18, rl.DARKGREEN)
 	}
 	rl.DrawFPS(24, 312)
-	rl.DrawText(fmt.ctprintf("SFX bus %.0f%%   muted: %t | M mute  F fade  R restore",game.audio.mixer.buses[.sfx].volume*100,game.audio.mixer.buses[.sfx].muted),24,350,18,rl.DARKGRAY)
+	rl.DrawText(
+		fmt.ctprintf(
+			"SFX bus %.0f%%   muted: %t | M mute  F fade  R restore",
+			game.audio.mixer.buses[.sfx].volume * 100,
+			game.audio.mixer.buses[.sfx].muted,
+		),
+		24,
+		350,
+		18,
+		rl.DARKGRAY,
+	)
 }
 
 main :: proc() {
@@ -83,10 +99,21 @@ main :: proc() {
 	}
 	defer rune.shutdown(&game)
 
-	if !rune.register_system(&game, rune.System{name = "play_bell_on_click", start = initialize_audio_components, update = play_bell_on_click, on_scene_reloaded = initialize_audio_components, shutdown = shutdown_audio_components}) ||
-		!rune.register_system(&game, rune.System{name = "draw_audio_components", draw = draw_audio_components}) {
+	if !rune.register_system(
+		   &game,
+		   rune.System {
+			   name = "play_bell_on_click",
+			   start = initialize_audio_components,
+			   update = play_bell_on_click,
+			   on_scene_reloaded = initialize_audio_components,
+			   shutdown = shutdown_audio_components,
+		   },
+	   ) ||
+	   !rune.register_system(&game, rune.System{name = "draw_audio_components", draw = draw_audio_components}) {
 		fmt.eprintln("Could not register the audio-components draw system")
 		return
 	}
-	if !rune.run(&game) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
+	if !rune.run(&game) {
+		fmt.eprintln("Could not run startup scene: ", rune.last_scene_error())
+	}
 }

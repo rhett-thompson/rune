@@ -10,31 +10,31 @@ import "rune:navigation"
 import rl "vendor:raylib"
 
 Shell :: struct {
-	position, velocity: rl.Vector2,
-	owner: i32,
-	life: f32,
+	position, velocity:   rl.Vector2,
+	owner:                i32,
+	life:                 f32,
 	bounces, max_bounces: i32,
 }
 
 Explosion :: struct {
-	position: rl.Vector2,
+	position:      rl.Vector2,
 	age, duration: f32,
 }
 
 Tanks_Game :: struct {
-	arena: Tanks_Arena,
-	left, right: Tank,
-	match: Tanks_Match,
-	shells: [dynamic]Shell,
-	explosions: [dynamic]Explosion,
-	flash_time: f32,
-	nav_grid: navigation.Grid,
-	nav_config: ecs.NavGrid2D,
-	nav_agent: ecs.NavAgent2D,
-	nav_path: []navigation.Point,
-	nav_waypoint: int,
+	arena:           Tanks_Arena,
+	left, right:     Tank,
+	match:           Tanks_Match,
+	shells:          [dynamic]Shell,
+	explosions:      [dynamic]Explosion,
+	flash_time:      f32,
+	nav_grid:        navigation.Grid,
+	nav_config:      ecs.NavGrid2D,
+	nav_agent:       ecs.NavAgent2D,
+	nav_path:        []navigation.Point,
+	nav_waypoint:    int,
 	nav_repath_time: f32,
-	audio_entity: ecs.Entity,
+	audio_entity:    ecs.Entity,
 }
 
 load_tanks_game :: proc(game: ^Tanks_Game, world: ^ecs.World) -> bool {
@@ -43,8 +43,11 @@ load_tanks_game :: proc(game: ^Tanks_Game, world: ^ecs.World) -> bool {
 	matches := ecs.query(world, Tanks_Match)
 	nav_grids := ecs.query(world, ecs.NavGrid2D)
 	nav_agents := ecs.query(world, ecs.NavAgent2D)
-	if len(arenas) != 1 || len(tanks) != 2 || len(matches) != 1 ||
-	   len(nav_grids) != 1 || len(nav_agents) != 1 { return false }
+	if len(arenas) != 1 ||
+	   len(tanks) != 2 ||
+	   len(matches) != 1 ||
+	   len(nav_grids) != 1 ||
+	   len(nav_agents) != 1 { return false }
 	ok_a, ok_m: bool
 	game.arena, ok_a = arena_from_entity(world, arenas[0])
 	game.match, ok_m = match_from_entity(world, matches[0])
@@ -107,8 +110,10 @@ circle_hits_rect :: proc(position: rl.Vector2, radius: f32, rect: rl.Rectangle) 
 
 position_blocked :: proc(game: ^Tanks_Game, position: rl.Vector2, radius: f32) -> bool {
 	a := game.arena
-	if position.x - radius < f32(a.border) || position.x + radius > f32(a.width - a.border) ||
-	   position.y - radius < f32(a.border) || position.y + radius > f32(a.height - a.border) { return true }
+	if position.x - radius < f32(a.border) ||
+	   position.x + radius > f32(a.width - a.border) ||
+	   position.y - radius < f32(a.border) ||
+	   position.y + radius > f32(a.height - a.border) { return true }
 	for wall in a.walls {
 		if circle_hits_rect(position, radius, wall_rectangle(wall)) { return true }
 	}
@@ -151,13 +156,10 @@ fire_shell :: proc(game: ^Tanks_Game, tank: ^Tank, owner: i32) -> bool {
 	dir := direction(tank.turret_angle)
 	muzzle := tank.position + dir * (tank.radius + 12)
 	if position_blocked(game, muzzle, 4) { return false }
-	append(&game.shells, Shell{
-		position = muzzle,
-		velocity = dir * 390,
-		owner = owner,
-		life = 5,
-		max_bounces = tank.max_shot_bounces,
-	})
+	append(
+		&game.shells,
+		Shell{position = muzzle, velocity = dir * 390, owner = owner, life = 5, max_bounces = tank.max_shot_bounces},
+	)
 	tank.cooldown = tank.fire_cooldown
 	return true
 }
@@ -171,11 +173,11 @@ angle_delta :: proc(from, to: f32) -> f32 {
 
 ai_shot_hits_player :: proc(game: ^Tanks_Game, angle: f32) -> bool {
 	dir := direction(angle)
-	shell := Shell{
-		position = game.right.position + dir * (game.right.radius + 12),
-		velocity = dir * 390,
-		owner = 2,
-		life = 5,
+	shell := Shell {
+		position    = game.right.position + dir * (game.right.radius + 12),
+		velocity    = dir * 390,
+		owner       = 2,
+		life        = 5,
 		max_bounces = game.right.max_shot_bounces,
 	}
 	if position_blocked(game, shell.position, 4) { return false }
@@ -282,7 +284,8 @@ end_round :: proc(game: ^Tanks_Game, winner: i32) {
 	game.match.round_timer = game.match.round_delay
 	game.flash_time = .35
 	if winner == 1 { game.match.left_score += 1 } else { game.match.right_score += 1 }
-	game.match.game_over = game.match.left_score >= game.match.win_score || game.match.right_score >= game.match.win_score
+	game.match.game_over =
+		game.match.left_score >= game.match.win_score || game.match.right_score >= game.match.win_score
 }
 
 update_shells :: proc(game: ^Tanks_Game, engine: ^rune.Engine, scene_world: ^ecs.World, dt: f32) {
@@ -339,7 +342,13 @@ update_tanks :: proc(game: ^Tanks_Game, engine: ^rune.Engine, scene_world: ^ecs.
 	}
 	game.left.cooldown = max(0, game.left.cooldown - engine.delta_time)
 	game.right.cooldown = max(0, game.right.cooldown - engine.delta_time)
-	move_tank(game, &game.left, input.axis(controls, "left_move"), input.axis(controls, "left_turn"), engine.delta_time)
+	move_tank(
+		game,
+		&game.left,
+		input.axis(controls, "left_move"),
+		input.axis(controls, "left_turn"),
+		engine.delta_time,
+	)
 	mouse := rl.GetMousePosition()
 	mouse_delta := mouse - game.left.position
 	game.left.turret_angle = f32(math.atan2(f64(mouse_delta.y), f64(mouse_delta.x))) * 180 / f32(math.PI)
@@ -347,7 +356,13 @@ update_tanks :: proc(game: ^Tanks_Game, engine: ^rune.Engine, scene_world: ^ecs.
 		rune.play_audio(engine, scene_world, game.audio_entity, "shoot")
 	}
 	if game.match.two_player {
-		move_tank(game, &game.right, input.axis(controls, "right_move"), input.axis(controls, "right_turn"), engine.delta_time)
+		move_tank(
+			game,
+			&game.right,
+			input.axis(controls, "right_move"),
+			input.axis(controls, "right_turn"),
+			engine.delta_time,
+		)
 		game.right.turret_angle = game.right.angle
 		if input.pressed(controls, "right_fire") && fire_shell(game, &game.right, 2) {
 			rune.play_audio(engine, scene_world, game.audio_entity, "shoot")
@@ -393,12 +408,7 @@ draw_tank :: proc(tank: Tank) {
 	hull_arrow_base := tank.position + hull_direction * (tank.radius - 7)
 	hull_marker := body
 	hull_marker.a = 245
-	rl.DrawTriangle(
-		hull_arrow_tip,
-		hull_arrow_base - side * 7,
-		hull_arrow_base + side * 7,
-		hull_marker,
-	)
+	rl.DrawTriangle(hull_arrow_tip, hull_arrow_base - side * 7, hull_arrow_base + side * 7, hull_marker)
 	rl.DrawLineEx(tank.position, tank.position + turret_direction * (tank.radius + 15), 7, tread)
 	rl.DrawCircleV(tank.position, 7, body)
 }
@@ -408,7 +418,11 @@ draw_tanks :: proc(game: ^Tanks_Game) {
 	grid, wall := color(a.grid_color), color(a.wall_color)
 	for x: i32 = 30; x < a.width; x += 30 { rl.DrawLine(x, 0, x, a.height, grid) }
 	for y: i32 = 30; y < a.height; y += 30 { rl.DrawLine(0, y, a.width, y, grid) }
-	rl.DrawRectangleLinesEx({f32(a.border), f32(a.border), f32(a.width - a.border * 2), f32(a.height - a.border * 2)}, f32(a.border), wall)
+	rl.DrawRectangleLinesEx(
+		{f32(a.border), f32(a.border), f32(a.width - a.border * 2), f32(a.height - a.border * 2)},
+		f32(a.border),
+		wall,
+	)
 	for obstacle in a.walls {
 		rect := wall_rectangle(obstacle)
 		rl.DrawRectangleRec(rect, wall)
@@ -434,17 +448,21 @@ draw_tanks :: proc(game: ^Tanks_Game) {
 	text, muted := color(a.text_color), color(a.muted_text_color)
 	score := fmt.tprintf("%d     :     %d", game.match.left_score, game.match.right_score)
 	center_text(score, a.width, 15, 30, text)
-	if game.flash_time > 0 { rl.DrawRectangle(0, 0, a.width, a.height, {255, 255, 255, u8(game.flash_time / .35 * 100)}) }
+	if game.flash_time >
+	   0 { rl.DrawRectangle(0, 0, a.width, a.height, {255, 255, 255, u8(game.flash_time / .35 * 100)}) }
 	if game.match.winner != 0 {
-		label := "BLUE WINS THE ROUND" if game.match.winner == 1 else ("ORANGE WINS THE ROUND" if game.match.two_player else "COMPUTER WINS THE ROUND")
+		label :=
+			"BLUE WINS THE ROUND" if game.match.winner == 1 else ("ORANGE WINS THE ROUND" if game.match.two_player else "COMPUTER WINS THE ROUND")
 		if game.match.game_over {
-			label = "BLUE WINS THE MATCH" if game.match.winner == 1 else ("ORANGE WINS THE MATCH" if game.match.two_player else "COMPUTER WINS THE MATCH")
+			label =
+				"BLUE WINS THE MATCH" if game.match.winner == 1 else ("ORANGE WINS THE MATCH" if game.match.two_player else "COMPUTER WINS THE MATCH")
 		}
 		rl.DrawRectangle(0, a.height / 2 - 55, a.width, 110, {8, 12, 24, 225})
 		center_text(label, a.width, a.height / 2 - 34, 30, text)
 		if game.match.game_over { center_text("PRESS FIRE FOR A NEW MATCH", a.width, a.height / 2 + 8, 17, muted) }
 	}
-	mode := "1 PLAYER  |  W/S DRIVE  A/D TURN  MOUSE AIM  LEFT CLICK FIRE" if !game.match.two_player else "2 PLAYERS  |  BLUE: WASD + MOUSE   ORANGE: ARROWS + ENTER"
+	mode :=
+		"1 PLAYER  |  W/S DRIVE  A/D TURN  MOUSE AIM  LEFT CLICK FIRE" if !game.match.two_player else "2 PLAYERS  |  BLUE: WASD + MOUSE   ORANGE: ARROWS + ENTER"
 	center_text(mode, a.width, a.height - 28, 14, muted)
 	rl.DrawText("P: CHANGE PLAYERS", 18, 17, 13, muted)
 	rl.DrawText("R: RESTART", a.width - 96, 17, 13, muted)

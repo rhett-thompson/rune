@@ -8,9 +8,9 @@ import "rune:input"
 import "rune:r3d_bridge"
 import rl "vendor:raylib"
 
-Player_Speed : f32 : 6
-Camera_Height : f32 : 1.5
-Mouse_Orbit_Speed : f32 : 0.25
+Player_Speed: f32 : 6
+Camera_Height: f32 : 1.5
+Mouse_Orbit_Speed: f32 : 0.25
 
 bridge: r3d_bridge.Context
 player: ecs.Entity
@@ -20,7 +20,11 @@ camera_yaw: f32 = 180
 camera_pitch: f32 = 22
 camera_distance: f32 = 7
 
-scene_view := r3d_bridge.Scene3D_Settings{grid_slices = 30, grid_spacing = 1, draw_colliders = true}
+scene_view := r3d_bridge.Scene3D_Settings {
+	grid_slices    = 30,
+	grid_spacing   = 1,
+	draw_colliders = true,
+}
 
 clamp :: proc(value, minimum, maximum: f32) -> f32 {
 	if value < minimum { return minimum }
@@ -120,16 +124,21 @@ main :: proc() {
 	if !ok { fmt.eprintln("Could not load examples/third_person_3d/project.json"); return }
 	defer rune.shutdown(&game)
 
-	if !rune.register_system(&game, {
-		name = "third_person_3d",
-		start = initialize_scene,
-		update = on_update,
-		draw = on_draw,
-		on_scene_reloaded = initialize_scene,
-		shutdown = shutdown_scene,
-	}) {
+	if !rune.register_system(
+		&game,
+		{
+			name = "third_person_3d",
+			start = initialize_scene,
+			update = on_update,
+			draw = on_draw,
+			on_scene_reloaded = initialize_scene,
+			shutdown = shutdown_scene,
+		},
+	) {
 		fmt.eprintln("Could not register third-person system")
 		return
 	}
-	if !rune.run(&game) { fmt.eprintln("Could not run startup scene: ", rune.last_scene_error()) }
+	if !rune.run(&game) {
+		fmt.eprintln("Could not run startup scene: ", rune.last_scene_error())
+	}
 }

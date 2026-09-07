@@ -14,33 +14,33 @@ MAX_BULLETS :: 32
 TAU :: f32(math.PI * 2)
 
 Ship :: struct {
-	position, velocity: rl.Vector2,
+	position, velocity:                             rl.Vector2,
 	angle, fire_timer, invulnerable, respawn_timer: f32,
-	alive: bool,
+	alive:                                          bool,
 }
 
 Bullet :: struct {
 	position, velocity: rl.Vector2,
-	life: f32,
+	life:               f32,
 }
 
 Particle :: struct {
-	position, velocity: rl.Vector2,
+	position, velocity:   rl.Vector2,
 	life, max_life, size: f32,
-	thrust: bool,
+	thrust:               bool,
 }
 
 Game :: struct {
-	arena: Arena_Config,
-	ship_config: Ship_Config,
-	spawner: Asteroid_Spawner,
-	ship: Ship,
-	asteroids: [dynamic]Asteroid_Instance,
-	bullets: pool.Pool(Bullet),
-	particles: pool.Pool(Particle),
+	arena:                                                                       Arena_Config,
+	ship_config:                                                                 Ship_Config,
+	spawner:                                                                     Asteroid_Spawner,
+	ship:                                                                        Ship,
+	asteroids:                                                                   [dynamic]Asteroid_Instance,
+	bullets:                                                                     pool.Pool(Bullet),
+	particles:                                                                   pool.Pool(Particle),
 	thruster_audio, destroy_audio, laser_audio, music_audio, ship_explode_audio: ecs.Entity,
-	score, lives, wave: i32,
-	game_over: bool,
+	score, lives, wave:                                                          i32,
+	game_over:                                                                   bool,
 }
 
 color :: proc(value: [4]u8) -> rl.Color {
@@ -89,10 +89,10 @@ random_edge_position :: proc(game: ^Game) -> rl.Vector2 {
 
 reset_ship :: proc(game: ^Game) {
 	game.ship = {
-		position = game.ship_config.position,
-		angle = -f32(math.PI) / 2,
+		position     = game.ship_config.position,
+		angle        = -f32(math.PI) / 2,
 		invulnerable = game.spawner.invulnerable_time,
-		alive = true,
+		alive        = true,
 	}
 }
 
@@ -113,13 +113,16 @@ emit_particles :: proc(game: ^Game, position: rl.Vector2, count: i32, speed: f32
 		angle := f32(rl.GetRandomValue(0, 6283)) / 1000
 		life := f32(rl.GetRandomValue(30, 90)) / 100
 		// Cosmetic particles may be dropped if the growing pool cannot allocate.
-		pool.acquire(&game.particles, Particle{
-			position = position,
-			velocity = direction(angle) * f32(rl.GetRandomValue(i32(speed / 3), i32(speed))),
-			life = life,
-			max_life = life,
-			size = f32(rl.GetRandomValue(1, 4)),
-		})
+		pool.acquire(
+			&game.particles,
+			Particle {
+				position = position,
+				velocity = direction(angle) * f32(rl.GetRandomValue(i32(speed / 3), i32(speed))),
+				life = life,
+				max_life = life,
+				size = f32(rl.GetRandomValue(1, 4)),
+			},
+		)
 	}
 }
 
@@ -136,11 +139,14 @@ destroy_ship :: proc(game: ^Game, engine: ^rune.Engine) {
 fire :: proc(game: ^Game, engine: ^rune.Engine) {
 	if game.ship.fire_timer > 0 { return }
 	dir := direction(game.ship.angle)
-	_, acquired := pool.acquire(&game.bullets, Bullet{
-		position = game.ship.position + dir * (game.ship_config.radius + 5),
-		velocity = game.ship.velocity + dir * game.ship_config.bullet_speed,
-		life = game.ship_config.bullet_life,
-	})
+	_, acquired := pool.acquire(
+		&game.bullets,
+		Bullet {
+			position = game.ship.position + dir * (game.ship_config.radius + 5),
+			velocity = game.ship.velocity + dir * game.ship_config.bullet_speed,
+			life = game.ship_config.bullet_life,
+		},
+	)
 	if !acquired { return }
 	game.ship.fire_timer = game.ship_config.fire_delay
 	rune.play_audio(engine, world, game.laser_audio, "default")
@@ -174,12 +180,17 @@ update_ship :: proc(game: ^Game, engine: ^rune.Engine, controls: ^input.Input, d
 		dir := direction(ship.angle)
 		ship.velocity += dir * game.ship_config.thrust * dt
 		if rl.GetRandomValue(0, 2) == 0 {
-			pool.acquire(&game.particles, Particle{
-				position = ship.position - dir * game.ship_config.radius,
-				velocity = ship.velocity - dir * f32(rl.GetRandomValue(80, 150)),
-				life = .25, max_life = .25, size = 2,
-				thrust = true,
-			})
+			pool.acquire(
+				&game.particles,
+				Particle {
+					position = ship.position - dir * game.ship_config.radius,
+					velocity = ship.velocity - dir * f32(rl.GetRandomValue(80, 150)),
+					life = .25,
+					max_life = .25,
+					size = 2,
+					thrust = true,
+				},
+			)
 		}
 	}
 	ship.velocity *= f32(math.pow(f64(game.ship_config.drag), f64(dt)))
