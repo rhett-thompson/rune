@@ -16,6 +16,7 @@ after_load :: proc(game: ^rune.Engine, world: ^ecs.World) {
 
 control :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	move_platforms(world,game.fixed_delta_time)
+	ecs.character_controller_2d_crouch(world,player,input.is_down(rune.input_state(game),"move_down"))
 	ecs.character_controller_2d_move(world,player,input.axis(rune.input_state(game),"move_x"))
 	if input.pressed(rune.input_state(game),"jump") {
 		if input.is_down(rune.input_state(game),"move_down") {ecs.character_controller_2d_drop_through(world,player)}
@@ -63,16 +64,27 @@ draw_terrain :: proc(game: ^rune.Engine, world: ^ecs.World) {
 		b := ecs.collider_point_2d(pose,shape.end,shape.offset)
 		rl.DrawLineEx({a[0],a[1]},{b[0],b[1]},5,{80,115,115,255})
 	}
+ // Visuals read the live capsule, including crouch and scale. Drawing never
+ // changes simulation state or the authored collider.
+ if capsule,found := ecs.get_effective_capsule_collider_2d(world,player); found {
+  pose,_ := ecs.get_transform(world,player)
+  a,b,radius := ecs.capsule_collider_2d_geometry(capsule,pose)
+  color := rl.Color{70,155,245,255}
+  rl.DrawLineEx({a[0],a[1]},{b[0],b[1]},2*radius,color)
+  rl.DrawCircleV({a[0],a[1]},radius,color)
+  rl.DrawCircleV({b[0],b[1]},radius,color)
+ }
 }
 
 draw_ui :: proc(game: ^rune.Engine, world: ^ecs.World) {
-	rl.DrawText("RAMPS + ONE-WAY PLATFORMS",32,24,26,rl.RAYWHITE)
-	rl.DrawText("A / D: move   SPACE: jump   S / DOWN + SPACE: drop   Backtick: console",32,65,18,rl.LIGHTGRAY)
+	rl.DrawText("RAMPS + CROUCHING",32,24,26,rl.RAYWHITE)
+	rl.DrawText("A/D: move   SPACE: jump   S/DOWN: crouch   S/DOWN + SPACE: drop",32,65,18,rl.LIGHTGRAY)
 	rl.DrawText("Ride the teal elevator. Jump through the violet shuttle or orange ledge.",32,96,18,rl.LIGHTGRAY)
 	rl.DrawText("Violet / orange: one-way. Teal / green: solid. Gold diamond: sensor.",32,127,18,rl.LIGHTGRAY)
-	rl.DrawText("45 degree slope limit   8 unit ground snap   100 ms coyote / jump buffer",32,158,17,rl.LIGHTGRAY)
+	rl.DrawText("Walk off the bridge at the right, then crouch left through the low tunnel.",32,158,17,rl.LIGHTGRAY)
 	rl.DrawText("ONE-WAY SHUTTLE",340,245,16,rl.LIGHTGRAY)
 	rl.DrawText("ELEVATOR",50,515,16,rl.LIGHTGRAY)
+	rl.DrawText("LOW TUNNEL",704,515,16,rl.LIGHTGRAY)
 	rl.DrawText("ONE-WAY",582,237,16,rl.ORANGE)
 	rl.DrawText("CONVEX POLYGON",320,466,16,rl.LIGHTGRAY)
 	rl.DrawText("SEGMENT BRIDGE",662,408,16,rl.LIGHTGRAY)
@@ -80,7 +92,10 @@ draw_ui :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	support,_ := ecs.entity_id(world,state.support_entity)
 	if !state.grounded {support = "air"}
 	rl.DrawText(fmt.ctprintf("Support: %s    Carry: %.0f, %.0f    Sensor entries: %d",support,state.support_velocity[0],state.support_velocity[1],sensor_entries),32,537,18,rl.GOLD)
-	rl.DrawText("Try: set shuttle PlatformMotion.speed 120",32,570,17,rl.LIGHTGRAY)
+	stance := "standing"
+ if state.crouched {stance = "crouching"}
+ if state.stand_blocked {stance = "ceiling blocks standing"}
+ rl.DrawText(fmt.ctprintf("%s   |   Backtick: console   |   Try: set player CharacterController2D.crouch_speed 80",stance),32,570,15,rl.LIGHTGRAY)
 	pose,found := ecs.get_transform(world,player)
 	if found {
 		filter := ecs.Default_Physics_Query_Filter

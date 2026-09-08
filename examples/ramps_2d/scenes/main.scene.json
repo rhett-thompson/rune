@@ -1,6 +1,6 @@
 {
   "$schema": "../../../schemas/scene.schema.json",
-  "name": "Ramps and One-Way Platforms",
+  "name": "Ramps and Crouching",
   "entities": [
     {
       "id": "camera",
@@ -42,76 +42,11 @@
           "coyote_time": 0.1,
           "jump_buffer_time": 0.1,
           "drop_speed": 60,
-          "drop_time": 0.15
+          "drop_time": 0.15,
+          "crouch_height": 40,
+          "crouch_speed": 100
         }
-      },
-      "children": [
-        {
-          "components": {
-            "Transform": {
-              "position": [
-                0,
-                -32,
-                0
-              ]
-            },
-            "ShapeRenderer2D": {
-              "size": [
-                36,
-                28
-              ],
-              "color": [
-                70,
-                155,
-                245,
-                255
-              ]
-            }
-          }
-        },
-        {
-          "components": {
-            "Transform": {
-              "position": [
-                0,
-                -46,
-                0
-              ]
-            },
-            "ShapeRenderer2D": {
-              "shape": "circle",
-              "radius": 18,
-              "color": [
-                70,
-                155,
-                245,
-                255
-              ]
-            }
-          }
-        },
-        {
-          "components": {
-            "Transform": {
-              "position": [
-                0,
-                -18,
-                0
-              ]
-            },
-            "ShapeRenderer2D": {
-              "shape": "circle",
-              "radius": 18,
-              "color": [
-                70,
-                155,
-                245,
-                255
-              ]
-            }
-          }
-        }
-      ]
+      }
     },
     {
       "id": "floor",
@@ -404,6 +339,37 @@
             235,
             150,
             60,
+            255
+          ]
+        }
+      }
+    },
+    {
+      "id": "tunnel_roof",
+      "name": "Low tunnel roof",
+      "components": {
+        "Transform": {
+          "position": [
+            780,
+            446,
+            0
+          ]
+        },
+        "BoxCollider2D": {
+          "size": [
+            160,
+            16
+          ]
+        },
+        "ShapeRenderer2D": {
+          "size": [
+            160,
+            16
+          ],
+          "color": [
+            85,
+            110,
+            135,
             255
           ]
         }

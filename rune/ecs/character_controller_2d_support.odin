@@ -43,8 +43,14 @@ character_controllers_2d_forget_support :: proc(world: ^World, support: Entity) 
 // Preserve the velocity reference already included in RigidBody2D.velocity.
 // Clearing it while keeping that velocity would add platform motion twice when
 // support is reacquired. Inputs, support handles and grace timers still reset.
-character_controller_2d_reset_state :: proc(world: ^World, entity: Entity) {
+character_controller_2d_reset_state :: proc(world: ^World, entity: Entity, preserve_posture := false) {
 	if previous,found := world.character_controller_states_2d[entity]; found {
-		world.character_controller_states_2d[entity] = {inherited_velocity=previous.inherited_velocity}
+		next := Character_Controller_State_2D{inherited_velocity=previous.inherited_velocity}
+		if preserve_posture {
+			next.crouched,next.capsule_height = previous.crouched,previous.capsule_height
+		} else if previous.crouched {
+			if capsule,found := world.capsule_colliders_2d[entity]; found {character_capsule_native_2d(world,entity,capsule)}
+		}
+		world.character_controller_states_2d[entity] = next
 	}
 }

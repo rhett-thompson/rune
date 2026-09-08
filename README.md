@@ -1252,7 +1252,8 @@ gravity, jumping, coyote time, and jump buffering. Odin supplies movement and
 jump requests; JSON stores the settings. Moving platforms carry grounded characters
 and transfer velocity on jumps, with support invalidated safely on removal or reload.
 Boxes and horizontal segments support JSON `one_way` collision; the controller
-can drop through its supporting platform onto lower ground.
+can drop through its supporting platform onto lower ground. Crouching preserves
+feet, reduces movement speed, and waits for headroom before standing.
 See the [2D controller API](docs/character-controller-2d.md).
 
 ## Fixed-step 2D physics

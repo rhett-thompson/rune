@@ -119,6 +119,18 @@
           "default": 0.15,
           "minimum": 0,
           "maximum": 1
+        },
+        "crouch_height": {
+          "type": "number",
+          "minimum": 0,
+          "default": 20,
+          "description": "Local crouched height, clamped to capsule diameter and standing height. Zero disables crouching."
+        },
+        "crouch_speed": {
+          "type": "number",
+          "minimum": 0,
+          "default": 100,
+          "description": "Horizontal target speed while crouched, relative to supporting platform."
         }
       }
     },

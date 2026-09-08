@@ -3,7 +3,7 @@
 `CharacterController2D` is a fixed-step platformer motor built on Box2D. Gameplay
 supplies a horizontal movement axis and jump requests. The motor handles
 acceleration, gravity, slope following, ground snapping, jumping, coyote time,
-jump buffering, one-way platforms, drop-through, and moving-platform support. Settings are ordinary scene/prefab JSON; behavior stays in
+jump buffering, crouching, one-way platforms, drop-through, and moving-platform support. Settings are ordinary scene/prefab JSON; behavior stays in
 Odin. The [ramps example](../examples/ramps_2d/README.md) demonstrates it.
 
 ## Setup
@@ -31,7 +31,9 @@ Put these components on the same entity:
   "coyote_time": 0.1,
   "jump_buffer_time": 0.1,
   "drop_speed": 60,
-  "drop_time": 0.15
+  "drop_time": 0.15,
+  "crouch_height": 20,
+  "crouch_speed": 100
 }
 ```
 
@@ -128,7 +130,7 @@ for other bodies. Games needing higher speeds can explicitly tune
 `b2.World_SetMaximumLinearSpeed` on `world.box2d_world` after initialization.
 
 This is a small rigid-body motor. It has no stair step-up,
-wall jumps, crouching, or crush handling. Dynamic-body
+wall jumps or crush handling. Dynamic-body
 contacts and sensor events continue through the normal physics APIs.
 
 ## Moving platforms
@@ -241,6 +243,50 @@ behavior is unchanged. General raycasts and overlaps remain geometric, so a ray
 can still hit a one-way platform from below; the motor's ground sweep separately
 applies the one-way and drop rules.
 
+## Crouching and safe standing
+
+`crouch_height` is the capsule's local tip-to-tip height while crouched (default
+20). It is clamped between the authored capsule diameter and standing height;
+radius is unchanged. Zero disables crouching. `crouch_speed` is the horizontal
+target speed while crouched (default 100, relative to platform motion); zero
+prevents intentional horizontal movement. Acceleration and air control still
+apply. Crouching works on the ground and in the air, and does not disable jumps.
+
+Send a held request from your update or fixed-update callback:
+
+```odin
+ecs.character_controller_2d_crouch(
+    world, player, input.is_down(rune.input_state(game), "move_down"),
+)
+```
+
+The request persists until replaced. Simulation consumes it on the next fixed
+step, so pausing does not resize the character. Shrinking preserves world-space
+feet and horizontal position, including reflected and nonuniform scales.
+Releasing requests standing; if there is a solid ceiling in the added headroom,
+the capsule stays short and retries every fixed step until clear. Boxes, circles,
+capsules, polygons and segments participate in the same exact shape query.
+Sensors, the character's own colliders, excluded collision layers and one-way
+undersides do not block upward growth. Growth uses a 0.005-unit contact tolerance
+(or 1% of the radius for very small capsules) to allow resting contact.
+
+`get_character_controller_2d_state` exposes `crouch_requested`, `crouched`,
+`stand_blocked`, and the effective local `capsule_height` while crouched.
+Use `get_effective_capsule_collider_2d` for live collision dimensions and offset,
+for example to size character visuals. Physics queries, ground snapping,
+one-way drop clearance and gizmos use this live geometry. The regular
+`get_capsule_collider_2d` and serialization retain the authored standing capsule.
+Posture changes keep native body and shape identities, velocity, moving-platform
+support and drop guards; they do not rebuild the whole body.
+
+Configuration changes clear held requests but retain a short live capsule until
+standing passes clearance. Changes to the authored collider, scale, position,
+activation, controller removal or physics shutdown reset posture to authored
+geometry. Explicit geometry edits and teleports can place a character inside an
+obstacle; they are not collision-constrained movement. Unchanged scene values
+preserve posture during value reload. Crouch does not add a crush solver for
+platforms moving into ceilings.
+
 ## Editing and lifetime
 
 Settings serialize through the registry, support prefabs and value reload, and
@@ -283,3 +329,7 @@ included automatically by `tools/validate.ps1`.
 `tools/one_way_2d_validation` checks upward passage, landing, moving platforms,
 selective drops, thick-platform guards, ordinary bodies, data validation and
 invalidation. It is included automatically by `tools/validate.ps1`.
+
+`tools/crouch_2d_validation` checks posture geometry, speed, blocked standing,
+automatic retry, reflected scales, collision filtering, moving support,
+drop-through and resets. It also runs through `tools/validate.ps1`.

@@ -98,7 +98,7 @@ commit_component_value :: proc(
 	}
 	when T == CharacterController2D {
 		if !existed {physics_2d_remove_entity(world,entity)}
-		if !existed || previous != value {character_controller_2d_reset_state(world,entity)}
+		if !existed || previous != value {character_controller_2d_reset_state(world,entity,preserve_posture=true)}
 	}
 	when T == Lifetime {delete_key(&world.lifetime_elapsed, entity)}
 	when T == ParticleEmitter2D {

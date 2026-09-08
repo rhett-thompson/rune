@@ -18,10 +18,23 @@ CharacterController2D :: struct {
 	jump_buffer_time: f32,
 	drop_speed: f32,
 	drop_time: f32,
+	crouch_height: f32,
+	crouch_speed: f32,
+	step_height: f32,
 }
 
 Character_Controller_State_2D :: struct {
 	active: bool,
+	crouch_requested: bool,
+	crouched: bool,
+	stand_blocked: bool,
+	posture_changed: bool,
+	stepped: bool,
+	step_normal: [2]f32,
+	step_support: Entity,
+	step_component: string,
+	// Effective local height while crouched; authored capsule data stays intact.
+	capsule_height: f32,
 	grounded: bool,
 	ground_normal: [2]f32,
 	// Latest support is retained through coyote time, then cleared on expiry.
@@ -46,13 +59,13 @@ Character_Controller_State_2D :: struct {
 default_character_controller_2d :: proc() -> CharacterController2D {
 	return {move_speed=200, acceleration=1600, air_acceleration=800,
 		gravity=1200, jump_speed=460, max_fall_speed=900, max_slope_angle=45,
-		ground_snap_distance=8, coyote_time=0.1, jump_buffer_time=0.1, drop_speed=60, drop_time=0.15}
+		ground_snap_distance=8, coyote_time=0.1, jump_buffer_time=0.1, drop_speed=60, drop_time=0.15, crouch_height=20, crouch_speed=100}
 }
 
 character_controller_2d_valid :: proc(value: CharacterController2D) -> bool {
-	for v in ([12]f32{value.move_speed,value.acceleration,value.air_acceleration,
+	for v in ([15]f32{value.move_speed,value.acceleration,value.air_acceleration,
 		value.gravity,value.jump_speed,value.max_fall_speed,value.max_slope_angle,
-		value.ground_snap_distance,value.coyote_time,value.jump_buffer_time,value.drop_speed,value.drop_time}) {
+		value.ground_snap_distance,value.coyote_time,value.jump_buffer_time,value.drop_speed,value.drop_time,value.crouch_height,value.crouch_speed,value.step_height}) {
 		if !finite_nonnegative(v) {return false}
 	}
 	return value.acceleration > 0 && value.gravity > 0 && value.max_fall_speed > 0 &&
@@ -79,6 +92,9 @@ character_controller_2d_from_json :: proc(data: json.Value) -> (CharacterControl
 		case "jump_buffer_time": result.jump_buffer_time = number
 		case "drop_speed": result.drop_speed = number
 		case "drop_time": result.drop_time = number
+		case "crouch_height": result.crouch_height = number
+		case "crouch_speed": result.crouch_speed = number
+		case "step_height": result.step_height = number
 		case: return {}, false
 		}
 	}
@@ -181,7 +197,7 @@ character_contacts_2d :: proc(world: ^World, native: b2.BodyId, min_up: f32, pre
 
 character_ground_cast_2d :: proc(world: ^World, entity: Entity, distance: f32) -> (Raycast_Hit_2D, bool) {
 	if distance <= 0 {return {}, false}
-	capsule := world.capsule_colliders_2d[entity]
+	capsule,_ := get_effective_capsule_collider_2d(world,entity)
 	pose := world.transforms[entity]
 	a,b,radius := capsule_collider_2d_geometry(capsule,pose)
 	query := Physics_Query_2D{caller_context=context,world=world,filter=Default_Physics_Query_Filter,respect_one_way=true}
@@ -200,6 +216,7 @@ character_controllers_2d_before_step :: proc(world: ^World, dt: f32) {
 		native,found := world.box2d_bodies[entity]
 		if !found {continue}
 		state := world.character_controller_states_2d[entity]
+		state.stepped,state.step_support,state.step_component = false,0,""
 		if !character_controller_2d_ready(world,entity) {
 			if state.active {
 				b2.Body_SetGravityScale(native,world.rigid_bodies_2d[entity].gravity_scale)
@@ -215,6 +232,8 @@ character_controllers_2d_before_step :: proc(world: ^World, dt: f32) {
 			for shape in b2.Body_GetShapes(native,shapes) {b2.Shape_SetFriction(shape,0)}
 			state.active = true
 		}
+		character_crouch_before_step_2d(world,entity,config,&state)
+		world.character_controller_states_2d[entity] = state
 		b2.Body_SetGravityScale(native,0) // The motor integrates its own gravity.
 		character_drop_guard_2d(world,entity,&state,dt)
 		world.character_controller_states_2d[entity] = state
@@ -253,11 +272,15 @@ character_controllers_2d_before_step :: proc(world: ^World, dt: f32) {
 			(state.grounded || state.coyote_remaining > 0) && config.jump_speed > 0
 		state.jump_requested = false
 		acceleration := config.acceleration if state.grounded else config.air_acceleration
-		target := state.move_x*config.move_speed
+		speed := config.crouch_speed if state.crouched else config.move_speed
+		target := state.move_x*speed
 		relative_x := velocity[0]-state.inherited_velocity[0]
 		relative_x += clamp(target-relative_x,-acceleration*dt,acceleration*dt)
 		if state.grounded {state.inherited_velocity = state.support_velocity}
 		velocity[0] = relative_x+state.inherited_velocity[0]
+		if !jump && character_step_up_2d(world,entity,config,&state,velocity[0],dt,contacts) {
+			contacts.block_left,contacts.block_right = false,false
+		}
 		if (velocity[0]<0 && contacts.block_left) || (velocity[0]>0 && contacts.block_right) {
 			velocity[0] = 0
 			relative_x = -state.inherited_velocity[0]
@@ -297,6 +320,7 @@ character_controllers_2d_after_step :: proc(world: ^World) {
 		if state.jumping && body.velocity[1] >= max(0,state.inherited_velocity[1]) {state.jumping = false}
 		min_up := math.cos(config.max_slope_angle*math.PI/180)
 		contacts := character_contacts_2d(world,native,min_up,state.support_entity)
+		character_step_contact_2d(world,entity,&state,&contacts)
 		// A jump can descend in world space while rising relative to its source.
 		// A different (or reversing) support can still catch it. Compare incoming
 		// velocity with that actual support, before the solver equalized them.
@@ -316,6 +340,7 @@ character_controllers_2d_after_step :: proc(world: ^World) {
 			// Long snaps only maintain existing support. Falling characters must
 			// reach the ground, so snap distance cannot grant an early air jump.
 			distance: f32 = config.ground_snap_distance if was_grounded else 0.05
+			if state.posture_changed {distance = max(distance,0.05)}
 			hit,ok := character_ground_cast_2d(world,entity,distance)
 			if ok && -hit.normal[1] >= min_up {
 				pose := world.transforms[entity]
@@ -329,6 +354,7 @@ character_controllers_2d_after_step :: proc(world: ^World) {
 				state.support_velocity = character_support_velocity_2d(world,hit.entity)
 			}
 		}
+		state.posture_changed = false
 		if state.grounded {state.coyote_remaining = config.coyote_time}
 		body.grounded = state.grounded
 		if world.rigid_bodies_2d[entity] != body {record_component_change(world,entity,"RigidBody2D",.Changed)}

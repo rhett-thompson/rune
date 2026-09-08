@@ -82,7 +82,8 @@ one_way_pre_solve_2d :: proc "c" (a,b: b2.ShapeId, manifold: ^b2.Manifold, ctx: 
 one_way_cast_2d :: proc(world: ^World, entity: Entity, shape: b2.ShapeId, normal: b2.Vec2) -> bool {
 	platform := one_way_shape_2d(world,shape)
 	if !platform.one_way {return true}
-	a,b,radius := capsule_collider_2d_geometry(world.capsule_colliders_2d[entity],world.transforms[entity])
+	capsule,_ := get_effective_capsule_collider_2d(world,entity)
+	a,b,radius := capsule_collider_2d_geometry(capsule,world.transforms[entity])
 	visitor := One_Way_Shape_2D{entity=entity,velocity=character_support_velocity_2d(world,entity)}
 	visitor.bounds.upperBound.y = max(a[1],b[1])+radius
 	return one_way_accepts_2d(world,platform,visitor,normal)
@@ -103,7 +104,8 @@ character_drop_guard_2d :: proc(world: ^World, entity: Entity, state: ^Character
 	if state.drop_entity == 0 {return}
 	state.drop_remaining = max(0,state.drop_remaining-dt)
 	if state.drop_remaining > 0 {return}
-	a,b,radius := capsule_collider_2d_geometry(world.capsule_colliders_2d[entity],world.transforms[entity])
+	capsule,_ := get_effective_capsule_collider_2d(world,entity)
+	a,b,radius := capsule_collider_2d_geometry(capsule,world.transforms[entity])
 	for id, owner in world.physics_2d.shapes {
 		if owner.entity != state.drop_entity || owner.component != state.drop_component {continue}
 		shape := transmute(b2.ShapeId)id

@@ -1,4 +1,4 @@
-# Ramps, moving platforms, and one-way ledges
+# Ramps, crouching, moving platforms, and one-way ledges
 
 A `CharacterController2D` accelerates a capsule up a convex polygon and onto a
 two-sided segment bridge. It stays grounded while descending and supports
@@ -18,7 +18,8 @@ odin build examples/ramps_2d -collection:rune=rune -out:build/ramps_2d.exe
 
 On Linux, use `-out:build/ramps_2d` and `./build/ramps_2d`.
 
-Use A/D to move and Space to jump. Hold S or Down and press Space to drop
+Use A/D to move, Space to jump, and hold S or Down to crouch.
+While holding S/Down, press Space to drop
 through the violet shuttle or orange ledge. Both are one-way: jump through
 them from below and land on top. The teal elevator remains solid.
 Backtick opens the console.
@@ -51,3 +52,11 @@ are shortened to reach the bound without teleporting. The elevator and shuttle
 complete their routes in six seconds with the authored speeds. Changing a
 platform Transform is a teleport and detaches riders. Platform motion pauses
 and steps with the rest of the simulation.
+
+Walk off the right end of the bridge, land on the floor, and crouch left through
+the low tunnel. Releasing S/Down inside leaves the character crouched until there
+is room to stand. The HUD reports when a ceiling blocks standing. The tunnel has
+46 units of clearance, versus a 64-unit standing and 40-unit crouched capsule.
+The character drawing and physics gizmos follow the live capsule; the scene's
+`CapsuleCollider2D` remains the standing authoring data. Tune `crouch_height` and
+`crouch_speed` in `CharacterController2D` JSON or through the runtime console.

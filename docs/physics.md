@@ -295,3 +295,8 @@ inspection, captures, and reload work as in the other scene examples.
 offsets, compound bodies, capsule geometry, sensors, grounding, native cleanup,
 and value reload. Its optional `--runtime` mode checks actual gizmo pixels. Both
 passes are included in `tools/validate.ps1` (`-Runtime` enables pixel checks).
+
+While a `CharacterController2D` crouches, its authored capsule remains unchanged.
+Use `get_effective_capsule_collider_2d` to read live dimensions and offset;
+physics queries and gizmos already use the effective shape. See
+[crouching and safe standing](character-controller-2d.md#crouching-and-safe-standing).

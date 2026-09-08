@@ -208,7 +208,7 @@ draw_physics_2d :: proc(world: ^ecs.World) {
 	}
 	for entity in ecs.query(world, ecs.CapsuleCollider2D) {
 		transform, has_transform := ecs.get_transform(world, entity)
-		collider, has_collider := ecs.get_capsule_collider_2d(world, entity)
+		collider, has_collider := ecs.get_effective_capsule_collider_2d(world, entity)
 		if !has_transform || !has_collider {continue}
 		a, b, radius := ecs.capsule_collider_2d_geometry(collider, transform)
 		draw_capsule_outline_2d(a, b, radius, rl.LIME)
