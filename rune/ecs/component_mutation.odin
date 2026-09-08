@@ -8,6 +8,15 @@ import "rune:particles"
 component_value_valid :: proc(value: $T) -> bool {
 	when T == ParticleEmitter2D {
 		return particles.valid(value)
+	} else when T == Lifetime {
+		return finite_nonnegative(value.seconds)
+	} else when T == ShapeRenderer2D {
+		if value.shape != .rectangle && value.shape != .circle {return false}
+		for v in value.size {if !finite_nonnegative(v) || v == 0 {return false}}
+		for v in value.origin {if math.is_nan(v) || math.is_inf(v) {return false}}
+		return finite_nonnegative(value.radius) && value.radius > 0 &&
+		       finite_nonnegative(value.line_width) && value.line_width > 0 &&
+		       value.draw_order >= -1000000 && value.draw_order <= 1000000
 	} else when T == Transform {
 		for v in value.position {if math.is_nan(v) || math.is_inf(v) {return false}}
 		for v in value.rotation {if math.is_nan(v) || math.is_inf(v) {return false}}
@@ -61,6 +70,7 @@ commit_component_value :: proc(
 	kind: Component_Change_Kind = .Changed,
 ) {
 	previous, existed := storage^[entity]
+	when T == Lifetime {delete_key(&world.lifetime_elapsed, entity)}
 	when T == ParticleEmitter2D {
 		// Capacity/seed changes restart the bounded pool. Appearance and rate
 		// edits preserve existing particles and apply to subsequent births.

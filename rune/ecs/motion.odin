@@ -39,6 +39,7 @@ rotator_from_json :: proc(data: json.Value) -> (Rotator, bool) {
 // nested orbits such as a moon around an orbiting planet.
 update_orbits :: proc(world: ^World, dt: f32) {
 	for entity, orbit in world.orbits {
+		if !is_enabled(world, entity) {continue}
 		transform, has_transform := get_transform(world, entity)
 		if !has_transform {continue}
 
@@ -56,6 +57,7 @@ update_orbits :: proc(world: ^World, dt: f32) {
 // update_rotators advances every Rotator around its local Y axis.
 update_rotators :: proc(world: ^World, dt: f32) {
 	for entity, rotator in world.rotators {
+		if !is_enabled(world, entity) {continue}
 		transform, has_transform := get_transform(world, entity)
 		if !has_transform {continue}
 		transform.rotation[1] += rotator.degrees_per_second * dt

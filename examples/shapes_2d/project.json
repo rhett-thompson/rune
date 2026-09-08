@@ -1,0 +1,11 @@
+{
+  "name": "Shapes 2D",
+  "startup_scene": "scenes/main.scene.json",
+  "window": {
+    "width": 800,
+    "height": 500,
+    "title": "Rune Shapes 2D \u00e2\u20ac\u201d enable group / disable group / reload",
+    "vsync": true
+  },
+  "input": "input/default.input.json"
+}

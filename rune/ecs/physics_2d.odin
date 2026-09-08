@@ -154,19 +154,23 @@ physics_2d_body_edited :: proc(world: ^World, entity: Entity, previous, value: R
 sync_bodies_to_box2d :: proc(world: ^World, apply_velocities := true) {
 	defer world.physics_2d.needs_sync = false
 	for entity, body in world.rigid_bodies_2d {
+		if !is_enabled(world, entity) {continue}
 		if _, found := world.box2d_bodies[entity]; found {continue}
 		create_box2d_body(world, entity, body)
 	}
 	for entity in world.box_colliders_2d {
+		if !is_enabled(world, entity) {continue}
 		if _, exists := world.box2d_bodies[entity]; exists {continue}
 		if _, found := world.rigid_bodies_2d[entity]; !found {create_box2d_static(world, entity)}
 	}
 	for entity in world.circle_colliders_2d {
+		if !is_enabled(world, entity) {continue}
 		if _, exists := world.box2d_bodies[entity]; exists {continue}
 		if _, found := world.rigid_bodies_2d[entity]; !found {create_circle2d_static(world, entity)}
 	}
 	if apply_velocities {
 		for entity, body in world.rigid_bodies_2d {
+			if !is_enabled(world, entity) {continue}
 			native, found := world.box2d_bodies[entity]
 			if found {b2.Body_SetLinearVelocity(native, {body.velocity[0], body.velocity[1]})}
 		}
@@ -237,6 +241,7 @@ create_circle2d_static :: proc(world: ^World, entity: Entity) {
 
 sync_bodies_from_box2d :: proc(world: ^World) {
 	for entity, &body in world.rigid_bodies_2d {
+		if !is_enabled(world, entity) {continue}
 		native, found := world.box2d_bodies[entity]
 		if !found {continue}
 		transform, has_transform := get_transform(world, entity)

@@ -1,0 +1,13 @@
+{
+  "name": "Shapes and lifetimes",
+  "entities": [
+    {"id":"camera","components":{"Transform":{},"Camera2D":{"active":true}}},
+    {"id":"group","children":[
+      {"id":"rectangle","components":{"Transform":{"position":[170,200,0],"rotation":[0,0,20]},"ShapeRenderer2D":{"size":[150,100],"color":[45,115,215,255]}}},
+      {"id":"circle","components":{"Transform":{"position":[400,200,0]},"ShapeRenderer2D":{"shape":"circle","radius":70,"color":[230,100,55,255]}}},
+      {"id":"outline","components":{"Transform":{"position":[630,200,0],"scale":[1,0.7,1],"rotation":[0,0,-20]},"ShapeRenderer2D":{"shape":"circle","radius":75,"filled":false,"line_width":6,"color":[35,150,100,255]}}}
+    ]},
+    {"id":"temporary","components":{"Transform":{"position":[400,380,0]},"ShapeRenderer2D":{"size":[300,30],"color":[170,75,190,255]},"Lifetime":{"seconds":5}}},
+    {"id":"hidden","enabled":false,"components":{"Transform":{"position":[400,70,0]},"ShapeRenderer2D":{"size":[100,30],"color":[200,40,60,255]}}}
+  ]
+}

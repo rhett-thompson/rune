@@ -18,6 +18,7 @@
       "type": "object",
       "properties": {
         "id": { "type": "string", "minLength": 1, "description": "Scene-unique entity identifier." },
+        "enabled": { "type": "boolean", "description": "Local activation override; omission inherits the prefab setting or defaults to true. Disabled parents suspend their children." },
         "name": { "type": "string" },
         "tag": { "type": "string" },
         "layers": {

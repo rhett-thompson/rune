@@ -11,6 +11,7 @@ import "rune:prefab"
 import "rune:validation"
 
 Entity_Data :: struct {
+	enabled: Maybe(bool),
 	id:         string,
 	name:       string,
 	tag:        string,
@@ -225,6 +226,7 @@ instantiate_entity :: proc(
 	allocator: mem.Allocator,
 ) -> bool {
 	components := entity_data.components
+	enabled := true
 	prefab_children: []prefab.Entity_Data
 	if len(entity_data.prefab) > 0 {
 		prefab_path := entity_data.prefab
@@ -246,9 +248,12 @@ instantiate_entity :: proc(
 			allocator,
 		)
 		prefab_children = prefab_data.children
+		if value, specified := prefab_data.enabled.(bool); specified {enabled = value}
 	}
 
+	if value, specified := entity_data.enabled.(bool); specified {enabled = value}
 	entity := ecs.create_entity(world)
+	ecs.set_enabled(world, entity, enabled)
 	layer_mask, layers_ok := layer_mask_from_names(entity_data.layers, layer_names)
 	if !layers_ok ||
 	   !ecs.set_entity_metadata(
@@ -303,6 +308,7 @@ instantiate_prefab_child :: proc(
 	layer_mask: u64,
 ) -> bool {
 	child := ecs.create_entity(world)
+	if value, specified := child_data.enabled.(bool); specified {ecs.set_enabled(world, child, value)}
 	if !ecs.set_entity_metadata(world, child, "", child_data.name, "", layer_mask) ||
 	   !ecs.set_parent(world, child, parent) {
 		return false

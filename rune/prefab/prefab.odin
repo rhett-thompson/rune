@@ -7,12 +7,14 @@ import "core:os"
 // Entity_Data is the reusable portion of an entity definition. Instance-only
 // metadata such as IDs, tags, and layers stays in the scene that instantiates it.
 Entity_Data :: struct {
+	enabled: Maybe(bool),
 	name:       string,
 	components: map[string]json.Value,
 	children:   []Entity_Data,
 }
 
 Prefab :: struct {
+	enabled: Maybe(bool),
 	name:       string,
 	components: map[string]json.Value,
 	children:   []Entity_Data,

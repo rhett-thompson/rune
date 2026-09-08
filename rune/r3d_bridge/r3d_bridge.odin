@@ -178,6 +178,7 @@ draw_entity_tree :: proc(
 	parent: ecs.Transform,
 	pass: Render_Pass,
 ) {
+	if !ecs.is_enabled(world, entity) {return}
 	local := parent
 	if transform, has_transform := ecs.get_transform(world, entity); has_transform {
 		local.position += transform.position
@@ -290,6 +291,17 @@ apply_ambient :: proc(world: ^ecs.World) {
 }
 
 create_scene_lights :: proc(ctx: ^Context, world: ^ecs.World) {
+	for entity, light in ctx.scene_lights {
+		if !ecs.is_alive(world, entity) ||
+		   (!ecs.has_component_data(world, entity, "DirectionalLight") &&
+		    !ecs.has_component_data(world, entity, "PointLight") &&
+		    !ecs.has_component_data(world, entity, "SpotLight")) {
+			if r3d.IsLightExist(light) {r3d.DestroyLight(light)}
+			delete_key(&ctx.scene_lights, entity)
+			continue
+		}
+		r3d.SetLightActive(light, false)
+	}
 	for entity in ecs.entities_with_component(world, "DirectionalLight") {
 		light, found := ecs.get_directional_light(world, entity)
 		if !found {continue}

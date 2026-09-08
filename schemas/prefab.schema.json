@@ -6,6 +6,7 @@
   "required": ["name", "components"],
   "properties": {
     "$schema": { "type": "string" },
+    "enabled": { "type": "boolean", "default": true, "description": "Local activation; disabled parents suspend their children." },
     "name": { "type": "string", "minLength": 1 },
     "components": { "$ref": "components.schema.json" },
     "children": {
@@ -18,6 +19,7 @@
     "child": {
       "type": "object",
       "properties": {
+        "enabled": { "type": "boolean", "default": true, "description": "Local activation; disabled parents suspend their children." },
         "name": { "type": "string" },
         "components": { "$ref": "components.schema.json" },
         "children": {

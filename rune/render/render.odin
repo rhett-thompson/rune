@@ -18,6 +18,7 @@ Render_2D_Kind :: enum {
 	Tilemap,
 	Text,
 	Particles,
+	Shape,
 }
 
 Render_2D_Command :: struct {
@@ -68,6 +69,7 @@ collect_render_commands_2d :: proc(
 	parent_rotation: f32,
 	commands: ^[dynamic]Render_2D_Command,
 ) {
+	if !ecs.is_enabled(world, entity) {return}
 	position := parent_position
 	scale := parent_scale
 	rotation := parent_rotation
@@ -80,6 +82,10 @@ collect_render_commands_2d :: proc(
 		rotation += transform.rotation[2]
 	}
 
+	if shape, found := ecs.get_shape_renderer_2d(world, entity); found {
+		append(commands, Render_2D_Command{entity = entity, kind = .Shape, draw_order = shape.draw_order,
+			position = position, scale = scale, rotation = rotation})
+	}
 	if sprite, found := ecs.get_sprite_renderer(world, entity); found {
 		append(
 			commands,
@@ -143,6 +149,9 @@ draw_render_command_2d :: proc(
 	camera: rl.Camera2D,
 ) {
 	#partial switch command.kind {
+	case .Shape:
+		shape, found := ecs.get_shape_renderer_2d(world, command.entity)
+		if found {draw_shape_2d(shape, command)}
 	case .Particles:
 		draw_particles_2d(world, asset_manager, command.entity)
 	case .Sprite:

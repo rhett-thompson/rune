@@ -621,6 +621,7 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 			)
 			render.update_sprite_animators(world, &engine.assets, engine.delta_time)
 			ecs.update_particles_2d(world, engine.delta_time)
+			ecs.update_lifetimes(world, engine.delta_time)
 			engine.debug.sample.update_ms = (rl.GetTime() - update_started) * 1000
 			debug_simulation_finished(engine)
 		}

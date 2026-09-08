@@ -1,5 +1,6 @@
 {
   "examples": [
+    {"name": "Shapes 2D", "path": "shapes_2d", "description": "Texture-free shapes, activation, and timed entity expiry.", "group": "2D"},
     {"name": "Hello World", "path": "hello_world", "description": "A greeting loaded from a scene.", "group": "Basics"},
     {"name": "Sprite Scene 2D", "path": "sprite_scene_2d", "description": "One sprite, one camera, one scene.", "group": "Basics"},
     {"name": "Custom Mover", "path": "custom_mover", "description": "Your first movement component.", "group": "Basics"},

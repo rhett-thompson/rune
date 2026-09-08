@@ -59,6 +59,7 @@ set_particle_emitter_2d :: proc(world: ^World, entity: Entity, value: ParticleEm
 // Explicit bursts work even with emitting=false. Return the actual count;
 // saturation drops excess births. Call from start/update/fixed_update systems.
 emit_particles_2d :: proc(world: ^World, entity: Entity, count: int) -> int {
+	if !is_enabled(world, entity) {return 0}
 	settings, found := world.particle_emitters_2d[entity]
 	if !found || count <= 0 {return 0}
 	position, rotation, scale := particle_emitter_pose_2d(world, entity)
@@ -84,6 +85,7 @@ particle_count_2d :: proc(world: ^World, entity: Entity) -> int {
 // per simulation tick; rendering only reads particles and cannot advance them.
 update_particles_2d :: proc(world: ^World, dt: f32) {
 	for entity, settings in world.particle_emitters_2d {
+		if !is_enabled(world, entity) {continue}
 		position, rotation, scale := particle_emitter_pose_2d(world, entity)
 		state := world.particle_states_2d[entity]
 		particles.update(&state, settings, dt, position, rotation, scale)

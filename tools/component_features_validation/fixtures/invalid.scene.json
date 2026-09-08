@@ -1,0 +1,1 @@
+{"name":"Invalid","entities":[{"id":"bad","enabled":"false","components":{"ShapeRenderer2D":{"radius":-1},"Lifetime":{"seconds":-1}}}]}

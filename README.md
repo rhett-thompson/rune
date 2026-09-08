@@ -374,6 +374,20 @@ odin build examples/clay_ui -collection:rune=rune -out:build/clay_ui.exe
 ./build/clay_ui.exe
 ```
 
+## Entity activation, shapes, and lifetimes
+
+Scene/prefab entities accept `"enabled": false`. `ecs.set_enabled` suspends an
+entity and its descendants while preserving data; normal queries, rendering,
+physics, and built-in simulation honor the effective setting. Audio pauses and
+resumes through its regular update. Console `enable` / `disable` commands expose
+the same runtime control.
+
+`ShapeRenderer2D` renders filled or outlined rectangles and circles without
+textures. `Lifetime` destroys an entity and its children after a configured
+number of simulation seconds, suspending its countdown while disabled or paused.
+See the [feature guide](docs/entity_features.md) and
+[Shapes 2D example](examples/shapes_2d/README.md).
+
 ## 2D particles
 
 For scene-owned visual effects, `ParticleEmitter2D` provides continuous emission,

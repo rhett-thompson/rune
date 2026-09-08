@@ -144,15 +144,18 @@ physics_3d_body_edited :: proc(world: ^World, entity: Entity, previous, value: R
 sync_bodies_to_box3d :: proc(world: ^World) {
 	defer world.physics_3d.needs_sync = false
 	for entity, body in world.rigid_bodies_3d {
+		if !is_enabled(world, entity) {continue}
 		if _, found := world.box3d_bodies[entity]; found {continue}
 		create_box3d_body(world, entity, body)
 	}
 	for entity in world.box_colliders {
+		if !is_enabled(world, entity) {continue}
 		if _, has_native := world.box3d_bodies[entity]; has_native {continue}
 		if _, has_body := world.rigid_bodies_3d[entity];
 		   !has_body {create_box3d_static(world, entity)}
 	}
 	for entity in world.sphere_colliders {
+		if !is_enabled(world, entity) {continue}
 		if _, has_native := world.box3d_bodies[entity]; has_native {continue}
 		if _, has_body := world.rigid_bodies_3d[entity];
 		   !has_body {create_box3d_static(world, entity)}
@@ -206,6 +209,7 @@ create_box3d_static :: proc(world: ^World, entity: Entity) {
 
 sync_bodies_from_box3d :: proc(world: ^World) {
 	for entity, &body in world.rigid_bodies_3d {
+		if !is_enabled(world, entity) {continue}
 		native, found := physics_3d_native_body(world, entity)
 		if !found {continue}
 		transform, has_transform := get_transform(world, entity)

@@ -46,6 +46,7 @@ top_down_controller_from_json :: proc(data: json.Value) -> (TopDownController, b
 // move_top_down moves an entity by the requested X/Y delta. It resolves each
 // axis independently so the entity slides along solid tilemap walls.
 move_top_down :: proc(world: ^World, entity: Entity, delta: [2]f32) -> bool {
+	if !is_enabled(world, entity) {return false}
 	transform, has_transform := get_transform(world, entity)
 	controller, has_controller := get_top_down_controller(world, entity)
 	if !has_transform || !has_controller {return false}
@@ -77,6 +78,7 @@ top_down_blocked :: proc(
 		position[1] + controller.size[1] * 0.5,
 	}
 	for map_entity, collider in world.tilemap_colliders {
+		if !is_enabled(world, map_entity) {continue}
 		if !collides_by_layer(world, entity, map_entity) {continue}
 		tilemap, has_tilemap := get_tilemap_renderer(world, map_entity)
 		map_transform, has_transform := get_transform(world, map_entity)

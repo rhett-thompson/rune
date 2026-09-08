@@ -45,6 +45,7 @@ apply_value_snapshot :: proc(world: ^World, snapshot: ^World) -> bool {
 		world.entity_names[target_entity] = snapshot.entity_names[snapshot_entity]
 		world.entity_tags[target_entity] = snapshot.entity_tags[snapshot_entity]
 		world.layer_masks[target_entity] = snapshot.layer_masks[snapshot_entity]
+		set_enabled(world, target_entity, is_locally_enabled(snapshot, snapshot_entity))
 	}
 
 	apply_changed_component_values(world, snapshot, entity_translation)
@@ -194,6 +195,10 @@ apply_snapshot_component_value :: proc(
 		return
 	}
 	switch name {
+	case "ShapeRenderer2D":
+		commit_component_value(world, target_entity, name, &world.shape_renderers_2d, snapshot.shape_renderers_2d[snapshot_entity])
+	case "Lifetime":
+		commit_component_value(world, target_entity, name, &world.lifetimes, snapshot.lifetimes[snapshot_entity])
 	case "Transform":
 		commit_component_value(world, target_entity, name, &world.transforms, snapshot.transforms[snapshot_entity])
 	case "SpriteRenderer":

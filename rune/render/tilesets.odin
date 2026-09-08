@@ -8,7 +8,7 @@ import "rune:ecs"
 // needs the shared texture-independent tile size stored on the component.
 update_tilesets :: proc(world: ^ecs.World, asset_manager: ^assets.Asset_Manager) {
 	if world == nil || asset_manager == nil {return}
-	for entity in ecs.entities_with_component(world, "TilemapRenderer") {
+	for entity in ecs.entities_with_component(world, "TilemapRenderer", include_disabled = true) {
 		tilemap, found := ecs.get_tilemap_renderer(world, entity)
 		if !found || len(tilemap.tileset) == 0 {continue}
 		data, revision, loaded := assets.tileset(asset_manager, tilemap.tileset)

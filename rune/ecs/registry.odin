@@ -58,6 +58,8 @@ destroy_registry :: proc(registry: ^Component_Registry) {
 
 register_builtin_components :: proc(registry: ^Component_Registry) -> bool {
 	ok := true
+	ok = register_builtin_component(registry, "Lifetime", Lifetime, "Destroy an entity after a simulation duration") && ok
+	ok = register_builtin_component(registry, "ShapeRenderer2D", ShapeRenderer2D, "Texture-free 2D shapes") && ok
 	ok = register_builtin_component(registry, "ParticleEmitter2D", ParticleEmitter2D, "World-space 2D particles with continuous emission and code-driven bursts") && ok
 	ok = register_builtin_component(registry, "Transform", Transform, "Position, rotation, and scale for an entity") && ok
 	ok = register_builtin_component(registry, "SpriteRenderer", SpriteRenderer, "2D texture renderer") && ok

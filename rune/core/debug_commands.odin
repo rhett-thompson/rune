@@ -35,6 +35,8 @@ Profile_Sample :: struct {
 }
 
 register_debug_commands :: proc(dev: ^console.Console) {
+	console.register(dev, "enable", "Enable entity subtree: enable <entity-id>.", enable_command)
+	console.register(dev, "disable", "Suspend entity subtree: disable <entity-id>.", disable_command)
 	console.register(dev, "window", "Inspect display or change mode: window [windowed|borderless|fullscreen].", window_command)
 	console.register(dev, "status", "Report scene, timing, camera, entity count, and errors.", status_command)
 	console.register(dev, "entities", "List entities: entities [component].", entities_command)
@@ -144,6 +146,7 @@ status_command :: proc(dev: ^console.Console, arguments: string) {
 Entity_Summary :: struct {
 	id, name, parent: string,
 	components: []string,
+	enabled, enabled_in_hierarchy: bool,
 }
 
 entity_summary :: proc(world: ^ecs.World, entity: ecs.Entity) -> Entity_Summary {
@@ -152,7 +155,7 @@ entity_summary :: proc(world: ^ecs.World, entity: ecs.Entity) -> Entity_Summary 
 		if _, found := values[entity]; found {append(&names, name)}
 	}
 	slice.sort(names[:])
-	return {entity_label(world, entity), world.entity_names[entity], entity_label(world, world.parents[entity]), names[:]}
+	return {entity_label(world, entity), world.entity_names[entity], entity_label(world, world.parents[entity]), names[:], ecs.is_locally_enabled(world, entity), ecs.is_enabled(world, entity)}
 }
 
 entities_command :: proc(dev: ^console.Console, arguments: string) {
@@ -372,4 +375,17 @@ debug_profile_finished_frame :: proc(engine: ^Engine) {
 	engine.console.defer_reply = false
 	console.info(&engine.console, "Profile complete (CPU timings; frame includes presentation/wait).")
 	console.finish_remote(&engine.console)
+}
+
+enable_command :: proc(dev: ^console.Console, arguments: string) {activation_command(dev, arguments, true)}
+disable_command :: proc(dev: ^console.Console, arguments: string) {activation_command(dev, arguments, false)}
+activation_command :: proc(dev: ^console.Console, arguments: string, enabled: bool) {
+	_, world, ok := command_world(dev)
+	if !ok {return}
+	id, extra := take_word(arguments)
+	if id == "" || extra != "" {console.error(dev, "Usage: enable|disable <entity-id>"); return}
+	entity, found := resolve_debug_entity(dev, world, id)
+	if !found {return}
+	if !ecs.set_enabled(world, entity, enabled) {console.error(dev, "Could not change entity activation."); return}
+	console.set_result(dev, entity_summary(world, entity))
 }

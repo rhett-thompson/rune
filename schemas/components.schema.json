@@ -5,6 +5,8 @@
   "type": "object",
   "description": "Components attached to an entity. Custom Odin components are allowed.",
   "properties": {
+    "ShapeRenderer2D": { "$ref": "#/$defs/shapeRenderer2D" },
+    "Lifetime": { "$ref": "#/$defs/lifetime" },
     "Transform": { "$ref": "#/$defs/transform" },
     "SpriteRenderer": { "$ref": "#/$defs/spriteRenderer" },
     "SpriteAnimator": { "$ref": "#/$defs/spriteAnimator" },
@@ -44,6 +46,94 @@
     "description": "Data for a custom component registered by game code."
   },
   "$defs": {
+    "shapeRenderer2D": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "shape": {
+          "enum": [
+            "rectangle",
+            "circle"
+          ],
+          "default": "rectangle"
+        },
+        "size": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "default": [
+            32,
+            32
+          ]
+        },
+        "radius": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 16
+        },
+        "origin": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "default": [
+            0.5,
+            0.5
+          ]
+        },
+        "color": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "minItems": 4,
+          "maxItems": 4,
+          "default": [
+            255,
+            255,
+            255,
+            255
+          ]
+        },
+        "filled": {
+          "type": "boolean",
+          "default": true
+        },
+        "line_width": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 1
+        },
+        "draw_order": {
+          "type": "integer",
+          "minimum": -1000000,
+          "maximum": 1000000,
+          "default": 0
+        }
+      }
+    },
+    "lifetime": {
+      "type": "object",
+      "required": [
+        "seconds"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "seconds": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Simulation seconds before destroying this entity and its children; suspended while disabled."
+        }
+      }
+    },
     "particleEmitter2D": {
       "type": "object",
       "description": "World-space CPU particles. Transform sets emission position/direction and scales diameter; live particles remain independent.",

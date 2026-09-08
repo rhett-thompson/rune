@@ -1,0 +1,6 @@
+{"name":"Activation fixtures","entities":[
+ {"id":"inherited","prefab":"disabled.prefab.json"},
+ {"id":"overridden","prefab":"disabled.prefab.json","enabled":true},
+ {"id":"parent","enabled":false,"children":[{"id":"child","enabled":true,"components":{"ShapeRenderer2D":{},"Lifetime":{"seconds":2}}}]},
+ {"id":"default","components":{"Transform":{}}}
+]}

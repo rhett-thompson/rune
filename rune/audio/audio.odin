@@ -8,6 +8,7 @@ import "rune:ecs"
 import rl "vendor:raylib"
 
 Audio_Voice :: struct {
+	suspended: bool,
 	sound:         rl.Sound,
 	volume_offset: f32,
 	pitch_offset:  f32,
@@ -15,6 +16,8 @@ Audio_Voice :: struct {
 }
 
 Audio_Instance :: struct {
+	suspended: bool,
+	resume_stream: bool,
 	sound:                rl.Sound,
 	voices:               [dynamic]Audio_Voice,
 	music:                rl.Music,
@@ -89,6 +92,9 @@ update :: proc(system: ^Audio_System, world: ^ecs.World, dt: f32 = 0) {
 	// The typed instance table already contains every entity/name pair. Walking
 	// it once avoids scanning all instances again for each audio entity.
 	for key, player in world.audio_players {
+		enabled := ecs.is_enabled(world, key.entity)
+		suspend_instance(system, key, !enabled)
+		if !enabled {continue}
 		_, instance_exists := system.instances[key]
 		// Deferred players load only when explicitly played.
 		if !instance_exists && !player.play_on_start {continue}
@@ -131,11 +137,12 @@ play :: proc(
 	entity: ecs.Entity,
 	instance_name: string,
 ) -> bool {
-	if !system.available {return false}
+	if !system.available || !ecs.is_enabled(world, entity) {return false}
 	key := ecs.Component_Instance {
 		entity = entity,
 		name   = instance_name,
 	}
+	suspend_instance(system, key, false)
 	player, found := ecs.get_audio_player(world, entity, instance_name)
 	if !found || !ensure_instance(system, key, player.sound) {return false}
 	listener_entity, _, listener_found := ecs.active_audio_listener(world)
@@ -164,8 +171,9 @@ stop :: proc(system: ^Audio_System, entity: ecs.Entity, instance_name: string) -
 	if instance.streaming {
 		rl.StopMusicStream(instance.music)
 	} else {
-		for voice in instance.voices {rl.StopSound(voice.sound)}
+		for &voice in instance.voices {rl.StopSound(voice.sound); voice.suspended = false}
 	}
+	instance.resume_stream = false
 	instance.started = false
 	system.instances[key] = instance
 	return true
@@ -404,4 +412,31 @@ unload_instance :: proc(instance: Audio_Instance) {
 		delete(instance.voices)
 		rl.UnloadSound(instance.sound)
 	}
+}
+
+// Activation is serviced by audio.update even while simulation is paused.
+suspend_instance :: proc(system: ^Audio_System, key: ecs.Component_Instance, suspended: bool) {
+	instance, found := system.instances[key]
+	if !found || instance.suspended == suspended {return}
+	if instance.streaming {
+		if suspended {
+			instance.resume_stream = rl.IsMusicStreamPlaying(instance.music)
+			if instance.resume_stream {rl.PauseMusicStream(instance.music)}
+		} else if instance.resume_stream {
+			rl.ResumeMusicStream(instance.music)
+			instance.resume_stream = false
+		}
+	} else {
+		for &voice in instance.voices {
+			if suspended {
+				voice.suspended = rl.IsSoundPlaying(voice.sound)
+				if voice.suspended {rl.PauseSound(voice.sound)}
+			} else if voice.suspended {
+				rl.ResumeSound(voice.sound)
+				voice.suspended = false
+			}
+		}
+	}
+	instance.suspended = suspended
+	system.instances[key] = instance
 }

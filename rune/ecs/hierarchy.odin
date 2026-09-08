@@ -22,6 +22,7 @@ set_parent :: proc(world: ^World, child, parent: Entity) -> bool {
 		world.parents[child] = parent
 	}
 	world.hierarchy_dirty = true
+	refresh_activation(world, child)
 	return true
 }
 

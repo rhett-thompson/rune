@@ -128,6 +128,7 @@ camera_follow_2d_from_json :: proc(data: json.Value) -> (CameraFollow2D, bool) {
 update_camera_follows_2d :: proc(world: ^World, dt: f32, viewport_size: [2]f32) {
 	if world == nil || viewport_size[0] <= 0 || viewport_size[1] <= 0 {return}
 	for camera_entity, follow in world.camera_follows_2d {
+		if !is_enabled(world, camera_entity) {continue}
 		camera, has_camera := get_camera_2d(world, camera_entity)
 		camera_transform, has_camera_transform := get_transform(world, camera_entity)
 		target_entity, target_found := resolve_entity_ref(world, follow.target)

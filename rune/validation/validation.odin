@@ -7,6 +7,7 @@ import "core:os"
 import "core:path/filepath"
 import "core:strings"
 import "rune:jsonutil"
+import "rune:ecs"
 
 // Diagnostic describes one authoring problem. `path` is a JSON-style field
 // path, so the same report can later be shown by command-line tools or an
@@ -325,6 +326,7 @@ validate_entity :: proc(
 		ids^[id] = true
 	}
 	validate_entity_layers(report, file, path, entity, layers)
+	validate_enabled(report, file, path, entity)
 	components, components_ok := object_field(report, file, path, entity, "components", false)
 	if components_ok {validate_components(report, file, field_path(path, "components"), components, project_directory)}
 	if prefab_path, prefab_ok := string_field(report, file, path, entity, "prefab", false);
@@ -375,6 +377,7 @@ validate_prefab :: proc(report: ^Report, prefab_path, project_directory: string)
 	prefab, ok := read_json_object(prefab_path, report)
 	if !ok {return}
 	string_field(report, prefab_path, "$", prefab, "name", true)
+	validate_enabled(report, prefab_path, "$", prefab)
 	components, components_ok := object_field(report, prefab_path, "$", prefab, "components", true)
 	if components_ok {validate_components(report, prefab_path, "$.components", components, project_directory)}
 	children, children_ok := array_field(report, prefab_path, "$", prefab, "children", false)
@@ -399,6 +402,7 @@ validate_prefab_entity :: proc(
 ) {
 	entity, ok := value.(json.Object)
 	if !ok {add(report, file, path, "must be an object"); return}
+	validate_enabled(report, file, path, entity)
 	components, components_ok := object_field(report, file, path, entity, "components", false)
 	if components_ok {validate_components(report, file, field_path(path, "components"), components, project_directory)}
 	children, children_ok := array_field(report, file, path, entity, "children", false)
@@ -416,6 +420,16 @@ validate_components :: proc(
 	for name, value in components {
 		component, ok := value.(json.Object)
 		if !ok {add(report, file, field_path(path, name), "component data must be an object"); continue}
+		if name == "ShapeRenderer2D" {
+			if _, valid := ecs.shape_renderer_2d_from_json(value); !valid {
+				add(report, file, field_path(path, name), "invalid shape settings: use rectangle/circle, positive dimensions and line_width, and RGBA color")
+			}
+		}
+		if name == "Lifetime" {
+			if _, valid := ecs.lifetime_from_json(value); !valid {
+				add(report, file, field_path(path, name), "must contain only seconds, a finite nonnegative number")
+			}
+		}
 		if name == "AudioPlayer" {
 			if len(component) ==
 			   0 {add(report, file, field_path(path, name), "must define at least one named instance"); continue}
@@ -724,4 +738,10 @@ valid_blend_mode :: proc(name: string) -> bool {
 
 valid_cull_mode :: proc(name: string) -> bool {
 	return name == "back" || name == "front" || name == "none"
+}
+
+validate_enabled :: proc(report: ^Report, file, path: string, entity: json.Object) {
+	if value, found := entity["enabled"]; found {
+		if _, valid := value.(json.Boolean); !valid {add(report, file, field_path(path, "enabled"), "must be a boolean")}
+	}
 }

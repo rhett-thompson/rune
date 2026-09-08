@@ -57,7 +57,7 @@ typed_component_serializer :: proc($T: typeid) -> Component_Serialize_Proc {
 			// and replacement fields can also be freed with the output allocator.
 			when T == SpriteRenderer || T == MeshRenderer || T == SphereRenderer ||
 			     T == ModelRenderer || T == AmbientLight || T == DirectionalLight ||
-			     T == PointLight || T == SpotLight || T == TextRenderer {
+			     T == PointLight || T == SpotLight || T == TextRenderer || T == ShapeRenderer2D {
 				color_keys := []string{"color", "tint"}
 				for key in color_keys {
 					if color, exists := object[key].(json.Object); exists {
@@ -66,6 +66,9 @@ typed_component_serializer :: proc($T: typeid) -> Component_Serialize_Proc {
 						object[key] = channels
 					}
 				}
+			}
+			when T == ShapeRenderer2D {
+				object["shape"] = json.String("rectangle" if component.shape == .rectangle else "circle")
 			}
 			when T == RigidBody2D || T == RigidBody3D {
 				object["type"] = object["body_type"]

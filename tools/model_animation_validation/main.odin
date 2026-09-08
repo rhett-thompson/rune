@@ -87,6 +87,7 @@ validate_runtime :: proc(registry: ^ecs.Component_Registry) {
 	manager := assets.init(Root)
 	defer assets.shutdown(&manager)
 	defer bridge.shutdown(&ctx)
+	validate_light_activation(&ctx, registry)
 	world := load(registry)
 	defer ecs.destroy(&world)
 	left, _ := ecs.find_entity_by_id(&world, "left")
@@ -300,4 +301,28 @@ main :: proc() {
 	validate_components(&registry)
 	if len(os.args) > 1 && os.args[1] == "--runtime" {validate_runtime(&registry)}
 	fmt.println("Model animation validation passed")
+}
+
+// Entity activation must also reach cached GPU lights, and timed destruction
+// must release their handles rather than retaining every expired effect.
+validate_light_activation :: proc(ctx: ^bridge.Context, registry: ^ecs.Component_Registry) {
+	world := ecs.init()
+	defer ecs.destroy(&world)
+	parent, light := ecs.create_entity(&world), ecs.create_entity(&world)
+	assert(ecs.set_parent(&world, light, parent))
+	assert(ecs.add_component(&world, registry, light, "Transform", parse(`{}`)))
+	assert(ecs.add_component(&world, registry, light, "PointLight", parse(`{"intensity":1}`)))
+	bridge.create_scene_lights(ctx, &world)
+	handle, found := ctx.scene_lights[light]
+	assert(found && r3d.IsLightActive(handle))
+	assert(ecs.set_enabled(&world, parent, false))
+	bridge.create_scene_lights(ctx, &world)
+	assert(r3d.IsLightExist(handle) && !r3d.IsLightActive(handle))
+	assert(ecs.set_enabled(&world, parent, true))
+	bridge.create_scene_lights(ctx, &world)
+	assert(r3d.IsLightActive(handle))
+	assert(ecs.add(&world, registry, parent, ecs.Lifetime{0}))
+	ecs.update_lifetimes(&world, 0.1)
+	bridge.create_scene_lights(ctx, &world)
+	assert(len(ctx.scene_lights) == 0 && !r3d.IsLightExist(handle))
 }

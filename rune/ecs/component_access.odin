@@ -522,14 +522,14 @@ set_nav_agent_2d :: proc(
 
 active_camera_2d :: proc(world: ^World) -> (Entity, Camera2D, bool) {
 	for entity, camera in world.cameras_2d {
-		if camera.active {return entity, camera, true}
+		if camera.active && is_enabled(world, entity) {return entity, camera, true}
 	}
 	return Entity(0), {}, false
 }
 
 active_camera_3d :: proc(world: ^World) -> (Entity, Camera3D, bool) {
 	for entity, camera in world.cameras_3d {
-		if camera.active {return entity, camera, true}
+		if camera.active && is_enabled(world, entity) {return entity, camera, true}
 	}
 	return Entity(0), {}, false
 }
@@ -562,7 +562,7 @@ active_audio_listener :: proc(world: ^World) -> (Entity, AudioListener, bool) {
 	selected_listener: AudioListener
 	found := false
 	for entity, listener in world.audio_listeners {
-		if !listener.active {continue}
+		if !listener.active || !is_enabled(world, entity) {continue}
 		if found {return Entity(0), {}, false}
 		selected_entity = entity
 		selected_listener = listener

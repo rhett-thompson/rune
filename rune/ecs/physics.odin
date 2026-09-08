@@ -163,7 +163,7 @@ move_character :: proc(
 ) -> bool {
 	transform, has_transform := get_transform(world, entity)
 	controller, has_controller := get_character_controller(world, entity)
-	if !has_transform || !has_controller {return false}
+	if !has_transform || !has_controller || !is_enabled(world, entity) {return false}
 
 	if jump && controller.grounded {
 		controller.vertical_velocity = controller.jump_speed
@@ -252,7 +252,7 @@ move_character_axis :: proc(
 collides_by_layer :: proc(world: ^World, first, second: Entity) -> bool {
 	first_mask, first_found := entity_layer_mask(world, first)
 	second_mask, second_found := entity_layer_mask(world, second)
-	return first_found && second_found && (first_mask & second_mask) != 0
+	return first_found && second_found && is_enabled(world, first) && is_enabled(world, second) && (first_mask & second_mask) != 0
 }
 
 character_intersects_box :: proc(

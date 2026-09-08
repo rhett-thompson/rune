@@ -138,6 +138,7 @@ prepare_animations :: proc(
 		}
 	}
 	for entity, animator in world.model_animators {
+		if !ecs.is_enabled(world, entity) {continue}
 		renderer, found := ecs.get_model_renderer(world, entity)
 		if !found {continue}
 		model, loaded := load_model(ctx, manager, renderer.model)

@@ -57,6 +57,7 @@ destroy_entity_storage :: proc(world: ^World, entity: Entity) {
 	delete_key(&world.entity_tags, entity)
 	delete_key(&world.layer_masks, entity)
 	delete_key(&world.parents, entity)
+	delete_key(&world.disabled_entities, entity)
 	delete_key(&world.entities, entity)
 	world.entity_count -= 1
 	world.hierarchy_dirty = true

@@ -14,7 +14,7 @@ $builtValidators = [System.Collections.Generic.List[string]]::new()
 $executableSuffix = if ($IsWindows) { '.exe' } else { '' }
 $runtimeValidators = @(
     'model_animation_validation', 'sprite_animation_validation',
-    'particle_validation', 'resolution_validation', 'ui_validation',
+    'particle_validation', 'component_features_validation', 'resolution_validation', 'ui_validation',
     'window_validation', 'mixer_validation'
 )
 if ($Runtime -and $IsLinux -and !$env:DISPLAY -and !$env:WAYLAND_DISPLAY) {

@@ -1,0 +1,1 @@
+{"name":"disabled prefab","enabled":false,"components":{"Lifetime":{"seconds":3}},"children":[{"name":"disabled child","enabled":false,"components":{"ShapeRenderer2D":{}}}]}

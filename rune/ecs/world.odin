@@ -46,6 +46,10 @@ Default_Layer: u8 : 0
 Default_Layer_Mask: u64 : u64(1) << Default_Layer
 
 World :: struct {
+	disabled_entities: map[Entity]bool,
+	lifetime_elapsed: map[Entity]f32,
+	lifetimes: map[Entity]Lifetime,
+	shape_renderers_2d: map[Entity]ShapeRenderer2D,
 	particle_emitters_2d: map[Entity]ParticleEmitter2D,
 	particle_states_2d: map[Entity]particles.State,
 	model_animators: map[Entity]ModelAnimator,
@@ -133,6 +137,10 @@ init :: proc() -> World {
 	assert(scene_data_arena != nil)
 	mem.dynamic_arena_init(scene_data_arena)
 	return World {
+		disabled_entities = make(map[Entity]bool),
+		lifetime_elapsed = make(map[Entity]f32),
+		lifetimes = make(map[Entity]Lifetime),
+		shape_renderers_2d = make(map[Entity]ShapeRenderer2D),
 		particle_emitters_2d = make(map[Entity]ParticleEmitter2D),
 		particle_states_2d = make(map[Entity]particles.State),
 		generation = generation,
@@ -221,6 +229,10 @@ destroy :: proc(world: ^World) {
 	for _, renderer in world.tilemap_renderers {destroy_tilemap_renderer_storage(renderer)}
 	for _, collider in world.tilemap_colliders {destroy_tilemap_collider_storage(collider)}
 	delete(world.roots)
+	delete(world.shape_renderers_2d)
+	delete(world.lifetimes)
+	delete(world.disabled_entities)
+	delete(world.lifetime_elapsed)
 	delete(world.entities)
 	delete(world.entity_ids)
 	delete(world.entities_by_id)
@@ -414,6 +426,8 @@ add_component_owned :: proc(
 		return true
 	}
 
+	shape_renderer_2d: ShapeRenderer2D
+	lifetime: Lifetime
 	transform: Transform
 	sprite_renderer: SpriteRenderer
 	model_animator: ModelAnimator
@@ -447,6 +461,14 @@ add_component_owned :: proc(
 	nav_grid_2d: NavGrid2D
 	nav_agent_2d: NavAgent2D
 	parse_ok: bool
+	if name == "Lifetime" {
+		lifetime, parse_ok = lifetime_from_json(data)
+		if !parse_ok {return false}
+	}
+	if name == "ShapeRenderer2D" {
+		shape_renderer_2d, parse_ok = shape_renderer_2d_from_json(data)
+		if !parse_ok {return false}
+	}
 	if name == "ParticleEmitter2D" {
 		particle_emitter_2d, parse_ok = particle_emitter_2d_from_json(data)
 		if !parse_ok {return false}
@@ -539,6 +561,10 @@ add_component_owned :: proc(
 
 	kind: Component_Change_Kind = .Changed if already_present else .Added
 	switch name {
+	case "ShapeRenderer2D":
+		commit_component_value(world, entity, name, &world.shape_renderers_2d, shape_renderer_2d, kind)
+	case "Lifetime":
+		commit_component_value(world, entity, name, &world.lifetimes, lifetime, kind)
 	case "Transform":
 		commit_component_value(world, entity, name, &world.transforms, transform, kind)
 	case "SpriteRenderer":
@@ -683,6 +709,8 @@ remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
 		destroy_tilemap_renderer_storage(world.tilemap_renderers[entity])
 		delete_key(&world.tilemap_renderers, entity)
 	}
+	if name == "ShapeRenderer2D" {delete_key(&world.shape_renderers_2d, entity)}
+	if name == "Lifetime" {delete_key(&world.lifetimes, entity); delete_key(&world.lifetime_elapsed, entity)}
 	if name == "TextRenderer" {delete_key(&world.text_renderers, entity)}
 	if name == "TilemapCollider" {
 		destroy_tilemap_collider_storage(world.tilemap_colliders[entity])
