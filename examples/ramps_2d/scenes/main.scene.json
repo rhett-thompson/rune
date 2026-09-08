@@ -1,6 +1,6 @@
 {
   "$schema": "../../../schemas/scene.schema.json",
-  "name": "Ramps and Crouching",
+  "name": "Ramps and Stair Steps",
   "entities": [
     {
       "id": "camera",
@@ -44,7 +44,8 @@
           "drop_speed": 60,
           "drop_time": 0.15,
           "crouch_height": 40,
-          "crouch_speed": 100
+          "crouch_speed": 100,
+          "step_height": 18
         }
       }
     },
@@ -310,8 +311,8 @@
       "components": {
         "Transform": {
           "position": [
-            620,
-            330,
+            820,
+            280,
             0
           ]
         },
@@ -370,6 +371,151 @@
             85,
             110,
             135,
+            255
+          ]
+        }
+      }
+    },
+    {
+      "id": "stair_1",
+      "components": {
+        "Transform": {
+          "position": [
+            584,
+            368,
+            0
+          ]
+        },
+        "BoxCollider2D": {
+          "size": [
+            24,
+            12
+          ],
+          "offset": [
+            0,
+            6.0
+          ]
+        },
+        "ShapeRenderer2D": {
+          "size": [
+            24,
+            12
+          ],
+          "origin": [
+            0.5,
+            0
+          ],
+          "color": [
+            75,
+            135,
+            175,
+            255
+          ]
+        }
+      }
+    },
+    {
+      "id": "stair_2",
+      "components": {
+        "Transform": {
+          "position": [
+            608,
+            356,
+            0
+          ]
+        },
+        "BoxCollider2D": {
+          "size": [
+            24,
+            24
+          ],
+          "offset": [
+            0,
+            12.0
+          ]
+        },
+        "ShapeRenderer2D": {
+          "size": [
+            24,
+            24
+          ],
+          "origin": [
+            0.5,
+            0
+          ],
+          "color": [
+            75,
+            135,
+            175,
+            255
+          ]
+        }
+      }
+    },
+    {
+      "id": "stair_3",
+      "components": {
+        "Transform": {
+          "position": [
+            632,
+            344,
+            0
+          ]
+        },
+        "BoxCollider2D": {
+          "size": [
+            24,
+            36
+          ],
+          "offset": [
+            0,
+            18.0
+          ]
+        },
+        "ShapeRenderer2D": {
+          "size": [
+            24,
+            36
+          ],
+          "origin": [
+            0.5,
+            0
+          ],
+          "color": [
+            75,
+            135,
+            175,
+            255
+          ]
+        }
+      }
+    },
+    {
+      "id": "stair_ceiling",
+      "name": "Crouch to step",
+      "components": {
+        "Transform": {
+          "position": [
+            602,
+            298,
+            0
+          ]
+        },
+        "BoxCollider2D": {
+          "size": [
+            50,
+            8
+          ]
+        },
+        "ShapeRenderer2D": {
+          "size": [
+            50,
+            8
+          ],
+          "color": [
+            190,
+            105,
+            100,
             255
           ]
         }

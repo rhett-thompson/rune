@@ -1,4 +1,4 @@
-# Ramps, crouching, moving platforms, and one-way ledges
+# Ramps, stairs, crouching, and one-way platforms
 
 A `CharacterController2D` accelerates a capsule up a convex polygon and onto a
 two-sided segment bridge. It stays grounded while descending and supports
@@ -60,3 +60,10 @@ is room to stand. The HUD reports when a ceiling blocks standing. The tunnel has
 The character drawing and physics gizmos follow the live capsule; the scene's
 `CapsuleCollider2D` remains the standing authoring data. Tune `crouch_height` and
 `crouch_speed` in `CharacterController2D` JSON or through the runtime console.
+
+The top of the ramp has three 12-unit stairs. The player has `step_height: 18`,
+so walking climbs the first stair without jumping. The low red bar blocks further
+standing steps: hold S/Down to crouch and continue up the stairs. The capsule's
+shorter shape fits while its standing shape does not. Try
+`set player CharacterController2D.step_height 0` to disable the assistance.
+The orange one-way ledge now sits above the right end of the bridge.

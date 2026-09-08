@@ -89,7 +89,7 @@ validate_steps :: proc(r:^ecs.Component_Registry) {
   for i in 0..<3 {_=obstacle(&w,r,f32(i)*30,92-f32(i)*8,30)}
   ecs.character_controller_2d_move(&w,e,1)
   seen:=false
-  for i in 0..<80 {step(&w);seen ||= state(&w,e).stepped}
+  for i in 0..<80 {before:=pose(&w,e).position[0];step(&w);seen ||= state(&w,e).stepped;check(pose(&w,e).position[0]-before<=config().move_speed/60+0.05,"step adds no horizontal teleport")}
   fmt.println("stairs",enabled,pose(&w,e).position,state(&w,e).grounded,seen)
   if enabled {check(pose(&w,e).position[0]>60 && seen,"climb staircase without jumping")}
   else {check(pose(&w,e).position[0]<0 && !seen,"zero preserves wall blocking")}
@@ -145,10 +145,44 @@ validate_sizes :: proc(r:^ecs.Component_Registry) {
   }
  }
 }
+validate_moving :: proc(r:^ecs.Component_Registry) {
+ for v in ([][2]f32{{60,0},{0,-60},{0,60}}) {
+  w:=ecs.init();defer ecs.destroy(&w)
+  p:=platform(&w,r);e:=player(&w,r,-20,100)
+  c:=config();c.step_height=10;ecs.set(&w,e,c)
+  b:=obstacle(&w,r,0,92,200);add(&w,r,b,"RigidBody2D",`{"type":"kinematic","gravity_scale":0}`)
+  step(&w,10);set_velocity(&w,p,v);set_velocity(&w,b,v)
+  ecs.character_controller_2d_move(&w,e,1)
+  seen:=false
+  for _ in 0..<55 {step(&w);seen ||= state(&w,e).stepped}
+  fmt.println("moving",v,pose(&w,e).position-pose(&w,b).position,state(&w,e).grounded,seen)
+  check(seen && state(&w,e).grounded && state(&w,e).support_entity==b,"steps between moving supports")
+  check(near(velocity(&w,e)[0],100+v[0]) && near(velocity(&w,e)[1],v[1]),"moving step keeps one copy of carry")
+ }
+}
+validate_one_way_support :: proc(r:^ecs.Component_Registry) {
+ w:=ecs.init();defer ecs.destroy(&w)
+ _=one_way(&w,r,false,100);e:=player(&w,r,-20,100);c:=config();c.step_height=10;ecs.set(&w,e,c)
+ ledge:=obstacle(&w,r,0,92,150)
+ step(&w,10);ecs.character_controller_2d_move(&w,e,1);seen:=false
+ for _ in 0..<50 {step(&w);seen ||= state(&w,e).stepped}
+ check(seen && state(&w,e).support_entity==ledge,"one-way support can step onto a solid curb")
+}
+validate_data :: proc(r:^ecs.Component_Registry) {
+ w:=ecs.init();defer ecs.destroy(&w);e:=body(&w,r)
+ for value in ([]string{`{"step_height":-1}`,`{"step_height":true}`,`{"step_height":"8"}`}) {check(!ecs.add_component(&w,r,e,"CharacterController2D",parse(value)),"invalid step setting")}
+ check(ecs.default_character_controller_2d().step_height==0,"step-up defaults off")
+ e=setup(&w,r,10);_=obstacle(&w,r,0,92,100);ecs.character_controller_2d_move(&w,e,1);step(&w,5)
+ check(ecs.set_runtime_field(&w,r,e,"CharacterController2D","step_height",parse(`0`)));ecs.character_controller_2d_move(&w,e,1);step(&w,40)
+ check(!state(&w,e).stepped && pose(&w,e).position[0]<0,"runtime disabling restores ordinary wall behavior")
+}
 main :: proc() {
  r:=ecs.init_registry();defer ecs.destroy_registry(&r);check(ecs.register_builtin_components(&r))
+ validate_data(&r)
+ validate_one_way_support(&r)
  validate_steps(&r)
  validate_limits(&r)
  validate_sizes(&r)
+ validate_moving(&r)
  fmt.println("Step-up 2D validation passed")
 }

@@ -77,15 +77,16 @@ draw_terrain :: proc(game: ^rune.Engine, world: ^ecs.World) {
 }
 
 draw_ui :: proc(game: ^rune.Engine, world: ^ecs.World) {
-	rl.DrawText("RAMPS + CROUCHING",32,24,26,rl.RAYWHITE)
+	rl.DrawText("RAMPS + STAIRS",32,24,26,rl.RAYWHITE)
 	rl.DrawText("A/D: move   SPACE: jump   S/DOWN: crouch   S/DOWN + SPACE: drop",32,65,18,rl.LIGHTGRAY)
 	rl.DrawText("Ride the teal elevator. Jump through the violet shuttle or orange ledge.",32,96,18,rl.LIGHTGRAY)
-	rl.DrawText("Violet / orange: one-way. Teal / green: solid. Gold diamond: sensor.",32,127,18,rl.LIGHTGRAY)
+	rl.DrawText("Stairs: walk up. Low red bar: crouch to step. Gold diamond: sensor.",32,127,18,rl.LIGHTGRAY)
 	rl.DrawText("Walk off the bridge at the right, then crouch left through the low tunnel.",32,158,17,rl.LIGHTGRAY)
 	rl.DrawText("ONE-WAY SHUTTLE",340,245,16,rl.LIGHTGRAY)
 	rl.DrawText("ELEVATOR",50,515,16,rl.LIGHTGRAY)
 	rl.DrawText("LOW TUNNEL",704,515,16,rl.LIGHTGRAY)
-	rl.DrawText("ONE-WAY",582,237,16,rl.ORANGE)
+	rl.DrawText("ONE-WAY",782,237,16,rl.ORANGE)
+	rl.DrawText("CROUCH STEP",520,268,16,rl.LIGHTGRAY)
 	rl.DrawText("CONVEX POLYGON",320,466,16,rl.LIGHTGRAY)
 	rl.DrawText("SEGMENT BRIDGE",662,408,16,rl.LIGHTGRAY)
 	state,_ := ecs.get_character_controller_2d_state(world,player)
@@ -95,7 +96,7 @@ draw_ui :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	stance := "standing"
  if state.crouched {stance = "crouching"}
  if state.stand_blocked {stance = "ceiling blocks standing"}
- rl.DrawText(fmt.ctprintf("%s   |   Backtick: console   |   Try: set player CharacterController2D.crouch_speed 80",stance),32,570,15,rl.LIGHTGRAY)
+ rl.DrawText(fmt.ctprintf("%s   |   Backtick: console   |   Try: set player CharacterController2D.step_height 0",stance),32,570,15,rl.LIGHTGRAY)
 	pose,found := ecs.get_transform(world,player)
 	if found {
 		filter := ecs.Default_Physics_Query_Filter

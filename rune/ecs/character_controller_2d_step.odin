@@ -56,7 +56,7 @@ character_step_proxy_offset_2d :: proc(proxy: b2.ShapeProxy, offset: [2]f32) -> 
 // velocity once; probing ahead must never add extra horizontal travel.
 character_step_up_2d :: proc(world: ^World, entity: Entity, config: CharacterController2D, state: ^Character_Controller_State_2D,
 	velocity_x,dt: f32, contacts: Character_Contacts_2D) -> bool {
-	if config.step_height <= 0 || !state.grounded || state.jumping || state.drop_entity != 0 ||
+	if config.step_height <= 0 || !state.grounded || state.jumping ||
 		state.move_x == 0 || velocity_x*state.move_x <= 0 {return false}
 	limit := b2.World_GetMaximumLinearSpeed(world.box2d_world)
 	dx := clamp(velocity_x,-limit,limit)*dt

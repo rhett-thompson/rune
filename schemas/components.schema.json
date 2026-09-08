@@ -131,6 +131,12 @@
           "minimum": 0,
           "default": 100,
           "description": "Horizontal target speed while crouched, relative to supporting platform."
+        },
+        "step_height": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "Maximum grounded step-up in world units. Zero disables step assistance."
         }
       }
     },

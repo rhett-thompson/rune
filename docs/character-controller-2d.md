@@ -33,7 +33,8 @@ Put these components on the same entity:
   "drop_speed": 60,
   "drop_time": 0.15,
   "crouch_height": 20,
-  "crouch_speed": 100
+  "crouch_speed": 100,
+  "step_height": 0
 }
 ```
 
@@ -129,8 +130,7 @@ limited earlier by the backend. The motor does not raise this global ceiling
 for other bodies. Games needing higher speeds can explicitly tune
 `b2.World_SetMaximumLinearSpeed` on `world.box2d_world` after initialization.
 
-This is a small rigid-body motor. It has no stair step-up,
-wall jumps or crush handling. Dynamic-body
+This is a small rigid-body motor. It has no wall jumps or crush handling. Dynamic-body
 contacts and sensor events continue through the normal physics APIs.
 
 ## Moving platforms
@@ -287,6 +287,50 @@ obstacle; they are not collision-constrained movement. Unchanged scene values
 preserve posture during value reload. Crouch does not add a crush solver for
 platforms moving into ceilings.
 
+## Stairs and curb step-up
+
+Set `step_height` to the largest rise the character may step onto, in world
+units. It defaults to `0`, preserving ordinary collision behavior. For example:
+
+```json
+"CharacterController2D": {"step_height": 18}
+```
+
+Step assistance requires grounded horizontal movement input toward an obstacle.
+It does not run during a jump, while airborne, or merely because a platform
+carries an idle character into a wall. Buffered jumps and drop requests take
+priority. Small curbs can be stepped onto even when there is insufficient
+headroom to lift by the entire configured maximum.
+
+The motor sweeps the effective capsule upward, forward by this fixed step's
+horizontal travel, and down onto a candidate landing. It checks the actual
+landing face against `max_slope_angle`, checks the rise against `step_height`,
+and verifies the path at the resulting height. This prevents steep slopes from
+becoming stairs and stops steps into low ceilings or taller walls. Near a convex
+stair edge, the rounded capsule may briefly touch the corner at a steep normal;
+the verified top face supplies the support normal for that step. Native movement
+must still confirm support afterward.
+
+Only vertical position is adjusted. Box2D advances horizontal velocity once, so
+probing ahead adds no horizontal teleport or extra travel. The native body and
+shape are retained, and moving-platform velocity is applied through the normal
+support logic. Descending stairs continue to use `ground_snap_distance`; this
+setting adds upward assistance only.
+
+Crouching uses its shorter live capsule for all clearance checks. Sensors and
+excluded layers do not obstruct stepping. One-way sides and undersides remain
+passable, and raising a trial capsule does not allow it to acquire a one-way top
+from underneath. A character already supported by a one-way platform can step
+onto a nearby solid curb. Existing drop guards continue to filter their source.
+This remains a small fixed-step controller, not predictive crush avoidance for
+platforms moving into walls or ceilings.
+
+The runtime state's `stepped` flag reports assistance in the latest fixed step;
+`step_support` and `step_component` identify its candidate landing. Configuration
+changes and the usual controller resets clear this state. The ramps demo has
+three stairs and a low red bar that requires crouching before stepping further.
+Try `set player CharacterController2D.step_height 0` to compare normal collision.
+
 ## Editing and lifetime
 
 Settings serialize through the registry, support prefabs and value reload, and
@@ -333,3 +377,8 @@ invalidation. It is included automatically by `tools/validate.ps1`.
 `tools/crouch_2d_validation` checks posture geometry, speed, blocked standing,
 automatic retry, reflected scales, collision filtering, moving support,
 drop-through and resets. It also runs through `tools/validate.ps1`.
+
+`tools/step_up_2d_validation` checks disabled behavior, repeated stair climbing,
+height and slope limits, crouched headroom, slow/fast movement in both directions,
+no extra horizontal travel, input/air restrictions, collision filters, moving
+supports, one-way support, and runtime disabling. It runs in `tools/validate.ps1`.

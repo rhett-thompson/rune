@@ -1,6 +1,6 @@
 {
   "examples": [
-    {"name":"2D Ramps", "path":"ramps_2d", "description":"Slopes, crouching through low tunnels, moving platforms, and one-way ledges.", "group":"2D"},
+    {"name":"2D Ramps", "path":"ramps_2d", "description":"Stairs, crouched clearance, slopes, moving platforms, and one-way ledges.", "group":"2D"},
     {"name": "Post Processing 3D", "path": "post_processing_3d", "description": "Bloom, tone mapping, occlusion, and focus in a light gallery.", "collections": [{"name": "r3d", "path": "third_party/r3d-odin"}], "group": "3D"},
     {"name":"2D Colliders", "path":"colliders_2d", "description":"Capsules, offset shapes, sensors, and collider gizmos.", "group":"2D"},
     {"name": "Shapes 2D", "path": "shapes_2d", "description": "Texture-free shapes, activation, and timed entity expiry.", "group": "2D"},

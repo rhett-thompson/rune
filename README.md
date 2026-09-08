@@ -1253,7 +1253,8 @@ jump requests; JSON stores the settings. Moving platforms carry grounded charact
 and transfer velocity on jumps, with support invalidated safely on removal or reload.
 Boxes and horizontal segments support JSON `one_way` collision; the controller
 can drop through its supporting platform onto lower ground. Crouching preserves
-feet, reduces movement speed, and waits for headroom before standing.
+feet, reduces movement speed, and waits for headroom before standing. Optional
+`step_height` adds stair/curb traversal with capsule clearance and slope checks.
 See the [2D controller API](docs/character-controller-2d.md).
 
 ## Fixed-step 2D physics
