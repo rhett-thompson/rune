@@ -1,0 +1,413 @@
+{
+  "$schema": "../../../schemas/scene.schema.json",
+  "name": "Ramps and One-Way Platforms",
+  "entities": [
+    {
+      "id": "camera",
+      "components": {
+        "Transform": {},
+        "Camera2D": {
+          "active": true
+        }
+      }
+    },
+    {
+      "id": "player",
+      "components": {
+        "Transform": {
+          "position": [
+            140,
+            420,
+            0
+          ]
+        },
+        "RigidBody2D": {},
+        "CapsuleCollider2D": {
+          "radius": 18,
+          "height": 64,
+          "offset": [
+            0,
+            -32
+          ]
+        },
+        "CharacterController2D": {
+          "move_speed": 200,
+          "acceleration": 1600,
+          "air_acceleration": 800,
+          "gravity": 1200,
+          "jump_speed": 460,
+          "max_fall_speed": 900,
+          "max_slope_angle": 45,
+          "ground_snap_distance": 8,
+          "coyote_time": 0.1,
+          "jump_buffer_time": 0.1,
+          "drop_speed": 60,
+          "drop_time": 0.15
+        }
+      },
+      "children": [
+        {
+          "components": {
+            "Transform": {
+              "position": [
+                0,
+                -32,
+                0
+              ]
+            },
+            "ShapeRenderer2D": {
+              "size": [
+                36,
+                28
+              ],
+              "color": [
+                70,
+                155,
+                245,
+                255
+              ]
+            }
+          }
+        },
+        {
+          "components": {
+            "Transform": {
+              "position": [
+                0,
+                -46,
+                0
+              ]
+            },
+            "ShapeRenderer2D": {
+              "shape": "circle",
+              "radius": 18,
+              "color": [
+                70,
+                155,
+                245,
+                255
+              ]
+            }
+          }
+        },
+        {
+          "components": {
+            "Transform": {
+              "position": [
+                0,
+                -18,
+                0
+              ]
+            },
+            "ShapeRenderer2D": {
+              "shape": "circle",
+              "radius": 18,
+              "color": [
+                70,
+                155,
+                245,
+                255
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "floor",
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0,
+            0
+          ]
+        },
+        "SegmentCollider2D": {
+          "start": [
+            40,
+            500
+          ],
+          "end": [
+            920,
+            500
+          ]
+        }
+      }
+    },
+    {
+      "id": "left_wall",
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0,
+            0
+          ]
+        },
+        "SegmentCollider2D": {
+          "start": [
+            40,
+            250
+          ],
+          "end": [
+            40,
+            500
+          ]
+        }
+      }
+    },
+    {
+      "id": "right_wall",
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0,
+            0
+          ]
+        },
+        "SegmentCollider2D": {
+          "start": [
+            920,
+            250
+          ],
+          "end": [
+            920,
+            500
+          ]
+        }
+      }
+    },
+    {
+      "id": "ramp",
+      "components": {
+        "Transform": {
+          "position": [
+            240,
+            500,
+            0
+          ]
+        },
+        "PolygonCollider2D": {
+          "vertices": [
+            [
+              0,
+              0
+            ],
+            [
+              300,
+              -120
+            ],
+            [
+              380,
+              -120
+            ],
+            [
+              380,
+              0
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "bridge",
+      "components": {
+        "Transform": {
+          "position": [
+            620,
+            380,
+            0
+          ]
+        },
+        "SegmentCollider2D": {
+          "start": [
+            0,
+            0
+          ],
+          "end": [
+            260,
+            -52
+          ]
+        }
+      }
+    },
+    {
+      "id": "sensor",
+      "components": {
+        "Transform": {
+          "position": [
+            735,
+            305,
+            0
+          ]
+        },
+        "PolygonCollider2D": {
+          "vertices": [
+            [
+              -35,
+              0
+            ],
+            [
+              0,
+              -50
+            ],
+            [
+              35,
+              0
+            ],
+            [
+              0,
+              50
+            ]
+          ],
+          "offset": [
+            20,
+            0
+          ],
+          "is_sensor": true
+        }
+      }
+    },
+    {
+      "id": "elevator",
+      "name": "Elevator",
+      "components": {
+        "Transform": {
+          "position": [
+            150,
+            480,
+            0
+          ]
+        },
+        "RigidBody2D": {
+          "type": "kinematic",
+          "gravity_scale": 0
+        },
+        "BoxCollider2D": {
+          "size": [
+            100,
+            16
+          ],
+          "offset": [
+            0,
+            8
+          ]
+        },
+        "ShapeRenderer2D": {
+          "size": [
+            100,
+            16
+          ],
+          "origin": [
+            0.5,
+            0
+          ],
+          "color": [
+            45,
+            170,
+            165,
+            255
+          ]
+        },
+        "PlatformMotion": {
+          "axis": 1,
+          "minimum": 300,
+          "maximum": 480,
+          "speed": 60
+        }
+      }
+    },
+    {
+      "id": "shuttle",
+      "name": "Shuttle",
+      "components": {
+        "Transform": {
+          "position": [
+            460,
+            290,
+            0
+          ]
+        },
+        "RigidBody2D": {
+          "type": "kinematic",
+          "gravity_scale": 0
+        },
+        "BoxCollider2D": {
+          "size": [
+            120,
+            16
+          ],
+          "offset": [
+            0,
+            8
+          ],
+          "one_way": true
+        },
+        "ShapeRenderer2D": {
+          "size": [
+            120,
+            16
+          ],
+          "origin": [
+            0.5,
+            0
+          ],
+          "color": [
+            160,
+            110,
+            215,
+            255
+          ]
+        },
+        "PlatformMotion": {
+          "axis": 0,
+          "minimum": 250,
+          "maximum": 460,
+          "speed": 70
+        }
+      }
+    },
+    {
+      "id": "one_way_ledge",
+      "name": "One-way ledge",
+      "components": {
+        "Transform": {
+          "position": [
+            620,
+            330,
+            0
+          ]
+        },
+        "BoxCollider2D": {
+          "size": [
+            120,
+            12
+          ],
+          "offset": [
+            0,
+            6
+          ],
+          "one_way": true
+        },
+        "ShapeRenderer2D": {
+          "size": [
+            120,
+            12
+          ],
+          "origin": [
+            0.5,
+            0
+          ],
+          "color": [
+            235,
+            150,
+            60,
+            255
+          ]
+        }
+      }
+    }
+  ]
+}

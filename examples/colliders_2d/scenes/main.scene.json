@@ -1,0 +1,368 @@
+{
+  "$schema": "../../../schemas/scene.schema.json",
+  "name": "Collider Playground",
+  "entities": [
+    {
+      "id": "camera",
+      "components": {
+        "Transform": {},
+        "Camera2D": {
+          "active": true
+        }
+      }
+    },
+    {
+      "id": "player",
+      "components": {
+        "Transform": {
+          "position": [
+            150,
+            300,
+            0
+          ]
+        },
+        "RigidBody2D": {},
+        "CapsuleCollider2D": {
+          "radius": 18,
+          "height": 64,
+          "offset": [
+            0,
+            -32
+          ]
+        }
+      },
+      "children": [
+        {
+          "components": {
+            "Transform": {
+              "position": [
+                0,
+                -32,
+                0
+              ]
+            },
+            "ShapeRenderer2D": {
+              "size": [
+                36,
+                28
+              ],
+              "color": [
+                70,
+                155,
+                245,
+                255
+              ]
+            }
+          }
+        },
+        {
+          "components": {
+            "Transform": {
+              "position": [
+                0,
+                -46,
+                0
+              ]
+            },
+            "ShapeRenderer2D": {
+              "shape": "circle",
+              "radius": 18,
+              "color": [
+                70,
+                155,
+                245,
+                255
+              ]
+            }
+          }
+        },
+        {
+          "components": {
+            "Transform": {
+              "position": [
+                0,
+                -18,
+                0
+              ]
+            },
+            "ShapeRenderer2D": {
+              "shape": "circle",
+              "radius": 18,
+              "color": [
+                70,
+                155,
+                245,
+                255
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "floor",
+      "components": {
+        "Transform": {
+          "position": [
+            480,
+            500,
+            0
+          ]
+        },
+        "BoxCollider2D": {
+          "size": [
+            860,
+            24
+          ],
+          "offset": [
+            0,
+            -28
+          ]
+        }
+      },
+      "children": [
+        {
+          "components": {
+            "Transform": {
+              "position": [
+                0,
+                -28,
+                0
+              ]
+            },
+            "ShapeRenderer2D": {
+              "size": [
+                860,
+                24
+              ],
+              "color": [
+                68,
+                78,
+                95,
+                255
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "platform",
+      "components": {
+        "Transform": {
+          "position": [
+            420,
+            460,
+            0
+          ]
+        },
+        "CapsuleCollider2D": {
+          "radius": 16,
+          "height": 150,
+          "axis": "horizontal",
+          "offset": [
+            25,
+            -22
+          ]
+        }
+      },
+      "children": [
+        {
+          "components": {
+            "Transform": {
+              "position": [
+                25,
+                -22,
+                0
+              ]
+            },
+            "ShapeRenderer2D": {
+              "size": [
+                118,
+                32
+              ],
+              "color": [
+                105,
+                95,
+                185,
+                255
+              ]
+            }
+          }
+        },
+        {
+          "components": {
+            "Transform": {
+              "position": [
+                -34,
+                -22,
+                0
+              ]
+            },
+            "ShapeRenderer2D": {
+              "shape": "circle",
+              "radius": 16,
+              "color": [
+                105,
+                95,
+                185,
+                255
+              ]
+            }
+          }
+        },
+        {
+          "components": {
+            "Transform": {
+              "position": [
+                84,
+                -22,
+                0
+              ]
+            },
+            "ShapeRenderer2D": {
+              "shape": "circle",
+              "radius": 16,
+              "color": [
+                105,
+                95,
+                185,
+                255
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "circle",
+      "components": {
+        "Transform": {
+          "position": [
+            780,
+            450,
+            0
+          ]
+        },
+        "CircleCollider2D": {
+          "radius": 34,
+          "offset": [
+            -70,
+            -24
+          ]
+        }
+      },
+      "children": [
+        {
+          "components": {
+            "Transform": {
+              "position": [
+                -70,
+                -24,
+                0
+              ]
+            },
+            "ShapeRenderer2D": {
+              "shape": "circle",
+              "radius": 34,
+              "color": [
+                50,
+                150,
+                140,
+                255
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "sensor",
+      "components": {
+        "Transform": {
+          "position": [
+            830,
+            450,
+            0
+          ]
+        },
+        "CapsuleCollider2D": {
+          "radius": 22,
+          "height": 110,
+          "offset": [
+            0,
+            -55
+          ],
+          "is_sensor": true
+        }
+      },
+      "children": [
+        {
+          "components": {
+            "Transform": {
+              "position": [
+                0,
+                -55,
+                0
+              ]
+            },
+            "ShapeRenderer2D": {
+              "size": [
+                44,
+                66
+              ],
+              "color": [
+                180,
+                132,
+                36,
+                255
+              ]
+            }
+          }
+        },
+        {
+          "components": {
+            "Transform": {
+              "position": [
+                0,
+                -88,
+                0
+              ]
+            },
+            "ShapeRenderer2D": {
+              "shape": "circle",
+              "radius": 22,
+              "color": [
+                180,
+                132,
+                36,
+                255
+              ]
+            }
+          }
+        },
+        {
+          "components": {
+            "Transform": {
+              "position": [
+                0,
+                -22,
+                0
+              ]
+            },
+            "ShapeRenderer2D": {
+              "shape": "circle",
+              "radius": 22,
+              "color": [
+                180,
+                132,
+                36,
+                255
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

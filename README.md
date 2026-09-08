@@ -29,6 +29,7 @@ their game-specific fields are not completed by the built-in schemas.
 - [Audio mixer buses](docs/audio-mixer.md): master/music/SFX/UI volume, mute, and fades.
 - [2D resolution policies](docs/display.md): fit, stretch, integer scaling, and canvas mouse mapping.
 - [Animation transitions](docs/animation-transitions.md): queued sprite clips and skeletal pose blends.
+- [3D post processing](docs/post-processing.md): scene/camera profiles, bloom, tone mapping, occlusion, focus, and hot reload. Try [Post Processing 3D](examples/post_processing_3d/README.md).
 
 - raylib-backed engine lifecycle and registered update/draw systems;
 - JSON projects, scenes, prefabs, materials, tilesets, sprite animations, input mappings, and schemas;
@@ -1231,6 +1232,28 @@ existing bridge draw functions render the animated pose.
 See the [animation API and lifetime rules](docs/model-animation.md) and
 [skeletal_animation_3d example](examples/skeletal_animation_3d/main.odin) for
 pause/resume, seeking, reverse playback, looping, and model hot reload.
+
+## 2D collider offsets and capsules
+
+`BoxCollider2D`, `CircleCollider2D`, and `CapsuleCollider2D` support local `offset`
+vectors. Capsules use radius, total height, and a vertical/horizontal axis.
+Multiple collider types can share one body with independent sensor settings.
+JSON loading, typed setters, runtime edits, queries, events, reload, activation,
+and gizmos use the same geometry. See [physics authoring](docs/physics.md) and the
+[collider playground](examples/colliders_2d/README.md).
+
+`PolygonCollider2D` adds convex outlines with 3–8 perimeter vertices;
+`SegmentCollider2D` adds two-sided edges with local `start`/`end` points.
+Both support offsets, sensors, queries, reload, and runtime edits. Try the
+[ramps and edges example](examples/ramps_2d/README.md).
+
+`CharacterController2D` adds acceleration, slope limits, capsule ground snapping,
+gravity, jumping, coyote time, and jump buffering. Odin supplies movement and
+jump requests; JSON stores the settings. Moving platforms carry grounded characters
+and transfer velocity on jumps, with support invalidated safely on removal or reload.
+Boxes and horizontal segments support JSON `one_way` collision; the controller
+can drop through its supporting platform onto lower ground.
+See the [2D controller API](docs/character-controller-2d.md).
 
 ## Fixed-step 2D physics
 

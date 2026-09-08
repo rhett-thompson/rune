@@ -1,0 +1,13 @@
+{
+  "$schema": "../../schemas/project.schema.json",
+  "name": "Post Processing 3D",
+  "startup_scene": "scenes/main.scene.json",
+  "window": {
+    "width": 1280,
+    "height": 720,
+    "title": "Rune - Post Processing",
+    "vsync": true
+  },
+  "input": "input/default.input.json"
+}
+

@@ -219,6 +219,8 @@ apply_snapshot_component_value :: proc(
 		commit_component_value(world, target_entity, name, &world.model_renderers, value)
 	case "AmbientLight":
 		commit_component_value(world, target_entity, name, &world.ambient_lights, snapshot.ambient_lights[snapshot_entity])
+	case "PostProcessing":
+		commit_component_value(world, target_entity, name, &world.post_processing, snapshot.post_processing[snapshot_entity])
 	case "DirectionalLight":
 		commit_component_value(world, target_entity, name, &world.directional_lights, snapshot.directional_lights[snapshot_entity])
 	case "PointLight":
@@ -241,6 +243,14 @@ apply_snapshot_component_value :: proc(
 		commit_component_value(world, target_entity, name, &world.rigid_bodies_2d, preserve_simulation_state(world, target_entity, snapshot.rigid_bodies_2d[snapshot_entity]))
 	case "BoxCollider2D":
 		commit_component_value(world, target_entity, name, &world.box_colliders_2d, snapshot.box_colliders_2d[snapshot_entity])
+	case "PolygonCollider2D":
+		commit_component_value(world, target_entity, name, &world.polygon_colliders_2d, snapshot.polygon_colliders_2d[snapshot_entity])
+	case "SegmentCollider2D":
+		commit_component_value(world, target_entity, name, &world.segment_colliders_2d, snapshot.segment_colliders_2d[snapshot_entity])
+	case "CharacterController2D":
+		commit_component_value(world, target_entity, name, &world.character_controllers_2d, snapshot.character_controllers_2d[snapshot_entity])
+	case "CapsuleCollider2D":
+		commit_component_value(world, target_entity, name, &world.capsule_colliders_2d, snapshot.capsule_colliders_2d[snapshot_entity])
 	case "CircleCollider2D":
 		commit_component_value(world, target_entity, name, &world.circle_colliders_2d, snapshot.circle_colliders_2d[snapshot_entity])
 	case "RigidBody3D":

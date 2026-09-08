@@ -6,6 +6,24 @@ import "rune:particles"
 // These constraints are shared by JSON readers and typed setters. Keep checks
 // on hot gameplay paths scalar: no JSON serialization or scratch allocation.
 component_value_valid :: proc(value: $T) -> bool {
+	when T == BoxCollider2D || T == CircleCollider2D || T == CapsuleCollider2D || T == SegmentCollider2D {
+		if !physics_query_vector_valid(value.offset) {return false}
+	}
+	when T == PolygonCollider2D {
+		return physics_query_vector_valid(value.offset) && polygon_vertices_valid_2d(value.vertices)
+	}
+	when T == BoxCollider2D || T == SegmentCollider2D {
+		if value.one_way && value.is_sensor {return false}
+	}
+	when T == SegmentCollider2D {
+		return segment_points_valid_2d(value.start, value.end) && (!value.one_way || value.start[1] == value.end[1])
+	}
+	when T == CharacterController2D {return character_controller_2d_valid(value)}
+	when T == CapsuleCollider2D {
+		return finite_nonnegative(value.radius) && value.radius > 0 &&
+		       finite_nonnegative(value.height) && value.height * 0.5 >= value.radius &&
+		       (value.axis == .vertical || value.axis == .horizontal)
+	}
 	when T == ParticleEmitter2D {
 		return particles.valid(value)
 	} else when T == Lifetime {
@@ -70,6 +88,18 @@ commit_component_value :: proc(
 	kind: Component_Change_Kind = .Changed,
 ) {
 	previous, existed := storage^[entity]
+	stored_value := value
+	when T == PolygonCollider2D {
+		// Clone before releasing previous storage: setters can reuse a borrowed slice.
+		stored_value.vertices = make([][2]f32, len(value.vertices))
+		copy(stored_value.vertices, value.vertices)
+		if !existed || !polygon_colliders_equal_2d(previous, value) {physics_2d_remove_entity(world, entity)}
+		if existed {delete(previous.vertices)}
+	}
+	when T == CharacterController2D {
+		if !existed {physics_2d_remove_entity(world,entity)}
+		if !existed || previous != value {character_controller_2d_reset_state(world,entity)}
+	}
 	when T == Lifetime {delete_key(&world.lifetime_elapsed, entity)}
 	when T == ParticleEmitter2D {
 		// Capacity/seed changes restart the bounded pool. Appearance and rate
@@ -84,7 +114,7 @@ commit_component_value :: proc(
 		physics_2d_body_edited(world, entity, previous, value)
 	} else when T == RigidBody3D {
 		physics_3d_body_edited(world, entity, previous, value)
-	} else when T == BoxCollider2D || T == CircleCollider2D {
+	} else when T == BoxCollider2D || T == CircleCollider2D || T == CapsuleCollider2D || T == SegmentCollider2D {
 		if !existed || previous != value {physics_2d_remove_entity(world, entity)}
 	} else when T == BoxCollider || T == SphereCollider {
 		if !existed || previous != value {physics_3d_remove_entity(world, entity)}
@@ -98,7 +128,7 @@ commit_component_value :: proc(
 			world.sprite_animation_states[entity] = {}
 		}
 	}
-	storage^[entity] = value
+	storage^[entity] = stored_value
 	record_component_change(world, entity, name, kind)
 }
 
@@ -124,7 +154,7 @@ invalidate_component_physics :: proc(world: ^World, entity: Entity, name: string
 	case "Transform":
 		physics_2d_remove_entity(world, entity)
 		physics_3d_remove_entity(world, entity)
-	case "RigidBody2D", "BoxCollider2D", "CircleCollider2D":
+	case "CharacterController2D", "RigidBody2D", "BoxCollider2D", "CircleCollider2D", "CapsuleCollider2D", "PolygonCollider2D", "SegmentCollider2D":
 		physics_2d_remove_entity(world, entity)
 	case "RigidBody3D", "BoxCollider", "SphereCollider":
 		physics_3d_remove_entity(world, entity)

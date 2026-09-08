@@ -1,0 +1,1 @@
+{"name":"Ramp","components":{"Transform":{},"PolygonCollider2D":{"vertices":[[0,0],[20,-10],[20,0]]},"SegmentCollider2D":{"start":[0,20],"end":[20,20]}}}

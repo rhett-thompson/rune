@@ -1,0 +1,1 @@
+{"name":"Colliders","entities":[{"id":"capsule","prefab":"capsule.prefab.json","components":{"Transform":{"position":[20,0,0]}}}]}

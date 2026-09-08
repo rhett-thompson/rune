@@ -1,0 +1,1 @@
+{"name":"Controller","entities":[{"id":"player","prefab":"player.prefab.json"},{"id":"floor","components":{"Transform":{},"SegmentCollider2D":{"start":[-200,100],"end":[200,100]}}}]}

@@ -1,0 +1,1 @@
+{"name":"Moving platform","entities":[{"id":"player","components":{"Transform":{"position":[0,100,0]},"RigidBody2D":{},"CapsuleCollider2D":{"radius":5,"height":20,"offset":[0,-10]},"CharacterController2D":{}}},{"id":"platform","components":{"Transform":{"position":[0,100,0]},"RigidBody2D":{"type":"kinematic","gravity_scale":0},"BoxCollider2D":{"size":[200,20],"offset":[0,10]}}}]}

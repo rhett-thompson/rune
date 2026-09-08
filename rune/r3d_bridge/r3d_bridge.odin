@@ -33,6 +33,9 @@ R3D_Material_Asset :: struct {
 }
 
 Context :: struct {
+	post_processing_active:   bool,
+	post_processing_baseline: r3d.Environment,
+	post_processing_aa:       r3d.AntiAliasingMode,
 	// Follow the window framebuffer by default; disable for a fixed internal resolution.
 	match_framebuffer: bool,
 	root:             string,
@@ -134,6 +137,7 @@ draw_scene_ex :: proc(
 	}
 	prepare_animations(ctx, world, asset_manager, 0, false)
 	entity, camera_component, found := ecs.active_camera_3d(world)
+	apply_post_processing(ctx, world, entity)
 	if !found {return false}
 	transform, has_transform := ecs.get_transform(world, entity)
 	if !has_transform {return false}

@@ -79,7 +79,8 @@ run_example :: proc(example: Example) -> int {
 }
 
 open_window :: proc() {
-	rl.SetConfigFlags({.VSYNC_HINT})
+	// Keep the window and UI in logical units on scaled displays.
+	rl.SetConfigFlags({.VSYNC_HINT, .WINDOW_HIGHDPI})
 	rl.InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Rune Example Launcher")
 	rl.SetTargetFPS(60)
 }

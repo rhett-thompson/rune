@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/project.schema.json",
+  "name": "2D Ramps and Moving Platforms",
+  "startup_scene": "scenes/main.scene.json",
+  "window": {
+    "width": 960,
+    "height": 610,
+    "title": "Rune - Ramps and Moving Platforms",
+    "vsync": true
+  },
+  "background_color": [
+    23,
+    28,
+    38,
+    255
+  ],
+  "input": "input/default.input.json",
+  "gizmos": {
+    "enabled": true,
+    "transforms": false,
+    "cameras": false,
+    "physics_2d": true,
+    "physics_3d": false,
+    "tilemaps": false,
+    "audio": false,
+    "lights": false
+  }
+}

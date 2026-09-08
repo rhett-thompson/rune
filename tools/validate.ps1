@@ -13,8 +13,8 @@ $failures = [System.Collections.Generic.List[string]]::new()
 $builtValidators = [System.Collections.Generic.List[string]]::new()
 $executableSuffix = if ($IsWindows) { '.exe' } else { '' }
 $runtimeValidators = @(
-    'model_animation_validation', 'sprite_animation_validation',
-    'particle_validation', 'component_features_validation', 'resolution_validation', 'ui_validation',
+    'post_processing_validation', 'model_animation_validation', 'sprite_animation_validation',
+    'particle_validation', 'component_features_validation', 'collider_2d_validation', 'polygon_2d_validation', 'resolution_validation', 'ui_validation',
     'window_validation', 'mixer_validation'
 )
 if ($Runtime -and $IsLinux -and !$env:DISPLAY -and !$env:WAYLAND_DISPLAY) {
@@ -48,7 +48,7 @@ try {
 
     Get-ChildItem "tools" -Directory | Sort-Object Name | ForEach-Object {
         $collections = @()
-        if ($_.Name -in @("r3d_cache_validation", "model_animation_validation")) {
+        if ($_.Name -in @("post_processing_validation", "r3d_cache_validation", "model_animation_validation")) {
             $collections += "-collection:r3d=third_party/r3d-odin"
         }
         Invoke-OdinBuild -Name $_.Name -Package $_.FullName -Collections $collections | Out-Null

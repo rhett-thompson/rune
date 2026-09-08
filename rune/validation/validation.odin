@@ -420,6 +420,41 @@ validate_components :: proc(
 	for name, value in components {
 		component, ok := value.(json.Object)
 		if !ok {add(report, file, field_path(path, name), "component data must be an object"); continue}
+		if name == "PostProcessing" {
+			if _, valid := ecs.post_processing_from_json(value); !valid {
+				add(report, file, field_path(path, name), "invalid post-processing profile: check effect fields, lowercase modes, finite ranges, fog end > start, and max_ev >= min_ev (see docs/post-processing.md)")
+			}
+		}
+		if name == "PolygonCollider2D" {
+			if _, valid := ecs.polygon_collider_2d_from_json(value); !valid {
+				add(report, file, field_path(path, name), "requires 3-8 finite convex perimeter vertices, no duplicate/collinear/short edges, and finite 2D offset")
+			}
+		}
+		if name == "SegmentCollider2D" {
+			if _, valid := ecs.segment_collider_2d_from_json(value); !valid {
+				add(report, file, field_path(path, name), "requires finite 2D start/end points more than 0.005 units apart and finite offset; one_way requires a horizontal, non-sensor edge")
+			}
+		}
+		if name == "CharacterController2D" {
+			if _, valid := ecs.character_controller_2d_from_json(value); !valid {
+				add(report,file,field_path(path,name),"requires finite nonnegative settings, positive acceleration/gravity/fall/drop speed, slope angle < 89 degrees, and grace/drop times <= 1 second")
+			}
+		}
+		if name == "CapsuleCollider2D" {
+			if _, valid := ecs.capsule_collider_2d_from_json(value); !valid {
+				add(report, file, field_path(path, name), "requires positive radius, height >= 2 * radius, vertical/horizontal axis, and finite 2D offset")
+			}
+		}
+		if name == "BoxCollider2D" {
+			if _, valid := ecs.box_collider_2d_from_json(value); !valid {
+				add(report, file, field_path(path, name), "requires positive size, finite 2D offset, boolean is_sensor/one_way, and no sensor + one_way combination")
+			}
+		}
+		if name == "CircleCollider2D" {
+			if _, valid := ecs.circle_collider_2d_from_json(value); !valid {
+				add(report, file, field_path(path, name), "requires positive radius, finite 2D offset, and boolean is_sensor")
+			}
+		}
 		if name == "ShapeRenderer2D" {
 			if _, valid := ecs.shape_renderer_2d_from_json(value); !valid {
 				add(report, file, field_path(path, name), "invalid shape settings: use rectangle/circle, positive dimensions and line_width, and RGBA color")

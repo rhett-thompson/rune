@@ -1,0 +1,1 @@
+odin run examples/launcher -out:build/launcher.exe

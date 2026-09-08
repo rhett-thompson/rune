@@ -46,6 +46,11 @@ Default_Layer: u8 : 0
 Default_Layer_Mask: u64 : u64(1) << Default_Layer
 
 World :: struct {
+	character_controllers_2d: map[Entity]CharacterController2D,
+	character_controller_states_2d: map[Entity]Character_Controller_State_2D,
+	polygon_colliders_2d: map[Entity]PolygonCollider2D,
+	segment_colliders_2d: map[Entity]SegmentCollider2D,
+	capsule_colliders_2d: map[Entity]CapsuleCollider2D,
 	disabled_entities: map[Entity]bool,
 	lifetime_elapsed: map[Entity]f32,
 	lifetimes: map[Entity]Lifetime,
@@ -91,6 +96,7 @@ World :: struct {
 	mesh_renderers:              map[Entity]MeshRenderer,
 	sphere_renderers:            map[Entity]SphereRenderer,
 	model_renderers:             map[Entity]ModelRenderer,
+	post_processing:            map[Entity]PostProcessing,
 	ambient_lights:              map[Entity]AmbientLight,
 	directional_lights:          map[Entity]DirectionalLight,
 	point_lights:                map[Entity]PointLight,
@@ -103,6 +109,8 @@ World :: struct {
 	box_colliders_2d:            map[Entity]BoxCollider2D,
 	circle_colliders_2d:         map[Entity]CircleCollider2D,
 	physics_2d_accumulator:      f32,
+	one_way_contacts_2d: map[Physics_Pair]bool,
+	one_way_shapes_2d: map[u64]One_Way_Shape_2D,
 	box2d_world:                 b2.WorldId,
 	box2d_bodies:                map[Entity]b2.BodyId,
 	rigid_bodies_3d:             map[Entity]RigidBody3D,
@@ -137,6 +145,11 @@ init :: proc() -> World {
 	assert(scene_data_arena != nil)
 	mem.dynamic_arena_init(scene_data_arena)
 	return World {
+		character_controllers_2d = make(map[Entity]CharacterController2D),
+		character_controller_states_2d = make(map[Entity]Character_Controller_State_2D),
+		polygon_colliders_2d = make(map[Entity]PolygonCollider2D),
+		segment_colliders_2d = make(map[Entity]SegmentCollider2D),
+		capsule_colliders_2d = make(map[Entity]CapsuleCollider2D),
 		disabled_entities = make(map[Entity]bool),
 		lifetime_elapsed = make(map[Entity]f32),
 		lifetimes = make(map[Entity]Lifetime),
@@ -175,6 +188,7 @@ init :: proc() -> World {
 		mesh_renderers = make(map[Entity]MeshRenderer),
 		sphere_renderers = make(map[Entity]SphereRenderer),
 		model_renderers = make(map[Entity]ModelRenderer),
+		post_processing = make(map[Entity]PostProcessing),
 		ambient_lights = make(map[Entity]AmbientLight),
 		directional_lights = make(map[Entity]DirectionalLight),
 		point_lights = make(map[Entity]PointLight),
@@ -189,6 +203,8 @@ init :: proc() -> World {
 		physics_2d = physics_state_init(),
 		physics_3d = physics_state_init(),
 		box2d_bodies = make(map[Entity]b2.BodyId),
+		one_way_shapes_2d = make(map[u64]One_Way_Shape_2D),
+		one_way_contacts_2d = make(map[Physics_Pair]bool),
 		rigid_bodies_3d = make(map[Entity]RigidBody3D),
 		box3d_bodies = make(map[Entity]b3.BodyId),
 		box_colliders = make(map[Entity]BoxCollider),
@@ -258,6 +274,7 @@ destroy :: proc(world: ^World) {
 	delete(world.mesh_renderers)
 	delete(world.sphere_renderers)
 	delete(world.model_renderers)
+	delete(world.post_processing)
 	delete(world.ambient_lights)
 	delete(world.directional_lights)
 	delete(world.point_lights)
@@ -268,14 +285,22 @@ destroy :: proc(world: ^World) {
 	delete(world.top_down_controllers)
 	delete(world.rigid_bodies_2d)
 	delete(world.box_colliders_2d)
+	for _, collider in world.polygon_colliders_2d {delete(collider.vertices)}
+	delete(world.polygon_colliders_2d)
+	delete(world.segment_colliders_2d)
+	delete(world.capsule_colliders_2d)
 	delete(world.circle_colliders_2d)
 	physics_state_destroy(&world.physics_2d)
 	physics_state_destroy(&world.physics_3d)
 	delete(world.box2d_bodies)
+	delete(world.one_way_shapes_2d)
+	delete(world.one_way_contacts_2d)
 	delete(world.rigid_bodies_3d)
 	delete(world.box3d_bodies)
 	delete(world.box_colliders)
 	delete(world.sphere_colliders)
+	delete(world.character_controllers_2d)
+	delete(world.character_controller_states_2d)
 	delete(world.character_controllers)
 	delete(world.orbits)
 	delete(world.rotators)
@@ -436,6 +461,7 @@ add_component_owned :: proc(
 	mesh_renderer: MeshRenderer
 	sphere_renderer: SphereRenderer
 	model_renderer: ModelRenderer
+	post_processing: PostProcessing
 	ambient_light: AmbientLight
 	directional_light: DirectionalLight
 	point_light: PointLight
@@ -446,6 +472,10 @@ add_component_owned :: proc(
 	top_down_controller: TopDownController
 	rigid_body_2d: RigidBody2D
 	box_collider_2d: BoxCollider2D
+	polygon_collider_2d: PolygonCollider2D
+	segment_collider_2d: SegmentCollider2D
+	character_controller_2d: CharacterController2D
+	capsule_collider_2d: CapsuleCollider2D
 	circle_collider_2d: CircleCollider2D
 	rigid_body_3d: RigidBody3D
 	box_collider: BoxCollider
@@ -461,6 +491,11 @@ add_component_owned :: proc(
 	nav_grid_2d: NavGrid2D
 	nav_agent_2d: NavAgent2D
 	parse_ok: bool
+	if name == "PostProcessing" {post_processing, parse_ok = post_processing_from_json(data); if !parse_ok {return false}}
+	if name == "PolygonCollider2D" {polygon_collider_2d, parse_ok = polygon_collider_2d_from_json(data); if !parse_ok {return false}}
+	if name == "SegmentCollider2D" {segment_collider_2d, parse_ok = segment_collider_2d_from_json(data); if !parse_ok {return false}}
+	if name == "CharacterController2D" {character_controller_2d, parse_ok = character_controller_2d_from_json(data); if !parse_ok {return false}}
+	if name == "CapsuleCollider2D" {capsule_collider_2d, parse_ok = capsule_collider_2d_from_json(data); if !parse_ok {return false}}
 	if name == "Lifetime" {
 		lifetime, parse_ok = lifetime_from_json(data)
 		if !parse_ok {return false}
@@ -583,6 +618,8 @@ add_component_owned :: proc(
 		commit_component_value(world, entity, name, &world.model_renderers, model_renderer, kind)
 	case "AmbientLight":
 		commit_component_value(world, entity, name, &world.ambient_lights, ambient_light, kind)
+	case "PostProcessing":
+		commit_component_value(world, entity, name, &world.post_processing, post_processing, kind)
 	case "DirectionalLight":
 		commit_component_value(world, entity, name, &world.directional_lights, directional_light, kind)
 	case "PointLight":
@@ -601,6 +638,14 @@ add_component_owned :: proc(
 		commit_component_value(world, entity, name, &world.rigid_bodies_2d, preserve_simulation_state(world, entity, rigid_body_2d), kind)
 	case "BoxCollider2D":
 		commit_component_value(world, entity, name, &world.box_colliders_2d, box_collider_2d, kind)
+	case "PolygonCollider2D":
+		commit_component_value(world, entity, name, &world.polygon_colliders_2d, polygon_collider_2d, kind)
+	case "SegmentCollider2D":
+		commit_component_value(world, entity, name, &world.segment_colliders_2d, segment_collider_2d, kind)
+	case "CharacterController2D":
+		commit_component_value(world, entity, name, &world.character_controllers_2d, character_controller_2d, kind)
+	case "CapsuleCollider2D":
+		commit_component_value(world, entity, name, &world.capsule_colliders_2d, capsule_collider_2d, kind)
 	case "CircleCollider2D":
 		commit_component_value(world, entity, name, &world.circle_colliders_2d, circle_collider_2d, kind)
 	case "RigidBody3D":
@@ -701,6 +746,7 @@ remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
 		destroy_model_renderer_storage(world.model_renderers[entity])
 		delete_key(&world.model_renderers, entity)
 	}
+	if name == "PostProcessing" {delete_key(&world.post_processing, entity)}
 	if name == "AmbientLight" {delete_key(&world.ambient_lights, entity)}
 	if name == "DirectionalLight" {delete_key(&world.directional_lights, entity)}
 	if name == "PointLight" {delete_key(&world.point_lights, entity)}
@@ -719,6 +765,10 @@ remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
 	if name == "TopDownController" {delete_key(&world.top_down_controllers, entity)}
 	if name == "RigidBody2D" {delete_key(&world.rigid_bodies_2d, entity)}
 	if name == "BoxCollider2D" {delete_key(&world.box_colliders_2d, entity)}
+	if name == "PolygonCollider2D" {delete(world.polygon_colliders_2d[entity].vertices); delete_key(&world.polygon_colliders_2d, entity)}
+	if name == "SegmentCollider2D" {delete_key(&world.segment_colliders_2d, entity)}
+	if name == "CharacterController2D" {delete_key(&world.character_controllers_2d, entity); delete_key(&world.character_controller_states_2d, entity)}
+	if name == "CapsuleCollider2D" {delete_key(&world.capsule_colliders_2d, entity)}
 	if name == "CircleCollider2D" {delete_key(&world.circle_colliders_2d, entity)}
 	if name ==
 	   "RigidBody3D" {delete_key(&world.rigid_bodies_3d, entity); delete_key(&world.box3d_bodies, entity)}

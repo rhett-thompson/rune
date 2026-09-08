@@ -1,0 +1,65 @@
+{
+  "$schema": "../../../schemas/input.schema.json",
+  "actions": {
+    "toggle": [
+      {
+        "type": "keyboard",
+        "key": "SPACE"
+      }
+    ],
+    "bloom": [
+      {
+        "type": "keyboard",
+        "key": "B"
+      }
+    ],
+    "ssao": [
+      {
+        "type": "keyboard",
+        "key": "O"
+      }
+    ],
+    "dof": [
+      {
+        "type": "keyboard",
+        "key": "D"
+      }
+    ],
+    "tonemap": [
+      {
+        "type": "keyboard",
+        "key": "T"
+      }
+    ],
+    "exposure_up": [
+      {
+        "type": "keyboard",
+        "key": "UP"
+      }
+    ],
+    "exposure_down": [
+      {
+        "type": "keyboard",
+        "key": "DOWN"
+      }
+    ],
+    "orbit_camera": [
+      {
+        "type": "mouse_button",
+        "button": "LEFT"
+      }
+    ]
+  },
+  "axes": {
+    "orbit_x": {
+      "type": "mouse_delta",
+      "axis": "x",
+      "invert": true
+    },
+    "orbit_y": {
+      "type": "mouse_delta",
+      "axis": "y"
+    }
+  }
+}
+

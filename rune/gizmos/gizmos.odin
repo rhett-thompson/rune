@@ -151,11 +151,12 @@ draw_physics_2d :: proc(world: ^ecs.World) {
 		transform, has_transform := ecs.get_transform(world, entity)
 		collider, has_collider := ecs.get_box_collider_2d(world, entity)
 		if !has_transform || !has_collider {continue}
+		center := ecs.collider_center_2d(transform, collider.offset)
 		width := collider.size[0] * abs_f32(transform.scale[0])
 		height := collider.size[1] * abs_f32(transform.scale[1])
 		rect := rl.Rectangle {
-			transform.position[0] - width * 0.5,
-			transform.position[1] - height * 0.5,
+			center[0] - width * 0.5,
+			center[1] - height * 0.5,
 			width,
 			height,
 		}
@@ -165,13 +166,52 @@ draw_physics_2d :: proc(world: ^ecs.World) {
 		transform, has_transform := ecs.get_transform(world, entity)
 		collider, has_collider := ecs.get_circle_collider_2d(world, entity)
 		if !has_transform || !has_collider {continue}
-		scale := max_f32(abs_f32(transform.scale[0]), abs_f32(transform.scale[1]))
+		center := ecs.collider_center_2d(transform, collider.offset)
+		scale := ecs.collider_radius_scale_2d(transform)
 		rl.DrawCircleLines(
-			i32(transform.position[0]),
-			i32(transform.position[1]),
+			i32(center[0]),
+			i32(center[1]),
 			collider.radius * scale,
 			rl.LIME,
 		)
+	}
+	for entity in ecs.query(world, ecs.PolygonCollider2D) {
+		transform, found := ecs.get_transform(world, entity)
+		collider, _ := ecs.get_polygon_collider_2d(world, entity)
+		if !found {continue}
+		local_transform := transform
+		local_transform.position = {}
+		points: [8][2]f32
+		if len(collider.vertices) < 3 || len(collider.vertices) > len(points) {continue}
+		for point, i in collider.vertices {points[i] = ecs.collider_point_2d(local_transform, point, collider.offset)}
+		if _, valid := ecs.polygon_hull_2d(points[:len(collider.vertices)]); !valid {continue}
+		position := [2]f32{transform.position[0],transform.position[1]}
+		for i in 0..<len(collider.vertices) {
+			a := points[i] + position
+			b := points[(i+1)%len(collider.vertices)] + position
+			rl.DrawLineV({a[0],a[1]}, {b[0],b[1]}, rl.LIME)
+		}
+	}
+	for entity in ecs.query(world, ecs.SegmentCollider2D) {
+		transform, found := ecs.get_transform(world, entity)
+		collider, _ := ecs.get_segment_collider_2d(world, entity)
+		if !found {continue}
+		local_transform := transform
+		local_transform.position = {}
+		a := ecs.collider_point_2d(local_transform, collider.start, collider.offset)
+		b := ecs.collider_point_2d(local_transform, collider.end, collider.offset)
+		if !ecs.segment_points_valid_2d(a, b) {continue}
+		position := [2]f32{transform.position[0],transform.position[1]}
+		a += position
+		b += position
+		rl.DrawLineV({a[0],a[1]}, {b[0],b[1]}, rl.LIME)
+	}
+	for entity in ecs.query(world, ecs.CapsuleCollider2D) {
+		transform, has_transform := ecs.get_transform(world, entity)
+		collider, has_collider := ecs.get_capsule_collider_2d(world, entity)
+		if !has_transform || !has_collider {continue}
+		a, b, radius := ecs.capsule_collider_2d_geometry(collider, transform)
+		draw_capsule_outline_2d(a, b, radius, rl.LIME)
 	}
 	for entity in ecs.entities_with_component(world, "TopDownController") {
 		transform, has_transform := ecs.get_transform(world, entity)
@@ -522,4 +562,19 @@ max_f32 :: proc(first, second: f32) -> f32 {
 normalized_transform_size :: proc(settings: Settings) -> f32 {
 	if settings.transform_size > 0 {return settings.transform_size}
 	return 24
+}
+
+// Two semicircles joined by straight sides, with no internal cap edges.
+draw_capsule_outline_2d :: proc(a, b: [2]f32, radius: f32, color: rl.Color) {
+	if radius <= 0 {return}
+	angle := math.atan2(b[1]-a[1], b[0]-a[0])
+	points: [34]rl.Vector2
+	for cap_index in 0..<2 {
+		center := b if cap_index == 0 else a
+		for i in 0..<17 {
+			theta := angle - math.PI*0.5 + f32(cap_index)*math.PI + f32(i)*math.PI/16
+			points[cap_index*17+i] = {center[0] + math.cos(theta)*radius, center[1] + math.sin(theta)*radius}
+		}
+	}
+	for i in 0..<len(points) {rl.DrawLineEx(points[i], points[(i+1)%len(points)], 2, color)}
 }

@@ -16,6 +16,7 @@ collect_box2d_events :: proc(world: ^World) {
 		)
 	}
 	for event in contacts.beginEvents[:contacts.beginCount] {
+		if world.one_way_shapes_2d[transmute(u64)event.shapeIdA].one_way || world.one_way_shapes_2d[transmute(u64)event.shapeIdB].one_way {continue}
 		physics_pair_event(
 			state,
 			transmute(u64)event.shapeIdA,
@@ -24,6 +25,14 @@ collect_box2d_events :: proc(world: ^World) {
 			.Begin,
 		)
 	}
+	// One-way contact lifetime follows admitted solver contacts. Geometric
+	// underside overlaps must not produce collision Begin events.
+	for pair in state.pairs {
+		if pair.is_sensor {continue}
+		if !world.one_way_shapes_2d[pair.a].one_way && !world.one_way_shapes_2d[pair.b].one_way {continue}
+		if !world.one_way_contacts_2d[pair] {physics_pair_event(state,pair.a,pair.b,false,.End)}
+	}
+	for pair in world.one_way_contacts_2d {physics_pair_event(state,pair.a,pair.b,false,.Begin)}
 	sensors := b2.World_GetSensorEvents(world.box2d_world)
 	for event in sensors.endEvents[:sensors.endCount] {
 		physics_pair_event(

@@ -1,0 +1,533 @@
+{
+  "$schema": "../../../schemas/scene.schema.json",
+  "name": "Light Gallery",
+  "entities": [
+    {
+      "id": "post",
+      "name": "Post Processing",
+      "components": {
+        "PostProcessing": {
+          "bloom": {
+            "mode": "additive",
+            "intensity": 0.12,
+            "threshold": 1,
+            "levels": 0.65
+          },
+          "tonemap": {
+            "mode": "aces",
+            "exposure": 1
+          },
+          "ssao": {
+            "enabled": true,
+            "radius": 1.5,
+            "intensity": 1.5
+          },
+          "color": {
+            "saturation": 1.1
+          },
+          "dof": {
+            "enabled": false,
+            "focus_point": 16,
+            "focus_scale": 3,
+            "max_blur_size": 12
+          }
+        }
+      }
+    },
+    {
+      "id": "camera",
+      "name": "Orbit Camera",
+      "components": {
+        "Transform": {
+          "position": [
+            9,
+            6,
+            12
+          ]
+        },
+        "Camera3D": {
+          "target": [
+            0,
+            1,
+            0
+          ],
+          "fovy": 45,
+          "active": true
+        },
+        "OrbitCamera3D": {
+          "target": [
+            0,
+            1,
+            0
+          ],
+          "distance": 16,
+          "pitch": 22,
+          "yaw": 35,
+          "manual_action": "orbit_camera",
+          "yaw_axis": "orbit_x",
+          "pitch_axis": "orbit_y",
+          "orbit_sensitivity": 0.3
+        }
+      }
+    },
+    {
+      "id": "ambient",
+      "components": {
+        "AmbientLight": {
+          "color": [
+            130,
+            150,
+            190,
+            255
+          ],
+          "intensity": 0.3
+        }
+      }
+    },
+    {
+      "id": "sun",
+      "components": {
+        "DirectionalLight": {
+          "direction": [
+            -0.5,
+            -1,
+            -0.35
+          ],
+          "color": [
+            220,
+            230,
+            255,
+            255
+          ],
+          "intensity": 2,
+          "shadows": true,
+          "shadow_softness": 2
+        }
+      }
+    },
+    {
+      "id": "floor",
+      "components": {
+        "Transform": {
+          "scale": [
+            24,
+            1,
+            24
+          ]
+        },
+        "MeshRenderer": {
+          "primitive": "plane",
+          "material": "assets/materials/slate.material.json",
+          "shadows": false
+        }
+      }
+    },
+    {
+      "id": "plinth_amber",
+      "components": {
+        "Transform": {
+          "position": [
+            -3.3,
+            0.5,
+            0.5
+          ],
+          "scale": [
+            2.2,
+            1,
+            2.2
+          ]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "material": "assets/materials/slate.material.json",
+          "shadows": true
+        }
+      }
+    },
+    {
+      "id": "glow_amber",
+      "components": {
+        "Transform": {
+          "position": [
+            -3.3,
+            2.05,
+            0.5
+          ],
+          "scale": [
+            1.05,
+            1.05,
+            1.05
+          ],
+          "rotation": [
+            20,
+            30,
+            15
+          ]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "material": "assets/materials/amber.material.json",
+          "shadows": true
+        }
+      }
+    },
+    {
+      "id": "light_amber",
+      "components": {
+        "Transform": {
+          "position": [
+            -3.3,
+            2.3,
+            0.5
+          ]
+        },
+        "PointLight": {
+          "color": [
+            255,
+            115,
+            25,
+            255
+          ],
+          "intensity": 4,
+          "range": 5
+        }
+      }
+    },
+    {
+      "id": "plinth_cyan",
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0.5,
+            -1
+          ],
+          "scale": [
+            2.2,
+            1,
+            2.2
+          ]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "material": "assets/materials/slate.material.json",
+          "shadows": true
+        }
+      }
+    },
+    {
+      "id": "glow_cyan",
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            2.05,
+            -1
+          ],
+          "scale": [
+            1.05,
+            1.05,
+            1.05
+          ],
+          "rotation": [
+            20,
+            55,
+            15
+          ]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "material": "assets/materials/cyan.material.json",
+          "shadows": true
+        }
+      }
+    },
+    {
+      "id": "light_cyan",
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            2.3,
+            -1
+          ]
+        },
+        "PointLight": {
+          "color": [
+            30,
+            210,
+            255,
+            255
+          ],
+          "intensity": 4,
+          "range": 5
+        }
+      }
+    },
+    {
+      "id": "plinth_pink",
+      "components": {
+        "Transform": {
+          "position": [
+            3.3,
+            0.5,
+            0.5
+          ],
+          "scale": [
+            2.2,
+            1,
+            2.2
+          ]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "material": "assets/materials/slate.material.json",
+          "shadows": true
+        }
+      }
+    },
+    {
+      "id": "glow_pink",
+      "components": {
+        "Transform": {
+          "position": [
+            3.3,
+            2.05,
+            0.5
+          ],
+          "scale": [
+            1.05,
+            1.05,
+            1.05
+          ],
+          "rotation": [
+            20,
+            80,
+            15
+          ]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "material": "assets/materials/pink.material.json",
+          "shadows": true
+        }
+      }
+    },
+    {
+      "id": "light_pink",
+      "components": {
+        "Transform": {
+          "position": [
+            3.3,
+            2.3,
+            0.5
+          ]
+        },
+        "PointLight": {
+          "color": [
+            255,
+            45,
+            130,
+            255
+          ],
+          "intensity": 4,
+          "range": 5
+        }
+      }
+    },
+    {
+      "id": "column_0",
+      "components": {
+        "Transform": {
+          "position": [
+            -7.199999999999999,
+            1.3,
+            -5
+          ],
+          "scale": [
+            0.7,
+            2.6,
+            0.7
+          ]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "material": "assets/materials/slate.material.json",
+          "shadows": true
+        }
+      }
+    },
+    {
+      "id": "column_1",
+      "components": {
+        "Transform": {
+          "position": [
+            -4.8,
+            1.3,
+            -5
+          ],
+          "scale": [
+            0.7,
+            2.6,
+            0.7
+          ]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "material": "assets/materials/slate.material.json",
+          "shadows": true
+        }
+      }
+    },
+    {
+      "id": "column_2",
+      "components": {
+        "Transform": {
+          "position": [
+            -2.4,
+            1.3,
+            -5
+          ],
+          "scale": [
+            0.7,
+            2.6,
+            0.7
+          ]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "material": "assets/materials/slate.material.json",
+          "shadows": true
+        }
+      }
+    },
+    {
+      "id": "column_3",
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            1.3,
+            -5
+          ],
+          "scale": [
+            0.7,
+            2.6,
+            0.7
+          ]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "material": "assets/materials/slate.material.json",
+          "shadows": true
+        }
+      }
+    },
+    {
+      "id": "column_4",
+      "components": {
+        "Transform": {
+          "position": [
+            2.4,
+            1.3,
+            -5
+          ],
+          "scale": [
+            0.7,
+            2.6,
+            0.7
+          ]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "material": "assets/materials/slate.material.json",
+          "shadows": true
+        }
+      }
+    },
+    {
+      "id": "column_5",
+      "components": {
+        "Transform": {
+          "position": [
+            4.8,
+            1.3,
+            -5
+          ],
+          "scale": [
+            0.7,
+            2.6,
+            0.7
+          ]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "material": "assets/materials/slate.material.json",
+          "shadows": true
+        }
+      }
+    },
+    {
+      "id": "column_6",
+      "components": {
+        "Transform": {
+          "position": [
+            7.199999999999999,
+            1.3,
+            -5
+          ],
+          "scale": [
+            0.7,
+            2.6,
+            0.7
+          ]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "material": "assets/materials/slate.material.json",
+          "shadows": true
+        }
+      }
+    },
+    {
+      "id": "lintel",
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            2.85,
+            -5
+          ],
+          "scale": [
+            15.2,
+            0.5,
+            0.9
+          ]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "material": "assets/materials/slate.material.json",
+          "shadows": true
+        }
+      }
+    },
+    {
+      "id": "foreground_sphere",
+      "components": {
+        "Transform": {
+          "position": [
+            -3.5,
+            0.65,
+            4
+          ]
+        },
+        "SphereRenderer": {
+          "radius": 0.65,
+          "material": "assets/materials/slate.material.json",
+          "shadows": true
+        }
+      }
+    }
+  ]
+}
+

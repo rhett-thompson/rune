@@ -19,6 +19,7 @@ Physics_Query_2D :: struct {
 	found:          bool,
 	entities:       []Entity,
 	count:          int,
+	respect_one_way: bool,
 }
 
 // Translation is the complete segment, not a normalized direction.
@@ -66,6 +67,7 @@ physics_2d_ray_result :: proc "c" (
 	if !found ||
 	   owner.entity == query.filter.ignore ||
 	   (!query.filter.include_sensors && b2.Shape_IsSensor(shape)) {return -1}
+	if query.respect_one_way && !one_way_cast_2d(query.world,query.filter.ignore,shape,normal) {return -1}
 	if !query.found || fraction < query.hit.fraction {
 		query.hit = {
 			owner.entity,

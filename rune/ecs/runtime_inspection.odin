@@ -38,6 +38,7 @@ typed_component_serializer :: proc($T: typeid) -> Component_Serialize_Proc {
 	return proc(world: ^World, entity: Entity, name: string, allocator: mem.Allocator) -> (json.Value, bool) {
 		component, found := get(world, entity, T)
 		if !found {return {}, false}
+		when T == PostProcessing {return post_processing_json(component, allocator)}
 		when T == TilemapRenderer {
 			return tilemap_renderer_json(component, allocator)
 		} else when T == TilemapCollider {
@@ -66,6 +67,9 @@ typed_component_serializer :: proc($T: typeid) -> Component_Serialize_Proc {
 						object[key] = channels
 					}
 				}
+			}
+			when T == CapsuleCollider2D {
+				object["axis"] = json.String("vertical" if component.axis == .vertical else "horizontal")
 			}
 			when T == ShapeRenderer2D {
 				object["shape"] = json.String("rectangle" if component.shape == .rectangle else "circle")

@@ -1,0 +1,38 @@
+{
+  "actions": {
+    "move_left": [
+      {
+        "type": "keyboard",
+        "key": "A"
+      }
+    ],
+    "move_right": [
+      {
+        "type": "keyboard",
+        "key": "D"
+      }
+    ],
+    "jump": [
+      {
+        "type": "keyboard",
+        "key": "SPACE"
+      }
+    ],
+    "move_down": [
+      {
+        "type": "keyboard",
+        "key": "S"
+      },
+      {
+        "type": "keyboard",
+        "key": "DOWN"
+      }
+    ]
+  },
+  "axes": {
+    "move_x": {
+      "negative": "move_left",
+      "positive": "move_right"
+    }
+  }
+}

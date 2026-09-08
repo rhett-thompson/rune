@@ -5,6 +5,7 @@
   "type": "object",
   "description": "Components attached to an entity. Custom Odin components are allowed.",
   "properties": {
+    "PostProcessing": { "$ref": "post-processing.schema.json" },
     "ShapeRenderer2D": { "$ref": "#/$defs/shapeRenderer2D" },
     "Lifetime": { "$ref": "#/$defs/lifetime" },
     "Transform": { "$ref": "#/$defs/transform" },
@@ -28,6 +29,10 @@
     "RigidBody2D": { "$ref": "#/$defs/rigidBody2D" },
     "RigidBody3D": { "$ref": "#/$defs/rigidBody3D" },
     "BoxCollider2D": { "$ref": "#/$defs/boxCollider2D" },
+    "PolygonCollider2D": { "$ref": "#/$defs/polygonCollider2D" },
+    "SegmentCollider2D": { "$ref": "#/$defs/segmentCollider2D" },
+    "CharacterController2D": { "$ref": "#/$defs/characterController2D" },
+    "CapsuleCollider2D": { "$ref": "#/$defs/capsuleCollider2D" },
     "CircleCollider2D": { "$ref": "#/$defs/circleCollider2D" },
     "BoxCollider": { "$ref": "#/$defs/boxCollider" },
     "SphereCollider": { "$ref": "#/$defs/sphereCollider" },
@@ -46,6 +51,225 @@
     "description": "Data for a custom component registered by game code."
   },
   "$defs": {
+    "characterController2D": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Fixed-step motor requiring Transform, dynamic RigidBody2D and a solid vertical CapsuleCollider2D. Distances use world units; times use seconds; slope uses degrees.",
+      "properties": {
+        "move_speed": {
+          "type": "number",
+          "default": 200,
+          "minimum": 0
+        },
+        "acceleration": {
+          "type": "number",
+          "default": 1600,
+          "exclusiveMinimum": 0
+        },
+        "air_acceleration": {
+          "type": "number",
+          "default": 800,
+          "minimum": 0
+        },
+        "gravity": {
+          "type": "number",
+          "default": 1200,
+          "exclusiveMinimum": 0
+        },
+        "jump_speed": {
+          "type": "number",
+          "default": 460,
+          "minimum": 0
+        },
+        "max_fall_speed": {
+          "type": "number",
+          "default": 900,
+          "exclusiveMinimum": 0
+        },
+        "max_slope_angle": {
+          "type": "number",
+          "default": 45,
+          "minimum": 0,
+          "exclusiveMaximum": 89
+        },
+        "ground_snap_distance": {
+          "type": "number",
+          "default": 8,
+          "minimum": 0
+        },
+        "coyote_time": {
+          "type": "number",
+          "default": 0.1,
+          "minimum": 0,
+          "maximum": 1
+        },
+        "jump_buffer_time": {
+          "type": "number",
+          "default": 0.1,
+          "minimum": 0,
+          "maximum": 1
+        },
+        "drop_speed": {
+          "type": "number",
+          "default": 60,
+          "exclusiveMinimum": 0
+        },
+        "drop_time": {
+          "type": "number",
+          "default": 0.15,
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "polygonCollider2D": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "vertices"
+      ],
+      "description": "3-8 convex perimeter vertices, clockwise or counterclockwise. Rune rejects crossed, collinear, duplicate or too-close vertices.",
+      "properties": {
+        "vertices": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "minItems": 3,
+          "maxItems": 8
+        },
+        "offset": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "default": [
+            0,
+            0
+          ]
+        },
+        "is_sensor": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "segmentCollider2D": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end"
+      ],
+      "description": "Endpoints must be more than 0.005 units apart. One-way segments require equal endpoint Y coordinates (checked by Rune).",
+      "properties": {
+        "start": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "end": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "offset": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "default": [
+            0,
+            0
+          ]
+        },
+        "is_sensor": {
+          "type": "boolean",
+          "default": false
+        },
+        "one_way": {
+          "type": "boolean",
+          "default": false,
+          "description": "Collide only with the horizontal top from above; cannot be combined with is_sensor."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "one_way": {
+                "const": true
+              }
+            },
+            "required": [
+              "one_way"
+            ]
+          },
+          "then": {
+            "properties": {
+              "is_sensor": {
+                "const": false
+              }
+            }
+          }
+        }
+      ]
+    },
+    "capsuleCollider2D": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Axis-aligned capsule. Height includes both caps and must be at least twice radius (checked by Rune).",
+      "properties": {
+        "radius": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 8
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 32
+        },
+        "axis": {
+          "enum": [
+            "vertical",
+            "horizontal"
+          ],
+          "default": "vertical"
+        },
+        "offset": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "default": [
+            0,
+            0
+          ]
+        },
+        "is_sensor": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
     "shapeRenderer2D": {
       "type": "object",
       "additionalProperties": false,
@@ -452,14 +676,62 @@
     "boxCollider2D": {
       "type": "object",
       "properties": {
-        "size": { "$ref": "#/$defs/vec2", "default": [16, 16] },
-        "is_sensor": { "type": "boolean", "default": false }
+        "offset": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "default": [
+            0,
+            0
+          ]
+        },
+        "size": {
+          "$ref": "#/$defs/vec2",
+          "default": [
+            16,
+            16
+          ]
+        },
+        "is_sensor": {
+          "type": "boolean",
+          "default": false
+        },
+        "one_way": {
+          "type": "boolean",
+          "default": false,
+          "description": "Collide only with the horizontal top from above; cannot be combined with is_sensor."
+        }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "one_way": {
+                "const": true
+              }
+            },
+            "required": [
+              "one_way"
+            ]
+          },
+          "then": {
+            "properties": {
+              "is_sensor": {
+                "const": false
+              }
+            }
+          }
+        }
+      ]
     },
     "circleCollider2D": {
       "type": "object",
       "properties": {
+        "offset": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2, "default": [0, 0] },
         "radius": { "type": "number", "exclusiveMinimum": 0, "default": 8 },
         "is_sensor": { "type": "boolean", "default": false }
       },

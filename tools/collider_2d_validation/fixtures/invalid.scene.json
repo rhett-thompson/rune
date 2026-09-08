@@ -1,0 +1,1 @@
+{"name":"Invalid","entities":[{"id":"bad","components":{"CapsuleCollider2D":{"height":4},"BoxCollider2D":{"offset":[0]},"CircleCollider2D":{"radius":0}}}]}

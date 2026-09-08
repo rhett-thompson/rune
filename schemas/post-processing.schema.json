@@ -1,0 +1,415 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "post-processing.schema.json",
+  "title": "Rune PostProcessing",
+  "description": "Complete 3D profile. Missing fields retain defaults. Active camera overrides non-camera profiles; lowest entity handle wins ties.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "default": true
+    },
+    "anti_aliasing": {
+      "type": "string",
+      "enum": [
+        "disabled",
+        "fxaa",
+        "smaa"
+      ],
+      "default": "fxaa"
+    },
+    "bloom": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "disabled",
+            "mix",
+            "additive",
+            "screen"
+          ],
+          "default": "disabled"
+        },
+        "levels": {
+          "type": "number",
+          "default": 0.5,
+          "minimum": 0,
+          "maximum": 1
+        },
+        "intensity": {
+          "type": "number",
+          "default": 0.05,
+          "minimum": 0
+        },
+        "threshold": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0
+        },
+        "soft_threshold": {
+          "type": "number",
+          "default": 0.5,
+          "minimum": 0,
+          "maximum": 1
+        },
+        "filter_radius": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0
+        }
+      }
+    },
+    "tonemap": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "linear",
+            "reinhard",
+            "filmic",
+            "aces",
+            "agx"
+          ],
+          "default": "linear"
+        },
+        "exposure": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0
+        },
+        "white": {
+          "type": "number",
+          "default": 1,
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "color": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "brightness": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0
+        },
+        "contrast": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0
+        },
+        "saturation": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0
+        }
+      }
+    },
+    "ssao": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "sample_count": {
+          "type": "integer",
+          "default": 16,
+          "minimum": 1,
+          "maximum": 64
+        },
+        "intensity": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0
+        },
+        "power": {
+          "type": "number",
+          "default": 1,
+          "exclusiveMinimum": 0
+        },
+        "max_radius": {
+          "type": "number",
+          "default": 0.2,
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "radius": {
+          "type": "number",
+          "default": 1,
+          "exclusiveMinimum": 0
+        },
+        "bias": {
+          "type": "number",
+          "default": 0.03,
+          "minimum": 0
+        }
+      }
+    },
+    "ssil": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "sample_count": {
+          "type": "integer",
+          "default": 16,
+          "minimum": 1,
+          "maximum": 64
+        },
+        "gi_intensity": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0
+        },
+        "ao_intensity": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0
+        },
+        "ao_power": {
+          "type": "number",
+          "default": 1,
+          "exclusiveMinimum": 0
+        },
+        "max_radius": {
+          "type": "number",
+          "default": 0.2,
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "radius": {
+          "type": "number",
+          "default": 4,
+          "exclusiveMinimum": 0
+        },
+        "bias": {
+          "type": "number",
+          "default": 0.03,
+          "minimum": 0
+        }
+      }
+    },
+    "ssgi": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "slice_count": {
+          "type": "integer",
+          "default": 4,
+          "minimum": 1,
+          "maximum": 32
+        },
+        "edge_fade": {
+          "type": "number",
+          "default": 0.1,
+          "minimum": 0,
+          "maximum": 1
+        },
+        "distance_falloff": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0
+        },
+        "normal_rejection": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 1
+        },
+        "intensity": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0
+        },
+        "denoise_steps": {
+          "type": "integer",
+          "default": 4,
+          "minimum": 0,
+          "maximum": 8
+        }
+      }
+    },
+    "ssr": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "max_ray_steps": {
+          "type": "integer",
+          "default": 32,
+          "minimum": 1,
+          "maximum": 256
+        },
+        "binary_steps": {
+          "type": "integer",
+          "default": 4,
+          "minimum": 0,
+          "maximum": 32
+        },
+        "step_size": {
+          "type": "number",
+          "default": 0.125,
+          "exclusiveMinimum": 0
+        },
+        "thickness": {
+          "type": "number",
+          "default": 0.2,
+          "exclusiveMinimum": 0
+        },
+        "max_distance": {
+          "type": "number",
+          "default": 4,
+          "exclusiveMinimum": 0
+        },
+        "edge_fade": {
+          "type": "number",
+          "default": 0.25,
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "fog": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "disabled",
+            "linear",
+            "exp2",
+            "exp"
+          ],
+          "default": "disabled"
+        },
+        "color": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "default": [
+            255,
+            255,
+            255,
+            255
+          ]
+        },
+        "start": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0
+        },
+        "end": {
+          "type": "number",
+          "default": 50,
+          "minimum": 0
+        },
+        "density": {
+          "type": "number",
+          "default": 0.05,
+          "minimum": 0
+        },
+        "sky_affect": {
+          "type": "number",
+          "default": 0.5,
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "description": "end must be greater than start."
+    },
+    "dof": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "focus_point": {
+          "type": "number",
+          "default": 10,
+          "exclusiveMinimum": 0
+        },
+        "focus_scale": {
+          "type": "number",
+          "default": 1,
+          "exclusiveMinimum": 0
+        },
+        "near_scale": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0
+        },
+        "max_blur_size": {
+          "type": "number",
+          "default": 20,
+          "minimum": 0,
+          "maximum": 64
+        }
+      }
+    },
+    "auto_exposure": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "min_ev": {
+          "type": "number",
+          "default": -1,
+          "minimum": -32,
+          "maximum": 32
+        },
+        "max_ev": {
+          "type": "number",
+          "default": 1,
+          "minimum": -32,
+          "maximum": 32
+        },
+        "exposure_compensation": {
+          "type": "number",
+          "default": 0,
+          "minimum": -32,
+          "maximum": 32
+        },
+        "adaptation_to_bright": {
+          "type": "number",
+          "default": 0.5,
+          "exclusiveMinimum": 0
+        },
+        "adaptation_to_dark": {
+          "type": "number",
+          "default": 1,
+          "exclusiveMinimum": 0
+        }
+      },
+      "description": "max_ev must be >= min_ev. r3d uses a single temporal exposure history."
+    }
+  }
+}
+

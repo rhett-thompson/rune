@@ -58,6 +58,11 @@ destroy_registry :: proc(registry: ^Component_Registry) {
 
 register_builtin_components :: proc(registry: ^Component_Registry) -> bool {
 	ok := true
+	ok = register_builtin_component(registry, "PostProcessing", PostProcessing, "3D scene or camera post-processing profile") && ok
+	ok = register_builtin_component(registry, "PolygonCollider2D", PolygonCollider2D, "Convex 2D polygon with 3-8 perimeter vertices.") && ok
+	ok = register_builtin_component(registry, "SegmentCollider2D", SegmentCollider2D, "2D edge with local endpoints; optional horizontal one-way collision.") && ok
+	ok = register_builtin_component(registry, "CharacterController2D", CharacterController2D, "Platformer motor for a dynamic body with a vertical capsule; movement, jump and drop-through requests come from Odin.") && ok
+	ok = register_builtin_component(registry, "CapsuleCollider2D", CapsuleCollider2D, "2D vertical or horizontal capsule collider") && ok
 	ok = register_builtin_component(registry, "Lifetime", Lifetime, "Destroy an entity after a simulation duration") && ok
 	ok = register_builtin_component(registry, "ShapeRenderer2D", ShapeRenderer2D, "Texture-free 2D shapes") && ok
 	ok = register_builtin_component(registry, "ParticleEmitter2D", ParticleEmitter2D, "World-space 2D particles with continuous emission and code-driven bursts") && ok
@@ -77,7 +82,7 @@ register_builtin_components :: proc(registry: ^Component_Registry) -> bool {
 	ok = register_builtin_component(registry, "TilemapCollider", TilemapCollider, "Solid-tile collision for a TilemapRenderer") && ok
 	ok = register_builtin_component(registry, "TopDownController", TopDownController, "2D tilemap collision controller") && ok
 	ok = register_builtin_component(registry, "RigidBody2D", RigidBody2D, "Fixed-step 2D physics body") && ok
-	ok = register_builtin_component(registry, "BoxCollider2D", BoxCollider2D, "2D axis-aligned box collider") && ok
+	ok = register_builtin_component(registry, "BoxCollider2D", BoxCollider2D, "2D axis-aligned box collider with optional one-way top face") && ok
 	ok = register_builtin_component(registry, "CircleCollider2D", CircleCollider2D, "2D circle collider") && ok
 	ok = register_builtin_component(registry, "RigidBody3D", RigidBody3D, "Box3D-backed 3D rigid body") && ok
 	ok = register_builtin_component(registry, "BoxCollider", BoxCollider, "Axis-aligned static collision volume") && ok

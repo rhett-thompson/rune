@@ -1,0 +1,1 @@
+{"name":"Player","components":{"Transform":{"position":[0,100,0]},"RigidBody2D":{},"CapsuleCollider2D":{"radius":5,"height":20,"offset":[0,-10]},"CharacterController2D":{}}}
