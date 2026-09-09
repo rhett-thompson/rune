@@ -84,8 +84,10 @@ Add `-Runtime` to also exercise rendering, animation, window handling, UI,
 particles, and audio using the existing runtime validators. This requires a
 desktop session or a virtual display on Linux. The GitHub
 [validation workflow](.github/workflows/validate.yml) runs the isolated release
-check on Windows and Ubuntu, including those runtime validators and a new-game
-console/capture smoke test. It runs on pushes and pull requests; it does not publish releases.
+check on Windows and Ubuntu. Hosted Windows runs builds and headless checks;
+Ubuntu also runs the runtime validators and a new-game console/capture smoke test
+with software rendering and clocked silent audio. Run `-Runtime` on a Windows
+desktop before a release. CI runs on pushes and pull requests; it does not publish releases.
 
 For an isolated export and first-project test, see [the release check](docs/release.md).
 Licensing and asset-credit work is tracked in [THIRD_PARTY.md](THIRD_PARTY.md).

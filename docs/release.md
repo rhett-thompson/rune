@@ -42,10 +42,20 @@ installing the dependencies in [Linux development](linux.md).
 
 The GitHub [validation workflow](../.github/workflows/validate.yml) runs this
 committed-snapshot check on Windows AMD64 and Ubuntu 24.04 AMD64. It uses the
-checksummed release archives in `toolchain.json`. Linux runtime tests use Mesa
-software rendering, Xvfb, and ALSA null output. They do not verify real GPU drivers,
-audible playback, monitor layouts, or native Wayland behavior. Reports, runtime
-logs, and the starter-game frame are retained as workflow artifacts for seven days.
+checksummed release archives in `toolchain.json`. The hosted Windows VM runs all
+builds, headless validators, and starter-project generation/build checks. It has
+no usable OpenGL driver or audio playback device, so its report records
+`runtime_checked: false`. A passing Windows CI job does not establish Windows
+runtime coverage; run `./tools/release_check.ps1 -Runtime` on a Windows desktop
+with working graphics and audio before releasing.
+
+Linux runs the complete runtime suite and starter-game console/capture test using
+Mesa software rendering, Xvfb, and a PulseAudio null sink reached through ALSA.
+The sink uses a real-time playback clock; ALSA's raw null PCM can consume short
+sounds before pause/resume assertions inspect them. These checks do not verify
+real GPU drivers, audible playback, monitor layouts, or native Wayland behavior.
+Reports, runtime logs, and any starter-game frame are retained as workflow
+artifacts for seven days.
 
 ## Publication prerequisites
 

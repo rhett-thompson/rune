@@ -112,13 +112,21 @@ and captures a frame. It stops only the game process it started.
 For a Linux machine without a desktop, install the virtual-display packages:
 
 ```bash
-sudo apt-get install -y xvfb xauth libgl1-mesa-dri
-LIBGL_ALWAYS_SOFTWARE=1 ALSA_CONFIG_PATH="$PWD/.github/alsa-null.conf" \
-  xvfb-run -a -s '-screen 0 1280x720x24' \
-  pwsh -NoProfile -File tools/release_check.ps1 -WorkingTree -Runtime
+sudo apt-get install -y xvfb xauth libgl1-mesa-dri libasound2-plugins pulseaudio pulseaudio-utils
+pulseaudio --start --exit-idle-time=-1
+(
+  set -e
+  audio_module=$(pactl load-module module-null-sink sink_name=rune_ci rate=48000)
+  trap 'pactl unload-module "$audio_module"' EXIT
+  LIBGL_ALWAYS_SOFTWARE=1 PULSE_SINK=rune_ci ALSA_CONFIG_PATH="$PWD/.github/alsa-null.conf" \
+    xvfb-run -a -s '-screen 0 1280x720x24' \
+    pwsh -NoProfile -File tools/release_check.ps1 -WorkingTree -Runtime
+)
 ```
 
 This is the same software-rendering and silent audio setup used in GitHub Actions.
+The PulseAudio null sink consumes audio using a real-time clock, so short sounds
+do not finish immediately as they can with an unclocked ALSA null device.
 Runtime validator processes have a 90-second timeout. Their stdout/stderr logs
 are saved beside the binaries; release reports also record the OS, architecture,
 PowerShell version, compiler, and display environment.
