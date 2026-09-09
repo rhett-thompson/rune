@@ -1,0 +1,4 @@
+{
+  "name":"Accessory",
+  "components":{"Transform":{"position":[0.2,-0.2,-0.5]},"ControllerSettings":{"file":"prefab://accessory.data"},"PrefabMarker":{}}
+}

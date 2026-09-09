@@ -1,0 +1,5 @@
+{
+  "name":"Camera Rig",
+  "components":{"Transform":{"position":[0,1.6,0]},"Camera3D":{"fovy":70,"active":true}},
+  "children":[{"id":"accessory","prefab":"accessory.prefab.json"}]
+}

@@ -1,5 +1,7 @@
 {
   "examples": [
+    {"name": "Terrain 3D", "path": "terrain_3d", "description": "Walk across a heightmap landscape with chunked meshes, collision, and live reload.", "collections": [{"name": "r3d", "path": "third_party/r3d-odin"}], "group": "3D"},
+    {"name": "Skybox 3D", "path": "skybox_3d", "description": "Atmospheric scattering, directional sun, and procedural sky comparison.", "collections": [{"name": "r3d", "path": "third_party/r3d-odin"}], "group": "3D"},
     {"name":"2D Ramps", "path":"ramps_2d", "description":"Chained dashes, variable/wall jumps, stairs, crouching, and moving/one-way platforms.", "group":"2D"},
     {"name": "Post Processing 3D", "path": "post_processing_3d", "description": "Bloom, tone mapping, occlusion, and focus in a light gallery.", "collections": [{"name": "r3d", "path": "third_party/r3d-odin"}], "group": "3D"},
     {"name":"2D Colliders", "path":"colliders_2d", "description":"Capsules, offset shapes, sensors, and collider gizmos.", "group":"2D"},
@@ -23,7 +25,7 @@
     {"name": "Skeletal Animation 3D", "path": "skeletal_animation_3d", "description": "Independent animation playback.", "collections": [{"name": "r3d", "path": "third_party/r3d-odin"}], "group": "3D"},
     {"name": "Orbit Camera", "path": "orbit_camera", "description": "Control a camera with the mouse.", "collections": [{"name": "r3d", "path": "third_party/r3d-odin"}], "group": "3D"},
     {"name": "Camera Switching", "path": "camera_switching", "description": "Switch between three cameras.", "collections": [{"name": "r3d", "path": "third_party/r3d-odin"}], "group": "3D"},
-    {"name": "First Person 3D", "path": "first_person_3d", "description": "Walk, look, jump, and sprint.", "collections": [{"name": "r3d", "path": "third_party/r3d-odin"}], "group": "3D"},
+    {"name": "First Person 3D", "path": "first_person_3d", "description": "Capsule movement, ramps, stairs, crouching, and moving platforms.", "collections": [{"name": "r3d", "path": "third_party/r3d-odin"}], "group": "3D"},
     {"name": "Third Person 3D", "path": "third_person_3d", "description": "Follow a character with a camera.", "collections": [{"name": "r3d", "path": "third_party/r3d-odin"}], "group": "3D"},
     {"name": "Audio Components", "path": "audio_components", "description": "Distance and mixer controls.", "collections": [{"name": "r3d", "path": "third_party/r3d-odin"}], "group": "3D"},
     {"name": "Box3D Ball Drop", "path": "box3d_balls", "description": "Drop and roll rigid bodies.", "group": "3D"},

@@ -40,6 +40,20 @@ $compilerDirectory = $compilers[0].DirectoryName
 & $compilers[0].FullName version
 if ($LASTEXITCODE -ne 0) { throw 'The downloaded compiler could not start; check the OS dependencies.' }
 if ($IsLinux) {
+    # Terrain decoding uses the vendor's 16-bit-capable stb_image binding.
+    # Some Odin archives contain sources but omit the Linux native archive.
+    $stbRoot = Join-Path $compilerDirectory 'vendor/stb'
+    $stbLibrary = Join-Path $stbRoot 'lib/stb_image.a'
+    if (!(Test-Path -LiteralPath $stbLibrary)) {
+        foreach ($dependency in @('bash', 'cc', 'ar')) {
+            Get-Command $dependency -ErrorAction Stop | Out-Null
+        }
+        Write-Host 'Building native stb libraries with the pinned Odin vendor script...'
+        & bash (Join-Path $stbRoot 'src/build_stb.sh') unix
+        if ($LASTEXITCODE -ne 0 -or !(Test-Path -LiteralPath $stbLibrary)) {
+            throw 'The native stb_image dependency build failed.'
+        }
+    }
     # The pinned Linux release ships the bindings but omits native Box2D archives.
     # Its own versioned build script produces both AMD64 instruction-set variants.
     $box2dRoot = Join-Path $compilerDirectory 'vendor/box2d'

@@ -202,6 +202,7 @@ default_post_processing :: proc() -> PostProcessing {
 
 // Strict shape checking includes nulls, enum strings, integer counts and colors.
 // Missing fields retain defaults, including inside partially authored groups.
+// Also used by Skybox, which has the same strict nested data contract.
 post_processing_json_shape_valid :: proc(value: json.Value, tid: typeid) -> bool {
 	ti := reflect.type_info_base(type_info_of(tid))
 	#partial switch info in ti.variant {
@@ -223,6 +224,9 @@ post_processing_json_shape_valid :: proc(value: json.Value, tid: typeid) -> bool
 		if !ok {return false}
 		for item in info.names {if string(name) == item {return true}}
 		return false
+	case reflect.Type_Info_String:
+		_, ok := value.(json.String)
+		return ok
 	case reflect.Type_Info_Boolean:
 		_, ok := value.(json.Boolean)
 		return ok
@@ -333,4 +337,3 @@ active_post_processing :: proc(world: ^World, camera: Entity) -> (PostProcessing
 	}
 	return result, selected != 0
 }
-

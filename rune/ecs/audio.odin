@@ -26,6 +26,7 @@ audio_bus_name :: proc(bus: Audio_Bus) -> string {
 AudioPlayer :: struct {
 	bus:           Audio_Bus,
 	sound:         string,
+	clips:         []string, // Non-empty list overrides sound; each play chooses uniformly.
 	volume:        f32,
 	pitch:         f32,
 	random_volume: f32,
@@ -74,10 +75,20 @@ audio_player_from_json :: proc(data: json.Value) -> (AudioPlayer, bool) {
 		case: return {}, false
 		}
 	}
-	value, found := object["sound"]
-	if !found {return {}, false}
-	result.sound, ok = value.(json.String)
-	if !ok || len(result.sound) == 0 {return {}, false}
+	if value, found := object["sound"]; found {
+		result.sound, ok = value.(json.String)
+		if !ok {return {}, false}
+	}
+	if value, found := object["clips"]; found {
+		items, valid := value.(json.Array)
+		if !valid {return {}, false}
+		result.clips = make([]string, len(items), context.temp_allocator)
+		for item, i in items {
+			clip, valid := item.(json.String)
+			if !valid || clip == "" {return {}, false}
+			result.clips[i] = clip
+		}
+	}
 	if value, found := object["volume"]; found {
 		result.volume, ok = read_number(value)
 		if !ok || result.volume < 0 {return {}, false}
@@ -114,4 +125,14 @@ audio_player_from_json :: proc(data: json.Value) -> (AudioPlayer, bool) {
 	if value, found := object["play_on_start"];
 	   found {result.play_on_start, ok = value.(json.Boolean); if !ok {return {}, false}}
 	return result, component_value_valid(result)
+}
+
+// JSON parsing borrows clip strings and temporary slice storage. World entry
+// points copy both, just as typed setters must copy caller-owned clip lists.
+retain_audio_player :: proc(world: ^World, value: AudioPlayer) -> AudioPlayer {
+	owned := value
+	owned.sound = retain_scene_string(world, value.sound)
+	owned.clips = make([]string, len(value.clips), scene_data_allocator(world))
+	for clip, i in value.clips {owned.clips[i] = retain_scene_string(world, clip)}
+	return owned
 }

@@ -34,3 +34,6 @@ Desktop.ini
 *.bak
 *.swp
 *~
+
+# Local coding-agent instructions
+/AGENTS.md

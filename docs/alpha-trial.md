@@ -1,7 +1,8 @@
 # First-user alpha trial
 
 This is a brief to give two or three developers after the license/asset questions
-are resolved and the GitHub repository is available. No invitations have been sent.
+are resolved. Use the [GitHub repository](https://github.com/rhett-thompson/rune)
+for the trial.
 Allow about 20–30 minutes and ask testers to use only the repository documentation.
 
 ## Tasks

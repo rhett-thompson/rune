@@ -37,7 +37,7 @@ physics_3d_raycast :: proc(
 	   translation == ([3]f32{}) ||
 	   filter.layers == 0 {return {}, false}
 	ensure_box3d_world(world)
-	if world.physics_3d.needs_sync {sync_bodies_to_box3d(world)}
+	if world.physics_3d.needs_sync || len(world.terrains) > 0 {sync_bodies_to_box3d(world)}
 	query := Physics_Query_3D {
 		caller_context = context,
 		world          = world,
@@ -149,7 +149,7 @@ physics_3d_overlap_proxy :: proc(
 ) -> []Entity {
 	if filter.layers == 0 {return nil}
 	ensure_box3d_world(world)
-	if world.physics_3d.needs_sync {sync_bodies_to_box3d(world)}
+	if world.physics_3d.needs_sync || len(world.terrains) > 0 {sync_bodies_to_box3d(world)}
 	query := Physics_Query_3D {
 		caller_context = context,
 		world          = world,

@@ -11,14 +11,17 @@ import "rune:prefab"
 import "rune:validation"
 
 Entity_Data :: struct {
-	enabled: Maybe(bool),
-	id:         string,
-	name:       string,
-	tag:        string,
-	layers:     []string,
-	prefab:     string,
-	components: map[string]json.Value,
-	children:   []Entity_Data,
+	enabled: Maybe(bool) `json:"enabled,omitempty"`,
+	id: string `json:"id,omitempty"`,
+	name: string `json:"name,omitempty"`,
+	tag: string `json:"tag,omitempty"`,
+	layers: []string `json:"layers,omitempty"`,
+	prefab: string `json:"prefab,omitempty"`,
+	components: map[string]json.Value `json:"components,omitempty"`,
+	component_overrides: map[string]json.Value `json:"component_overrides,omitempty"`,
+	remove_components: []string `json:"remove_components,omitempty"`,
+	child_overrides: map[string]json.Value `json:"child_overrides,omitempty"`,
+	children: []Entity_Data `json:"children,omitempty"`,
 }
 
 entity_count :: proc(scene: Scene) -> int {
@@ -56,8 +59,7 @@ set_load_error :: proc(format: string, args: ..any) {
 
 last_load_error :: proc() -> string {return last_load_error_message}
 
-// dependency_paths returns a scene file and all directly referenced prefab
-// files. Prefab references are relative to the owning scene file.
+// dependency_paths includes transitive prefab references, relative to their owner.
 dependency_paths :: proc(path: string) -> ([]string, bool) {
 	arena: mem.Dynamic_Arena
 	mem.dynamic_arena_init(&arena)
@@ -65,49 +67,18 @@ dependency_paths :: proc(path: string) -> ([]string, bool) {
 	allocator := mem.dynamic_arena_allocator(&arena)
 	data, read_error := os.read_entire_file(path, allocator)
 	if read_error != nil {return nil, false}
-	scene: Scene
-	if json.unmarshal(data, &scene, allocator = allocator) != nil {return nil, false}
-
-	parsed_paths := make([dynamic]string, allocator)
-	result := make([dynamic]string, context.allocator)
-	defer if len(result) == 0 {delete(result)}
-	append(&parsed_paths, path)
-	scene_directory, _ := filepath.split(path)
-	for entity in scene.entities {
-		if !collect_entity_dependencies(&parsed_paths, entity, scene_directory, allocator) {
-			return nil, false
-		}
-	}
-	for dependency in parsed_paths {
-		owned, _ := strings.clone(dependency)
-		append(&result, owned)
-	}
-	return result[:], true
+	value: json.Value
+	if json.unmarshal(data, &value, allocator = allocator) != nil {return nil, false}
+	resolved := prefab.resolve_scene(value, path, allocator)
+	if resolved.error != "" {return nil, false}
+	result := make([]string, len(resolved.dependencies))
+	for path, index in resolved.dependencies {result[index], _ = strings.clone(path)}
+	return result, true
 }
 
 destroy_dependency_paths :: proc(paths: []string) {
 	for path in paths {delete(path)}
 	delete(paths)
-}
-
-collect_entity_dependencies :: proc(
-	paths: ^[dynamic]string,
-	entity: Entity_Data,
-	scene_directory: string,
-	allocator: mem.Allocator,
-) -> bool {
-	if len(entity.prefab) > 0 {
-		prefab_path := entity.prefab
-		if !filepath.is_abs(prefab_path) {
-			prefab_path, _ = filepath.join({scene_directory, prefab_path}, allocator)
-		}
-		if _, loaded := prefab.load(prefab_path, allocator); !loaded {return false}
-		append(paths, prefab_path)
-	}
-	for child in entity.children {
-		if !collect_entity_dependencies(paths, child, scene_directory, allocator) {return false}
-	}
-	return true
 }
 
 // load reads a scene document and returns the fully instantiated runtime World.
@@ -148,32 +119,19 @@ load_with_layers :: proc(
 		return {}, false
 	}
 
-	scene: Scene
-	if json.unmarshal(data, &scene, allocator = parse_allocator) != nil {
+	root_json: json.Value
+	if json.unmarshal(data, &root_json, allocator = parse_allocator) != nil {
 		set_load_error("%s: could not deserialize scene", path)
 		return {}, false
 	}
-	root_json: json.Value
-	if json.unmarshal(data, &root_json, allocator = parse_allocator) != nil {
-		set_load_error("%s: could not preserve scene JSON", path)
-		return {}, false
-	}
-
-	scene_directory, _ := filepath.split(path)
+	resolved := prefab.resolve_scene(root_json, path, parse_allocator)
+	if resolved.error != "" {set_load_error("%s", resolved.error); return {}, false}
 	world := ecs.init()
 	ecs.set_scene_json(&world, root_json)
-	if !instantiate_with_layers_at(
-		&world,
-		registry,
-		scene,
-		layer_names,
-		scene_directory,
-		parse_allocator,
-	) {
+	if !instantiate_resolved(&world, registry, resolved.value, layer_names, parse_allocator) {
 		ecs.destroy(&world)
 		return {}, false
 	}
-
 	return world, true
 }
 
@@ -193,84 +151,55 @@ instantiate_with_layers :: proc(
 }
 
 instantiate_with_layers_at :: proc(
-	world: ^ecs.World,
-	registry: ^ecs.Component_Registry,
-	scene: Scene,
-	layer_names: map[string]u8,
-	scene_directory: string,
-	allocator := context.allocator,
+	world: ^ecs.World, registry: ^ecs.Component_Registry, scene: Scene,
+	layer_names: map[string]u8, scene_directory: string, allocator := context.allocator,
 ) -> bool {
+	arena: mem.Dynamic_Arena
+	mem.dynamic_arena_init(&arena)
+	defer mem.dynamic_arena_destroy(&arena)
+	scratch := mem.dynamic_arena_allocator(&arena)
+	data, error := json.marshal(scene, allocator = scratch)
+	if error != nil {set_load_error("Could not serialize scene data"); return false}
+	value: json.Value
+	if json.unmarshal(data, &value, allocator = scratch) != nil {return false}
+	file, _ := filepath.join({scene_directory, "__inline.scene.json"}, scratch)
+	resolved := prefab.resolve_scene(value, file, scratch)
+	if resolved.error != "" {set_load_error("%s", resolved.error); return false}
+	return instantiate_resolved(world, registry, resolved.value, layer_names, scratch)
+}
+
+instantiate_resolved :: proc(
+	world: ^ecs.World, registry: ^ecs.Component_Registry, value: json.Value,
+	layer_names: map[string]u8, allocator: mem.Allocator,
+) -> bool {
+	data, error := json.marshal(value, allocator = allocator)
+	if error != nil {set_load_error("Could not serialize resolved scene"); return false}
+	scene: Scene
+	if json.unmarshal(data, &scene, allocator = allocator) != nil {
+		set_load_error("Could not deserialize resolved scene")
+		return false
+	}
 	for entity in scene.entities {
-		if !instantiate_entity(
-			world,
-			registry,
-			entity,
-			ecs.Entity(0),
-			layer_names,
-			scene_directory,
-			allocator,
-		) {
-			return false
-		}
+		if !instantiate_entity(world, registry, entity, ecs.Entity(0), layer_names) {return false}
 	}
 	return true
 }
 
 instantiate_entity :: proc(
-	world: ^ecs.World,
-	registry: ^ecs.Component_Registry,
-	entity_data: Entity_Data,
-	parent: ecs.Entity,
-	layer_names: map[string]u8,
-	scene_directory: string,
-	allocator: mem.Allocator,
+	world: ^ecs.World, registry: ^ecs.Component_Registry, entity_data: Entity_Data,
+	parent: ecs.Entity, layer_names: map[string]u8,
 ) -> bool {
-	components := entity_data.components
-	enabled := true
-	prefab_children: []prefab.Entity_Data
-	if len(entity_data.prefab) > 0 {
-		prefab_path := entity_data.prefab
-		if !filepath.is_abs(prefab_path) {
-			prefab_path, _ = filepath.join({scene_directory, prefab_path}, allocator)
-		}
-		prefab_data, prefab_ok := prefab.load(prefab_path, allocator)
-		if !prefab_ok {
-			set_load_error(
-				"Could not load prefab '%s' for entity '%s'",
-				prefab_path,
-				entity_data.id,
-			)
-			return false
-		}
-		components = prefab.merge_components(
-			prefab_data.components,
-			entity_data.components,
-			allocator,
-		)
-		prefab_children = prefab_data.children
-		if value, specified := prefab_data.enabled.(bool); specified {enabled = value}
-	}
-
-	if value, specified := entity_data.enabled.(bool); specified {enabled = value}
 	entity := ecs.create_entity(world)
+	enabled := true
+	if value, specified := entity_data.enabled.(bool); specified {enabled = value}
 	ecs.set_enabled(world, entity, enabled)
 	layer_mask, layers_ok := layer_mask_from_names(entity_data.layers, layer_names)
-	if !layers_ok ||
-	   !ecs.set_entity_metadata(
-			   world,
-			   entity,
-			   entity_data.id,
-			   entity_data.name,
-			   entity_data.tag,
-			   layer_mask,
-		   ) {
-		set_load_error("Could not create scene entity '%s'", entity_data.id)
+	if !layers_ok || !ecs.set_entity_metadata(world, entity, entity_data.id, entity_data.name, entity_data.tag, layer_mask) {
+		set_load_error("Could not create scene entity '%s' (duplicate ID or invalid layers)", entity_data.id)
 		return false
 	}
-	if parent != ecs.Entity(0) && !ecs.set_parent(world, entity, parent) {
-		return false
-	}
-	for name, data in components {
+	if parent != ecs.Entity(0) && !ecs.set_parent(world, entity, parent) {return false}
+	for name, data in entity_data.components {
 		if !ecs.has_component(registry, name) {
 			set_load_error("Entity '%s' uses unregistered component '%s'", entity_data.id, name)
 			return false
@@ -280,59 +209,8 @@ instantiate_entity :: proc(
 			return false
 		}
 	}
-
 	for child in entity_data.children {
-		if !instantiate_entity(
-			world,
-			registry,
-			child,
-			entity,
-			layer_names,
-			scene_directory,
-			allocator,
-		) {
-			return false
-		}
-	}
-	for child in prefab_children {
-		if !instantiate_prefab_child(world, registry, child, entity, layer_mask) {return false}
-	}
-	return true
-}
-
-instantiate_prefab_child :: proc(
-	world: ^ecs.World,
-	registry: ^ecs.Component_Registry,
-	child_data: prefab.Entity_Data,
-	parent: ecs.Entity,
-	layer_mask: u64,
-) -> bool {
-	child := ecs.create_entity(world)
-	if value, specified := child_data.enabled.(bool); specified {ecs.set_enabled(world, child, value)}
-	if !ecs.set_entity_metadata(world, child, "", child_data.name, "", layer_mask) ||
-	   !ecs.set_parent(world, child, parent) {
-		return false
-	}
-	for name, data in child_data.components {
-		if !ecs.has_component(registry, name) {
-			set_load_error(
-				"Prefab child '%s' uses unregistered component '%s'",
-				child_data.name,
-				name,
-			)
-			return false
-		}
-		if !ecs.add_component(world, registry, child, name, data) {
-			set_load_error(
-				"Prefab child '%s' has invalid data for component '%s'",
-				child_data.name,
-				name,
-			)
-			return false
-		}
-	}
-	for grandchild in child_data.children {
-		if !instantiate_prefab_child(world, registry, grandchild, child, layer_mask) {return false}
+		if !instantiate_entity(world, registry, child, entity, layer_names) {return false}
 	}
 	return true
 }

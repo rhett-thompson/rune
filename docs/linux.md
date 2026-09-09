@@ -40,7 +40,7 @@ pwsh -NoProfile -File tools/install_odin.ps1 -Destination "$PWD/build/odin-toolc
 ```
 
 The installer downloads the platform's pinned Odin release, verifies its SHA-256,
-builds the missing native Box2D libraries on Linux, and prints the compiler
+builds missing native stb and Box2D libraries on Linux, and prints the compiler
 directory to add to your `PATH`. The Box2D build uses the versioned script bundled
 with Odin and downloads Box2D 3.1.1 source. Keep the compiler's
 `base`, `core`, and `vendor` directories together. The installer refuses to

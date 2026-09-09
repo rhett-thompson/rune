@@ -39,6 +39,7 @@ Hot_Reload_Settings :: struct {
 	prefabs:          bool,
 	textures:         bool,
 	models:           bool,
+	terrains:         bool,
 	materials:        bool,
 	animations:       bool,
 	tilesets:         bool,
@@ -52,6 +53,7 @@ default_hot_reload_settings :: proc() -> Hot_Reload_Settings {
 		prefabs = true,
 		textures = true,
 		models = true,
+		terrains = true,
 		materials = true,
 		animations = true,
 		tilesets = true,
@@ -425,7 +427,7 @@ active_world :: proc(engine: ^Engine) -> (^ecs.World, bool) {
 
 last_scene_error :: proc() -> string {return scene.last_load_error()}
 
-// reload_scene_if_changed updates a loaded World when its scene or a directly
+// reload_scene_if_changed updates a loaded World when its scene or any nested
 // referenced prefab changes. Component-value-only scene saves are applied onto
 // the existing World and return false so cached Entity handles stay valid and
 // reload callbacks do not run. Structural changes still rebuild the World and
@@ -472,6 +474,7 @@ watch_scene :: proc(engine: ^Engine, path: string) -> string {
 	watch := make(map[string]i64)
 	for dependency_path in paths {
 		if dependency_path != path && !engine.project.hot_reload.prefabs {continue}
+		if _, exists := watch[dependency_path]; exists {continue}
 		owned_dependency, _ := strings.clone(dependency_path)
 		watch[owned_dependency] = file_modified_time(dependency_path)
 	}
@@ -603,6 +606,7 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 		   reload_scene_if_changed(engine, world, engine.active_scene_path) {
 			run_scene_reload_systems(engine, world)
 		}
+		ecs.sync_terrains(world, &engine.assets)
 		render.update_tilesets(world, &engine.assets)
 		for system in engine.systems {
 			if system.ui_update != nil {system.ui_update(engine, world)}
@@ -683,6 +687,7 @@ is_paused :: proc(engine: ^Engine) -> bool {
 }
 
 run_start_systems :: proc(engine: ^Engine, world: ^ecs.World) {
+	ecs.sync_terrains(world,&engine.assets)
 	for system in engine.systems {
 		if system.start != nil {system.start(engine, world)}
 	}
@@ -733,6 +738,7 @@ run_pre_draw_systems :: proc(engine: ^Engine, world: ^ecs.World) {
 }
 
 run_scene_reload_systems :: proc(engine: ^Engine, world: ^ecs.World) {
+	ecs.sync_terrains(world,&engine.assets)
 	for system in engine.systems {
 		if system.on_scene_reloaded != nil {system.on_scene_reloaded(engine, world)}
 	}
@@ -770,6 +776,10 @@ begin_frame :: proc(engine: ^Engine) {
 	   engine.project.hot_reload.enabled &&
 	   engine.project.hot_reload.models {
 		assets.refresh_models(&engine.assets)
+		assets.refresh_skyboxes(&engine.assets)
+	}
+	if engine.hot_reload_due && engine.project.hot_reload.enabled && engine.project.hot_reload.terrains {
+		assets.refresh_terrains(&engine.assets)
 	}
 	if engine.hot_reload_due &&
 	   engine.project.hot_reload.enabled &&

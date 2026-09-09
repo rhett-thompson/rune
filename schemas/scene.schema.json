@@ -3,13 +3,24 @@
   "$id": "scene.schema.json",
   "title": "Rune scene",
   "type": "object",
-  "required": ["name", "entities"],
+  "required": [
+    "name",
+    "entities"
+  ],
   "properties": {
-    "$schema": { "type": "string" },
-    "name": { "type": "string", "minLength": 1, "description": "Display name of the scene." },
+    "$schema": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Display name of the scene."
+    },
     "entities": {
       "type": "array",
-      "items": { "$ref": "#/$defs/entity" }
+      "items": {
+        "$ref": "#/$defs/entity"
+      }
     }
   },
   "additionalProperties": true,
@@ -17,20 +28,66 @@
     "entity": {
       "type": "object",
       "properties": {
-        "id": { "type": "string", "minLength": 1, "description": "Scene-unique entity identifier." },
-        "enabled": { "type": "boolean", "description": "Local activation override; omission inherits the prefab setting or defaults to true. Disabled parents suspend their children." },
-        "name": { "type": "string" },
-        "tag": { "type": "string" },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Scene-unique entity identifier."
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Local activation override; omission inherits the prefab setting or defaults to true. Disabled parents suspend their children."
+        },
+        "name": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
         "layers": {
           "type": "array",
-          "items": { "type": "string", "minLength": 1 },
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
           "uniqueItems": true
         },
-        "prefab": { "type": "string", "minLength": 1, "description": "Path relative to this scene file." },
-        "components": { "$ref": "components.schema.json" },
+        "prefab": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Prefab path relative to the JSON file containing this reference."
+        },
+        "components": {
+          "$ref": "components.schema.json"
+        },
         "children": {
           "type": "array",
-          "items": { "$ref": "#/$defs/entity" }
+          "items": {
+            "$ref": "#/$defs/entity"
+          }
+        },
+        "component_overrides": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          },
+          "description": "Recursively merge object fields into existing components. Arrays and scalar values replace; components retains whole-block replacement."
+        },
+        "remove_components": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "child_overrides": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[^/]+(/[^/]+)*$"
+          },
+          "additionalProperties": {
+            "$ref": "prefab.schema.json#/$defs/override"
+          }
         }
       },
       "additionalProperties": false

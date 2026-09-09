@@ -55,4 +55,5 @@ main :: proc() {
 	}
 
 	fmt.println("Prefab validation passed")
+	validate_composition(&registry)
 }

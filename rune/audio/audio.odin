@@ -8,6 +8,7 @@ import "rune:ecs"
 import rl "vendor:raylib"
 
 Audio_Voice :: struct {
+	path: string,
 	suspended: bool,
 	sound:         rl.Sound,
 	volume_offset: f32,
@@ -18,6 +19,10 @@ Audio_Voice :: struct {
 Audio_Instance :: struct {
 	suspended: bool,
 	resume_stream: bool,
+	resume_sound: bool,
+	configured_sound: string,
+	configured_clips: []string,
+	sources: map[string]rl.Sound,
 	sound:                rl.Sound,
 	voices:               [dynamic]Audio_Voice,
 	music:                rl.Music,
@@ -95,10 +100,10 @@ update :: proc(system: ^Audio_System, world: ^ecs.World, dt: f32 = 0) {
 		enabled := ecs.is_enabled(world, key.entity)
 		suspend_instance(system, key, !enabled)
 		if !enabled {continue}
-		_, instance_exists := system.instances[key]
+		current, instance_exists := system.instances[key]
 		// Deferred players load only when explicitly played.
 		if !instance_exists && !player.play_on_start {continue}
-		if !ensure_instance(system, key, player.sound) {continue}
+		if !ensure_instance(system, key, player, !instance_exists || (player.play_on_start && !current.started)) {continue}
 		instance := system.instances[key]
 		starting := player.play_on_start && !instance.started
 		restarting :=
@@ -144,7 +149,7 @@ play :: proc(
 	}
 	suspend_instance(system, key, false)
 	player, found := ecs.get_audio_player(world, entity, instance_name)
-	if !found || !ensure_instance(system, key, player.sound) {return false}
+	if !found || !ensure_instance(system, key, player, true) {return false}
 	listener_entity, _, listener_found := ecs.active_audio_listener(world)
 	instance := system.instances[key]
 	if !instance.streaming && !player.looping {
@@ -171,9 +176,10 @@ stop :: proc(system: ^Audio_System, entity: ecs.Entity, instance_name: string) -
 	if instance.streaming {
 		rl.StopMusicStream(instance.music)
 	} else {
+		rl.StopSound(instance.sound)
 		for &voice in instance.voices {rl.StopSound(voice.sound); voice.suspended = false}
 	}
-	instance.resume_stream = false
+	instance.resume_stream, instance.resume_sound = false, false
 	instance.started = false
 	system.instances[key] = instance
 	return true
@@ -184,17 +190,43 @@ is_playing :: proc(system: ^Audio_System, entity: ecs.Entity, instance_name: str
 		system.instances[ecs.Component_Instance{entity = entity, name = instance_name}]
 	if !system.available || !found {return false}
 	if instance.streaming {return rl.IsMusicStreamPlaying(instance.music)}
+	if rl.IsSoundPlaying(instance.sound) {return true}
 	for voice in instance.voices {
 		if rl.IsSoundPlaying(voice.sound) {return true}
 	}
 	return false
 }
 
-ensure_instance :: proc(system: ^Audio_System, key: ecs.Component_Instance, path: string) -> bool {
-	if instance, found := system.instances[key]; found {
-		if instance.path == path {return true}
+select_clip :: proc(player: ecs.AudioPlayer) -> string {
+	if len(player.clips) == 0 {return player.sound}
+	return player.clips[rl.GetRandomValue(0, i32(len(player.clips)-1))]
+}
+
+same_clip_configuration :: proc(instance: Audio_Instance, player: ecs.AudioPlayer) -> bool {
+	if instance.configured_sound != player.sound || len(instance.configured_clips) != len(player.clips) {return false}
+	for clip, i in player.clips {if instance.configured_clips[i] != clip {return false}}
+	return true
+}
+
+ensure_instance :: proc(system: ^Audio_System, key: ecs.Component_Instance, player: ecs.AudioPlayer, choose: bool) -> bool {
+	instance, found := system.instances[key]
+	if found && !same_clip_configuration(instance, player) {
 		unload_instance(instance)
 		delete_key(&system.instances, key)
+		instance, found = {}, false
+	}
+	if found && !choose {return true}
+	path := select_clip(player)
+	if found && instance.path == path {return true}
+	streaming := is_streaming_path(path)
+	if found && !instance.streaming && !streaming {
+		if sound, cached := instance.sources[path]; cached {
+			rl.StopSound(instance.sound) // A looping source restarts; aliases remain independent.
+			instance.sound, instance.path = sound, retain_string(system, path)
+			instance.settings_initialized = false
+			system.instances[key] = instance
+			return true
+		}
 	}
 	full_path := path
 	joined_path: string
@@ -205,29 +237,40 @@ ensure_instance :: proc(system: ^Audio_System, key: ecs.Component_Instance, path
 	}
 	path_cstring, _ := strings.clone_to_cstring(full_path)
 	defer delete(path_cstring)
-	if is_streaming_path(path) {
-		music := rl.LoadMusicStream(path_cstring)
+	music: rl.Music
+	sound: rl.Sound
+	if streaming {
+		music = rl.LoadMusicStream(path_cstring)
 		if !rl.IsMusicValid(music) {return false}
-		owned_key := key
-		owned_key.name = retain_string(system, key.name)
-		system.instances[owned_key] = Audio_Instance {
-			music     = music,
-			streaming = true,
-			path      = retain_string(system, path),
-		}
 	} else {
-		sound := rl.LoadSound(path_cstring)
+		sound = rl.LoadSound(path_cstring)
 		if !rl.IsSoundValid(sound) {return false}
-		voices := make([dynamic]Audio_Voice)
-		append(&voices, Audio_Voice{sound = sound})
-		owned_key := key
-		owned_key.name = retain_string(system, key.name)
-		system.instances[owned_key] = Audio_Instance {
-			sound  = sound,
-			voices = voices,
-			path   = retain_string(system, path),
-		}
 	}
+	// Streams remain a single playback channel. Buffered clips share a source
+	// cache and a bounded alias pool, so selecting a new clip never cuts a tail.
+	if found && (instance.streaming || streaming) {
+		unload_instance(instance)
+		instance, found = {}, false
+	}
+	if !found {
+		instance.configured_sound = retain_string(system, player.sound)
+		instance.configured_clips = make([]string, len(player.clips))
+		for clip, i in player.clips {instance.configured_clips[i] = retain_string(system, clip)}
+		if !streaming {
+			instance.sources = make(map[string]rl.Sound)
+			instance.voices = make([dynamic]Audio_Voice)
+		}
+	} else {rl.StopSound(instance.sound)}
+	instance.path = retain_string(system, path)
+	instance.streaming = streaming
+	instance.settings_initialized = false
+	if streaming {instance.music = music} else {
+		instance.sound = sound
+		instance.sources[instance.path] = sound
+	}
+	owned_key := key
+	owned_key.name = retain_string(system, key.name)
+	system.instances[owned_key] = instance
 	return true
 }
 
@@ -324,6 +367,12 @@ play_one_shot :: proc(
 	}
 	voice := &instance.voices[voice_index]
 	if rl.IsSoundPlaying(voice.sound) {rl.StopSound(voice.sound)}
+	if voice.path != instance.path {
+		rl.UnloadSoundAlias(voice.sound)
+		voice.sound = rl.LoadSoundAlias(instance.sound)
+		voice.path = instance.path
+	}
+	voice.suspended = false
 	voice.volume_offset = random_variation(player.random_volume)
 	voice.pitch_offset = random_variation(player.random_pitch)
 	instance.next_sequence += 1
@@ -346,8 +395,12 @@ play_one_shot :: proc(
 
 ensure_voice_count :: proc(instance: ^Audio_Instance, requested: i32) {
 	target := max(requested, 1)
+	for len(instance.voices) > int(target) {
+		rl.UnloadSoundAlias(instance.voices[len(instance.voices)-1].sound)
+		pop(&instance.voices)
+	}
 	for len(instance.voices) < int(target) {
-		append(&instance.voices, Audio_Voice{sound = rl.LoadSoundAlias(instance.sound)})
+		append(&instance.voices, Audio_Voice{sound = rl.LoadSoundAlias(instance.sound), path = instance.path})
 	}
 }
 
@@ -403,15 +456,15 @@ play_instance :: proc(instance: Audio_Instance) {
 unload_instance :: proc(instance: Audio_Instance) {
 	if instance.streaming {
 		if rl.IsMusicValid(instance.music) {rl.UnloadMusicStream(instance.music)}
-	} else if rl.IsSoundValid(instance.sound) {
-		for i := 1; i < len(instance.voices); i += 1 {
-			if rl.IsSoundValid(
-				instance.voices[i].sound,
-			) {rl.UnloadSoundAlias(instance.voices[i].sound)}
+	} else {
+		for voice in instance.voices {
+			if rl.IsSoundValid(voice.sound) {rl.UnloadSoundAlias(voice.sound)}
 		}
 		delete(instance.voices)
-		rl.UnloadSound(instance.sound)
+		for _, sound in instance.sources {rl.UnloadSound(sound)}
+		delete(instance.sources)
 	}
+	delete(instance.configured_clips)
 }
 
 // Activation is serviced by audio.update even while simulation is paused.
@@ -427,6 +480,13 @@ suspend_instance :: proc(system: ^Audio_System, key: ecs.Component_Instance, sus
 			instance.resume_stream = false
 		}
 	} else {
+		if suspended {
+			instance.resume_sound = rl.IsSoundPlaying(instance.sound)
+			if instance.resume_sound {rl.PauseSound(instance.sound)}
+		} else if instance.resume_sound {
+			rl.ResumeSound(instance.sound)
+			instance.resume_sound = false
+		}
 		for &voice in instance.voices {
 			if suspended {
 				voice.suspended = rl.IsSoundPlaying(voice.sound)

@@ -8,6 +8,8 @@ import "core:path/filepath"
 import "core:strings"
 import "rune:jsonutil"
 import "rune:ecs"
+import "rune:prefab"
+import "rune:terrain"
 
 // Diagnostic describes one authoring problem. `path` is a JSON-style field
 // path, so the same report can later be shown by command-line tools or an
@@ -153,7 +155,7 @@ file_exists :: proc(path: string) -> bool {
 }
 
 // validate_project validates the project document and follows its startup
-// scene, input document, and directly referenced prefab files. Asset paths are
+// scene, input document, and transitively referenced prefab files. Asset paths are
 // resolved relative to the project file, matching the runtime asset manager.
 validate_project :: proc(project_path: string) -> Report {
 	report := init_report()
@@ -293,6 +295,9 @@ validate_scene_at :: proc(
 	scene, ok := read_json_object(scene_path, report)
 	if !ok {return}
 	string_field(report, scene_path, "$", scene, "name", true)
+	resolved := prefab.resolve_scene(scene, scene_path, report_allocator(report))
+	if resolved.error != "" {add(report, scene_path, "$", resolved.error); return}
+	scene = resolved.value.(json.Object)
 	entities, entities_ok := array_field(report, scene_path, "$", scene, "entities", true)
 	if !entities_ok {return}
 	scene_directory, _ := filepath.split(scene_path)
@@ -373,42 +378,24 @@ validate_entity_layers :: proc(
 	}
 }
 
+// Validate the same expanded data used at runtime, including nested dependencies.
 validate_prefab :: proc(report: ^Report, prefab_path, project_directory: string) {
-	prefab, ok := read_json_object(prefab_path, report)
-	if !ok {return}
-	string_field(report, prefab_path, "$", prefab, "name", true)
-	validate_enabled(report, prefab_path, "$", prefab)
-	components, components_ok := object_field(report, prefab_path, "$", prefab, "components", true)
-	if components_ok {validate_components(report, prefab_path, "$.components", components, project_directory)}
-	children, children_ok := array_field(report, prefab_path, "$", prefab, "children", false)
-	if children_ok {
-		for child, index in children {
-			validate_prefab_entity(
-				report,
-				prefab_path,
-				index_path("$.children", index),
-				child,
-				project_directory,
-			)
-		}
-	}
-}
-
-validate_prefab_entity :: proc(
-	report: ^Report,
-	file, path: string,
-	value: json.Value,
-	project_directory: string,
-) {
-	entity, ok := value.(json.Object)
-	if !ok {add(report, file, path, "must be an object"); return}
-	validate_enabled(report, file, path, entity)
-	components, components_ok := object_field(report, file, path, entity, "components", false)
-	if components_ok {validate_components(report, file, field_path(path, "components"), components, project_directory)}
-	children, children_ok := array_field(report, file, path, entity, "children", false)
-	if children_ok {
-		for child, index in children {validate_prefab_entity(report, file, index_path(field_path(path, "children"), index), child, project_directory)}
-	}
+	allocator := report_allocator(report)
+	absolute, error := filepath.abs(prefab_path, allocator)
+	if error != nil {add(report, prefab_path, "$", "could not resolve prefab path"); return}
+	entity := make(json.Object, allocator)
+	entity["id"] = "prefab"
+	entity["prefab"] = absolute
+	entities := make(json.Array, 0, 1, allocator)
+	append(&entities, entity)
+	document := make(json.Object, allocator)
+	document["entities"] = entities
+	result := prefab.resolve_scene(document, prefab_path, allocator)
+	if result.error != "" {add(report, prefab_path, "$", result.error); return}
+	resolved := result.value.(json.Object)["entities"].(json.Array)
+	directory, _ := filepath.split(prefab_path)
+	ids := make(map[string]bool, allocator)
+	validate_entity(report, prefab_path, "$", resolved[0], directory, project_directory, nil, &ids)
 }
 
 validate_components :: proc(
@@ -425,6 +412,35 @@ validate_components :: proc(
 				add(report, file, field_path(path, name), "invalid post-processing profile: check effect fields, lowercase modes, finite ranges, fog end > start, and max_ev >= min_ev (see docs/post-processing.md)")
 			}
 		}
+		if name == "Skybox" {
+			sky, valid := ecs.skybox_from_json(value)
+			if !valid {
+				add(report, file, field_path(path, name), "invalid skybox: check mode/layout, finite ranges, nonzero procedural sun direction, atmosphere.sun entity ID for atmospheric mode, and power-of-two resolution from 16 to 2048 (see docs/skybox.md)")
+			} else if sky.mode == .cubemap {
+				asset_path := field_path(field_path(path, name), "texture")
+				if !supported_texture_path(sky.texture) && strings.to_lower(filepath.ext(sky.texture), context.temp_allocator) != ".hdr" {
+					add(report, file, asset_path, "unsupported skybox image format; use .hdr, .png, .bmp, .gif, .qoi, or .dds")
+				}
+				if len(project_directory) > 0 && !file_exists(path_from(report, project_directory, sky.texture)) {
+					add(report, file, asset_path, fmt.tprint("referenced skybox does not exist: ", sky.texture))
+				}
+			}
+		}
+		if name == "Terrain" {
+			settings,valid := ecs.terrain_from_json(value)
+			if !valid {add(report,file,field_path(path,name),"requires asset path, boolean collision/shadows and finite nonnegative friction")}
+			for other in ([]string{"RigidBody3D","BoxCollider","SphereCollider","CharacterController","CharacterController3D"}) {
+				if _,exists := components[other]; exists {add(report,file,field_path(path,name),fmt.tprint("Terrain cannot share an entity with ",other))}
+			}
+			if _,exists := components["Transform"]; !exists {add(report,file,field_path(path,name),"Terrain requires Transform")}
+			if valid && project_directory != "" {
+				data,watch,error := terrain.load(project_directory,settings.asset)
+				if error != "" {add(report,file,field_path(path,name),fmt.tprintf("%s (%s): %s",settings.asset,watch,error))} else {
+					if data.description.material != "" {validate_material(report,path_from(report,project_directory,data.description.material),project_directory)}
+					terrain.destroy(&data)
+				}
+			}
+		}
 		if name == "PolygonCollider2D" {
 			if _, valid := ecs.polygon_collider_2d_from_json(value); !valid {
 				add(report, file, field_path(path, name), "requires 3-8 finite convex perimeter vertices, no duplicate/collinear/short edges, and finite 2D offset")
@@ -433,6 +449,11 @@ validate_components :: proc(
 		if name == "SegmentCollider2D" {
 			if _, valid := ecs.segment_collider_2d_from_json(value); !valid {
 				add(report, file, field_path(path, name), "requires finite 2D start/end points more than 0.005 units apart and finite offset; one_way requires a horizontal, non-sensor edge")
+			}
+		}
+		if name == "CharacterController3D" {
+			if _, valid := ecs.character_controller_3d_from_json(value); !valid {
+				add(report,file,field_path(path,name),"requires finite nonnegative settings, positive radius/acceleration/braking/gravity/fall speed, 2*radius <= crouch_height <= height, step_height < height, sprint_multiplier >= 1, slope < 89, and jump cut/grace/buffer values in [0,1]")
 			}
 		}
 		if name == "CharacterController2D" {
@@ -474,6 +495,13 @@ validate_components :: proc(
 				if len(instance_name) == 0 || !instance_ok {
 					add(report, file, instance_path, "named component instance must be an object")
 					continue
+				}
+				player, valid := ecs.audio_player_from_json(instance_value)
+				if !valid {add(report, file, instance_path, "requires sound or a non-empty clips list and valid audio settings"); continue}
+				for clip, i in player.clips {
+					if len(project_directory) > 0 && !file_exists(path_from(report, project_directory, clip)) {
+						add(report, file, fmt.tprint(instance_path, ".clips[", i, "]"), fmt.tprint("referenced asset does not exist: ", clip))
+					}
 				}
 				validate_component_assets(report, file, instance_path, instance, project_directory)
 			}
@@ -521,6 +549,7 @@ validate_component_assets :: proc(
 		if !found {continue}
 		asset, ok := asset_path.(json.String)
 		if allow_empty_texture && field == "texture" && ok && asset == "" {continue}
+		if field == "sound" && ok && asset == "" {if clips, valid := component["clips"].(json.Array); valid && len(clips) > 0 {continue}}
 		if !ok ||
 		   len(asset) ==
 			   0 {add(report, file, field_path(path, field), "must be a non-empty asset path"); continue}

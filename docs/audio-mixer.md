@@ -47,3 +47,35 @@ odin build tools/mixer_validation -collection:rune=rune -out:build/mixer_validat
 ./build/mixer_validation.exe
 ./build/mixer_validation.exe --runtime
 ```
+
+## Random clip players
+
+An `AudioPlayer` can use an arbitrary-length `clips` array instead of a single
+`sound`. Each explicit `rune.play_audio`/`audio.play` call (and initial autoplay)
+chooses an entry uniformly. Consecutive repeats are allowed; duplicate entries
+weight the selection. A non-empty list overrides `sound`; an empty list requires
+a valid `sound` fallback.
+
+```json
+"AudioPlayer": {
+  "footsteps": {
+    "clips": ["assets/step_1.wav", "assets/step_2.wav", "assets/step_3.wav"],
+    "volume": 0.5,
+    "random_pitch": 0.04,
+    "max_voices": 4
+  }
+}
+```
+
+Buffered clips load on first selection and remain cached for that player.
+Overlapping plays share `max_voices` across all clips; when full, the oldest
+voice is replaced. Mixer changes affect every voice, including older clips.
+Changing `sound` or `clips` releases the old cache and playback on the next update
+or play. Volume/pitch edits do not choose another clip. Lists are copied by typed
+setters and survive scene snapshots/reloads.
+
+Streaming formats retain one playback channel: selecting another stream, or
+switching between a stream and buffered sound, replaces the previous playback.
+Looping repeats the selected clip until the next explicit play; it does not
+randomize the clip at each loop boundary. Sources and aliases are released when
+the player is removed or the audio system shuts down.

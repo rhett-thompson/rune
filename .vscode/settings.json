@@ -1,5 +1,6 @@
 {
   "json.schemas": [
+    {"fileMatch": ["**/*.terrain.json"], "url": "./schemas/terrain.schema.json"},
     {
       "fileMatch": ["**/project.json"],
       "url": "./schemas/project.schema.json"

@@ -1,0 +1,11 @@
+{
+  "$schema": "../../../schemas/terrain.schema.json",
+  "heightmap": "assets/hills.png",
+  "resolution": [257,257],
+  "size": [256,256],
+  "height_scale": 48,
+  "height_offset": -6,
+  "chunk_cells": 64,
+  "uv_scale": [32,32],
+  "material": "assets/ground.material.json"
+}

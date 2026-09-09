@@ -5,6 +5,17 @@
   "type": "object",
   "description": "Components attached to an entity. Custom Odin components are allowed.",
   "properties": {
+    "Terrain": {
+      "type": "object", "additionalProperties": false, "required": ["asset"],
+      "description": "Static heightmap terrain; requires Transform and its own entity without other 3D colliders or bodies.",
+      "properties": {
+        "asset": {"type": "string", "minLength": 1, "description": "Project-relative .terrain.json path."},
+        "collision": {"type": "boolean", "default": true},
+        "shadows": {"type": "boolean", "default": true},
+        "friction": {"type": "number", "minimum": 0, "default": 0.8}
+      }
+    },
+    "Skybox": { "$ref": "skybox.schema.json" },
     "PostProcessing": { "$ref": "post-processing.schema.json" },
     "ShapeRenderer2D": { "$ref": "#/$defs/shapeRenderer2D" },
     "Lifetime": { "$ref": "#/$defs/lifetime" },
@@ -31,6 +42,7 @@
     "BoxCollider2D": { "$ref": "#/$defs/boxCollider2D" },
     "PolygonCollider2D": { "$ref": "#/$defs/polygonCollider2D" },
     "SegmentCollider2D": { "$ref": "#/$defs/segmentCollider2D" },
+    "CharacterController3D": { "$ref": "#/$defs/characterController3D" },
     "CharacterController2D": { "$ref": "#/$defs/characterController2D" },
     "CapsuleCollider2D": { "$ref": "#/$defs/capsuleCollider2D" },
     "CircleCollider2D": { "$ref": "#/$defs/circleCollider2D" },
@@ -51,6 +63,112 @@
     "description": "Data for a custom component registered by game code."
   },
   "$defs": {
+    "characterController3D": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Fixed-step query capsule. Transform.position is the feet; unparented unit-scale Transform required, no RigidBody3D or other player collider. Dimensions are world units. Runtime also checks 2*radius <= crouch_height <= height and step_height < height.",
+      "properties": {
+        "radius": {
+          "type": "number",
+          "default": 0.35,
+          "exclusiveMinimum": 0
+        },
+        "height": {
+          "type": "number",
+          "default": 1.8,
+          "exclusiveMinimum": 0
+        },
+        "crouch_height": {
+          "type": "number",
+          "default": 1,
+          "exclusiveMinimum": 0
+        },
+        "move_speed": {
+          "type": "number",
+          "default": 5,
+          "minimum": 0
+        },
+        "sprint_multiplier": {
+          "type": "number",
+          "default": 1.8,
+          "minimum": 1
+        },
+        "crouch_speed": {
+          "type": "number",
+          "default": 2.5,
+          "minimum": 0
+        },
+        "acceleration": {
+          "type": "number",
+          "default": 35,
+          "exclusiveMinimum": 0
+        },
+        "braking": {
+          "type": "number",
+          "default": 45,
+          "exclusiveMinimum": 0
+        },
+        "air_acceleration": {
+          "type": "number",
+          "default": 10,
+          "minimum": 0
+        },
+        "gravity": {
+          "type": "number",
+          "default": 24,
+          "exclusiveMinimum": 0
+        },
+        "jump_speed": {
+          "type": "number",
+          "default": 8,
+          "minimum": 0
+        },
+        "jump_cut_multiplier": {
+          "type": "number",
+          "default": 0.5,
+          "minimum": 0,
+          "maximum": 1
+        },
+        "max_fall_speed": {
+          "type": "number",
+          "default": 45,
+          "exclusiveMinimum": 0
+        },
+        "max_slope_angle": {
+          "type": "number",
+          "default": 45,
+          "minimum": 0,
+          "exclusiveMaximum": 89
+        },
+        "ground_snap_distance": {
+          "type": "number",
+          "default": 0.2,
+          "minimum": 0
+        },
+        "step_height": {
+          "type": "number",
+          "default": 0.3,
+          "minimum": 0
+        },
+        "coyote_time": {
+          "type": "number",
+          "default": 0.1,
+          "minimum": 0,
+          "maximum": 1
+        },
+        "jump_buffer_time": {
+          "type": "number",
+          "default": 0.1,
+          "minimum": 0,
+          "maximum": 1
+        },
+        "push_force": {
+          "type": "number",
+          "default": 50,
+          "minimum": 0
+        }
+      }
+    },
     "characterController2D": {
       "type": "object",
       "additionalProperties": false,
@@ -854,9 +972,13 @@
     },
     "audioPlayer": {
       "type": "object",
-      "required": ["sound"],
+      "anyOf": [
+        { "required": ["sound"], "properties": { "sound": { "minLength": 1 } } },
+        { "required": ["clips"], "properties": { "clips": { "minItems": 1 } } }
+      ],
       "properties": {
-        "sound": { "type": "string", "minLength": 1 },
+        "sound": { "type": "string" },
+        "clips": { "type": "array", "items": { "type": "string", "minLength": 1 }, "description": "Randomly select one clip per play; overrides sound when non-empty." },
         "bus": { "type": "string", "enum": ["master", "music", "sfx", "ui"], "default": "sfx" },
         "volume": { "type": "number", "minimum": 0, "default": 1 },
         "pitch": { "type": "number", "exclusiveMinimum": 0, "default": 1 },

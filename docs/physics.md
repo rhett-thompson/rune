@@ -4,6 +4,9 @@ Rune delegates collision detection and simulation to Odin's Box2D and Box3D
 vendor packages. These APIs translate native shapes into Rune entities and
 collect events at the fixed-step boundary.
 
+For 3D character movement, see [CharacterController3D](character-controller-3d.md):
+a fixed-step query capsule with slopes, stairs, crouching, and moving supports.
+
 ## 2D collider authoring
 
 `BoxCollider2D`, `CircleCollider2D`, `CapsuleCollider2D`, `PolygonCollider2D`,
@@ -204,7 +207,7 @@ starting inside a shape; use an overlap query to detect containing shapes.
 
 ## Sensors and events
 
-All five native collider components accept `"is_sensor": true` in JSON or
+All native collider components accept `"is_sensor": true` in JSON or
 `is_sensor = true` in Odin. It defaults to false.
 
 ```json
@@ -251,7 +254,9 @@ can observe the same events.
 
 The engine runs `fixed_update`, both physics backends, then `post_physics`
 for each fixed step, in system registration order within each phase. Read in
-`post_physics` to see every step, including frames with multiple steps.
+`post_physics` to see every step, including frames with multiple steps. Use
+`game.fixed_delta_time` for timing in these callbacks; `game.delta_time` holds
+the simulation frame delta, which may span several fixed steps.
 Standalone callers can call `physics_2d_update` / `physics_3d_update` and
 read immediately afterward; one call accumulates events from all its substeps.
 

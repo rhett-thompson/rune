@@ -1,9 +1,10 @@
 # Display settings
 
 Rune enables raylib 6 high-DPI support before creating the window. Project
-width/height are logical drawing units in windowed and borderless modes. At
-200% desktop scaling, 1280x720 uses a 2560x1440 framebuffer. An explicit
-`high_dpi: false` opts out. This applies to game rendering as well as Clay.
+width/height are logical drawing units in windowed and borderless modes on
+Windows. At 200% desktop scaling, 1280x720 uses a 2560x1440 framebuffer.
+Other platforms follow their raylib/GLFW backend and desktop scaling behavior.
+An explicit `high_dpi: false` opts out. This applies to game rendering as well as Clay.
 
 ```json
 "window": {
@@ -26,6 +27,10 @@ When `mode` is omitted, legacy `fullscreen: true` selects fullscreen; otherwise
 the game starts windowed. An explicit `mode` takes precedence. The legacy flag
 is still supported and now actually takes effect. `resizable` defaults to false
 for compatibility with games that assume a fixed window size.
+
+The current `vsync: true` implementation calls raylib's `SetTargetFPS(60)`. It
+sets a 60 FPS target; it does not request a swap-interval synchronization hint.
+With `vsync: false`, Rune does not set that frame limit.
 
 The initial window is centered and fitted to the available desktop. Windows
 uses the monitor work area, accounting for taskbars and window decorations.

@@ -1,8 +1,9 @@
 # Public alpha preparation
 
 The alpha target is a developer who can build Rune, create an independent game,
-and use JSON hot reload without help from the maintainer. The official repository
-will be on GitHub; its public URL and release tag have not been chosen here.
+and use JSON hot reload without help from the maintainer. The repository is
+[rhett-thompson/rune on GitHub](https://github.com/rhett-thompson/rune).
+Release checks and publication prerequisites are below.
 
 ## Engineering check
 
@@ -42,8 +43,7 @@ installing the dependencies in [Linux development](linux.md).
 
 Run these checks locally on Windows AMD64 and Linux AMD64 using the toolchain
 recorded in `toolchain.json`. Reports, runtime logs, and any captured starter-game
-frame remain in the generated `build/release check */` directory. No GitHub Actions
-workflow runs on pushes or pull requests.
+frame remain in the generated `build/release check */` directory.
 
 ## Publication prerequisites
 

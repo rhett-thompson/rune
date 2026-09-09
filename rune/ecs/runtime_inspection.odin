@@ -38,6 +38,7 @@ typed_component_serializer :: proc($T: typeid) -> Component_Serialize_Proc {
 	return proc(world: ^World, entity: Entity, name: string, allocator: mem.Allocator) -> (json.Value, bool) {
 		component, found := get(world, entity, T)
 		if !found {return {}, false}
+		when T == Skybox {return skybox_json(component, allocator)}
 		when T == PostProcessing {return post_processing_json(component, allocator)}
 		when T == TilemapRenderer {
 			return tilemap_renderer_json(component, allocator)

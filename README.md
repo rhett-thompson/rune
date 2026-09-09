@@ -26,15 +26,19 @@ their game-specific fields are not completed by the built-in schemas.
 
 ## Current capabilities
 
+- [Heightmap terrain](docs/terrain.md): chunked 3D landscapes, matching native collision, PNG/r16 heightmaps, and hot reload. Try [Highland Walk](examples/terrain_3d/README.md).
+
 - [Audio mixer buses](docs/audio-mixer.md): master/music/SFX/UI volume, mute, and fades.
 - [2D resolution policies](docs/display.md): fit, stretch, integer scaling, and canvas mouse mapping.
+- [3D character controller](docs/character-controller-3d.md): fixed-step capsule movement, slopes, stairs, crouching, and moving platforms.
 - [Animation transitions](docs/animation-transitions.md): queued sprite clips and skeletal pose blends.
 - [3D post processing](docs/post-processing.md): scene/camera profiles, bloom, tone mapping, occlusion, focus, and hot reload. Try [Post Processing 3D](examples/post_processing_3d/README.md).
 
 - raylib-backed engine lifecycle and registered update/draw systems;
 - JSON projects, scenes, prefabs, materials, tilesets, sprite animations, input mappings, and schemas;
 - a typed ECS with reflected Odin/JSON custom components and hierarchy;
-- cached, hot-reloadable texture, model, material, tileset, sprite-animation, font, and audio assets;
+- cached, hot-reloadable texture, model, material, tileset, sprite-animation, and font assets;
+- independent buffered sound and streamed music playback per audio player;
 - scene-owned sprites, tilemaps, text, 3D models, PBR materials, lights, and shadows;
 - input actions and runtime rebinding, audio components, tweening, and navigation;
 - generic pools for reusable Odin values, with generation-checked handles;
@@ -137,11 +141,13 @@ and own the project's startup scene:
 rune.register_system(&game, rune.System{
     name = "movement",
     start = acquire_scene_state,
+    ui_update = update_ui,
     fixed_update = update_physics_controls,
     post_physics = handle_physics_events,
     update = update_gameplay,
     pre_draw = draw_background,
     draw = draw_overlay,
+    draw_ui = draw_interface,
     on_scene_reloaded = acquire_scene_state,
     shutdown = release_game_state,
 })
@@ -151,14 +157,18 @@ if !rune.run(&game) {
 }
 ```
 
-The scene loop updates input, fixed-step systems and physics, post-physics systems, normal systems,
-audio, background drawing, automatic 2D scene rendering, overlay drawing,
-gizmos, and the console. `pre_draw` is for custom content that must appear
-behind automatic scene rendering; normal UI and debug drawing belongs in
-`draw`.
+The scene loop samples input and the console, polls scene reloads, and calls
+`ui_update` before simulation. It then runs fixed-step systems and physics,
+post-physics systems, normal update systems, and audio. Drawing runs `pre_draw`,
+automatic 2D scene rendering, `draw`, and gizmos inside the game canvas, followed
+by `draw_ui` and the console at native UI resolution. Use `pre_draw` for content
+behind the scene, `draw` for game overlays, and `draw_ui` for menus that should
+stay sharp when the game canvas is scaled. UI updates and drawing continue
+while simulation is paused.
 `post_physics` runs after both native physics backends on every fixed step.
 Use it for contact/sensor events so a frame containing several steps does not
-skip intermediate events.
+skip intermediate events. Use `game.fixed_delta_time` in fixed-step callbacks
+and `game.delta_time` in normal updates.
 `rune.run(&game, on_update, on_draw)` remains available as a low-level callback
 loop for focused utilities and probes that intentionally do not use an
 engine-owned scene or registered systems.
@@ -187,8 +197,8 @@ the window-drag operation.
 ## Registered systems
 
 Systems are ordered Odin behavior over component data. `start` runs after a
-scene exists, and `shutdown` runs before its World is destroyed. Scene changes
-therefore receive the same lifecycle as startup and application shutdown.
+scene exists, and `shutdown` runs in reverse registration order before its
+World is destroyed. Scene changes therefore receive the same lifecycle as startup and application shutdown.
 
 ```odin
 rune.register_system(&game, rune.System{
@@ -230,7 +240,7 @@ inspect current component values, pause and step simulation, inject input,
 validate runtime edits, reload a scene, read logs, and profile CPU timings.
 Runtime edits do not save source files.
 
-See [Runtime console commands for coding agents](AGENTS.md#runtime-console-commands-for-coding-agents)
+See [Runtime console commands](docs/runtime-console.md)
 for the command reference, repeatable inspection workflow, and inbox limits.
 
 Register game-specific commands from Odin. Command handlers own the game
@@ -518,7 +528,7 @@ dependent; raylib falls back when the requested framebuffer cannot be created.
 
 ## Input actions
 
-Each project may point `input` at an input mapping JSON file. The engine loads
+Each project must point `input` at an input mapping JSON file. The engine loads
 and validates it during `rune.init`, then samples its bindings before every
 `on_update` callback. Actions support one or more keyboard or gamepad-button
 bindings; axes combine two named actions into a signed value.
@@ -537,7 +547,8 @@ bindings; axes combine two named actions into a signed value.
 ```
 
 Query the state from an update system. `is_down`, `pressed`, `released`, and
-`strength` apply to actions; `axis` returns a value from `-1` to `1`.
+`strength` apply to actions. Action-pair axes return values from `-1` to `1`;
+mouse-delta and mouse-wheel axes return movement values and are not normalized.
 
 ```odin
 import "rune:input"
@@ -568,9 +579,9 @@ if input.rebind_keyboard(controls, "move_left", "LEFT") &&
 ```
 
 The runnable [`runtime_rebinding`](examples/runtime_rebinding) sample starts
-with `A`/`D` movement. Press `R` to switch it to Left/Right arrows and press
-`R` again to restore `A`/`D`; each change is saved to
-`input/default.input.json`:
+with Left/Right arrow movement in the checked-in mapping. Press `R` to switch
+between arrows and `A`/`D`; each change is saved to `input/default.input.json`,
+and later launches use the saved keys:
 
 ```powershell
 odin run examples/runtime_rebinding -collection:rune=rune
@@ -713,10 +724,14 @@ instead of globals.
 
 `AudioListener` selects the scene audio reference point and normally belongs on
 the active camera entity. `AudioPlayer` belongs on entities that emit sounds.
-The sound path is project-relative; Odin audio systems own playback commands.
-The runtime initializes raylib audio, loads one independent sound instance per
-named player component, honors `play_on_start`, and restarts looping sounds. Spatial
-players use listener-relative distance attenuation and world-X panning as an
+Sound paths are project-relative; Odin audio systems own playback commands.
+Each named player accepts a single `sound` or an arbitrary-length `clips` list,
+which randomly selects one entry on each play. Buffered clips load on demand and
+share the player's `max_voices` limit. The runtime honors `play_on_start` and
+restarts looping sounds.
+Music formats use streamed playback. Audio files are not timestamp-polled for
+hot reload; changing a player's sound path or clip list replaces its cache when serviced.
+Spatial players use listener-relative distance attenuation and world-X panning as an
 initial simple mixer; orientation-aware 3D audio can replace this later.
 
 ```json
@@ -743,6 +758,9 @@ initial simple mixer; orientation-aware 3D audio can replace this later.
 
 `AudioPlayer` is repeatable: every instance requires a unique name such as
 `bell`, `shoot`, or `explode`. Pass that name to the playback API.
+A non-empty `clips` list overrides `sound`; random choices can repeat. See
+[random clip players](docs/audio-mixer.md#random-clip-players) for an example and
+streaming/looping behavior.
 `random_volume` and `random_pitch` independently sample a variation in the
 inclusive range `-amount` to `+amount` whenever playback starts. Final volume
 is clamped to zero and final pitch remains positive. Buffered one-shots use up
@@ -906,11 +924,15 @@ reverse the coin clip.
 
 ## Prefabs
 
-Scenes can instantiate a prefab using a path relative to the scene file. The
-instance keeps scene-owned metadata such as `id`, `name`, `tag`, and `layers`;
-its `components` replace matching prefab component blocks. This initial slice
-supports prefab child entities, but not nested prefab references or child-level
-overrides.
+Scenes can instantiate a prefab using a path relative to the scene file. Prefabs
+can contain nested prefab references or inherit from a base prefab. `components`
+replaces matching component blocks; `component_overrides` merges individual
+fields, and `child_overrides` customizes children using local ID paths. Child IDs
+become instance-scoped scene IDs such as `player/camera`. `remove_components`
+removes inherited components, and `prefab://` asset paths resolve relative to
+their authoring JSON file. Nested prefab dependencies participate in hot reload.
+See [the prefab guide](docs/prefabs.md) for a controller/camera example, override
+rules, stable child lookup, and migration details.
 
 ```json
 {
@@ -953,7 +975,9 @@ following when the block is omitted:
 }
 ```
 
-Texture, model, material, tileset, and animation reload use their corresponding flags.
+Texture, model, material, tileset, and animation reload use their corresponding
+flags; font reload follows `textures`. Project settings, input mappings, and
+audio-file contents are not automatically reloaded.
 The normal engine-owned `rune.run(&game)`
 workflow watches the active scene automatically. Component-value-only edits
 are applied to the existing World; structural edits rebuild it and invoke each
@@ -963,13 +987,17 @@ reacquired.
 Advanced callback-based programs that own a World can poll explicitly:
 
 ```odin
-if rune.reload_scene_if_changed(game, &world, "scenes/main.scene.json") {
+// Use the same filesystem path passed to scene.load, relative to the working
+// directory or absolute; this helper does not prepend the project directory.
+if rune.reload_scene_if_changed(game, &world, scene_path) {
     // Reacquire any Entity values cached by this game.
 }
 ```
 
 The helper respects `enabled`, `scenes`, and `prefabs`, and watches the scene
-JSON plus directly referenced prefab files when configured to do so.
+JSON plus transitively referenced prefab files when configured to do so. It returns
+`true` only when the World is replaced; successful component-value-only reloads
+return `false` and preserve cached handles.
 
 `Entity` values are generation-checked runtime handles. A handle from the old
 world is therefore safely rejected after scene reload instead of accidentally
@@ -978,12 +1006,17 @@ must survive reload, give the entity a stable JSON `id` and retain an
 `ecs.Entity_Ref`:
 
 ```odin
-player, _ := ecs.find_entity_by_id(&world, "player")
-player_ref, _ := ecs.entity_ref(&world, player)
+// A string literal outlives every World.
+player_ref, _ := ecs.entity_ref_from_id("player")
 
 // After a scene reload:
 player, found := ecs.resolve_entity_ref(&world, player_ref)
 ```
+
+`Entity_Ref` borrows its ID string. `ecs.entity_ref` returns an ID owned by the
+World, so clone that string into game-owned storage before retaining it across
+World replacement, and free the clone when finished. `entity_ref_from_id` also
+borrows its argument; the literal above needs no allocation.
 
 Readable IDs such as `"player"` are suitable for hand-authored projects.
 Editor tooling may generate UUID-shaped IDs later without changing this API.
@@ -1135,9 +1168,10 @@ position. Colliders only interact when their entity layer masks overlap.
 }
 ```
 
-The first-person example now has collidable blockout geometry. Use WASD to
-move, Space to jump, and Escape to release/capture the cursor. Green outlines
-show static collision boxes.
+The legacy controller above remains available for existing games. The
+[first-person example](examples/first_person_3d/README.md) now uses
+[CharacterController3D](docs/character-controller-3d.md), a fixed-step capsule
+motor with native Box3D collision, slope/stair handling, and moving supports.
 
 ## 2D tilemaps
 
@@ -1347,17 +1381,20 @@ odin run examples/orbit_camera -collection:rune=rune -collection:r3d=third_party
 
 ## First-person controller
 
-This noclip 3D sample demonstrates a game-owned `FirstPersonController`
-component declared in scene JSON. Its Odin system reads project input actions,
-updates the camera entity's `Transform`, and updates its `Camera3D.target`.
+The [first-person example](examples/first_person_3d/README.md) connects a reusable
+`CharacterController3D` motor to game-owned mouse look and a separate camera.
+It includes ramps, stairs, a low tunnel, a moving platform, and a pushable crate.
+See the [controller guide](docs/character-controller-3d.md) for configuration,
+movement requests, runtime state, and local validation.
 
 ```powershell
-odin run examples/first_person_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin
+New-Item -ItemType Directory -Force build | Out-Null
+$exe = if ($IsWindows) { '.exe' } else { '' }
+odin run examples/first_person_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/first_person_3d$exe"
 ```
 
-Use WASD to move, Shift to sprint, and mouse movement to look. Escape releases
-or recaptures the cursor. Collision, gravity, and jumping are intentionally
-deferred until a physics/collision slice exists.
+WASD moves, Shift sprints, Space jumps, and Ctrl crouches. Mouse movement looks
+around; Escape releases or recaptures the cursor. F3 shows physics gizmos.
 
 ## Solar-system hierarchy
 
@@ -1418,3 +1455,7 @@ levels, next-piece and ghost previews, pause, and restart:
 ```powershell
 odin run examples/tetris -collection:rune=rune
 ```
+
+### Skyboxes
+
+Use a `Skybox` component for procedural skies, atmospheric scattering driven by a DirectionalLight, or image/HDR cubemaps through the r3d bridge. Supports rotation, brightness, scene and camera selection, and hot reload. See [skybox authoring](docs/skybox.md) and the [Skybox 3D example](examples/skybox_3d).

@@ -6,6 +6,10 @@ Play scene-authored audio and hear attenuation as an emitter moves away from its
 
 **Try editing:** [scenes/main.scene.json](scenes/main.scene.json): listener and audio players. [main.odin](main.odin): emitter movement and mixer controls.
 
+For randomized playback, replace `sound` with a `clips` array; each play selects
+one entry. See [random clip players](../../docs/audio-mixer.md#random-clip-players)
+and the [first-person footsteps](../first_person_3d/README.md).
+
 Run from the repository root with PowerShell 7:
 
 ```powershell

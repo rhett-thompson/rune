@@ -1,0 +1,8 @@
+{
+  "$schema": "../../schemas/project.schema.json",
+  "name": "Terrain 3D",
+  "startup_scene": "scenes/main.scene.json",
+  "input": "input/default.input.json",
+  "window": {"width": 1280, "height": 720, "title": "Rune - Terrain", "vsync": true},
+  "hot_reload": {"enabled": true, "terrains": true, "poll_interval_ms": 250}
+}

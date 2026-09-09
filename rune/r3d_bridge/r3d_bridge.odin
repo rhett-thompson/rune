@@ -33,6 +33,9 @@ R3D_Material_Asset :: struct {
 }
 
 Context :: struct {
+	skybox: Skybox_Cache,
+	terrains: map[ecs.Entity]Terrain_Cache,
+	terrain_world_generation: u32,
 	post_processing_active:   bool,
 	post_processing_baseline: r3d.Environment,
 	post_processing_aa:       r3d.AntiAliasingMode,
@@ -64,6 +67,7 @@ init :: proc(root: string, width, height: i32) -> (Context, bool) {
 	r3d.SetAntiAliasingMode(.FXAA)
 	result := Context {
 		match_framebuffer = true,
+		terrains = make(map[ecs.Entity]Terrain_Cache),
 		cube             = r3d.GenMeshCube(1, 1, 1),
 		cube_no_shadow   = r3d.GenMeshCube(1, 1, 1),
 		plane            = r3d.GenMeshPlane(1, 1, 1, 1),
@@ -88,6 +92,9 @@ init :: proc(root: string, width, height: i32) -> (Context, bool) {
 
 shutdown :: proc(ctx: ^Context) {
 	if !ctx.initialized {return}
+	release_terrains(ctx)
+	delete(ctx.terrains)
+	release_skybox(ctx)
 	destroy_scene_lights(ctx)
 	destroy_animation_players(ctx)
 	for _, asset in ctx.models {
@@ -135,12 +142,13 @@ draw_scene_ex :: proc(
 			r3d.SetResolution(width, height)
 		}
 	}
+	prepare_terrains(ctx,world,asset_manager)
 	prepare_animations(ctx, world, asset_manager, 0, false)
 	entity, camera_component, found := ecs.active_camera_3d(world)
 	apply_post_processing(ctx, world, entity)
-	if !found {return false}
+	if !found {release_skybox(ctx); return false}
 	transform, has_transform := ecs.get_transform(world, entity)
-	if !has_transform {return false}
+	if !has_transform {release_skybox(ctx); return false}
 
 	camera := rl.Camera3D {
 		position   = transform.position,
@@ -154,17 +162,21 @@ draw_scene_ex :: proc(
 		ctx.world_generation = world.generation
 	}
 	apply_background(settings)
+	apply_skybox(ctx, world, asset_manager, entity)
 	apply_ambient(world)
 	create_scene_lights(ctx, world)
 
 	r3d.Begin(camera)
+	draw_terrains(ctx,world,asset_manager)
 	for root in ecs.root_entities(world) {
 		draw_entity_tree(ctx, world, asset_manager, root, identity_transform(), .Plane_Only)
 	}
 	for root in ecs.root_entities(world) {
 		draw_entity_tree(ctx, world, asset_manager, root, identity_transform(), .Non_Plane)
 	}
+	moon_disk := prepare_moon_disk(ctx)
 	r3d.End()
+	if moon_disk {r3d.SetScreenShaderChain(.SCENE, nil, 0)}
 	draw_debug_overlays(world, camera, settings)
 	return true
 }
@@ -278,6 +290,7 @@ apply_background :: proc(settings: Scene3D_Settings) {
 	env.background.color = color
 	env.background.energy = 1
 	env.background.sky = {}
+	env.background.rotation = quaternion128(1)
 }
 
 apply_ambient :: proc(world: ^ecs.World) {

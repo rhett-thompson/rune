@@ -3,15 +3,76 @@
   "$id": "prefab.schema.json",
   "title": "Rune prefab",
   "type": "object",
-  "required": ["name", "components"],
+  "required": [
+    "name"
+  ],
   "properties": {
-    "$schema": { "type": "string" },
-    "enabled": { "type": "boolean", "default": true, "description": "Local activation; disabled parents suspend their children." },
-    "name": { "type": "string", "minLength": 1 },
-    "components": { "$ref": "components.schema.json" },
+    "$schema": {
+      "type": "string"
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Local activation; disabled parents suspend their children."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "components": {
+      "$ref": "components.schema.json"
+    },
     "children": {
       "type": "array",
-      "items": { "$ref": "#/$defs/child" }
+      "items": {
+        "$ref": "#/$defs/child"
+      }
+    },
+    "prefab": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Prefab path relative to the JSON file containing this reference."
+    },
+    "component_overrides": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object"
+      },
+      "description": "Recursively merge object fields into existing components. Arrays and scalar values replace; components retains whole-block replacement."
+    },
+    "remove_components": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "child_overrides": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[^/]+(/[^/]+)*$"
+      },
+      "additionalProperties": {
+        "$ref": "prefab.schema.json#/$defs/override"
+      }
+    },
+    "id": {
+      "type": "string",
+      "description": "Local child ID; becomes instance-id/child-id in the scene. The prefab root ID is replaced by the instance ID.",
+      "pattern": "^[^/]+$",
+      "minLength": 1
+    },
+    "tag": {
+      "type": "string"
+    },
+    "layers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
     }
   },
   "additionalProperties": false,
@@ -19,15 +80,135 @@
     "child": {
       "type": "object",
       "properties": {
-        "enabled": { "type": "boolean", "default": true, "description": "Local activation; disabled parents suspend their children." },
-        "name": { "type": "string" },
-        "components": { "$ref": "components.schema.json" },
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Local activation; disabled parents suspend their children."
+        },
+        "name": {
+          "type": "string"
+        },
+        "components": {
+          "$ref": "components.schema.json"
+        },
         "children": {
           "type": "array",
-          "items": { "$ref": "#/$defs/child" }
+          "items": {
+            "$ref": "#/$defs/child"
+          }
+        },
+        "prefab": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Prefab path relative to the JSON file containing this reference."
+        },
+        "component_overrides": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          },
+          "description": "Recursively merge object fields into existing components. Arrays and scalar values replace; components retains whole-block replacement."
+        },
+        "remove_components": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "child_overrides": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[^/]+(/[^/]+)*$"
+          },
+          "additionalProperties": {
+            "$ref": "prefab.schema.json#/$defs/override"
+          }
+        },
+        "id": {
+          "type": "string",
+          "description": "Local child ID; becomes instance-id/child-id in the scene. The prefab root ID is replaced by the instance ID.",
+          "pattern": "^[^/]+$",
+          "minLength": 1
+        },
+        "tag": {
+          "type": "string"
+        },
+        "layers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
         }
       },
       "additionalProperties": false
+    },
+    "override": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Local activation; disabled parents suspend their children."
+        },
+        "name": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "layers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "components": {
+          "$ref": "components.schema.json"
+        },
+        "component_overrides": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          },
+          "description": "Recursively merge object fields into existing components. Arrays and scalar values replace; components retains whole-block replacement."
+        },
+        "remove_components": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "child_overrides": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[^/]+(/[^/]+)*$"
+          },
+          "additionalProperties": {
+            "$ref": "prefab.schema.json#/$defs/override"
+          }
+        }
+      }
     }
-  }
+  },
+  "anyOf": [
+    {
+      "required": [
+        "components"
+      ]
+    },
+    {
+      "required": [
+        "prefab"
+      ]
+    }
+  ]
 }

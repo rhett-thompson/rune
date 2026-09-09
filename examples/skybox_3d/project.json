@@ -1,0 +1,7 @@
+{
+  "$schema": "../../schemas/project.schema.json",
+  "name": "Skybox 3D",
+  "startup_scene": "scenes/main.scene.json",
+  "input": "input/default.input.json",
+  "window": {"width": 1280, "height": 720, "title": "Rune - Skybox", "vsync": true}
+}

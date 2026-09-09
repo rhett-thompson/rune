@@ -64,6 +64,8 @@ Asset_Manager :: struct {
 	root:                     string,
 	textures:                 map[string]Texture_Asset,
 	models:                   map[string]Model_Asset,
+	skyboxes: map[string]Skybox_Asset,
+	terrains: map[string]Terrain_Asset,
 	fonts:                    map[string]Font_Asset,
 	materials:                map[string]Material_Asset,
 	animations:               map[string]Animation_Asset,
@@ -85,6 +87,8 @@ init :: proc(root: string) -> Asset_Manager {
 	result := Asset_Manager {
 		textures                 = make(map[string]Texture_Asset),
 		models                   = make(map[string]Model_Asset),
+		skyboxes = make(map[string]Skybox_Asset),
+		terrains = make(map[string]Terrain_Asset),
 		fonts                    = make(map[string]Font_Asset),
 		materials                = make(map[string]Material_Asset),
 		animations               = make(map[string]Animation_Asset),
@@ -1032,6 +1036,8 @@ shutdown :: proc(manager: ^Asset_Manager) {
 	delete(manager.generated_orm_textures)
 	delete(manager.textures)
 	delete(manager.models)
+	shutdown_terrains(manager)
+	delete(manager.skyboxes)
 	delete(manager.fonts)
 	delete(manager.materials)
 	delete(manager.animations)

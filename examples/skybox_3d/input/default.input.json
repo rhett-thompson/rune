@@ -1,0 +1,13 @@
+{
+  "$schema": "../../../schemas/input.schema.json",
+  "actions": {
+    "sky_mode": [{"type": "keyboard", "key": "TAB"}],
+    "orbit_camera": [
+      { "type": "mouse_button", "button": "LEFT" }
+    ]
+  },
+  "axes": {
+    "orbit_x": { "type": "mouse_delta", "axis": "x", "invert": true },
+    "orbit_y": { "type": "mouse_delta", "axis": "y" }
+  }
+}

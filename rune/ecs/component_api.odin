@@ -96,6 +96,8 @@ set_typed_component :: proc(world: ^World, entity: Entity, name: string, value: 
 // get is the normal component access path for both built-in and custom typed
 // components. The serialized JSON name is resolved from registration once.
 get :: proc(world: ^World, entity: Entity, $T: typeid) -> (T, bool) {
+	when T == Terrain {return get_terrain(world,entity)}
+	when T == Skybox {return get_skybox(world, entity)}
 	when T == PostProcessing {return get_post_processing(world, entity)}
 	when T == ParticleEmitter2D {
 		return get_particle_emitter_2d(world, entity)
@@ -159,6 +161,8 @@ get :: proc(world: ^World, entity: Entity, $T: typeid) -> (T, bool) {
 		return get_circle_collider_2d(world, entity)
 	} else when T == CapsuleCollider2D {
 		return get_capsule_collider_2d(world, entity)
+	} else when T == CharacterController3D {
+		return get_character_controller_3d(world, entity)
 	} else when T == CharacterController2D {
 		return get_character_controller_2d(world, entity)
 	} else when T == PolygonCollider2D {
@@ -215,6 +219,8 @@ get :: proc(world: ^World, entity: Entity, $T: typeid) -> (T, bool) {
 // set writes a typed component and records a single change version. Systems
 // that need reactive work can consume changes_since without file watchers.
 set :: proc(world: ^World, entity: Entity, value: $T) -> bool {
+	when T == Terrain {return set_terrain(world,entity,value)}
+	when T == Skybox {return set_skybox(world, entity, value)}
 	when T == PostProcessing {return set_post_processing(world, entity, value)}
 	name, registered := world.component_names_by_type[typeid_of(T)]
 	if !registered {return false}
@@ -280,6 +286,8 @@ set :: proc(world: ^World, entity: Entity, value: $T) -> bool {
 		return set_circle_collider_2d(world, entity, value)
 	} else when T == CapsuleCollider2D {
 		return set_capsule_collider_2d(world, entity, value)
+	} else when T == CharacterController3D {
+		return set_character_controller_3d(world, entity, value)
 	} else when T == CharacterController2D {
 		return set_character_controller_2d(world, entity, value)
 	} else when T == PolygonCollider2D {
@@ -330,12 +338,22 @@ set :: proc(world: ^World, entity: Entity, value: $T) -> bool {
 }
 
 add :: proc(world: ^World, registry: ^Component_Registry, entity: Entity, value: $T) -> bool {
+	when T == Terrain {
+		if !terrain_valid(value) {return false}
+		data,ok := runtime_json(value)
+		return ok && add_component(world,registry,entity,"Terrain",data)
+	}
+	when T == Skybox {
+		if !skybox_valid(value) {return false}
+		data, ok := skybox_json(value)
+		return ok && add_component(world, registry, entity, "Skybox", data)
+	}
 	when T == PostProcessing {
 		if !post_processing_valid(value) {return false}
 		data, ok := post_processing_json(value)
 		return ok && add_component(world, registry, entity, "PostProcessing", data)
 	}
-	when T == CapsuleCollider2D || T == BoxCollider2D || T == CircleCollider2D || T == PolygonCollider2D || T == SegmentCollider2D || T == CharacterController2D {
+	when T == CapsuleCollider2D || T == BoxCollider2D || T == CircleCollider2D || T == PolygonCollider2D || T == SegmentCollider2D || T == CharacterController2D || T == CharacterController3D {
 		if !component_value_valid(value) {return false}
 		collider_name, registered := component_name_for_type(registry, T)
 		if !registered {return false}

@@ -1,0 +1,15 @@
+{
+  "name":"Independent Controller Instances",
+  "entities":[
+    {
+      "id":"player","prefab":"rig/fast.prefab.json","layers":["Gameplay"],
+      "component_overrides":{"Transform":{"position":[3,0,0]},"ControllerSettings":{"look":{"sensitivity":0.3},"bindings":["forward"]}},
+      "remove_components":["PrefabMarker"],
+      "child_overrides":{
+        "camera":{"name":"Player Camera","component_overrides":{"Camera3D":{"fovy":95}}},
+        "camera/accessory":{"enabled":false,"remove_components":["PrefabMarker"],"component_overrides":{"Transform":{"position":[0.3,-0.2,-0.5]}}}
+      }
+    },
+    {"id":"other","prefab":"rig/controller.prefab.json"}
+  ]
+}

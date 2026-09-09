@@ -40,7 +40,8 @@ captures preserve the simulation state.
 
 ## Playback controls
 
-All controls take `world` and `entity` first and return a bool:
+All controls take `world` and `entity` first. Mutating controls return a success
+bool; `get_model_animation_state` returns the state and a found flag:
 
 | ECS function | Behavior |
 | --- | --- |
@@ -85,8 +86,10 @@ ends on removal, reload, or bridge shutdown; Rune owns and updates that player.
 Custom R3D animation trees require a game-owned update/draw path; this
 component drives a single-clip player.
 
-This first integration plays one embedded clip at a time. Separate animation
-files, crossfades, animation trees, and root-motion application are not yet
+Rune plays embedded clips and supports pose blends through
+`ecs.transition_model_animation` and `ModelAnimator.blend_time`; see
+[animation transitions](animation-transitions.md) for interruption and pause behavior.
+Separate animation files, animation trees, and root-motion application are not
 exposed through Rune components; R3D remains available for those advanced uses.
 
 ## Example and checks

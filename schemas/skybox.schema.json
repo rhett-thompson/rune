@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Rune Skybox",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "enabled": {"type": "boolean", "default": true},
+    "mode": {"enum": ["procedural", "cubemap", "atmospheric"], "default": "procedural"},
+    "texture": {"type": "string", "default": ""},
+    "layout": {"enum": ["auto_detect", "line_vertical", "line_horizontal", "cross_three_by_four", "cross_four_by_three", "panorama"], "default": "auto_detect"},
+    "rotation": {"$ref": "#/$defs/vector", "default": [0,0,0], "description": "Euler angles in degrees. Ignored by the world-aligned atmospheric mode."},
+    "energy": {"type": "number", "minimum": 0, "default": 1},
+    "resolution": {"enum": [16,32,64,128,256,512,1024,2048], "default": 256},
+    "atmosphere": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "sun": {"type": "string", "default": "", "description": "Scene entity ID with a DirectionalLight."},
+        "moon": {"type": "string", "default": "", "description": "Optional DirectionalLight entity ID; empty disables the moon."},
+        "moon_size": {"type": "number", "minimum": 0.1, "maximum": 20, "default": 0.52, "description": "Full moon angular diameter in degrees."},
+        "night_color": {"$ref": "#/$defs/color", "default": [30,45,85,255]},
+        "night_energy": {"type": "number", "minimum": 0, "default": 0.3, "description": "Night background fill, fading out at sunrise. Zero disables the fill."},
+        "rayleigh": {"type": "number", "minimum": 0, "maximum": 10, "default": 1},
+        "mie": {"type": "number", "minimum": 0, "maximum": 10, "default": 1},
+        "mie_anisotropy": {"type": "number", "minimum": 0, "maximum": 0.95, "default": 0.8},
+        "sun_size": {"type": "number", "minimum": 0.1, "maximum": 20, "default": 0.53, "description": "Sun angular diameter in degrees."},
+        "ground_color": {"$ref": "#/$defs/color", "default": [45,53,59,255]}
+      }
+    },
+    "procedural": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "sky_top_color": {"$ref": "#/$defs/color", "default": [98,116,140,255]},
+        "sky_horizon_color": {"$ref": "#/$defs/color", "default": [165,167,171,255]},
+        "sky_horizon_curve": {"$ref": "#/$defs/curve", "default": 0.15},
+        "sky_energy": {"type": "number", "minimum": 0, "default": 1},
+        "ground_bottom_color": {"$ref": "#/$defs/color", "default": [51,43,34,255]},
+        "ground_horizon_color": {"$ref": "#/$defs/color", "default": [165,167,171,255]},
+        "ground_horizon_curve": {"$ref": "#/$defs/curve", "default": 0.02},
+        "ground_energy": {"type": "number", "minimum": 0, "default": 1},
+        "sun_enabled": {"type": "boolean", "default": true, "description": "Render the procedural sun disk and halo. False leaves only the sky and ground gradients."},
+        "sun_direction": {"$ref": "#/$defs/vector", "not": {"const": [0,0,0]}, "default": [-1,-1,-1]},
+        "sun_color": {"$ref": "#/$defs/color", "default": [255,255,255,255]},
+        "sun_size": {"type": "number", "exclusiveMinimum": 0, "maximum": 180, "default": 1.5, "description": "Sun angular size in degrees."},
+        "sun_curve": {"$ref": "#/$defs/curve", "default": 0.15},
+        "sun_energy": {"type": "number", "minimum": 0, "default": 1}
+      }
+    }
+  },
+  "allOf": [{
+    "if": {"required": ["mode"], "properties": {"mode": {"const": "cubemap"}}},
+    "then": {"required": ["texture"], "properties": {"texture": {"minLength": 1}}}
+  }, {
+    "if": {"required": ["mode"], "properties": {"mode": {"const": "atmospheric"}}},
+    "then": {"required": ["atmosphere"], "properties": {"atmosphere": {"required": ["sun"], "properties": {"sun": {"minLength": 1}}}}}
+  }],
+  "$defs": {
+    "color": {"type": "array", "items": {"type": "integer", "minimum": 0, "maximum": 255}, "minItems": 4, "maxItems": 4},
+    "vector": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+    "curve": {"type": "number", "minimum": 0.01, "maximum": 1}
+  }
+}

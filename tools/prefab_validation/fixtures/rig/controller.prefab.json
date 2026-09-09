@@ -1,0 +1,13 @@
+{
+  "name": "Reusable Controller",
+  "components": {
+    "Transform": {"position":[0,0,0],"rotation":[0,25,0],"scale":[1,1,1]},
+    "CharacterController3D": {"move_speed":6,"jump_speed":8},
+    "ControllerSettings": {"look":{"sensitivity":0.15,"invert":false},"bindings":["move","jump"],"file":"prefab://controller.data"},
+    "PrefabMarker": {}
+  },
+  "children": [
+    {"id":"camera","prefab":"parts/camera.prefab.json","tag":"view"},
+    {"id":"visual","enabled":false,"layers":["Default"],"components":{"Transform":{}}}
+  ]
+}

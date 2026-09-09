@@ -51,7 +51,7 @@ physics_3d_update :: proc(world: ^World, dt: f32) {
 	if dt <= 0 ||
 	   (len(world.rigid_bodies_3d) == 0 &&
 			   len(world.box_colliders) == 0 &&
-			   len(world.sphere_colliders) == 0) {return}
+			   len(world.sphere_colliders) == 0 && len(world.character_controllers_3d) == 0 && len(world.terrains) == 0) {return}
 	ensure_box3d_world(world)
 	world.physics_3d_accumulator += dt
 	steps := 0
@@ -60,6 +60,7 @@ physics_3d_update :: proc(world: ^World, dt: f32) {
 		b3.World_Step(world.box3d_world, Physics3D_Fixed_Delta, 4)
 		collect_box3d_events(world)
 		sync_bodies_from_box3d(world)
+		character_controllers_3d_step(world, Physics3D_Fixed_Delta)
 		world.physics_3d_accumulator -= Physics3D_Fixed_Delta
 		steps += 1
 	}
@@ -68,6 +69,7 @@ physics_3d_update :: proc(world: ^World, dt: f32) {
 
 physics_3d_shutdown :: proc(world: ^World) {
 	if world == nil {return}
+	clear(&world.character_controller_states_3d)
 	physics_state_reset(&world.physics_3d)
 	if !b3.IS_NULL(world.box3d_world) && b3.World_IsValid(world.box3d_world) {
 		b3.DestroyWorld(world.box3d_world)
@@ -79,6 +81,15 @@ physics_3d_shutdown :: proc(world: ^World) {
 }
 
 physics_3d_remove_entity :: proc(world: ^World, entity: Entity) {
+	delete_key(&world.character_controller_states_3d, entity)
+	for _, &state in world.character_controller_states_3d {
+		if state.support_entity == entity {
+			state.grounded=false
+			state.support_entity=0
+			state.support_velocity={}
+			state.coyote_remaining=0
+		}
+	}
 	world.physics_3d.needs_sync = true
 	if native, found := world.box3d_bodies[entity]; found {
 		physics_forget_entity(&world.physics_3d, entity)
@@ -107,6 +118,12 @@ ensure_box3d_world :: proc(world: ^World) {
 }
 
 physics_3d_transform_edited :: proc(world: ^World, entity: Entity, previous, value: Transform) {
+	if _, terrain := world.terrains[entity]; terrain {
+		// Terrain bodies use the composed hierarchy pose, not this local pose.
+		if previous != value {physics_3d_remove_entity(world,entity)}
+		return
+	}
+	if previous.position != value.position || previous.scale != value.scale {delete_key(&world.character_controller_states_3d, entity)}
 	if previous.scale != value.scale {
 		physics_3d_remove_entity(world, entity)
 		return
@@ -143,6 +160,7 @@ physics_3d_body_edited :: proc(world: ^World, entity: Entity, previous, value: R
 
 sync_bodies_to_box3d :: proc(world: ^World) {
 	defer world.physics_3d.needs_sync = false
+	sync_terrain_bodies(world)
 	for entity, body in world.rigid_bodies_3d {
 		if !is_enabled(world, entity) {continue}
 		if _, found := world.box3d_bodies[entity]; found {continue}

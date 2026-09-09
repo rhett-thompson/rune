@@ -46,6 +46,8 @@ Default_Layer: u8 : 0
 Default_Layer_Mask: u64 : u64(1) << Default_Layer
 
 World :: struct {
+	character_controllers_3d: map[Entity]CharacterController3D,
+	character_controller_states_3d: map[Entity]Character_Controller_State_3D,
 	character_controllers_2d: map[Entity]CharacterController2D,
 	character_controller_states_2d: map[Entity]Character_Controller_State_2D,
 	polygon_colliders_2d: map[Entity]PolygonCollider2D,
@@ -96,6 +98,10 @@ World :: struct {
 	mesh_renderers:              map[Entity]MeshRenderer,
 	sphere_renderers:            map[Entity]SphereRenderer,
 	model_renderers:             map[Entity]ModelRenderer,
+	skyboxes: map[Entity]Skybox,
+	terrains: map[Entity]Terrain,
+	terrain_states: map[Entity]Terrain_Runtime,
+	terrain_revision: u64,
 	post_processing:            map[Entity]PostProcessing,
 	ambient_lights:              map[Entity]AmbientLight,
 	directional_lights:          map[Entity]DirectionalLight,
@@ -145,6 +151,8 @@ init :: proc() -> World {
 	assert(scene_data_arena != nil)
 	mem.dynamic_arena_init(scene_data_arena)
 	return World {
+		character_controllers_3d = make(map[Entity]CharacterController3D),
+		character_controller_states_3d = make(map[Entity]Character_Controller_State_3D),
 		character_controllers_2d = make(map[Entity]CharacterController2D),
 		character_controller_states_2d = make(map[Entity]Character_Controller_State_2D),
 		polygon_colliders_2d = make(map[Entity]PolygonCollider2D),
@@ -188,6 +196,9 @@ init :: proc() -> World {
 		mesh_renderers = make(map[Entity]MeshRenderer),
 		sphere_renderers = make(map[Entity]SphereRenderer),
 		model_renderers = make(map[Entity]ModelRenderer),
+		skyboxes = make(map[Entity]Skybox),
+		terrains = make(map[Entity]Terrain),
+		terrain_states = make(map[Entity]Terrain_Runtime),
 		post_processing = make(map[Entity]PostProcessing),
 		ambient_lights = make(map[Entity]AmbientLight),
 		directional_lights = make(map[Entity]DirectionalLight),
@@ -233,6 +244,7 @@ destroy :: proc(world: ^World) {
 	delete(world.particle_emitters_2d)
 	physics_2d_shutdown(world)
 	physics_3d_shutdown(world)
+	destroy_terrains(world)
 	for _, components in world.component_data {delete(components)}
 	for _, instances in world.component_instance_data {delete(instances)}
 	for _, components in world.typed_component_data {delete(components)}
@@ -274,6 +286,7 @@ destroy :: proc(world: ^World) {
 	delete(world.mesh_renderers)
 	delete(world.sphere_renderers)
 	delete(world.model_renderers)
+	delete(world.skyboxes)
 	delete(world.post_processing)
 	delete(world.ambient_lights)
 	delete(world.directional_lights)
@@ -299,6 +312,8 @@ destroy :: proc(world: ^World) {
 	delete(world.box3d_bodies)
 	delete(world.box_colliders)
 	delete(world.sphere_colliders)
+	delete(world.character_controllers_3d)
+	delete(world.character_controller_states_3d)
 	delete(world.character_controllers_2d)
 	delete(world.character_controller_states_2d)
 	delete(world.character_controllers)
@@ -360,6 +375,12 @@ add_component_owned :: proc(
 		return false
 	}
 	descriptor, _ := component_descriptor(registry, name)
+	// Terrain owns a static body; mixing another 3D body/controller on the same
+	// entity would give two systems ownership of that body and its transform.
+	for other in ([]string{"RigidBody3D","BoxCollider","SphereCollider","CharacterController","CharacterController3D"}) {
+		if (name == "Terrain" && has_component_data(world,entity,other)) ||
+		   (name == other && has_component_data(world,entity,"Terrain")) {return false}
+	}
 	already_present := has_component_data(world, entity, name)
 	if descriptor.type_id != nil {world.component_names_by_type[descriptor.type_id] = name}
 	if descriptor.create_typed != nil {
@@ -439,7 +460,7 @@ add_component_owned :: proc(
 				name   = instance_name,
 			}
 			values[key] = instance_data
-			if name == "AudioPlayer" {world.audio_players[key] = parsed_audio[key]}
+			if name == "AudioPlayer" {world.audio_players[key] = retain_audio_player(world, parsed_audio[key])}
 		}
 		world.component_instance_data[name] = values
 		components, components_found := world.component_data[name]
@@ -461,6 +482,8 @@ add_component_owned :: proc(
 	mesh_renderer: MeshRenderer
 	sphere_renderer: SphereRenderer
 	model_renderer: ModelRenderer
+	terrain_value: Terrain
+	skybox: Skybox
 	post_processing: PostProcessing
 	ambient_light: AmbientLight
 	directional_light: DirectionalLight
@@ -474,6 +497,7 @@ add_component_owned :: proc(
 	box_collider_2d: BoxCollider2D
 	polygon_collider_2d: PolygonCollider2D
 	segment_collider_2d: SegmentCollider2D
+	character_controller_3d: CharacterController3D
 	character_controller_2d: CharacterController2D
 	capsule_collider_2d: CapsuleCollider2D
 	circle_collider_2d: CircleCollider2D
@@ -491,9 +515,12 @@ add_component_owned :: proc(
 	nav_grid_2d: NavGrid2D
 	nav_agent_2d: NavAgent2D
 	parse_ok: bool
+	if name == "Terrain" {terrain_value, parse_ok = terrain_from_json(data); if !parse_ok {return false}}
+	if name == "Skybox" {skybox, parse_ok = skybox_from_json(data); if !parse_ok {return false}}
 	if name == "PostProcessing" {post_processing, parse_ok = post_processing_from_json(data); if !parse_ok {return false}}
 	if name == "PolygonCollider2D" {polygon_collider_2d, parse_ok = polygon_collider_2d_from_json(data); if !parse_ok {return false}}
 	if name == "SegmentCollider2D" {segment_collider_2d, parse_ok = segment_collider_2d_from_json(data); if !parse_ok {return false}}
+	if name == "CharacterController3D" {character_controller_3d, parse_ok = character_controller_3d_from_json(data); if !parse_ok {return false}}
 	if name == "CharacterController2D" {character_controller_2d, parse_ok = character_controller_2d_from_json(data); if !parse_ok {return false}}
 	if name == "CapsuleCollider2D" {capsule_collider_2d, parse_ok = capsule_collider_2d_from_json(data); if !parse_ok {return false}}
 	if name == "Lifetime" {
@@ -618,6 +645,10 @@ add_component_owned :: proc(
 		commit_component_value(world, entity, name, &world.model_renderers, model_renderer, kind)
 	case "AmbientLight":
 		commit_component_value(world, entity, name, &world.ambient_lights, ambient_light, kind)
+	case "Terrain":
+		commit_component_value(world, entity, name, &world.terrains, terrain_value, kind)
+	case "Skybox":
+		commit_component_value(world, entity, name, &world.skyboxes, skybox, kind)
 	case "PostProcessing":
 		commit_component_value(world, entity, name, &world.post_processing, post_processing, kind)
 	case "DirectionalLight":
@@ -642,6 +673,8 @@ add_component_owned :: proc(
 		commit_component_value(world, entity, name, &world.polygon_colliders_2d, polygon_collider_2d, kind)
 	case "SegmentCollider2D":
 		commit_component_value(world, entity, name, &world.segment_colliders_2d, segment_collider_2d, kind)
+	case "CharacterController3D":
+		commit_component_value(world, entity, name, &world.character_controllers_3d, character_controller_3d, kind)
 	case "CharacterController2D":
 		commit_component_value(world, entity, name, &world.character_controllers_2d, character_controller_2d, kind)
 	case "CapsuleCollider2D":
@@ -746,6 +779,8 @@ remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
 		destroy_model_renderer_storage(world.model_renderers[entity])
 		delete_key(&world.model_renderers, entity)
 	}
+	if name == "Terrain" {remove_terrain_runtime(world,entity); delete_key(&world.terrains,entity)}
+	if name == "Skybox" {delete_key(&world.skyboxes, entity)}
 	if name == "PostProcessing" {delete_key(&world.post_processing, entity)}
 	if name == "AmbientLight" {delete_key(&world.ambient_lights, entity)}
 	if name == "DirectionalLight" {delete_key(&world.directional_lights, entity)}
@@ -767,6 +802,7 @@ remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
 	if name == "BoxCollider2D" {delete_key(&world.box_colliders_2d, entity)}
 	if name == "PolygonCollider2D" {delete(world.polygon_colliders_2d[entity].vertices); delete_key(&world.polygon_colliders_2d, entity)}
 	if name == "SegmentCollider2D" {delete_key(&world.segment_colliders_2d, entity)}
+	if name == "CharacterController3D" {delete_key(&world.character_controllers_3d, entity); delete_key(&world.character_controller_states_3d, entity)}
 	if name == "CharacterController2D" {delete_key(&world.character_controllers_2d, entity); delete_key(&world.character_controller_states_2d, entity)}
 	if name == "CapsuleCollider2D" {delete_key(&world.capsule_colliders_2d, entity)}
 	if name == "CircleCollider2D" {delete_key(&world.circle_colliders_2d, entity)}

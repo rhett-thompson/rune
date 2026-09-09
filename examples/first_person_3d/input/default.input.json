@@ -1,18 +1,73 @@
 {
   "$schema": "../../../schemas/input.schema.json",
   "actions": {
-    "move_forward": [{ "type": "keyboard", "key": "W" }],
-    "move_back": [{ "type": "keyboard", "key": "S" }],
-    "move_left": [{ "type": "keyboard", "key": "A" }],
-    "move_right": [{ "type": "keyboard", "key": "D" }],
-    "jump": [{ "type": "keyboard", "key": "SPACE" }],
-    "sprint": [{ "type": "keyboard", "key": "LEFT_SHIFT" }],
-    "toggle_cursor": [{ "type": "keyboard", "key": "ESCAPE" }]
+    "move_forward": [
+      {
+        "type": "keyboard",
+        "key": "W"
+      }
+    ],
+    "move_back": [
+      {
+        "type": "keyboard",
+        "key": "S"
+      }
+    ],
+    "move_left": [
+      {
+        "type": "keyboard",
+        "key": "A"
+      }
+    ],
+    "move_right": [
+      {
+        "type": "keyboard",
+        "key": "D"
+      }
+    ],
+    "jump": [
+      {
+        "type": "keyboard",
+        "key": "SPACE"
+      }
+    ],
+    "sprint": [
+      {
+        "type": "keyboard",
+        "key": "LEFT_SHIFT"
+      }
+    ],
+    "toggle_cursor": [
+      {
+        "type": "keyboard",
+        "key": "ESCAPE"
+      }
+    ],
+    "crouch": [
+      {
+        "type": "keyboard",
+        "key": "LEFT_CONTROL"
+      }
+    ]
   },
   "axes": {
-    "move_x": { "negative": "move_left", "positive": "move_right" },
-    "move_z": { "negative": "move_back", "positive": "move_forward" },
-    "look_x": { "type": "mouse_delta", "axis": "x", "invert": true },
-    "look_y": { "type": "mouse_delta", "axis": "y", "invert": true }
+    "move_x": {
+      "negative": "move_left",
+      "positive": "move_right"
+    },
+    "move_z": {
+      "negative": "move_back",
+      "positive": "move_forward"
+    },
+    "look_x": {
+      "type": "mouse_delta",
+      "axis": "x",
+      "invert": true
+    },
+    "look_y": {
+      "type": "mouse_delta",
+      "axis": "y",
+      "invert": true
+    }
   }
 }

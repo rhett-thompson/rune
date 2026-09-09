@@ -33,7 +33,7 @@ For automated inspection, enable the console inbox:
 ```
 
 Then use your engine checkout's `tools/console.ps1` to send `status`, `inspect`,
-`step`, or `capture` commands. See the engine's AGENTS.md for the command reference.
+`step`, or `capture` commands. See the engine's `docs/runtime-console.md` for the command reference.
 
 The `schemas/` directory created by `new_project.ps1` is a local copy of Rune's
 JSON schemas. It supports editing without a network connection. Copy updated

@@ -1,0 +1,32 @@
+{
+  "name": "Controller fixture",
+  "entities": [
+    {
+      "id": "floor",
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            -0.5,
+            0
+          ]
+        },
+        "BoxCollider": {
+          "size": [
+            40,
+            1,
+            40
+          ],
+          "is_static": true
+        }
+      }
+    },
+    {
+      "id": "player",
+      "components": {
+        "Transform": {},
+        "CharacterController3D": {}
+      }
+    }
+  ]
+}

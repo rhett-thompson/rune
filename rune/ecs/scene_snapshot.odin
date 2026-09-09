@@ -219,6 +219,10 @@ apply_snapshot_component_value :: proc(
 		commit_component_value(world, target_entity, name, &world.model_renderers, value)
 	case "AmbientLight":
 		commit_component_value(world, target_entity, name, &world.ambient_lights, snapshot.ambient_lights[snapshot_entity])
+	case "Terrain":
+		commit_component_value(world,target_entity,name,&world.terrains,snapshot.terrains[snapshot_entity])
+	case "Skybox":
+		commit_component_value(world, target_entity, name, &world.skyboxes, snapshot.skyboxes[snapshot_entity])
 	case "PostProcessing":
 		commit_component_value(world, target_entity, name, &world.post_processing, snapshot.post_processing[snapshot_entity])
 	case "DirectionalLight":
@@ -247,6 +251,8 @@ apply_snapshot_component_value :: proc(
 		commit_component_value(world, target_entity, name, &world.polygon_colliders_2d, snapshot.polygon_colliders_2d[snapshot_entity])
 	case "SegmentCollider2D":
 		commit_component_value(world, target_entity, name, &world.segment_colliders_2d, snapshot.segment_colliders_2d[snapshot_entity])
+	case "CharacterController3D":
+		commit_component_value(world, target_entity, name, &world.character_controllers_3d, snapshot.character_controllers_3d[snapshot_entity])
 	case "CharacterController2D":
 		commit_component_value(world, target_entity, name, &world.character_controllers_2d, snapshot.character_controllers_2d[snapshot_entity])
 	case "CapsuleCollider2D":
@@ -453,6 +459,18 @@ rehome_component_map_names :: proc(world, snapshot: ^World) {
 }
 
 rehome_builtin_strings :: proc(world, snapshot: ^World) {
+	for entity,value in world.terrains {
+		owned := value
+		owned.asset = retain_scene_string(snapshot,value.asset)
+		world.terrains[entity] = owned
+	}
+	for entity, value in world.skyboxes {
+		owned := value
+		owned.texture = retain_scene_string(snapshot, value.texture)
+		owned.atmosphere.sun = retain_scene_string(snapshot, value.atmosphere.sun)
+		owned.atmosphere.moon = retain_scene_string(snapshot, value.atmosphere.moon)
+		world.skyboxes[entity] = owned
+	}
 	for entity, value in world.particle_emitters_2d {
 		owned := value
 		owned.texture = retain_scene_string(snapshot, value.texture)
@@ -532,9 +550,8 @@ rehome_builtin_strings :: proc(world, snapshot: ^World) {
 	audio_players := make(map[Component_Instance]AudioPlayer)
 	for key, value in world.audio_players {
 		owned_key := key
-		owned_value := value
+		owned_value := retain_audio_player(snapshot, value)
 		owned_key.name = retain_scene_string(snapshot, key.name)
-		owned_value.sound = retain_scene_string(snapshot, value.sound)
 		audio_players[owned_key] = owned_value
 	}
 	delete(world.audio_players)

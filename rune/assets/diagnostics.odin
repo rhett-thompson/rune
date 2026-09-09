@@ -10,6 +10,8 @@ Asset_Kind :: enum {
 	Model,
 	Animation,
 	Tileset,
+	Skybox,
+	Terrain,
 }
 
 Asset_Operation :: enum {
@@ -178,6 +180,10 @@ asset_kind_name :: proc(kind: Asset_Kind) -> string {
 		return "model"
 	case .Animation:
 		return "animation"
+	case .Terrain:
+		return "terrain"
+	case .Skybox:
+		return "skybox"
 	case .Tileset:
 		return "tileset"
 	}

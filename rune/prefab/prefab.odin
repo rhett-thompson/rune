@@ -4,21 +4,24 @@ import "core:encoding/json"
 import "core:mem"
 import "core:os"
 
-// Entity_Data is the reusable portion of an entity definition. Instance-only
-// metadata such as IDs, tags, and layers stays in the scene that instantiates it.
+// Child IDs are local path segments. The scene resolver qualifies them with
+// their containing instance's ID, e.g. player/camera. load returns authored data;
+// resolve_scene expands references and applies overrides.
 Entity_Data :: struct {
-	enabled: Maybe(bool),
-	name:       string,
-	components: map[string]json.Value,
-	children:   []Entity_Data,
+	enabled: Maybe(bool) `json:"enabled,omitempty"`,
+	id: string `json:"id,omitempty"`,
+	name: string `json:"name,omitempty"`,
+	tag: string `json:"tag,omitempty"`,
+	layers: []string `json:"layers,omitempty"`,
+	prefab: string `json:"prefab,omitempty"`,
+	components: map[string]json.Value `json:"components,omitempty"`,
+	component_overrides: map[string]json.Value `json:"component_overrides,omitempty"`,
+	remove_components: []string `json:"remove_components,omitempty"`,
+	child_overrides: map[string]json.Value `json:"child_overrides,omitempty"`,
+	children: []Entity_Data `json:"children,omitempty"`,
 }
 
-Prefab :: struct {
-	enabled: Maybe(bool),
-	name:       string,
-	components: map[string]json.Value,
-	children:   []Entity_Data,
-}
+Prefab :: Entity_Data
 
 load :: proc(path: string, allocator := context.allocator) -> (Prefab, bool) {
 	data, read_error := os.read_entire_file(path, allocator)

@@ -2,7 +2,7 @@
 
 Build a Clay menu that pauses simulation and captures gameplay input while remaining interactive.
 
-**Controls:** Mouse or Up/Down/Tab navigates; Enter selects; Left/Right adjusts volume. Escape toggles the menu. Gamepad D-pad, A, and B also work. A/D moves when resumed; F11 toggles fullscreen.
+**Controls:** Mouse or Up/Down/Tab navigates; Enter selects; Left/Right adjusts volume. Escape toggles the menu. Gamepad D-pad, A, and B also work. A/D moves when resumed; F11 toggles borderless fullscreen.
 
 **Try editing:** [main.odin](main.odin): layout, focus, input capture, and audio volume. [input/default.input.json](input/default.input.json): UI actions.
 

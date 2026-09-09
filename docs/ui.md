@@ -37,9 +37,10 @@ scratch; it borrows the selected raylib font and any textures.
 Rune systems now have a `ui_update` callback. Scene loops call it every rendered
 frame after input/console sampling and scene reload, before simulation. It runs
 while either game pause or developer-console pause is active. Build and evaluate
-UI here, then draw the completed commands in `draw`. Use `game.frame_delta_time`
-for UI timing; `game.delta_time` is simulation time and can be zero or the fixed
-step interval.
+UI here, then draw the completed commands in `draw_ui`. Use
+`game.frame_delta_time` for UI timing; it is capped at 0.1 seconds and continues
+while paused. `game.delta_time` is simulation time and can be zero or the fixed
+step interval during console stepping.
 
 ```odin
 interface: ui.Context // Stable storage; do not return an initialized copy.
@@ -87,7 +88,7 @@ ui_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
     rune.set_paused(game, menu_open)
 }
 
-draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
+draw_ui :: proc(game: ^rune.Engine, world: ^ecs.World) {
     ui.draw(&interface)
 }
 
@@ -96,8 +97,9 @@ shutdown :: proc(game: ^rune.Engine, world: ^ecs.World) {
 }
 ```
 
-Register these callbacks in a `rune.System`, assigning `draw` to `draw_ui` to
-keep menus at native resolution when the game uses a scaled 2D canvas. The complete example also handles
+Register these callbacks in the matching `rune.System` fields, including
+`draw_ui`, to keep menus at native resolution when the game uses a scaled 2D
+canvas. The complete example also handles
 opening/closing the menu and captures input on the closing frame so the same
 click/key does not reach gameplay. Apply scene changes after `ui.finish`, since
 scene shutdown may destroy the UI context.

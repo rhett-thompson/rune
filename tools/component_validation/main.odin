@@ -487,7 +487,7 @@ validate_character_collision :: proc() {
 		),
 	)
 	world, loaded := scene.load_with_layers(
-		"examples/first_person_3d/scenes/main.scene.json",
+		"tools/component_validation/fixtures/legacy-character.scene.json",
 		&registry,
 		project.layers,
 	)

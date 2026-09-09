@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "terrain.schema.json",
+  "title": "Rune terrain asset",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["heightmap", "resolution"],
+  "properties": {
+    "$schema": {"type": "string"},
+    "heightmap": {"type": "string", "minLength": 1, "description": "Project-relative grayscale PNG or unsigned little-endian r16 path. Rows run along +Z, columns along +X."},
+    "resolution": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "integer", "minimum": 2, "maximum": 513}, "description": "Sample counts [width, height], including the last row/column."},
+    "size": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "minimum": 0.01, "maximum": 100000}, "default": [256,256]},
+    "height_scale": {"type": "number", "minimum": 0, "maximum": 100000, "default": 32},
+    "height_offset": {"type": "number", "minimum": -100000, "maximum": 100000, "default": 0},
+    "chunk_cells": {"enum": [8,16,32,64,128], "default": 64},
+    "uv_scale": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "exclusiveMinimum": 0, "maximum": 4096}, "default": [16,16]},
+    "material": {"type": "string", "description": "Project-relative material JSON; empty uses a green material. Terrain texture maps repeat."}
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "$schema": "../../../schemas/scene.schema.json",
+  "name": "Skybox Lookout",
+  "entities": [
+    {"id": "sky", "components": {"Skybox": {
+      "mode": "atmospheric",
+      "atmosphere": {"sun": "sun", "moon": "moon", "rayleigh": 1, "mie": 1, "sun_size": 1, "moon_size": 1, "night_energy": 0.3},
+      "procedural": {
+        "sky_top_color": [32,100,185,255],
+        "sky_horizon_color": [194,219,238,255],
+        "ground_bottom_color": [45,53,59,255],
+        "sun_direction": [-1,-0.4,-1],
+        "sun_size": 3
+      }
+    }}},
+    {"id": "camera", "components": {
+      "Transform": {"position": [8,4,10]},
+      "Camera3D": {"target": [0,1,0], "fovy": 60, "active": true},
+      "OrbitCamera3D": {"target": [0,1,0], "distance": 13, "pitch": 15, "yaw": 40}
+    }},
+    {"id": "platform", "components": {
+      "Transform": {"position": [0,-0.25,0], "scale": [8,0.5,8]},
+      "MeshRenderer": {"primitive": "cube", "color": [87,103,112,255]}
+    }},
+    {"id": "cube", "components": {
+      "Transform": {"position": [-1.5,1,0], "scale": [2,2,2], "rotation": [0,25,0]},
+      "MeshRenderer": {"primitive": "cube", "color": [228,145,71,255]}
+    }},
+    {"id": "sphere", "components": {
+      "Transform": {"position": [1.5,1,0]},
+      "SphereRenderer": {"radius": 1, "color": [82,168,170,255]}
+    }},
+    {"id": "sun", "components": {
+      "DirectionalLight": {"direction": [0.6,-0.5,0.6], "color": [255,255,255,255], "intensity": 1}
+    }},
+    {"id": "moon", "components": {
+      "DirectionalLight": {"direction": [-0.6,0.5,-0.6], "color": [180,205,255,255], "intensity": 0.03}
+    }},
+    {"id": "post", "components": {"PostProcessing": {"tonemap": {"mode": "aces"}}}},
+    {"id": "ambient", "components": {"AmbientLight": {"color": [165,190,220,255], "intensity": 0.5}}}
+  ]
+}

@@ -486,8 +486,7 @@ set_audio_player :: proc(world: ^World, entity: Entity, instance_name: string, v
 	key := Component_Instance{entity = entity, name = instance_name}
 	if _, found := world.audio_players[key]; !found || !component_value_valid(value) {return false}
 	key.name = retain_scene_string(world, instance_name)
-	owned := value
-	owned.sound = retain_scene_string(world, value.sound)
+	owned := retain_audio_player(world, value)
 	world.audio_players[key] = owned
 	record_component_change(world, entity, "AudioPlayer", .Changed)
 	return true

@@ -1,0 +1,6 @@
+{
+  "name":"Fast Controller",
+  "prefab":"controller.prefab.json",
+  "component_overrides":{"CharacterController3D":{"move_speed":9}},
+  "child_overrides":{"camera":{"component_overrides":{"Camera3D":{"fovy":80}}}}
+}

@@ -18,6 +18,7 @@ component_value_valid :: proc(value: $T) -> bool {
 	when T == SegmentCollider2D {
 		return segment_points_valid_2d(value.start, value.end) && (!value.one_way || value.start[1] == value.end[1])
 	}
+	when T == CharacterController3D {return character_controller_3d_valid(value)}
 	when T == CharacterController2D {return character_controller_2d_valid(value)}
 	when T == CapsuleCollider2D {
 		return finite_nonnegative(value.radius) && value.radius > 0 &&
@@ -63,7 +64,8 @@ component_value_valid :: proc(value: $T) -> bool {
 		return value.animation != "" && value.clip != "" && value.speed > 0 && !math.is_inf(value.speed)
 	} else when T == AudioPlayer {
 		if value.bus < .master || value.bus > .ui {return false}
-		return value.sound != "" && finite_nonnegative(value.volume) && value.pitch > 0 && !math.is_inf(value.pitch) &&
+		for clip in value.clips {if clip == "" {return false}}
+		return (value.sound != "" || len(value.clips) > 0) && finite_nonnegative(value.volume) && value.pitch > 0 && !math.is_inf(value.pitch) &&
 		       finite_nonnegative(value.random_volume) && finite_nonnegative(value.random_pitch) && value.max_voices >= 1 &&
 		       finite_nonnegative(value.min_distance) && value.max_distance >= value.min_distance && !math.is_inf(value.max_distance)
 	} else when T == CharacterController {
@@ -89,6 +91,15 @@ commit_component_value :: proc(
 ) {
 	previous, existed := storage^[entity]
 	stored_value := value
+	when T == Terrain {
+		stored_value.asset = retain_scene_string(world,value.asset)
+		if !existed || previous.collision != value.collision || previous.friction != value.friction {physics_3d_remove_entity(world,entity)}
+	}
+	when T == Skybox {
+		stored_value.texture = retain_scene_string(world, value.texture)
+		stored_value.atmosphere.sun = retain_scene_string(world, value.atmosphere.sun)
+		stored_value.atmosphere.moon = retain_scene_string(world, value.atmosphere.moon)
+	}
 	when T == PolygonCollider2D {
 		// Clone before releasing previous storage: setters can reuse a borrowed slice.
 		stored_value.vertices = make([][2]f32, len(value.vertices))
