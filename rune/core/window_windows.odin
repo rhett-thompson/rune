@@ -2,15 +2,15 @@ package core
 
 import rl "vendor:raylib"
 
-// Import only the monitor/geometry calls. core:sys/windows also imports
-// Win32 CloseWindow, whose linker symbol conflicts with raylib CloseWindow.
-foreign import user32 "system:user32.lib"
+// Declare only the monitor/geometry calls and use raylib's existing User32
+// linkage. A separate User32 import can precede raylib and resolve CloseWindow
+// to Win32's function before raylib's own CloseWindow definition is linked.
 @(private)
 Native_Rect :: struct {left, top, right, bottom: i32}
 @(private)
 Monitor_Info :: struct {cbSize: u32, rcMonitor, rcWork: Native_Rect, flags: u32}
 @(default_calling_convention = "system")
-foreign user32 {
+foreign {
 	GetClientRect :: proc(handle: rawptr, rect: ^Native_Rect) -> i32 ---
 	GetWindowRect :: proc(handle: rawptr, rect: ^Native_Rect) -> i32 ---
 	MonitorFromWindow :: proc(handle: rawptr, flags: u32) -> rawptr ---

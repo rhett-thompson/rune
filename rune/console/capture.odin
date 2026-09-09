@@ -38,7 +38,7 @@ finish_frame :: proc(console: ^Console) {
 	if console.capture.len > 0 {
 		path := string(console.capture.path[:console.capture.len])
 		directory, _ := filepath.split(path)
-		if len(directory) > 0 && os.make_directory_all(directory) != nil {
+		if len(directory) > 0 && !ensure_directory(directory) {
 			error(console, "Could not create capture directory.")
 		} else {
 			rlgl.DrawRenderBatchActive()
@@ -64,4 +64,15 @@ finish_frame :: proc(console: ^Console) {
 		console.capture.len = 0
 	}
 	finish_remote(console)
+}
+
+// The pinned Odin toolchain returns .Exist for an existing directory on Linux.
+// Verify its type: a regular file at this path must still be rejected.
+@(private)
+ensure_directory :: proc(path: string) -> bool {
+	err := os.make_directory_all(path)
+	if err == nil {return true}
+	if err != .Exist {return false}
+	info, stat_error := os.stat(path, context.temp_allocator)
+	return stat_error == nil && info.type == .Directory
 }

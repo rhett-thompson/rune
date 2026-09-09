@@ -52,7 +52,12 @@ try {
         foreach ($line in $result.lines) { Write-Output $line }
         if ($null -ne $result.data) { $result.data | ConvertTo-Json -Depth 100 }
     }
-    if (-not $result.ok) { throw 'Console command failed (see output above).' }
+    if (-not $result.ok) {
+        # Callers often capture the success stream, hiding the reply printed above.
+        # Keep the failed command and runtime details in the terminating error too.
+        $details = $result.lines -join [Environment]::NewLine
+        throw "Console command '$Command' failed: $details"
+    }
 }
 finally {
     foreach ($path in @($staging, $request, $reply)) {

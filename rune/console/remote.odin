@@ -29,7 +29,7 @@ Remote_Result :: struct {
 enable_remote :: proc(console: ^Console, directory: string) -> bool {
 	if len(directory) == 0 || len(directory) > Max_Path_Length - 100 ||
 	   console.remote.directory_len > 0 {return false}
-	if os.make_directory_all(directory) != nil {return false}
+	if !ensure_directory(directory) {return false}
 	copy(console.remote.directory[:], directory)
 	console.remote.directory_len = len(directory)
 	info(console, fmt.tprintf("Local console inbox: %s", directory))
