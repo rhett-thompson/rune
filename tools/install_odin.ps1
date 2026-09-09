@@ -59,5 +59,4 @@ if ($IsLinux) {
         }
     }
 }
-if ($env:GITHUB_PATH) { Add-Content -LiteralPath $env:GITHUB_PATH -Value $compilerDirectory }
 Write-Host "Installed Odin. Add this directory to PATH: $compilerDirectory"

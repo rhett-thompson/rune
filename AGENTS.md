@@ -644,7 +644,7 @@ When making architecture decisions, prefer:
   require a desktop session or Xvfb; see `docs/linux.md`.
 - Require passing Windows and Linux checks before releases. Distinguish source
   inspection, compilation, virtual-display tests, and real desktop verification.
-  Never mark Linux tested based only on Windows runs or the presence of CI YAML.
+  Never mark Linux tested based only on Windows runs or source inspection.
 
 ### Build Output
 

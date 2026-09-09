@@ -2,17 +2,16 @@
 
 Linux AMD64 and Windows AMD64 are equal Rune development targets. The initial
 Linux baseline is Ubuntu 24.04 AMD64. Other distributions may work with equivalent
-packages, but are not covered by the current CI job. Linux ARM64 and macOS are not
-yet release targets; the bundled native dependencies need separate verification.
+packages and need their own validation. Linux ARM64 and macOS are not yet release
+targets; the bundled native dependencies need separate verification.
 
 ## Verification status
 
-The tooling supports both platforms and GitHub Actions is configured to build
-and test both. Linux execution has not yet been verified from this Windows
-checkout: WSL is not installed. Keep `toolchain.json`'s `tested_platforms` limited
-to platforms with actual passing runs; `target_platforms` records the intended
-support separately. Update this status with the Linux run and compiler revision
-after the workflow executes successfully on GitHub.
+Validation is run locally on each platform. Linux execution has not yet been
+verified from this Windows checkout: WSL is not installed. Keep `toolchain.json`'s
+`tested_platforms` limited to platforms with actual passing runs; `target_platforms`
+records intended support separately. Record the Linux run and compiler revision
+after completing validation on a Linux machine.
 
 ## Install dependencies
 
@@ -112,21 +111,13 @@ and captures a frame. It stops only the game process it started.
 For a Linux machine without a desktop, install the virtual-display packages:
 
 ```bash
-sudo apt-get install -y xvfb xauth libgl1-mesa-dri libasound2-plugins pulseaudio pulseaudio-utils
-pulseaudio --start --exit-idle-time=-1
-(
-  set -e
-  audio_module=$(pactl load-module module-null-sink sink_name=rune_ci rate=48000)
-  trap 'pactl unload-module "$audio_module"' EXIT
-  LIBGL_ALWAYS_SOFTWARE=1 PULSE_SINK=rune_ci ALSA_CONFIG_PATH="$PWD/.github/alsa-null.conf" \
-    xvfb-run -a -s '-screen 0 1280x720x24' \
-    pwsh -NoProfile -File tools/release_check.ps1 -WorkingTree -Runtime
-)
+sudo apt-get install -y xvfb xauth libgl1-mesa-dri
+LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s '-screen 0 1280x720x24' \
+  pwsh -NoProfile -File tools/release_check.ps1 -WorkingTree -Runtime
 ```
 
-This is the same software-rendering and silent audio setup used in GitHub Actions.
-The PulseAudio null sink consumes audio using a real-time clock, so short sounds
-do not finish immediately as they can with an unclocked ALSA null device.
+Xvfb supplies the display; audio runtime checks still require a working playback
+device. Omit `-Runtime` to run checks without graphics or audio initialization.
 Runtime validator processes have a 90-second timeout. Their stdout/stderr logs
 are saved beside the binaries; release reports also record the OS, architecture,
 PowerShell version, compiler, and display environment.
@@ -148,5 +139,5 @@ version, and the tested Git commit.
 | DPI and monitors | Test scaling, pointer alignment, moving between monitors, and window restoration. |
 | Project workflow | Create and build a game outside the engine folder, including paths containing spaces. |
 
-Virtual-display CI checks do not replace these tests. Native Wayland support and
+Virtual-display checks do not replace these tests. Native Wayland support and
 different GPU drivers need their own evidence; do not infer them from an X11 pass.

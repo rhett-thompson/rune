@@ -82,12 +82,8 @@ supplies the pinned r3d binding and native libraries for the advanced 3D example
 
 Add `-Runtime` to also exercise rendering, animation, window handling, UI,
 particles, and audio using the existing runtime validators. This requires a
-desktop session or a virtual display on Linux. The GitHub
-[validation workflow](.github/workflows/validate.yml) runs the isolated release
-check on Windows and Ubuntu. Hosted Windows runs builds and headless checks;
-Ubuntu also runs the runtime validators and a new-game console/capture smoke test
-with software rendering and clocked silent audio. Run `-Runtime` on a Windows
-desktop before a release. CI runs on pushes and pull requests; it does not publish releases.
+desktop session with working graphics and audio, or a virtual display on Linux.
+Validation is run locally; pushing to GitHub does not run automated checks.
 
 For an isolated export and first-project test, see [the release check](docs/release.md).
 Licensing and asset-credit work is tracked in [THIRD_PARTY.md](THIRD_PARTY.md).
@@ -606,7 +602,7 @@ The example loads `project.json`; `scene.load` then reads `scenes/main.scene.jso
 
 ## Project validation
 
-Use the non-windowed validator before running a project or in CI. It follows
+Use the non-windowed validator before running a project. It follows
 the startup scene and its prefabs, checks entity IDs and layers, confirms
 referenced input, material, and asset files exist, validates model material-slot
 overrides, and rejects texture formats unavailable in the bundled raylib build.

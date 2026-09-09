@@ -40,22 +40,10 @@ Omit `-Runtime` for checks without graphics or audio initialization. On headless
 use `xvfb-run -a pwsh -NoProfile -File tools/release_check.ps1 -Runtime` after
 installing the dependencies in [Linux development](linux.md).
 
-The GitHub [validation workflow](../.github/workflows/validate.yml) runs this
-committed-snapshot check on Windows AMD64 and Ubuntu 24.04 AMD64. It uses the
-checksummed release archives in `toolchain.json`. The hosted Windows VM runs all
-builds, headless validators, and starter-project generation/build checks. It has
-no usable OpenGL driver or audio playback device, so its report records
-`runtime_checked: false`. A passing Windows CI job does not establish Windows
-runtime coverage; run `./tools/release_check.ps1 -Runtime` on a Windows desktop
-with working graphics and audio before releasing.
-
-Linux runs the complete runtime suite and starter-game console/capture test using
-Mesa software rendering, Xvfb, and a PulseAudio null sink reached through ALSA.
-The sink uses a real-time playback clock; ALSA's raw null PCM can consume short
-sounds before pause/resume assertions inspect them. These checks do not verify
-real GPU drivers, audible playback, monitor layouts, or native Wayland behavior.
-Reports, runtime logs, and any starter-game frame are retained as workflow
-artifacts for seven days.
+Run these checks locally on Windows AMD64 and Linux AMD64 using the toolchain
+recorded in `toolchain.json`. Reports, runtime logs, and any captured starter-game
+frame remain in the generated `build/release check */` directory. No GitHub Actions
+workflow runs on pushes or pull requests.
 
 ## Publication prerequisites
 
@@ -63,8 +51,8 @@ artifacts for seven days.
   applicable third-party notices.
 - Complete the asset source/license records in `asset_credits.json`, retaining
   required credits. Review bundled native-library notices for binary packages.
-- Confirm the GitHub clone URL and require successful Windows and Linux validation
-  jobs on the release commit. A workflow file alone is not evidence of a passing run.
+- Confirm the GitHub clone URL and run Windows and Linux validation locally on
+  the release commit. Record the results separately for each platform.
 - State the tested platform and compiler revision in the release notes.
   Windows AMD64 is locally tested; Linux verification is pending an actual Linux
   run. Complete the Linux desktop checks in [linux.md](linux.md) before claiming
