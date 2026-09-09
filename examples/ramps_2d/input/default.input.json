@@ -27,6 +27,12 @@
         "type": "keyboard",
         "key": "DOWN"
       }
+    ],
+    "dash": [
+      {
+        "type": "keyboard",
+        "key": "LEFT_SHIFT"
+      }
     ]
   },
   "axes": {

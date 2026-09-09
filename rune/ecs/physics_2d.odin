@@ -105,7 +105,7 @@ physics_2d_update :: proc(world: ^World, dt: f32) {
 		one_way_finish_2d(world)
 		collect_box2d_events(world)
 		sync_bodies_from_box2d(world)
-		character_controllers_2d_after_step(world)
+		character_controllers_2d_after_step(world,Physics2D_Fixed_Delta)
 		world.physics_2d_accumulator -= Physics2D_Fixed_Delta
 		steps += 1
 	}

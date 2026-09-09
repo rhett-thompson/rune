@@ -8,20 +8,26 @@ import rl "vendor:raylib"
 
 player: ecs.Entity
 sensor_entries: int
+facing: f32 = 1
 
 after_load :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	player, _ = ecs.find_entity_by_id(world,"player")
 	sensor_entries = 0
+	facing = 1
 }
 
 control :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	move_platforms(world,game.fixed_delta_time)
 	ecs.character_controller_2d_crouch(world,player,input.is_down(rune.input_state(game),"move_down"))
-	ecs.character_controller_2d_move(world,player,input.axis(rune.input_state(game),"move_x"))
+	axis := input.axis(rune.input_state(game),"move_x")
+	if axis != 0 {facing = 1 if axis > 0 else -1}
+	ecs.character_controller_2d_move(world,player,axis)
+	if input.pressed(rune.input_state(game),"dash") {ecs.character_controller_2d_dash(world,player,facing)}
 	if input.pressed(rune.input_state(game),"jump") {
 		if input.is_down(rune.input_state(game),"move_down") {ecs.character_controller_2d_drop_through(world,player)}
 		else {ecs.character_controller_2d_jump(world,player)}
 	}
+	if input.released(rune.input_state(game),"jump") {ecs.character_controller_2d_release_jump(world,player)}
 }
 
 after_physics :: proc(game: ^rune.Engine, world: ^ecs.World) {
@@ -70,6 +76,8 @@ draw_terrain :: proc(game: ^rune.Engine, world: ^ecs.World) {
   pose,_ := ecs.get_transform(world,player)
   a,b,radius := ecs.capsule_collider_2d_geometry(capsule,pose)
   color := rl.Color{70,155,245,255}
+  state,_ := ecs.get_character_controller_2d_state(world,player)
+  if state.dashing {color = {70,230,220,255}}
   rl.DrawLineEx({a[0],a[1]},{b[0],b[1]},2*radius,color)
   rl.DrawCircleV({a[0],a[1]},radius,color)
   rl.DrawCircleV({b[0],b[1]},radius,color)
@@ -77,11 +85,13 @@ draw_terrain :: proc(game: ^rune.Engine, world: ^ecs.World) {
 }
 
 draw_ui :: proc(game: ^rune.Engine, world: ^ecs.World) {
-	rl.DrawText("RAMPS + STAIRS",32,24,26,rl.RAYWHITE)
-	rl.DrawText("A/D: move   SPACE: jump   S/DOWN: crouch   S/DOWN + SPACE: drop",32,65,18,rl.LIGHTGRAY)
-	rl.DrawText("Ride the teal elevator. Jump through the violet shuttle or orange ledge.",32,96,18,rl.LIGHTGRAY)
-	rl.DrawText("Stairs: walk up. Low red bar: crouch to step. Gold diamond: sensor.",32,127,18,rl.LIGHTGRAY)
-	rl.DrawText("Walk off the bridge at the right, then crouch left through the low tunnel.",32,158,17,rl.LIGHTGRAY)
+	rl.DrawText("RAMPS + CHAINED DASHES",32,24,26,rl.RAYWHITE)
+	rl.DrawText("A/D: move   SPACE: jump   SHIFT: dash   S/DOWN: crouch   S + SPACE: drop",32,65,18,rl.LIGHTGRAY)
+	rl.DrawText("Tap SPACE for a short hop; hold it to reach the orange ledge.",32,96,18,rl.LIGHTGRAY)
+	rl.DrawText("Tap SHIFT again during a dash to chain; steer to redirect. Up to 3 before cooldown.",32,127,18,rl.LIGHTGRAY)
+	rl.DrawText("Walk right into the shaft. Jump between walls to climb; press toward a wall to slide.",32,158,16,rl.LIGHTGRAY)
+	rl.DrawText("WALL SHAFT",1050,195,16,rl.LIGHTGRAY)
+	rl.DrawText("ENTER BELOW",1030,515,16,rl.LIGHTGRAY)
 	rl.DrawText("ONE-WAY SHUTTLE",340,245,16,rl.LIGHTGRAY)
 	rl.DrawText("ELEVATOR",50,515,16,rl.LIGHTGRAY)
 	rl.DrawText("LOW TUNNEL",704,515,16,rl.LIGHTGRAY)
@@ -96,7 +106,12 @@ draw_ui :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	stance := "standing"
  if state.crouched {stance = "crouching"}
  if state.stand_blocked {stance = "ceiling blocks standing"}
- rl.DrawText(fmt.ctprintf("%s   |   Backtick: console   |   Try: set player CharacterController2D.step_height 0",stance),32,570,15,rl.LIGHTGRAY)
+ if state.wall_sliding {stance = "wall sliding"}
+ if state.wall_jump_lock_remaining > 0 {stance = "wall jump"}
+ if state.dashing {stance = "dashing"}
+ config,_ := ecs.get_character_controller_2d(world,player)
+ rl.DrawText(fmt.ctprintf("Dash %d/%d  |  queued: %t  |  cooldown: %.2f",state.dash_chain_index,config.dash_chain_count,state.dash_queued,state.dash_cooldown_remaining),740,537,16,rl.SKYBLUE)
+ rl.DrawText(fmt.ctprintf("%s   |   Backtick: console   |   Try: set player CharacterController2D.dash_chain_count 5",stance),32,570,15,rl.LIGHTGRAY)
 	pose,found := ecs.get_transform(world,player)
 	if found {
 		filter := ecs.Default_Physics_Query_Filter

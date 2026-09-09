@@ -1,4 +1,4 @@
-# Ramps, stairs, crouching, and one-way platforms
+# Ramps, chained dashes, wall jumps, and one-way platforms
 
 A `CharacterController2D` accelerates a capsule up a convex polygon and onto a
 two-sided segment bridge. It stays grounded while descending and supports
@@ -67,3 +67,40 @@ standing steps: hold S/Down to crouch and continue up the stairs. The capsule's
 shorter shape fits while its standing shape does not. Try
 `set player CharacterController2D.step_height 0` to disable the assistance.
 The orange one-way ledge now sits above the right end of the bridge.
+
+Tap Space for a short hop; hold it for the full jump. The example sends a jump
+release edge to the controller and uses `jump_cut_multiplier: 0.5`. Set that
+value to `1` to compare fixed-height jumps, or lower it for shorter taps. To reach
+the orange ledge above the right bridge, hold Space through the ascent.
+For console-driven comparisons, use `input jump press`, `step 1`,
+`input jump release`, then `step 30` for a tap. Hold for about `step 25` before
+releasing for a full jump. Buffering and coyote jumps also remember short taps.
+
+## Wall shaft
+
+Walk right past the tunnel into the shaft's lower opening. Jump toward its left
+wall, then alternate A/D and Space presses to climb. Press toward a wall while
+falling to slide. Hold Space for height; release early for a short hop.
+
+This scene opts into `wall_slide_speed: 80`, `wall_jump_speed_x: 260`,
+`wall_jump_speed_y: 360`, and `wall_jump_lock_time: 0.18`. The engine defaults
+leave slide/jump speeds at zero. Try `set player CharacterController2D.wall_slide_speed 0`
+to turn sliding off, or `set player CharacterController2D.wall_jump_speed_x 0`
+to turn wall jumping off independently. See the controller's
+[feature controls](../../docs/character-controller-2d.md#feature-controls).
+
+## Chained dashes
+
+Press Left Shift to dash in your current/last movement direction. Press again
+during the dash to queue the next, or within 0.2 seconds afterward to continue.
+Each dash lasts 0.14 seconds at speed 300. The scene allows three per chain and
+then a 0.5-second cooldown. Steer before the next press to reverse direction.
+Holding Shift does not repeat. Try the open floor to the right of the tunnel;
+air dashes also work. The character turns cyan while dashing, and the HUD shows
+chain index, queued input, and cooldown.
+
+Use `set player CharacterController2D.dash_chain_count 5` to allow five dashes,
+`dash_chain_count 1` for single dashes, or `dash_speed 0` to disable them (use the
+same `set player CharacterController2D.` prefix). Ground/air permissions, gravity,
+window, and cooldown are all JSON settings documented in the
+[controller API](../../docs/character-controller-2d.md#dashes-and-chaining).

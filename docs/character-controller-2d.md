@@ -3,7 +3,7 @@
 `CharacterController2D` is a fixed-step platformer motor built on Box2D. Gameplay
 supplies a horizontal movement axis and jump requests. The motor handles
 acceleration, gravity, slope following, ground snapping, jumping, coyote time,
-jump buffering, crouching, one-way platforms, drop-through, and moving-platform support. Settings are ordinary scene/prefab JSON; behavior stays in
+jump buffering, variable-height jumps, wall sliding/jumping, chained dashes, crouching, step-up, one-way platforms, drop-through, and moving-platform support. Settings are ordinary scene/prefab JSON; behavior stays in
 Odin. The [ramps example](../examples/ramps_2d/README.md) demonstrates it.
 
 ## Setup
@@ -25,6 +25,7 @@ Put these components on the same entity:
   "air_acceleration": 800,
   "gravity": 1200,
   "jump_speed": 460,
+  "jump_cut_multiplier": 0.5,
   "max_fall_speed": 900,
   "max_slope_angle": 45,
   "ground_snap_distance": 8,
@@ -34,7 +35,19 @@ Put these components on the same entity:
   "drop_time": 0.15,
   "crouch_height": 20,
   "crouch_speed": 100,
-  "step_height": 0
+  "step_height": 0,
+  "wall_slide_speed": 0,
+  "wall_jump_speed_x": 0,
+  "wall_jump_speed_y": 0,
+  "wall_jump_lock_time": 0.15,
+  "dash_speed": 0,
+  "dash_duration": 0.15,
+  "dash_cooldown": 0.4,
+  "dash_chain_count": 1,
+  "dash_chain_window": 0.15,
+  "dash_on_ground": true,
+  "dash_in_air": true,
+  "dash_gravity_scale": 0
 }
 ```
 
@@ -65,6 +78,9 @@ control :: proc(game: ^rune.Engine, world: ^ecs.World) {
     )
     if input.pressed(rune.input_state(game), "jump") {
         ecs.character_controller_2d_jump(world, player)
+    }
+    if input.released(rune.input_state(game), "jump") {
+        ecs.character_controller_2d_release_jump(world, player)
     }
 }
 ```
@@ -122,7 +138,7 @@ Set snap distance to zero to disable this assistance.
 keeps a press made shortly before landing and consumes it on the next supported
 fixed step. Each request can launch once; expired requests do not trigger later
 jumps. Setting either period to zero disables that grace window while retaining
-normal grounded jumping. `jump_speed = 0` disables jumping.
+normal grounded jumping. `jump_speed = 0` disables ground and coyote jumps; wall jumps have separate speeds.
 
 Box2D's world maximum linear speed still applies to the combined velocity. Its
 current default is 400 world units/second, so high jump/fall settings may be
@@ -130,8 +146,50 @@ limited earlier by the backend. The motor does not raise this global ceiling
 for other bodies. Games needing higher speeds can explicitly tune
 `b2.World_SetMaximumLinearSpeed` on `world.box2d_world` after initialization.
 
-This is a small rigid-body motor. It has no wall jumps or crush handling. Dynamic-body
+This is a small rigid-body motor. It has no crush handling. Dynamic-body
 contacts and sensor events continue through the normal physics APIs.
+
+## Variable-height jumps
+
+A press launches the normal jump. Release early for a short hop:
+
+```odin
+if input.released(rune.input_state(game), "jump") {
+    ecs.character_controller_2d_release_jump(world, player)
+}
+```
+
+`jump_cut_multiplier` controls how much remaining upward jump velocity is
+retained on release. Its default is `0.5`; `0` removes the remaining jump portion,
+and `1` disables cutting. Values must be finite and between 0 and 1. Holding jump
+keeps the full trajectory. Existing code that sends only jump presses retains
+its previous full jumps; no new held-input API is required.
+
+Release is an edge latched until the next fixed simulation step. It applies at
+most once per launched jump and does not accelerate a falling character or
+shorten unrelated upward motion. A release received after the apex does nothing.
+No transform, collider, horizontal velocity or gravity setting is changed.
+
+The motor cuts velocity relative to the supporting body's vertical velocity at
+takeoff. This preserves the platform contribution, including jumps from a
+descending platform that are already moving down in world space. The takeoff
+reference is frozen: reversing or removing the source cannot steer the jump.
+The normal native speed ceiling and fall-speed limit still apply.
+
+A press and release before the same fixed step produce a short jump. A buffered
+press remembers its release through landing, so a quick tap made in the air
+cannot become a full jump later. A newer press replaces that buffer's release
+state. Expired buffers discard it. Coyote jumps use the same rules, and a drop
+request takes priority over both edges. Send edges in input order when calling
+the API directly; an older release does not shorten a newer held press.
+
+Runtime state exposes `jump_release_requested`, `jump_buffer_released`,
+`jump_cut_available`, `jump_cut_applied`, and `jump_launch_velocity_y`.
+`jump_cut_applied` describes the latest launched jump; release eligibility ends
+at its relative apex or landing. These are simulation state and are not saved
+in scene or prefab JSON. Teleports, geometry changes, disabling, configuration
+changes, removal and physics shutdown clear pending releases with other jump
+state. Pausing freezes requests and buffering until simulation resumes.
 
 ## Moving platforms
 
@@ -331,6 +389,172 @@ changes and the usual controller resets clear this state. The ramps demo has
 three stairs and a low red bar that requires crouching before stepping further.
 Try `set player CharacterController2D.step_height 0` to compare normal collision.
 
+## Wall sliding and jumping
+
+Both features are opt-in and independent:
+
+```json
+"CharacterController2D": {
+  "wall_slide_speed": 80,
+  "wall_jump_speed_x": 260,
+  "wall_jump_speed_y": 360,
+  "wall_jump_lock_time": 0.18
+}
+```
+
+`wall_slide_speed` caps downward velocity relative to the wall while airborne
+and pressing toward it. Zero (the default) disables sliding. Releasing horizontal
+input or steering away restores ordinary falling; the slide limit does not shorten upward jumps.
+The normal world fall-speed limit also applies.
+
+Both `wall_jump_speed_x` and `wall_jump_speed_y` must be positive to enable wall
+jumping. They default to zero; setting either to zero disables wall jumps without
+disabling ground jumps or sliding. The usual jump press launches away from an
+eligible wall and upward, adding that wall's current linear velocity. The
+inherited velocity is frozen at takeoff and survives removal or reversal of the
+wall. Variable-height jump release uses this same takeoff reference.
+
+`wall_jump_lock_time` suspends horizontal steering after launch so inward input
+cannot immediately cancel the push. It defaults to 0.15 seconds, accepts 0–1,
+and zero gives immediate air control. Gravity and collision response continue
+during the lock. Landing ends it early. Another wall jump requires an eligible
+wall after the lock expires; held buttons do not generate repeated presses.
+
+Wall eligibility requires input toward a solid, nearly vertical face (normal's
+vertical magnitude at most 0.01) within 0.05 world units of the capsule side.
+A short ray at the effective capsule center verifies the actual face. This
+excludes rounded tip contacts at corners, ceilings, slopes, sensors, excluded
+layers, and one-way sides/undersides. Crouched and scaled capsules use their live
+geometry. There is no wall coyote window. Ground/coyote jumps take priority;
+otherwise the usual jump buffer can wait for wall contact, including buffered
+taps and newer presses. Drop-through still takes priority over jump requests.
+
+Runtime state exposes `wall_entity`, `wall_component`, `wall_normal`, and
+`wall_velocity` for the currently eligible wall, `wall_sliding` for an applied
+slide with continuing contact, `wall_jumped` for a launch in the latest step,
+and `wall_jump_lock_remaining`. Resets clear these fields with other motor state;
+wall removal, disabling, geometry edits and teleports invalidate wall contact.
+These values are not serialized. The ramps example includes a shaft entered
+from below: jump toward a wall, then alternate directions and jump presses to
+climb. Hold jump for height or release early for a short hop.
+
+## Dashes and chaining
+
+Dashing is disabled by default (`dash_speed = 0`). For three horizontal dashes
+per chain, configure:
+
+```json
+"CharacterController2D": {
+  "dash_speed": 300,
+  "dash_duration": 0.14,
+  "dash_cooldown": 0.5,
+  "dash_chain_count": 3,
+  "dash_chain_window": 0.2,
+  "dash_on_ground": true,
+  "dash_in_air": true,
+  "dash_gravity_scale": 0
+}
+```
+
+Send `ecs.character_controller_2d_dash(world, player, direction)` on each input
+press. Direction must be finite and nonzero; its sign selects left or right.
+Game code chooses the direction, including remembered facing when standing still.
+The API returns false for missing/disabled controllers, disabled dashing, or
+invalid directions. True means the request was latched; permission and cooldown
+are checked when simulation consumes it. No velocity changes while paused.
+
+A press during a dash queues one next dash. The current segment completes before
+the queued one starts on the following fixed step, with no idle step in between.
+A later press replaces the queued direction; repeated calls before a step also
+coalesce. The queue has one slot, so each additional segment needs another press.
+This lets players reverse or redirect successive horizontal dashes without
+restarting a dash timer indefinitely. Holding the input button sends no new edge.
+
+`dash_chain_count` includes the first dash (default 1, valid integers 1–32).
+After each unfinished chain's segment, `dash_chain_window` gives time to press
+again (default 0.15 seconds, range 0–1). A queued dash skips this wait. Zero permits
+only chaining requests already queued during the preceding dash. A chain ends
+when its limit is reached, its window expires, or a jump/drop cancels it.
+`dash_cooldown` then starts (default 0.4 seconds). Presses during cooldown are
+discarded, not replayed when it expires. Zero cooldown permits a new chain on
+the next press. Landing does not refill or reset a chain or cooldown.
+
+`dash_duration` is positive and at most one second (default 0.15). Durations and
+windows use fixed simulation steps; a dash lasts at least one step and rounds
+up to whole steps. Each segment rechecks `dash_on_ground` or `dash_in_air` when
+it starts, including queued segments. Both default to true. Losing or acquiring
+ground does not cancel a segment already underway. A queued segment that fails
+its permission check closes the chain and begins recovery.
+
+The dash sets horizontal velocity to its configured speed plus inherited
+platform motion. It follows walkable ground slopes, respects the effective
+crouched capsule and collision layers, and stops at solid walls/steep obstacles.
+It does not invoke stair step-up. One-way sides and sensors stay passable.
+Collision ends that segment; the remaining chain/window can still dash away
+from the wall. Native collision response and Box2D's world speed ceiling remain
+in force; this adds no teleport or invulnerability. After a dash, ordinary motor
+acceleration slows its remaining horizontal momentum toward movement input.
+
+While airborne, `dash_gravity_scale = 0` holds vertical velocity at the inherited
+platform contribution, making a level dash from stationary ground and replacing
+prior jump/fall velocity. Positive values retain vertical momentum and scale
+gravity during the dash (`1` uses normal gravity). The fall-speed limit remains
+active. Grounded dashes track current support velocity; once airborne, inherited
+momentum is frozen and source removal cannot add it again. The dash is horizontal;
+there is no vertical aiming or eight-direction mode.
+
+A ground/coyote/wall jump that can launch takes priority over a simultaneous
+dash, and cancels an ongoing chain. Accepted drop-through does the same. A dash
+start clears old buffered jumps, jump-cut eligibility, and wall-jump steering
+lock; jump release cannot shorten a dash. New jump requests during a dash still
+use ordinary jump buffering. Wall sliding is suspended during the dash. Crouch
+requests and native ceiling collisions continue normally.
+
+Runtime state reports `dashing`, `dash_direction`, `dash_remaining`,
+`dash_chain_index` (0 outside a chain), `dash_chain_remaining`,
+`dash_cooldown_remaining`, and `dash_queued`. `dash_started`, `dash_ended`, and
+`dash_blocked` describe the latest fixed step. Requests and queued directions
+are runtime-only too. Configuration changes, teleports, disabling, collider
+rebuilds, controller removal and physics shutdown reset all dash state with the
+rest of the motor. Unchanged value reload preserves it. Pausing freezes timers.
+
+The ramps example binds Left Shift to dash and remembers facing in its Odin
+system. Its HUD displays chain index, queued input, and recovery time. Try
+`set player CharacterController2D.dash_chain_count 5` or set `dash_speed` to `0`
+to disable the feature.
+
+## Feature controls
+
+All configuration is editable in scene/prefab JSON, through typed setters, and
+with `set player CharacterController2D.<field> <value>` in the runtime console.
+Gameplay supplies requests in Odin; the controller does not bind keys itself.
+
+| Feature | Tuning / disabling |
+| --- | --- |
+| Horizontal movement | `move_speed`, `acceleration`; send axis 0 to stop intentional movement |
+| Air steering | `air_acceleration`; 0 disables steering |
+| Ground/coyote jump | `jump_speed`; 0 disables |
+| Short-hop release | `jump_cut_multiplier`; 1 disables, or omit release requests |
+| Coyote time / buffering | `coyote_time`, `jump_buffer_time`; 0 disables each grace window |
+| Ground snap / step-up | `ground_snap_distance`, `step_height`; 0 disables each assistance |
+| Crouching | `crouch_height`, `crouch_speed`; height 0 disables, or omit crouch requests |
+| Wall sliding | `wall_slide_speed`; 0 disables |
+| Wall jumping | `wall_jump_speed_x`, `wall_jump_speed_y`; either 0 disables |
+| Wall-jump steering lock | `wall_jump_lock_time`; 0 disables the lock |
+| Dashing | `dash_speed`; 0 disables; `dash_on_ground` / `dash_in_air` permit each start |
+| Dash chaining | `dash_chain_count` includes first dash; 1 disables chaining; window and cooldown tune timing |
+| Dash gravity | `dash_gravity_scale`; 0 levels airborne dashes, 1 uses normal gravity |
+| Slope handling | `max_slope_angle`; 0 allows only flat support |
+| Gravity / terminal speed | `gravity`, `max_fall_speed`; both must stay positive |
+| One-way collision | `one_way` on the Box/Segment collider; false makes it solid |
+| Drop-through | `drop_speed`, `drop_time`; omit drop requests to disable the action |
+| Moving-platform carry | Automatic for supporting bodies; there is no separate carry switch |
+
+Configuration edits clear requests and grace state while preserving body
+velocity. Game systems should continue supplying current held input. To stop the
+entire motor while retaining ordinary physics, remove `CharacterController2D`;
+disabling the entity also disables its other systems and physics.
+
 ## Editing and lifetime
 
 Settings serialize through the registry, support prefabs and value reload, and
@@ -357,7 +581,9 @@ and does not consume requests.
 
 Validation rejects unknown fields, non-finite or negative settings, zero
 acceleration/gravity/fall/drop speed, slope angles of 89 degrees or greater, and grace/drop
-periods longer than one second. Invalid typed setters and console edits preserve
+periods or wall-jump locks longer than one second, or jump-cut multipliers outside `[0, 1]`.
+Dash duration must be in `(0, 1]`, chain window in `[0, 1]`, chain count an integer
+in `[1, 32]`, and ground/air permissions boolean. Invalid typed setters and console edits preserve
 the previous configuration.
 
 The headless `tools/character_controller_2d_validation` executable covers data
@@ -382,3 +608,15 @@ drop-through and resets. It also runs through `tools/validate.ps1`.
 height and slope limits, crouched headroom, slow/fast movement in both directions,
 no extra horizontal travel, input/air restrictions, collision filters, moving
 supports, one-way support, and runtime disabling. It runs in `tools/validate.ps1`.
+
+`tools/variable_jump_2d_validation` compares tap/partial/full jump heights and
+checks release ordering, buffering, expiry, repeated releases, moving-platform
+momentum, coyote jumps, drop priority and resets. It runs in `tools/validate.ps1`.
+
+`tools/wall_movement_2d_validation` checks independent feature settings, both wall
+directions, steering lock, input edges, filters, corners, moving-wall momentum,
+release cutting and contact invalidation. It runs in `tools/validate.ps1`.
+
+`tools/dash_2d_validation` checks chained and reversed dashes, timing/queue limits,
+cooldowns, permissions, gravity, collisions, filters, jump/drop priority, moving
+platforms, serialization and resets. It runs in `tools/validate.ps1`.

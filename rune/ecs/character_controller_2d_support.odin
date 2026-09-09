@@ -25,6 +25,11 @@ character_support_velocity_2d :: proc(world: ^World, entity: Entity) -> [2]f32 {
 character_controllers_2d_forget_support :: proc(world: ^World, support: Entity) {
 	one_way_forget_2d(world,support)
 	for entity, &state in world.character_controller_states_2d {
+		if state.wall_entity == support {
+			state.wall_entity,state.wall_component,state.wall_normal,state.wall_velocity = 0,"",{},{}
+			state.wall_sliding = false
+			state.ignore_contacts = true
+		}
 		if state.drop_entity == support {state.drop_entity,state.drop_component,state.drop_remaining = 0,"",0; state.drop_requested = false}
 		if state.support_entity != support {continue}
 		state.support_component = ""

@@ -3,9 +3,9 @@
   "name": "2D Ramps and Moving Platforms",
   "startup_scene": "scenes/main.scene.json",
   "window": {
-    "width": 960,
+    "width": 1240,
     "height": 610,
-    "title": "Rune - Ramps and Moving Platforms",
+    "title": "Rune - Ramps and Chained Dashes",
     "vsync": true
   },
   "background_color": [

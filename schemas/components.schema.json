@@ -137,6 +137,25 @@
           "minimum": 0,
           "default": 0,
           "description": "Maximum grounded step-up in world units. Zero disables step assistance."
+        },
+        "dash_speed": {"type": "number", "minimum": 0, "default": 0, "description": "Horizontal dash speed relative to platform motion. Zero disables dashing."},
+        "dash_duration": {"type": "number", "exclusiveMinimum": 0, "maximum": 1, "default": 0.15, "description": "Seconds per dash segment, rounded up to whole fixed steps."},
+        "dash_cooldown": {"type": "number", "minimum": 0, "default": 0.4, "description": "Recovery after the chain finishes, expires, or is canceled."},
+        "dash_chain_count": {"type": "integer", "minimum": 1, "maximum": 32, "default": 1, "description": "Maximum dashes per chain, including the first. Each requires a press."},
+        "dash_chain_window": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.15, "description": "Seconds after a dash to request the next in its chain. Zero allows only a request queued during the dash."},
+        "dash_on_ground": {"type": "boolean", "default": true, "description": "Allow starting a dash segment while grounded."},
+        "dash_in_air": {"type": "boolean", "default": true, "description": "Allow starting a dash segment while airborne."},
+        "dash_gravity_scale": {"type": "number", "minimum": 0, "default": 0, "description": "Airborne dash gravity multiplier. Zero holds vertical velocity at inherited platform velocity; positive values retain vertical momentum."},
+        "wall_slide_speed": {"type": "number", "minimum": 0, "default": 0, "description": "Maximum downward speed relative to a vertical wall while pressing toward it. Zero disables sliding."},
+        "wall_jump_speed_x": {"type": "number", "minimum": 0, "default": 0, "description": "Horizontal wall-jump speed away from the wall. Both wall jump speeds must be positive to enable wall jumping."},
+        "wall_jump_speed_y": {"type": "number", "minimum": 0, "default": 0, "description": "Upward wall-jump speed relative to wall velocity. Zero disables wall jumping."},
+        "wall_jump_lock_time": {"type": "number", "minimum": 0, "default": 0.15, "description": "Seconds of suspended horizontal steering after a wall jump. Zero restores immediate air control.", "maximum": 1},
+        "jump_cut_multiplier": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.5,
+          "description": "Remaining upward jump velocity retained on release, relative to takeoff platform velocity. One disables cutting."
         }
       }
     },

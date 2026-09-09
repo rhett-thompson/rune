@@ -1,6 +1,6 @@
 {
   "$schema": "../../../schemas/scene.schema.json",
-  "name": "Ramps and Stair Steps",
+  "name": "Ramps and Chained Dashes",
   "entities": [
     {
       "id": "camera",
@@ -45,7 +45,20 @@
           "drop_time": 0.15,
           "crouch_height": 40,
           "crouch_speed": 100,
-          "step_height": 18
+          "step_height": 18,
+          "jump_cut_multiplier": 0.5,
+          "wall_slide_speed": 80,
+          "wall_jump_speed_x": 260,
+          "wall_jump_speed_y": 360,
+          "wall_jump_lock_time": 0.18,
+          "dash_speed": 300,
+          "dash_duration": 0.14,
+          "dash_cooldown": 0.5,
+          "dash_chain_count": 3,
+          "dash_chain_window": 0.2,
+          "dash_on_ground": true,
+          "dash_in_air": true,
+          "dash_gravity_scale": 0
         }
       }
     },
@@ -65,7 +78,7 @@
             500
           ],
           "end": [
-            920,
+            1190,
             500
           ]
         }
@@ -105,11 +118,11 @@
         },
         "SegmentCollider2D": {
           "start": [
-            920,
-            250
+            1190,
+            220
           ],
           "end": [
-            920,
+            1190,
             500
           ]
         }
@@ -517,6 +530,22 @@
             105,
             100,
             255
+          ]
+        }
+      }
+    },
+    {
+      "id": "shaft_wall",
+      "components": {
+        "Transform": {},
+        "SegmentCollider2D": {
+          "start": [
+            1050,
+            220
+          ],
+          "end": [
+            1050,
+            420
           ]
         }
       }

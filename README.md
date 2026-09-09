@@ -1255,7 +1255,15 @@ Boxes and horizontal segments support JSON `one_way` collision; the controller
 can drop through its supporting platform onto lower ground. Crouching preserves
 feet, reduces movement speed, and waits for headroom before standing. Optional
 `step_height` adds stair/curb traversal with capsule clearance and slope checks.
+Jump-release requests support short hops while preserving takeoff platform momentum.
 See the [2D controller API](docs/character-controller-2d.md).
+
+`CharacterController2D` also supports opt-in wall sliding and wall jumps, with
+independent speeds, moving-wall momentum and an adjustable steering lock.
+Opt-in horizontal dashes support queued chains, per-chain cooldowns, direction
+changes, ground/air permissions, and configurable gravity. See
+[the complete feature controls](docs/character-controller-2d.md#feature-controls)
+for tuning and disabling individual movement features.
 
 ## Fixed-step 2D physics
 

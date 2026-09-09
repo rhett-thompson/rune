@@ -1,0 +1,8 @@
+{
+  "name": "Dash reload",
+  "entities": [{"id": "player", "components": {
+    "Transform": {}, "RigidBody2D": {},
+    "CapsuleCollider2D": {"radius": 5, "height": 20, "offset": [0,-10]},
+    "CharacterController2D": {"dash_speed": 180, "dash_duration": 0.1, "dash_chain_count": 3}
+  }}]
+}

@@ -437,7 +437,7 @@ validate_components :: proc(
 		}
 		if name == "CharacterController2D" {
 			if _, valid := ecs.character_controller_2d_from_json(value); !valid {
-				add(report,file,field_path(path,name),"requires finite nonnegative settings, positive acceleration/gravity/fall/drop speed, slope angle < 89 degrees, and grace/drop times <= 1 second")
+				add(report,file,field_path(path,name),"requires finite nonnegative settings, positive acceleration/gravity/fall/drop speed, slope angle < 89 degrees, grace/drop/wall-lock times <= 1 second, jump_cut_multiplier between 0 and 1, dash_duration in (0,1], dash_chain_window in [0,1], integer dash_chain_count in [1,32], and boolean dash_on_ground/dash_in_air")
 			}
 		}
 		if name == "CapsuleCollider2D" {

@@ -61,7 +61,7 @@ register_builtin_components :: proc(registry: ^Component_Registry) -> bool {
 	ok = register_builtin_component(registry, "PostProcessing", PostProcessing, "3D scene or camera post-processing profile") && ok
 	ok = register_builtin_component(registry, "PolygonCollider2D", PolygonCollider2D, "Convex 2D polygon with 3-8 perimeter vertices.") && ok
 	ok = register_builtin_component(registry, "SegmentCollider2D", SegmentCollider2D, "2D edge with local endpoints; optional horizontal one-way collision.") && ok
-	ok = register_builtin_component(registry, "CharacterController2D", CharacterController2D, "Platformer motor for a dynamic body with a vertical capsule; movement, jump, crouch and drop-through requests come from Odin.") && ok
+	ok = register_builtin_component(registry, "CharacterController2D", CharacterController2D, "Platformer motor for a dynamic body with a vertical capsule; configurable wall sliding/jumping and chained dashes; movement, jump press/release, crouch and drop-through requests come from Odin.") && ok
 	ok = register_builtin_component(registry, "CapsuleCollider2D", CapsuleCollider2D, "2D vertical or horizontal capsule collider") && ok
 	ok = register_builtin_component(registry, "Lifetime", Lifetime, "Destroy an entity after a simulation duration") && ok
 	ok = register_builtin_component(registry, "ShapeRenderer2D", ShapeRenderer2D, "Texture-free 2D shapes") && ok
