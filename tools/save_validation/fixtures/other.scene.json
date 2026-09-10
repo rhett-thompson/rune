@@ -1,0 +1,1 @@
+{"name":"Second room","entities":[{"id":"other","components":{"Transform":{"position":[50,0,0]},"Health":{"current":20}}}]}

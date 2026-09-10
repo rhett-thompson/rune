@@ -110,6 +110,14 @@ performance guarantee.
 
 ## Code, reload, and lifetime
 
+Terrain also feeds the [3D navigation baker](navigation-3d.md). It uses the same
+heightmap triangles and world transform as collision, filters slopes/headroom,
+and combines the landscape with static obstacles. Run
+`odin run tools/navmesh_baker -collection:rune=rune -- examples/terrain_3d/terrain.navbake.json`
+from the repository root; press **N** in Highland Walk to inspect the result.
+Re-run the bake after terrain edits. The output navmesh hot reloads separately
+from the terrain, and its cell size controls the approximation between samples.
+
 ```odin
 settings := ecs.default_terrain()
 settings.asset = "assets/hills.terrain.json"

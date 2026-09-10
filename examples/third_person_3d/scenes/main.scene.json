@@ -1,73 +1,542 @@
 {
   "$schema": "../../../schemas/scene.schema.json",
-  "name": "Third Person Playground",
+  "name": "Third Person Movement Course",
   "entities": [
+    {
+      "id": "interaction_door", "name": "Door switch", "layers": ["Gameplay"],
+      "components": {
+        "Transform": {"position": [0, 1.25, 6.5], "scale": [2, 2.5, 0.36]},
+        "Interactable3D": {"prompt": "Open door"},
+        "MeshRenderer": {"primitive": "cube", "color": [60, 145, 185, 255], "shadows": true},
+        "BoxCollider": {"size": [1, 1, 1], "is_static": true}
+      }
+    },
+    {
+      "id": "interaction_pickup", "name": "Golden cube", "layers": ["Gameplay"],
+      "components": {
+        "Transform": {"position": [-2, 0.65, 8], "rotation": [0, 30, 0], "scale": [0.5, 0.5, 0.5]},
+        "MeshRenderer": {"primitive": "cube", "color": [255, 198, 60, 255], "shadows": true},
+        "Interactable3D": {"prompt": "Collect golden cube"}
+      }
+    },
+    {
+      "id": "interaction_guide", "name": "Course guide", "layers": ["Gameplay"],
+      "components": {
+        "Transform": {"position": [2, 0.85, 8]},
+        "BoxCollider": {"size": [0.65, 1.7, 0.5], "is_static": true},
+        "Interactable3D": {"prompt": "Talk to guide", "offset": [0, 0.35, 0], "hold_seconds": 0.75}
+      },
+      "children": [
+        {"id": "interaction_guide_body", "components": {
+          "Transform": {"scale": [0.65, 1.7, 0.5]},
+          "MeshRenderer": {"primitive": "cube", "color": [165, 105, 210, 255], "shadows": true}
+        }},
+        {"id": "interaction_guide_head", "components": {
+          "Transform": {"position": [0, 1.05, 0]},
+          "SphereRenderer": {"radius": 0.3, "color": [245, 211, 170, 255], "shadows": true}
+        }}
+      ]
+    },
+    {
+      "id": "post",
+      "name": "Post Processing",
+      "components": {
+        "PostProcessing": {
+          "ssao": {
+            "enabled": true
+          }
+        }
+      }
+    },
+    {
+      "id": "ambient",
+      "name": "Sky Fill",
+      "components": {
+        "AmbientLight": {
+          "color": [165, 190, 225, 255],
+          "intensity": 0.45
+        }
+      }
+    },
+    {
+      "id": "sun",
+      "name": "Sun",
+      "components": {
+        "DirectionalLight": {
+          "direction": [-0.6, -1, -0.4],
+          "color": [255, 240, 215, 255],
+          "intensity": 2.2,
+          "range": 60,
+          "shadows": true,
+          "shadow_softness": 2.5,
+          "shadow_opacity": 1
+        }
+      }
+    },
     {
       "id": "floor",
       "name": "Floor",
-      "layers": ["Gameplay"],
+      "layers": [
+        "Gameplay"
+      ],
       "components": {
-        "Transform": { "position": [0, -0.15, 0], "scale": [30, 0.3, 30] },
-        "MeshRenderer": { "primitive": "cube", "color": [96, 145, 104, 255] },
-        "BoxCollider": { "size": [1, 1, 1], "is_static": true }
+        "Transform": {
+          "position": [0, -0.25, 0],
+          "scale": [32, 0.5, 32]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "color": [90, 100, 115, 255],
+          "shadows": false
+        },
+        "BoxCollider": {
+          "size": [1, 1, 1],
+          "is_static": true
+        }
       }
     },
     {
       "id": "player",
       "name": "Player",
-      "layers": ["Gameplay", "Player"],
+      "layers": [
+        "Gameplay",
+        "Player"
+      ],
       "components": {
-        "Transform": { "position": [0, 0.75, 3], "scale": [0.8, 1.5, 0.8], "rotation": [0, 180, 0] },
-        "MeshRenderer": { "primitive": "cube", "color": [45, 125, 230, 255] },
-        "CharacterController": { "radius": 0.35, "height": 1.5, "eye_height": 0.75, "gravity": 24, "jump_speed": 8 }
+        "Transform": {
+          "position": [0, 0, 10]
+        },
+        "AudioPlayer": {
+          "footsteps": {
+            "clips": [
+              "../first_person_3d/assets/audio/concrete_1.wav",
+              "../first_person_3d/assets/audio/concrete_2.wav",
+              "../first_person_3d/assets/audio/concrete_3.wav",
+              "../first_person_3d/assets/audio/concrete_4.wav"
+            ],
+            "volume": 0.5,
+            "random_pitch": 0.04,
+            "max_voices": 4,
+            "bus": "sfx"
+          }
+        },
+        "CharacterController3D": {},
+        "Interactor3D": {},
+        "ThirdPersonController": {
+          "footstep_stride": 2.4,
+          "camera_smoothing": 12,
+          "collision_margin": 0.2,
+          "initial_pitch": 22,
+          "turn_speed": 12,
+          "zoom_speed": 0.8,
+          "target_height_ratio": 0.65,
+          "mouse_sensitivity": 0.25,
+          "initial_yaw": 180,
+          "max_distance": 12,
+          "distance": 6,
+          "min_distance": 2
+        }
       },
       "children": [
         {
-          "id": "player_front",
-          "name": "Player Front Marker",
+          "id": "player_body",
           "components": {
-            "Transform": { "position": [0, 0, 0.8], "scale": [0.3, 0.3, 0.4] },
-            "MeshRenderer": { "primitive": "cube", "color": [245, 245, 245, 255] }
-          }
+            "Transform": {
+              "position": [0, 0.71, 0],
+              "scale": [0.55, 1.42, 0.4]
+            },
+            "MeshRenderer": {
+              "color": [55, 180, 195, 255],
+              "primitive": "cube",
+              "shadows": true
+            }
+          },
+          "name": "Player Body"
+        },
+        {
+          "id": "player_head",
+          "components": {
+            "Transform": {
+              "position": [0, 1.61, 0]
+            },
+            "SphereRenderer": {
+              "color": [235, 220, 190, 255],
+              "shadows": true,
+              "radius": 0.19
+            }
+          },
+          "name": "Player Head"
+        },
+        {
+          "id": "player_front",
+          "components": {
+            "Transform": {
+              "position": [0, 1.61, -0.18],
+              "scale": [0.28, 0.1, 0.07]
+            },
+            "MeshRenderer": {
+              "color": [30, 45, 65, 255],
+              "primitive": "cube",
+              "shadows": true
+            }
+          },
+          "name": "Player Visor"
         }
       ]
     },
     {
-      "id": "landmark_left",
-      "name": "Left Landmark",
-      "layers": ["Gameplay"],
-      "components": {
-        "Transform": { "position": [-6, 1.5, -4], "scale": [2, 3, 2] },
-        "MeshRenderer": { "primitive": "cube", "color": [245, 180, 65, 255] },
-        "BoxCollider": { "size": [1, 1, 1], "is_static": true }
-      }
-    },
-    {
-      "id": "landmark_right",
-      "name": "Right Landmark",
-      "layers": ["Gameplay"],
-      "components": {
-        "Transform": { "position": [6, 1, -7], "scale": [2, 2, 2] },
-        "MeshRenderer": { "primitive": "cube", "color": [224, 95, 114, 255] },
-        "BoxCollider": { "size": [1, 1, 1], "is_static": true }
-      }
-    },
-    {
-      "id": "look_target",
-      "name": "Look Target",
-      "layers": ["Gameplay"],
-      "components": {
-        "Transform": { "position": [0, 0.75, -9] },
-        "SphereRenderer": { "radius": 0.75, "color": [250, 235, 110, 255] },
-        "SphereCollider": { "radius": 0.75, "is_static": true }
-      }
-    },
-    {
       "id": "follow_camera",
-      "name": "Follow Camera",
+      "name": "Third Person Camera",
       "components": {
-        "Transform": { "position": [0, 5, -5] },
-        "Camera3D": { "target": [0, 1, 3], "up": [0, 1, 0], "fovy": 55, "active": true }
+        "Transform": {
+          "position": [0, 1.6, 10]
+        },
+        "Camera3D": {
+          "target": [0, 1.6, 9],
+          "up": [0, 1, 0],
+          "fovy": 60,
+          "active": true
+        }
+      }
+    },
+    {
+      "id": "ramp",
+      "name": "Ramp",
+      "layers": [
+        "Gameplay"
+      ],
+      "components": {
+        "Transform": {
+          "position": [-7, 0.65, -2],
+          "scale": [3, 0.3, 8],
+          "rotation": [12, 0, 0]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "color": [85, 155, 220, 255],
+          "shadows": true
+        },
+        "BoxCollider": {
+          "size": [1, 1, 1],
+          "is_static": true
+        }
+      }
+    },
+    {
+      "id": "steep_ramp",
+      "name": "Steep Ramp",
+      "layers": [
+        "Gameplay"
+      ],
+      "components": {
+        "Transform": {
+          "position": [7, 1.5, -3],
+          "scale": [3, 0.3, 6],
+          "rotation": [60, 0, 0]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "color": [215, 85, 85, 255],
+          "shadows": true
+        },
+        "BoxCollider": {
+          "size": [1, 1, 1],
+          "is_static": true
+        }
+      }
+    },
+    {
+      "id": "stair_0",
+      "name": "Stair 0",
+      "layers": [
+        "Gameplay"
+      ],
+      "components": {
+        "Transform": {
+          "position": [-2, 0.1, 2.0],
+          "scale": [3, 0.2, 0.65]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "color": [230, 155, 65, 255],
+          "shadows": true
+        },
+        "BoxCollider": {
+          "size": [1, 1, 1],
+          "is_static": true
+        }
+      }
+    },
+    {
+      "id": "stair_1",
+      "name": "Stair 1",
+      "layers": [
+        "Gameplay"
+      ],
+      "components": {
+        "Transform": {
+          "position": [-2, 0.2, 1.35],
+          "scale": [3, 0.4, 0.65]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "color": [230, 155, 65, 255],
+          "shadows": true
+        },
+        "BoxCollider": {
+          "size": [1, 1, 1],
+          "is_static": true
+        }
+      }
+    },
+    {
+      "id": "stair_2",
+      "name": "Stair 2",
+      "layers": [
+        "Gameplay"
+      ],
+      "components": {
+        "Transform": {
+          "position": [-2, 0.30000000000000004, 0.7],
+          "scale": [3, 0.6000000000000001, 0.65]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "color": [230, 155, 65, 255],
+          "shadows": true
+        },
+        "BoxCollider": {
+          "size": [1, 1, 1],
+          "is_static": true
+        }
+      }
+    },
+    {
+      "id": "stair_3",
+      "name": "Stair 3",
+      "layers": [
+        "Gameplay"
+      ],
+      "components": {
+        "Transform": {
+          "position": [-2, 0.4, 0.04999999999999982],
+          "scale": [3, 0.8, 0.65]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "color": [230, 155, 65, 255],
+          "shadows": true
+        },
+        "BoxCollider": {
+          "size": [1, 1, 1],
+          "is_static": true
+        }
+      }
+    },
+    {
+      "id": "stair_4",
+      "name": "Stair 4",
+      "layers": [
+        "Gameplay"
+      ],
+      "components": {
+        "Transform": {
+          "position": [-2, 0.5, -0.6000000000000001],
+          "scale": [3, 1.0, 0.65]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "color": [230, 155, 65, 255],
+          "shadows": true
+        },
+        "BoxCollider": {
+          "size": [1, 1, 1],
+          "is_static": true
+        }
+      }
+    },
+    {
+      "id": "stair_5",
+      "name": "Stair 5",
+      "layers": [
+        "Gameplay"
+      ],
+      "components": {
+        "Transform": {
+          "position": [-2, 0.6000000000000001, -1.25],
+          "scale": [3, 1.2000000000000002, 0.65]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "color": [230, 155, 65, 255],
+          "shadows": true
+        },
+        "BoxCollider": {
+          "size": [1, 1, 1],
+          "is_static": true
+        }
+      }
+    },
+    {
+      "id": "stair_landing",
+      "name": "Stair Landing",
+      "layers": [
+        "Gameplay"
+      ],
+      "components": {
+        "Transform": {
+          "position": [-2, 0.6, -3],
+          "scale": [3, 1.2, 3]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "color": [230, 155, 65, 255],
+          "shadows": true
+        },
+        "BoxCollider": {
+          "size": [1, 1, 1],
+          "is_static": true
+        }
+      }
+    },
+    {
+      "id": "crawl_roof",
+      "name": "Crawl Roof",
+      "layers": [
+        "Gameplay"
+      ],
+      "components": {
+        "Transform": {
+          "position": [3, 1.5, 4],
+          "scale": [3, 0.3, 4]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "color": [160, 110, 195, 255],
+          "shadows": true
+        },
+        "BoxCollider": {
+          "size": [1, 1, 1],
+          "is_static": true
+        }
+      }
+    },
+    {
+      "id": "crawl_side_a",
+      "name": "Crawl Side A",
+      "layers": [
+        "Gameplay"
+      ],
+      "components": {
+        "Transform": {
+          "position": [1.35, 0.7, 4],
+          "scale": [0.3, 1.4, 4]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "color": [160, 110, 195, 255],
+          "shadows": true
+        },
+        "BoxCollider": {
+          "size": [1, 1, 1],
+          "is_static": true
+        }
+      }
+    },
+    {
+      "id": "crawl_side_b",
+      "name": "Crawl Side B",
+      "layers": [
+        "Gameplay"
+      ],
+      "components": {
+        "Transform": {
+          "position": [4.65, 0.7, 4],
+          "scale": [0.3, 1.4, 4]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "color": [160, 110, 195, 255],
+          "shadows": true
+        },
+        "BoxCollider": {
+          "size": [1, 1, 1],
+          "is_static": true
+        }
+      }
+    },
+    {
+      "id": "moving_platform",
+      "name": "Moving Platform",
+      "layers": [
+        "Gameplay"
+      ],
+      "components": {
+        "Transform": {
+          "position": [0, 0.2, -8],
+          "scale": [3, 0.4, 3]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "color": [80, 185, 125, 255],
+          "shadows": true
+        },
+        "BoxCollider": {
+          "size": [1, 1, 1],
+          "is_static": false
+        },
+        "RigidBody3D": {
+          "type": "kinematic",
+          "velocity": [0, 0, 1.5]
+        }
+      }
+    },
+    {
+      "id": "pushable_crate",
+      "name": "Pushable Crate",
+      "layers": [
+        "Gameplay"
+      ],
+      "components": {
+        "Transform": {
+          "position": [7, 0.5, 6],
+          "scale": [1, 1, 1]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "color": [160, 120, 80, 255],
+          "shadows": true
+        },
+        "BoxCollider": {
+          "size": [1, 1, 1],
+          "is_static": false
+        },
+        "RigidBody3D": {
+          "type": "dynamic",
+          "linear_damping": 0.5
+        }
+      }
+    },
+    {
+      "id": "thin_wall",
+      "name": "Thin Wall",
+      "layers": [
+        "Gameplay"
+      ],
+      "components": {
+        "Transform": {
+          "position": [-11, 1.5, 5],
+          "scale": [0.1, 3, 5]
+        },
+        "MeshRenderer": {
+          "primitive": "cube",
+          "color": [125, 135, 145, 255],
+          "shadows": true
+        },
+        "BoxCollider": {
+          "size": [1, 1, 1],
+          "is_static": true
+        }
       }
     }
   ]

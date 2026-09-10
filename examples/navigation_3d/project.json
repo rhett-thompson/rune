@@ -1,0 +1,7 @@
+{
+  "name":"Navigation 3D",
+  "startup_scene":"scenes/main.scene.json",
+  "window":{"width":1100,"height":720,"title":"Rune Navigation 3D","vsync":true},
+  "background_color":[20,25,35,255],
+  "input":"input/default.input.json"
+}

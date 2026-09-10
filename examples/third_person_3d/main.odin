@@ -3,145 +3,99 @@ package main
 import example_text "../shared/text"
 
 import "core:fmt"
-import "core:math"
 import rune "rune:core"
 import "rune:ecs"
-import "rune:input"
 import "rune:r3d_bridge"
 import rl "vendor:raylib"
 
-Player_Speed: f32 : 6
-Camera_Height: f32 : 1.5
-Mouse_Orbit_Speed: f32 : 0.25
-
 bridge: r3d_bridge.Context
-player: ecs.Entity
-follow_camera: ecs.Entity
-// Face the landmark side of the playground on startup.
-camera_yaw: f32 = 180
-camera_pitch: f32 = 22
-camera_distance: f32 = 7
+player, follow_camera, platform: ecs.Entity
+avatar_body, avatar_head, avatar_front: ecs.Entity
 
 scene_view := r3d_bridge.Scene3D_Settings {
-	grid_slices    = 30,
-	grid_spacing   = 1,
-	draw_colliders = true,
-}
-
-clamp :: proc(value, minimum, maximum: f32) -> f32 {
-	if value < minimum { return minimum }
-	if value > maximum { return maximum }
-	return value
-}
-
-update_follow_camera :: proc(world: ^ecs.World) {
-	player_transform, has_player := ecs.get_transform(world, player)
-	camera_transform, has_camera_transform := ecs.get_transform(world, follow_camera)
-	camera, has_camera := ecs.get_camera_3d(world, follow_camera)
-	if !has_player || !has_camera_transform || !has_camera { return }
-
-	yaw := camera_yaw * f32(math.PI / 180)
-	pitch := camera_pitch * f32(math.PI / 180)
-	forward := [3]f32{f32(math.sin(f64(yaw))), 0, f32(math.cos(f64(yaw)))}
-	horizontal_distance := camera_distance * f32(math.cos(f64(pitch)))
-	camera_transform.position = {
-		player_transform.position[0] - forward[0] * horizontal_distance,
-		player_transform.position[1] + Camera_Height + camera_distance * f32(math.sin(f64(pitch))),
-		player_transform.position[2] - forward[2] * horizontal_distance,
-	}
-	camera.target = {player_transform.position[0], player_transform.position[1] + 0.4, player_transform.position[2]}
-	ecs.set_transform(world, follow_camera, camera_transform)
-	ecs.set_camera_3d(world, follow_camera, camera)
+	grid_slices = 24,
+	grid_spacing = 1,
+	draw_colliders = false,
+	background_color = {38, 49, 67, 255},
 }
 
 initialize_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if !bridge.initialized {
 		bridge_ok: bool
 		bridge, bridge_ok = r3d_bridge.init("examples/third_person_3d", rl.GetScreenWidth(), rl.GetScreenHeight())
-		if !bridge_ok { fmt.eprintln("Could not initialize r3d") }
+		if !bridge_ok {fmt.eprintln("Could not initialize r3d")}
 	}
 	player, _ = ecs.find_entity_by_id(world, "player")
 	follow_camera, _ = ecs.find_entity_by_id(world, "follow_camera")
-	update_follow_camera(world)
+	platform, _ = ecs.find_entity_by_id(world, "moving_platform")
+	avatar_body, _ = ecs.find_entity_by_id(world, "player_body")
+	avatar_head, _ = ecs.find_entity_by_id(world, "player_head")
+	avatar_front, _ = ecs.find_entity_by_id(world, "player_front")
+	camera_state = {}
+	facing_yaw = 180
+	footstep_distance = 0
+	footsteps_moving = false
+	reset_interactions()
+	update_camera(game, world)
 }
 
 shutdown_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	r3d_bridge.shutdown(&bridge)
 }
 
-on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
-	controls := rune.input_state(game)
-	camera_distance = clamp(camera_distance - input.axis(controls, "zoom"), 3, 12)
-	orbit_camera := input.is_down(controls, "orbit_camera")
-	orbit_with_character := input.is_down(controls, "orbit_with_character")
-	if orbit_camera || orbit_with_character {
-		camera_yaw -= input.axis(controls, "look_x") * Mouse_Orbit_Speed
-		camera_pitch += input.axis(controls, "look_y") * Mouse_Orbit_Speed
-		camera_pitch = clamp(camera_pitch, 8, 70)
-	}
-
-	yaw := camera_yaw * f32(math.PI / 180)
-	forward := [3]f32{f32(math.sin(f64(yaw))), 0, f32(math.cos(f64(yaw)))}
-	// Raylib's view basis points screen-right opposite this camera-forward
-	// vector, so use the matching sign for A/D screen-space strafing.
-	right := [3]f32{-forward[2], 0, forward[0]}
-	move_x := input.axis(controls, "move_x")
-	move_z := input.axis(controls, "move_z")
-	horizontal := [2]f32{}
-	if move_x != 0 || move_z != 0 {
-		length := f32(math.sqrt(f64(move_x * move_x + move_z * move_z)))
-		move_x /= length
-		move_z /= length
-		horizontal = {
-			(forward[0] * move_z + right[0] * move_x) * Player_Speed * game.delta_time,
-			(forward[2] * move_z + right[2] * move_x) * Player_Speed * game.delta_time,
-		}
-	}
-	ecs.move_character(world, player, horizontal, input.pressed(controls, "jump"), game.delta_time)
-
-	transform, found := ecs.get_transform(world, player)
-	if !found { return }
-	// Left-click only changes the camera. Right-click keeps the character aligned
-	// with the camera yaw; the white front marker makes that rotation visible.
-	if orbit_with_character { transform.rotation[1] = camera_yaw }
-	ecs.set_transform(world, player, transform)
-
-	update_follow_camera(world)
+fixed_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	submit_movement(game, world)
+	update_course_door(world,game.fixed_delta_time)
+	transform, found := ecs.get_transform(world, platform)
+	body, has_body := ecs.get_rigid_body_3d(world, platform)
+	if !found || !has_body {return}
+	if transform.position[2] < -11 {body.velocity[2] = 1.5}
+	if transform.position[2] > -5 {body.velocity[2] = -1.5}
+	ecs.set_rigid_body_3d(world, platform, body)
 }
 
 on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if !r3d_bridge.draw_scene_ex(&bridge, world, rune.asset_manager(game), scene_view) {
 		example_text.draw("No active Camera3D entity", 24, 24, 28, rl.MAROON)
-		return
 	}
-	example_text.draw("Rune Third-Person Controller", 24, 24, 28, rl.DARKGRAY)
-	example_text.draw("WASD: move   Space: jump   Mouse wheel: zoom", 24, 60, 18, rl.DARKGRAY)
-	example_text.draw("Left mouse: orbit camera   Right mouse: orbit and turn player", 24, 86, 18, rl.GRAY)
-	example_text.draw("Static boxes and sphere collide.", 24, 110, 18, rl.GRAY)
-	rl.DrawFPS(24, 130)
+}
+
+on_draw_ui :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	example_text.draw("Rune Third Person Controller", 24, 24, 28, rl.RAYWHITE)
+	example_text.draw("WASD move | Space jump | Shift sprint | Ctrl crouch | Wheel zoom", 24, 60, 18, rl.RAYWHITE)
+	example_text.draw("Left-drag orbit | Right-drag orbit and face camera direction | F3 gizmos", 24, 86, 18, rl.LIGHTGRAY)
+	motor, _ := ecs.get_character_controller_3d_state(world, player)
+	example_text.draw(fmt.ctprintf("Grounded: %t   Crouched: %t   Stand blocked: %t   Camera blocked: %t",
+		motor.grounded, motor.crouched, motor.stand_blocked, camera_state.obstructed), 24, 112, 18, rl.LIGHTGRAY)
+	example_text.draw("Blue ramps | Orange stairs | Purple crawl tunnel | Green moving platform", 24, 138, 18, rl.RAYWHITE)
+	example_text.draw(fmt.ctprintf("%d FPS",rl.GetFPS()),24,164,18,rl.GREEN)
+	draw_interaction_ui(world)
 }
 
 main :: proc() {
 	game, ok := rune.init("examples/third_person_3d/project.json")
-	if !ok { fmt.eprintln("Could not load examples/third_person_3d/project.json"); return }
+	if !ok {fmt.eprintln("Could not load examples/third_person_3d/project.json"); return}
 	defer rune.shutdown(&game)
-	if !example_text.init(&game.assets) { fmt.eprintln("Could not load shared example font"); return }
-
-	if !rune.register_system(
-		&game,
-		{
-			name = "third_person_3d",
-			start = initialize_scene,
-			update = on_update,
-			draw = on_draw,
-			on_scene_reloaded = initialize_scene,
-			shutdown = shutdown_scene,
-		},
-	) {
+	if !example_text.init(&game.assets) {fmt.eprintln("Could not load shared example font"); return}
+	if !ecs.register_component(rune.component_registry(&game), "ThirdPersonController",
+		Third_Person_Settings, Third_Person_Defaults, "Third-person orbit camera, facing, and footstep tuning") {
+		fmt.eprintln("Could not register ThirdPersonController")
+		return
+	}
+	if !rune.register_system(&game, {
+		name = "third_person_3d",
+		start = initialize_scene,
+		ui_update = sample_controls,
+		fixed_update = fixed_update,
+		post_physics = update_footsteps,
+		update = update_gameplay,
+		draw = on_draw,
+		draw_ui = on_draw_ui,
+		on_scene_reloaded = initialize_scene,
+		shutdown = shutdown_scene,
+	}) {
 		fmt.eprintln("Could not register third-person system")
 		return
 	}
-	if !rune.run(&game) {
-		fmt.eprintln("Could not run startup scene: ", rune.last_scene_error())
-	}
+	if !rune.run(&game) {fmt.eprintln("Could not run startup scene: ", rune.last_scene_error())}
 }

@@ -43,6 +43,8 @@ Available engine commands:
 | `status` | Scene, frame number, simulation time, fixed-step count, FPS, pause state, active 2D/3D cameras, entity count, and recent errors. |
 | `entities [component]` | Sorted entity IDs, names, parents, and component names; optionally filter by registered component. |
 | `inspect <entity-id> [component]` | Current runtime component values and hierarchy. Runtime-only entities use the `@handle` returned by `entities`; handles expire on reload. |
+| `enable <entity-id>` / `disable <entity-id>` | Change the entity's local activation setting without saving files. Disabled ancestors keep descendants inactive; descendants retain their own local settings. See [entity activation](entity_features.md#entity-activation). |
+| `window [windowed\|borderless\|fullscreen]` | Inspect the current display or change window mode. Return mode, screen and framebuffer dimensions, DPI, high-DPI support, and resizable state. Changes do not save project settings. See [display settings](display.md#code-and-console). |
 | `pause` / `resume` | Stop/start simulation updates while rendering, console polling, hot reload, and audio servicing continue. |
 | `step [count]` | While paused, advance 1–600 simulation updates using the fixed timestep, one per rendered frame. Default: 1. Reply arrives after completion; the game remains paused. |
 | `input <action> press\|release\|clear` | Override a mapped input action. Edges are consumed by simulation, so a press while paused reaches the next step. `release` holds the action up; `clear` restores physical input. |

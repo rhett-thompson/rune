@@ -46,6 +46,7 @@ Default_Layer: u8 : 0
 Default_Layer_Mask: u64 : u64(1) << Default_Layer
 
 World :: struct {
+	navigation_3d: Navigation_Runtime_3D,
 	character_controllers_3d: map[Entity]CharacterController3D,
 	character_controller_states_3d: map[Entity]Character_Controller_State_3D,
 	character_controllers_2d: map[Entity]CharacterController2D,
@@ -239,6 +240,7 @@ init :: proc() -> World {
 // straightforward.
 destroy :: proc(world: ^World) {
 	if world == nil {return}
+	destroy_navigation_3d(world)
 	for _, &state in world.particle_states_2d {particles.destroy(&state)}
 	delete(world.particle_states_2d)
 	delete(world.particle_emitters_2d)
@@ -748,6 +750,8 @@ remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
 	}
 
 	name := retain_scene_string(world, name)
+	if name == "NavAgent3D" {remove_navigation_agent_3d(world,entity)}
+	if name == "NavMesh3D" {remove_navigation_mesh_3d(world,entity)}
 	record_component_change(world, entity, name, .Removed)
 	invalidate_component_physics(world, entity, name)
 	delete_key(&components, entity)

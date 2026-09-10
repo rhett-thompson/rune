@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Rune navigation bake",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["scene", "output"],
+  "properties": {
+    "$schema": {"type": "string"},
+    "project_root": {"type": "string", "default": ".", "description": "Relative to this bake config; scene, output and terrain assets are relative to this root."},
+    "scene": {"type": "string", "minLength": 1},
+    "output": {"type": "string", "pattern": "\\.navmesh\\.json$"},
+    "settings": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "cell_size": {"type": "number", "minimum": 0.01, "maximum": 1000, "default": 0.5},
+        "agent_radius": {"type": "number", "minimum": 0, "default": 0.4, "description": "At most 32 times cell_size. Clearance rounds up to whole cells."},
+        "agent_height": {"type": "number", "exclusiveMinimum": 0, "maximum": 10000, "default": 2},
+        "max_slope": {"type": "number", "minimum": 0, "exclusiveMaximum": 89, "default": 45}
+      }
+    }
+  }
+}

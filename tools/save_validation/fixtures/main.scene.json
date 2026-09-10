@@ -1,0 +1,9 @@
+{
+  "name": "Checkpoint fixture",
+  "entities": [
+    {"id":"player","components":{"Transform":{"position":[1,2,3]},"Health":{"current":100},"Inventory":{"items":["key"]},"Link":{"target":{"id":"door"}},"Timer":{"remaining":10}}},
+    {"id":"door","components":{"Transform":{},"Health":{"current":50}}},
+    {"id":"guard","children":[{"id":"guard_child","components":{"Transform":{}}}]},
+    {"id":"hidden","enabled":false,"components":{"Transform":{}}}
+  ]
+}

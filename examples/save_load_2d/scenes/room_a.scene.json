@@ -1,0 +1,8 @@
+{
+  "name": "Room A",
+  "entities": [
+    {"id":"camera","components":{"Transform":{},"Camera2D":{"active":true}}},
+    {"id":"player","components":{"Transform":{"position":[200,280,0]},"ShapeRenderer2D":{"size":[40,40],"color":[100,190,255,255]},"Health":{"current":100}}},
+    {"id":"chest","components":{"Transform":{"position":[650,280,0]},"ShapeRenderer2D":{"size":[60,45],"color":[245,190,80,255]}}}
+  ]
+}

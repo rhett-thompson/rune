@@ -4,7 +4,9 @@
 mover queries. It handles walking, sprinting, acceleration, braking, air control,
 gravity, jumping, slopes, ground snapping, stairs, crouching, and moving supports.
 Game code supplies movement and jump requests and owns the camera. The
-[first-person example](../examples/first_person_3d/README.md) demonstrates it.
+[first-person example](../examples/first_person_3d/README.md) and
+[third-person example](../examples/third_person_3d/README.md) demonstrate it with
+the same movement course and different camera controls.
 
 ## Setup
 
@@ -161,5 +163,5 @@ pushing, filtering, fast casts, fixed-step timing, configuration, scene reloads,
 and lifecycle resets. It is also discovered by `tools/validate.ps1`.
 
 The older `CharacterController` / `ecs.move_character` remains available for
-existing projects, including the third-person example. New projects can use
-this motor with either first- or third-person camera code.
+existing projects. Both the first- and third-person examples use the new motor;
+their camera controls and character visuals remain game-owned.

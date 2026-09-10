@@ -58,6 +58,10 @@ destroy_registry :: proc(registry: ^Component_Registry) {
 
 register_builtin_components :: proc(registry: ^Component_Registry) -> bool {
 	ok := true
+	ok = register_component_type(registry,"NavMesh3D",NavMesh3D,NavMesh3D{},"World-space triangle navigation surface") && ok
+	ok = register_component_type(registry,"Interactable3D",Interactable3D,Default_Interactable_3D,"Character interaction target") && ok
+	ok = register_component_type(registry,"Interactor3D",Interactor3D,Default_Interactor_3D,"Character interaction reach and visibility") && ok
+	ok = register_component_type(registry,"NavAgent3D",NavAgent3D,default_nav_agent_3d(),"Fixed-step 3D navigation agent") && ok
 	ok = register_builtin_component(registry, "Terrain", Terrain, "Heightmap terrain with chunked rendering and static triangle collision") && ok
 	ok = register_builtin_component(registry, "Skybox", Skybox, "3D scene or camera sky background") && ok
 	ok = register_builtin_component(registry, "PostProcessing", PostProcessing, "3D scene or camera post-processing profile") && ok
@@ -221,6 +225,7 @@ typed_component_create_proc :: proc($T: typeid) -> Typed_Component_Create_Proc {
 			if marshal_error != nil || json.unmarshal(bytes, value, allocator = allocator) != nil {
 				return nil, false
 			}
+			when T == NavMesh3D || T == NavAgent3D || T == Interactable3D || T == Interactor3D {if !component_value_valid(value^) {return nil,false}}
 			return any{data = value, id = typeid_of(T)}, true
 		}
 }

@@ -10,6 +10,7 @@ import "rune:jsonutil"
 import "rune:ecs"
 import "rune:prefab"
 import "rune:terrain"
+import "rune:navigation"
 
 // Diagnostic describes one authoring problem. `path` is a JSON-style field
 // path, so the same report can later be shown by command-line tools or an
@@ -411,6 +412,25 @@ validate_components :: proc(
 			if _, valid := ecs.post_processing_from_json(value); !valid {
 				add(report, file, field_path(path, name), "invalid post-processing profile: check effect fields, lowercase modes, finite ranges, fog end > start, and max_ev >= min_ev (see docs/post-processing.md)")
 			}
+		}
+		if name == "Interactable3D" || name == "Interactor3D" {
+			valid:bool
+			if name=="Interactable3D" {_,valid=ecs.interaction_component_3d_from_json(value,ecs.Interactable3D)}
+			else {_,valid=ecs.interaction_component_3d_from_json(value,ecs.Interactor3D)}
+			if !valid {add(report,file,field_path(path,name),"invalid interaction settings: use a nonempty prompt, finite offset, nonnegative hold time, positive range, and half-angle from 0 to 180")}
+			if _,exists:=components["Transform"]; !exists {add(report,file,field_path(path,name),"3D interaction components require Transform")}
+		}
+		if name == "NavMesh3D" {
+			config,valid:=ecs.nav_component_3d_from_json(value,ecs.NavMesh3D)
+			if !valid {add(report,file,field_path(path,name),"NavMesh3D requires an asset path")}
+			else if project_directory!="" {
+				mesh,error:=navigation.load_mesh_3d(path_from(report,project_directory,config.asset))
+				if error!="" {add(report,file,field_path(field_path(path,name),"asset"),error)} else {navigation.destroy_mesh_3d(&mesh)}
+			}
+		}
+		if name == "NavAgent3D" {
+			if _,valid:=ecs.nav_component_3d_from_json(value,ecs.NavAgent3D); !valid {add(report,file,field_path(path,name),"NavAgent3D requires a mesh entity reference, finite nonnegative settings, positive height/arrival/repath values, and slope below 89 degrees")}
+			if _,exists:=components["Transform"]; !exists {add(report,file,field_path(path,name),"NavAgent3D requires an unparented unit-scale Transform")}
 		}
 		if name == "Skybox" {
 			sky, valid := ecs.skybox_from_json(value)

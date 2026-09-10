@@ -26,11 +26,16 @@ their game-specific fields are not completed by the built-in schemas.
 
 ## Current capabilities
 
+- [3D navigation](docs/navigation-3d.md): navmesh baking from static geometry and heightmap terrain, path queries, fixed-step agents, capsule-controller integration, and hot reload. Try [Navigation 3D](examples/navigation_3d/README.md).
+
+- [Checkpoint saves](docs/save-load.md): opt-in components, game globals, spawned/deleted entities, per-scene progress, backups, and migrations. Try [Checkpoint Saves](examples/save_load_2d/README.md).
+
 - [Heightmap terrain](docs/terrain.md): chunked 3D landscapes, matching native collision, PNG/r16 heightmaps, and hot reload. Try [Highland Walk](examples/terrain_3d/README.md).
 
 - [Audio mixer buses](docs/audio-mixer.md): master/music/SFX/UI volume, mute, and fades.
 - [2D resolution policies](docs/display.md): fit, stretch, integer scaling, and canvas mouse mapping.
 - [3D character controller](docs/character-controller-3d.md): fixed-step capsule movement, slopes, stairs, crouching, and moving platforms.
+- [3D interactions](docs/interactions-3d.md): character reach, facing and visibility checks, press/hold actions, and prompts. The third-person course includes a door, pickup, and guide.
 - [Animation transitions](docs/animation-transitions.md): queued sprite clips and skeletal pose blends.
 - [3D post processing](docs/post-processing.md): scene/camera profiles, bloom, tone mapping, occlusion, focus, and hot reload. Try [Post Processing 3D](examples/post_processing_3d/README.md).
 
@@ -65,11 +70,22 @@ Windows installation is needed to use the scripts. Linux verification is pending
 the first successful Linux run; macOS is not yet a release target.
 
 Use the official GitHub repository's clone URL with `git clone --recurse-submodules`.
-Inside the resulting Rune checkout, initialize any missing submodules and check
-the compiler:
+
+**Install r3d before running 3D examples, including First Person 3D.** From the
+Rune checkout, run this command to download the pinned r3d bindings and native
+libraries into `third_party/r3d-odin`:
 
 ```powershell
 git submodule update --init --recursive
+```
+
+This is required if you cloned without `--recurse-submodules`; it is safe to run
+again if the dependency is already installed. The launcher does not download
+r3d automatically. Without it, examples that use r3d cannot build.
+
+Then check the compiler:
+
+```powershell
 odin version
 ```
 
@@ -363,10 +379,13 @@ odin run examples/scene_transition_2d -collection:rune=rune
 [`third_person_3d`](examples/third_person_3d) demonstrates a code-driven
 third-person controller: the player and active camera are separate JSON
 entities, while Odin moves the player relative to camera yaw and updates the
-follow camera. The JSON scene supplies `CharacterController`, static
-`BoxCollider`, and `SphereCollider` components. Use WASD to move, Space to
-jump, use the mouse wheel to zoom, hold the left mouse button to orbit only
-the camera, or hold the right mouse button to orbit and turn the player.
+follow camera. It uses the same `CharacterController3D` capsule motor and movement
+course as the first-person example: ramps, stairs, a crawl tunnel, a moving
+platform, and a pushable crate. Use WASD to move, Space to jump, Shift to sprint,
+Ctrl to crouch, and the mouse wheel to zoom. Hold the left mouse button to orbit
+the camera, or the right mouse button to orbit and turn the player. The visible
+character follows the motor's crouch height; the camera pulls inward around
+obstacles. See the [example guide](examples/third_person_3d/README.md) for tuning.
 
 ```powershell
 odin run examples/third_person_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin

@@ -47,6 +47,7 @@
         "textures": { "type": "boolean", "default": true },
         "models": { "type": "boolean", "default": true },
         "terrains": { "type": "boolean", "default": true },
+        "navmeshes": { "type": "boolean", "default": true },
         "materials": { "type": "boolean", "default": true },
         "animations": { "type": "boolean", "default": true },
         "tilesets": { "type": "boolean", "default": true }

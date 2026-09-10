@@ -2,6 +2,7 @@
   "$schema": "../../../schemas/scene.schema.json",
   "name": "Highland Walk",
   "entities": [
+    {"id":"navigation", "components":{"NavMesh3D":{"asset":"terrain.baked.navmesh.json"}}},
     {"id":"terrain", "name":"Highlands", "components":{
       "Transform":{"position":[-128,0,-128]},
       "Terrain":{"asset":"assets/hills.terrain.json"}

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "save.schema.json",
+  "title": "Rune checkpoint save",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format_version", "game_id", "game_version", "active_scene", "globals", "scenes"],
+  "properties": {
+    "format_version": {"const": 1},
+    "game_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,80}$"},
+    "game_version": {"type": "integer", "minimum": 1},
+    "active_scene": {"type": "string", "minLength": 1},
+    "globals": {},
+    "scenes": {"type": "object", "additionalProperties": {"$ref": "#/$defs/scene"}}
+  },
+  "$defs": {
+    "ids": {"type": ["array", "null"], "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "scene": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseline", "policies", "entities", "removed"],
+      "properties": {
+        "baseline": {"$ref": "#/$defs/ids"},
+        "policies": {"$ref": "#/$defs/ids"},
+        "removed": {"$ref": "#/$defs/ids"},
+        "entities": {"type": "object", "propertyNames": {"minLength": 1}, "additionalProperties": {"$ref": "#/$defs/entity"}}
+      }
+    },
+    "entity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["spawned", "name", "tag", "parent", "layers", "enabled", "components", "state"],
+      "properties": {
+        "spawned": {"type": "boolean"},
+        "name": {"type": "string"},
+        "tag": {"type": "string"},
+        "parent": {"type": "string"},
+        "layers": {"type": "integer", "minimum": 1},
+        "enabled": {"type": "boolean"},
+        "components": {"type": "object", "description": "Registered component values, or full JSON configuration for tracked spawns."},
+        "state": {"type": "object", "description": "Game-defined adapter payloads, keyed by registered component name."}
+      }
+    }
+  }
+}

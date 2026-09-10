@@ -15,6 +15,7 @@ import "rune:gizmos"
 import "rune:input"
 import "rune:render"
 import "rune:scene"
+import "rune:save"
 import "rune:validation"
 import rl "vendor:raylib"
 
@@ -33,6 +34,7 @@ Window_Settings :: struct {
 }
 
 Hot_Reload_Settings :: struct {
+	navmeshes:        bool,
 	enabled:          bool,
 	poll_interval_ms: i32,
 	scenes:           bool,
@@ -47,6 +49,7 @@ Hot_Reload_Settings :: struct {
 
 default_hot_reload_settings :: proc() -> Hot_Reload_Settings {
 	return Hot_Reload_Settings {
+		navmeshes = true,
 		enabled = true,
 		poll_interval_ms = 250,
 		scenes = true,
@@ -95,10 +98,18 @@ System :: struct {
 	// Draw after the reference canvas is presented, at native UI resolution.
 	draw_ui:           System_Draw_Proc,
 	on_scene_reloaded: System_Reload_Proc,
+	// Save-enabled games use this instead of start after restoring a world.
+	on_save_restored:  System_Reload_Proc,
+	// Capture game-owned global progress before a checkpoint or scene departure.
+	before_save:       System_Update_Proc,
 	shutdown:          System_Update_Proc,
 }
 
 Engine :: struct {
+	saves:              save.Manager,
+	save_request:       Save_Request,
+	save_result:        Save_Result,
+	save_processing:    bool,
 	canvas:             render.Canvas,
 	window:             Window_State,
 	debug:              Debug_State,
@@ -389,6 +400,10 @@ load_active_scene :: proc(engine: ^Engine, path: string) -> bool {
 	if engine.has_active_world {ecs.destroy(&engine.active_world)}
 	engine.active_world = world
 	engine.has_active_world = true
+	if engine.saves.initialized {
+		absolute_path, _ := filepath.abs(resolved_path, context.temp_allocator)
+		return save.begin_scene(&engine.saves, &engine.active_world, absolute_path)
+	}
 	return true
 }
 
@@ -396,8 +411,11 @@ load_active_scene :: proc(engine: ^Engine, path: string) -> bool {
 // system lifecycle. The old scene remains active when the new scene cannot be
 // loaded. Calls made by an update system take effect immediately, before the
 // remaining systems and draw phase run.
+// With saves configured, the change is queued for the next frame boundary and
+// carries per-scene progress; inspect last_save_result for completion.
 change_scene :: proc(engine: ^Engine, path: string) -> bool {
 	if engine == nil || !engine.has_active_world || len(path) == 0 {return false}
+	if engine.saves.initialized {return request_saved_scene(engine, path)}
 	resolved_path := path
 	joined_path: string
 	defer if len(joined_path) > 0 {delete(joined_path)}
@@ -602,11 +620,13 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 			mem.dynamic_arena_reset(&frame_arena)
 		}
 		begin_frame(engine)
+		if world == &engine.active_world {process_save_requests(engine)}
 		if len(engine.active_scene_path) > 0 &&
 		   reload_scene_if_changed(engine, world, engine.active_scene_path) {
 			run_scene_reload_systems(engine, world)
 		}
 		ecs.sync_terrains(world, &engine.assets)
+		ecs.sync_navigation_3d(world, &engine.assets)
 		render.update_tilesets(world, &engine.assets)
 		for system in engine.systems {
 			if system.ui_update != nil {system.ui_update(engine, world)}
@@ -688,6 +708,7 @@ is_paused :: proc(engine: ^Engine) -> bool {
 
 run_start_systems :: proc(engine: ^Engine, world: ^ecs.World) {
 	ecs.sync_terrains(world,&engine.assets)
+	ecs.sync_navigation_3d(world,&engine.assets)
 	for system in engine.systems {
 		if system.start != nil {system.start(engine, world)}
 	}
@@ -700,6 +721,7 @@ run_fixed_pipeline :: proc(engine: ^Engine, world: ^ecs.World) {
 		for system in engine.systems {
 			if system.fixed_update != nil {system.fixed_update(engine, world)}
 		}
+		ecs.update_navigation_3d(world, engine.fixed_delta_time)
 		ecs.physics_2d_update(world, engine.fixed_delta_time)
 		ecs.physics_3d_update(world, engine.fixed_delta_time)
 		for system in engine.systems {
@@ -739,6 +761,7 @@ run_pre_draw_systems :: proc(engine: ^Engine, world: ^ecs.World) {
 
 run_scene_reload_systems :: proc(engine: ^Engine, world: ^ecs.World) {
 	ecs.sync_terrains(world,&engine.assets)
+	ecs.sync_navigation_3d(world,&engine.assets)
 	for system in engine.systems {
 		if system.on_scene_reloaded != nil {system.on_scene_reloaded(engine, world)}
 	}
@@ -780,6 +803,9 @@ begin_frame :: proc(engine: ^Engine) {
 	}
 	if engine.hot_reload_due && engine.project.hot_reload.enabled && engine.project.hot_reload.terrains {
 		assets.refresh_terrains(&engine.assets)
+	}
+	if engine.hot_reload_due && engine.project.hot_reload.enabled && engine.project.hot_reload.navmeshes {
+		assets.refresh_navmeshes(&engine.assets)
 	}
 	if engine.hot_reload_due &&
 	   engine.project.hot_reload.enabled &&
@@ -841,6 +867,9 @@ hot_reload_poll_due :: proc(engine: ^Engine) -> bool {
 
 shutdown :: proc(engine: ^Engine) {
 	if engine.is_running {
+		delete(engine.save_request.name)
+		engine.save_request = {}
+		save.destroy(&engine.saves)
 		if engine.console.defer_reply {
 			engine.console.defer_reply = false
 			engine.console.result_data = {}

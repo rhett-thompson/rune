@@ -119,11 +119,19 @@ load_manifest :: proc() -> (Manifest, bool) {
 	return manifest, true
 }
 
-run_example :: proc(example: Example) -> int {
+run_example :: proc(example: Example) -> (int, string) {
 	close_window()
+	for collection in example.collections {
+		if collection.name == "r3d" && !os.is_dir(fmt.tprintf("%s/r3d", collection.path)) {
+			message := "Missing r3d. Run: git submodule update --init --recursive"
+			fmt.eprintln(message)
+			return -1, message
+		}
+	}
 	fmt.printf("Building and running %s...\n", example.name)
 
 	command := make([dynamic]string)
+	defer delete(command)
 	append(&command, "odin")
 	append(&command, "run")
 	append(&command, fmt.tprintf("examples/%s", example.path))
@@ -134,7 +142,7 @@ run_example :: proc(example: Example) -> int {
 	}
 	if error := os.make_directory_all("build"); error != nil {
 		fmt.eprintln("Could not create build directory: ", error)
-		return -1
+		return -1, "Could not create build directory. See terminal for details."
 	}
 	append(&command, fmt.tprintf("-out:build/%s%s", example.path, output_suffix))
 	for collection in example.collections {
@@ -144,15 +152,15 @@ run_example :: proc(example: Example) -> int {
 		{command = command[:], stdin = os.stdin, stdout = os.stdout, stderr = os.stderr},
 	)
 	if start_error != nil {
-		fmt.eprintln("Could not start Odin. Make sure `odin` is on PATH.")
-		return -1
+		fmt.eprintln("Could not start Odin. Make sure `odin` is on PATH: ", start_error)
+		return -1, "Could not start Odin. Make sure odin is on PATH."
 	}
 	state, wait_error := os.process_wait(process)
 	if wait_error != nil {
-		fmt.eprintln("Could not wait for the example process.")
-		return -1
+		fmt.eprintln("Could not wait for the example process: ", wait_error)
+		return -1, "Could not wait for the example process. See terminal for details."
 	}
-	return state.exit_code
+	return state.exit_code, ""
 }
 
 open_window :: proc() {
@@ -184,6 +192,7 @@ main :: proc() {
 	selected := 0
 	scroll := 0
 	last_exit_code := 0
+	last_error := ""
 	has_run := false
 	open_window()
 
@@ -246,7 +255,7 @@ main :: proc() {
 		}
 
 		if launch {
-			last_exit_code = run_example(manifest.examples[filtered[selected]])
+			last_exit_code, last_error = run_example(manifest.examples[filtered[selected]])
 			has_run = true
 			open_window()
 		}
@@ -310,6 +319,11 @@ main :: proc() {
 		footer := "Left/Right: category     Up/Down or wheel: example     Enter: run"
 		if has_run {
 			footer = fmt.tprintf("Example exited with code %d", last_exit_code)
+			if last_error != "" {
+				footer = last_error
+			} else if last_exit_code != 0 {
+				footer = fmt.tprintf("Build or example failed with code %d. See terminal for details.", last_exit_code)
+			}
 		}
 		example_text.draw(fmt.ctprintf("%s", footer), 36, 780, 16, rl.Color{154, 164, 184, 255})
 		rl.EndDrawing()

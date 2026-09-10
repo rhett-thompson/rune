@@ -1,0 +1,8 @@
+{
+  "name": "Checkpoint Saves",
+  "startup_scene": "scenes/room_a.scene.json",
+  "window": {"width": 900, "height": 550, "title": "Rune Checkpoint Saves", "vsync": true},
+  "background_color": [20, 25, 38, 255],
+  "input": "input/default.input.json",
+  "hot_reload": {"enabled": false}
+}

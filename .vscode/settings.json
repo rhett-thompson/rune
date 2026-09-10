@@ -1,5 +1,8 @@
 {
   "json.schemas": [
+    {"fileMatch":["**/*.navbake.json"],"url":"./schemas/navbake.schema.json"},
+    {"fileMatch":["**/*.navmesh.json"],"url":"./schemas/navmesh.schema.json"},
+    {"fileMatch": ["**/*.save.json", "**/*.save.json.bak"], "url": "./schemas/save.schema.json"},
     {"fileMatch": ["**/*.terrain.json"], "url": "./schemas/terrain.schema.json"},
     {
       "fileMatch": ["**/project.json"],

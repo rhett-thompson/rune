@@ -1,0 +1,7 @@
+{
+  "$schema": "../../schemas/navbake.schema.json",
+  "project_root": ".",
+  "scene": "scenes/main.scene.json",
+  "output": "course.baked.navmesh.json",
+  "settings": {"cell_size": 0.25, "agent_radius": 0.4, "agent_height": 2, "max_slope": 45}
+}

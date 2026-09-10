@@ -17,6 +17,7 @@ yaw: f32
 pitch: f32 = -12
 captured: bool
 console_was_open: bool
+show_navigation: bool
 
 set_mouse_capture :: proc(enabled: bool) {
 	captured = enabled
@@ -58,6 +59,7 @@ controls :: proc(game:^rune.Engine,world:^ecs.World) {
 		set_mouse_capture(!captured)
 		return // Ignore mouse warping on the capture frame.
 	}
+	if rl.IsKeyPressed(.N) {show_navigation=!show_navigation}
 	if !captured && capture.pressed {
 		set_mouse_capture(true)
 		return
@@ -96,21 +98,40 @@ update :: proc(game:^rune.Engine,world:^ecs.World) {
 	ecs.set_camera_3d(world,camera_entity,camera)
 }
 
-draw :: proc(game:^rune.Engine,world:^ecs.World) {r3d_bridge.draw_scene(&bridge,world,rune.asset_manager(game))}
+draw :: proc(game:^rune.Engine,world:^ecs.World) {
+	r3d_bridge.draw_scene(&bridge,world,rune.asset_manager(game))
+	if !show_navigation {return}
+	entity,found:=ecs.find_entity_by_id(world,"navigation");if !found {return}
+	mesh,ready:=ecs.navigation_mesh_3d(world,entity);if !ready {return}
+	t,_:=ecs.get_transform(world,camera_entity);camera,_:=ecs.get_camera_3d(world,camera_entity)
+	rl.BeginMode3D({position=t.position,target=camera.target,up={0,1,0},fovy=camera.fovy,projection=.PERSPECTIVE})
+	for triangle in mesh.triangles {
+		offset:=[3]f32{0,0.15,0}
+		a,b,c:=mesh.vertices[triangle.vertices[0]]+offset,mesh.vertices[triangle.vertices[1]]+offset,mesh.vertices[triangle.vertices[2]]+offset
+		rl.DrawLine3D(a,b,{255,220,85,255});rl.DrawLine3D(b,c,{255,220,85,255});rl.DrawLine3D(c,a,{255,220,85,255})
+	}
+	rl.EndMode3D()
+}
 draw_ui :: proc(game:^rune.Engine,world:^ecs.World) {
-	rl.DrawRectangle(16,16,670,136,{14,24,30,210})
+	rl.DrawRectangle(16,16,720,162,{14,24,30,210})
 	example_text.draw("Rune / Highland Walk",30,28,28,rl.RAYWHITE)
 	example_text.draw("WASD move | Shift sprint | Space jump | Escape mouse | R reset",30,65,18,rl.RAYWHITE)
 	example_text.draw("Edit assets/hills.png or hills.terrain.json to reload the landscape",30,93,16,rl.LIGHTGRAY)
 	example_text.draw("Mouse look active | Escape releases cursor" if captured else "Mouse released | Click window or press Escape to look around",30,119,16,rl.RAYWHITE)
+	example_text.draw("N baked navigation mesh | Re-run navmesh_baker after terrain edits",30,145,16,{255,220,85,255})
 	rl.DrawFPS(rl.GetScreenWidth()-100,24)
 }
 shutdown :: proc(game:^rune.Engine,world:^ecs.World) {r3d_bridge.shutdown(&bridge); set_mouse_capture(false)}
+navigation_command :: proc(c:^console.Console,args:string) {
+	show_navigation=!show_navigation
+	console.info(c,"Baked navigation overlay enabled" if show_navigation else "Baked navigation overlay disabled")
+}
 
 main :: proc() {
 	game,ok := rune.init("examples/terrain_3d/project.json")
 	if !ok {fmt.eprintln("Could not load terrain project"); return}
 	defer rune.shutdown(&game)
+	console.register(rune.developer_console(&game),"navmesh","Toggle the baked terrain navigation overlay.",navigation_command)
 	if !example_text.init(&game.assets) { fmt.eprintln("Could not load shared example font"); return }
 	rune.register_system(&game,{name="terrain",start=start,ui_update=controls,fixed_update=fixed_update,update=update,draw=draw,draw_ui=draw_ui,on_scene_reloaded=start,shutdown=shutdown})
 	if !rune.run(&game) {fmt.eprintln(rune.last_scene_error())}

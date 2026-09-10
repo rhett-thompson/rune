@@ -2,7 +2,12 @@
   "$schema": "../../schemas/project.schema.json",
   "name": "Rune Third Person 3D",
   "startup_scene": "scenes/main.scene.json",
-  "background_color": [135, 186, 235, 255],
+  "background_color": [
+    38,
+    49,
+    67,
+    255
+  ],
   "window": {
     "width": 1280,
     "height": 720,
@@ -12,15 +17,18 @@
     "msaa_4x": true
   },
   "gizmos": {
-    "enabled": true,
+    "enabled": false,
     "transforms": true,
     "cameras": true,
     "physics_2d": true,
     "physics_3d": true,
     "tilemaps": true,
     "audio": true,
-    "transform_size": 24
+    "transform_size": 0.5
   },
   "input": "input/default.input.json",
-  "layers": { "Gameplay": 1, "Player": 2 }
+  "layers": {
+    "Gameplay": 1,
+    "Player": 2
+  }
 }

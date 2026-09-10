@@ -1,11 +1,14 @@
 {
   "$schema": "../../../schemas/input.schema.json",
   "actions": {
+    "interact": [{ "type": "keyboard", "key": "E" }],
     "move_forward": [{ "type": "keyboard", "key": "W" }],
     "move_back": [{ "type": "keyboard", "key": "S" }],
     "move_left": [{ "type": "keyboard", "key": "A" }],
     "move_right": [{ "type": "keyboard", "key": "D" }],
     "jump": [{ "type": "keyboard", "key": "SPACE" }],
+    "sprint": [{ "type": "keyboard", "key": "LEFT_SHIFT" }],
+    "crouch": [{ "type": "keyboard", "key": "LEFT_CONTROL" }],
     "orbit_camera": [{ "type": "mouse_button", "button": "LEFT" }],
     "orbit_with_character": [{ "type": "mouse_button", "button": "RIGHT" }]
   },

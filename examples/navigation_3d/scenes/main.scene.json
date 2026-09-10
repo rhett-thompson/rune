@@ -1,0 +1,12 @@
+{
+  "name":"Navigation course",
+  "entities":[
+    {"id":"navigation","components":{"NavMesh3D":{"asset":"course.baked.navmesh.json"}}},
+    {"id":"agent","components":{"Transform":{"position":[-7,0,3]},"NavAgent3D":{"mesh":{"id":"navigation"},"speed":3,"radius":0.35,"height":1.8,"drive_controller":true},"CharacterController3D":{"move_speed":3,"radius":0.35}}},
+    {"id":"lower_floor","components":{"Transform":{"position":[-5.25,-0.25,0]},"BoxCollider":{"size":[6.5,0.5,9]}}},
+    {"id":"upper_floor","components":{"Transform":{"position":[5.25,1.75,0]},"BoxCollider":{"size":[6.5,0.5,9]}}},
+    {"id":"ramp","components":{"Transform":{"position":[0.04472136,0.9105573,0],"rotation":[0,0,26.565051]},"BoxCollider":{"size":[4.472136,0.2,4.8]}}},
+    {"id":"obstacle","components":{"Transform":{"position":[-5,0.7,-1]},"BoxCollider":{"size":[1.3,1.4,1.3]}}},
+    {"id":"island","components":{"Transform":{"position":[11,-0.25,1]},"BoxCollider":{"size":[3,0.5,3]}}}
+  ]
+}

@@ -34,6 +34,10 @@ sudo apt-get install -y build-essential clang cmake curl git ca-certificates \
 Use the official GitHub repository's clone URL with `git clone --recurse-submodules`,
 then run these commands from the Rune checkout:
 
+**The submodule command installs r3d, required for 3D examples such as First Person
+3D.** Run it before launching those examples; the launcher does not download the
+dependency automatically. It is safe to repeat if r3d is already installed.
+
 ```bash
 git submodule update --init --recursive
 pwsh -NoProfile -File tools/install_odin.ps1 -Destination "$PWD/build/odin-toolchain"

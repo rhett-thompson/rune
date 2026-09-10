@@ -1,0 +1,14 @@
+{
+  "actions": {
+    "orbit_camera": [{"type":"mouse_button","button":"RIGHT"}],
+    "pan_camera": [{"type":"mouse_button","button":"MIDDLE"}],
+    "focus_agent": [{"type":"keyboard","key":"F"}],
+    "reset_camera": [{"type":"keyboard","key":"R"}]
+  },
+  "axes": {
+    "orbit_x": {"type":"mouse_delta","axis":"x"},
+    "orbit_y": {"type":"mouse_delta","axis":"y"},
+    "zoom": {"type":"mouse_wheel"}
+  }
+}
+
