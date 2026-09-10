@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import rune "rune:core"
 import "rune:ecs"
@@ -45,10 +47,10 @@ knight_clip_name :: proc(index: int) -> string {
 }
 
 draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
-	rl.DrawText("JSON sprite-sheet animation", 24, 24, 28, rl.RAYWHITE)
-	rl.DrawText("Tab: knight clip   Space: reverse coin", 24, 60, 18, rl.LIGHTGRAY)
-	rl.DrawText("Knight clips: idle, run, roll, hit, death", 24, 88, 18, rl.LIGHTGRAY)
-	rl.DrawText("Roll and hit queue a return to idle", 24, 116, 18, rl.LIGHTGRAY)
+	example_text.draw("JSON sprite-sheet animation", 24, 24, 28, rl.RAYWHITE)
+	example_text.draw("Tab: knight clip   Space: reverse coin", 24, 60, 18, rl.LIGHTGRAY)
+	example_text.draw("Knight clips: idle, run, roll, hit, death", 24, 88, 18, rl.LIGHTGRAY)
+	example_text.draw("Roll and hit queue a return to idle", 24, 116, 18, rl.LIGHTGRAY)
 }
 
 main :: proc() {
@@ -58,6 +60,7 @@ main :: proc() {
 		return
 	}
 	defer rune.shutdown(&game)
+	if !example_text.init(&game.assets) { fmt.eprintln("Could not load shared example font"); return }
 	if !rune.register_system(
 		&game,
 		{

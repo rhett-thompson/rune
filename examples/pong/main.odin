@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import rune "rune:core"
 import "rune:ecs"
@@ -61,6 +63,7 @@ main :: proc() {
 	}
 
 	defer rune.shutdown(&engine)
+	if !example_text.init(&engine.assets) { fmt.eprintln("Could not load shared example font"); return }
 
 	if !register_pong_components(&engine) {
 		fmt.eprintln("Could not register Pong components")

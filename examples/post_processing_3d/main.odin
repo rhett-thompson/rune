@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import rune "rune:core"
 import "rune:ecs"
@@ -38,13 +40,13 @@ draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	r3d_bridge.draw_scene_ex(&bridge, world, rune.asset_manager(game), {background_color = {9,13,22,255}})
 	value, _ := ecs.get(world, profile, ecs.PostProcessing)
 	rl.DrawRectangle(0, 0, rl.GetScreenWidth(), 140, {8,12,20,225})
-	rl.DrawText("POST PROCESSING / LIGHT GALLERY", 28, 20, 28, {225,238,255,255})
-	rl.DrawText(fmt.ctprintf("Profile: %s   |   Bloom: %s   |   SSAO: %s   |   DoF: %s   |   %v / exposure %.1fx",
+	example_text.draw("POST PROCESSING / LIGHT GALLERY", 28, 20, 28, {225,238,255,255})
+	example_text.draw(fmt.ctprintf("Profile: %s   |   Bloom: %s   |   SSAO: %s   |   DoF: %s   |   %v / exposure %.1fx",
 		"ON" if value.enabled else "OFF", "ON" if value.bloom.mode != .disabled else "OFF",
 		"ON" if value.ssao.enabled else "OFF", "ON" if value.dof.enabled else "OFF",
 		value.tonemap.mode, value.tonemap.exposure), 28, 60, 18, {135,205,230,255})
-	rl.DrawText("SPACE Compare   B Bloom   O Occlusion   D Focus   T Tone map   UP/DOWN Exposure", 28, 91, 18, {185,196,213,255})
-	rl.DrawText("Left-drag to orbit. Edit scenes/main.scene.json and save to reload.", 28, rl.GetScreenHeight()-35, 18, {210,220,235,255})
+	example_text.draw("SPACE Compare   B Bloom   O Occlusion   D Focus   T Tone map   UP/DOWN Exposure", 28, 91, 18, {185,196,213,255})
+	example_text.draw("Left-drag to orbit. Edit scenes/main.scene.json and save to reload.", 28, rl.GetScreenHeight()-35, 18, {210,220,235,255})
 }
 
 shutdown :: proc(game: ^rune.Engine, world: ^ecs.World) {r3d_bridge.shutdown(&bridge)}
@@ -53,6 +55,7 @@ main :: proc() {
 	game, ok := rune.init("examples/post_processing_3d/project.json")
 	if !ok {fmt.eprintln("Could not load post-processing project"); return}
 	defer rune.shutdown(&game)
+	if !example_text.init(&game.assets) { fmt.eprintln("Could not load shared example font"); return }
 	if !rune.register_system(&game, {name = "post_processing", start = start, on_scene_reloaded = start,
 		update = update, draw = draw, shutdown = shutdown}) {return}
 	if !rune.run(&game) {fmt.eprintln(rune.last_scene_error())}

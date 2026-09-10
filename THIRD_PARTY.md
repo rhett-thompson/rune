@@ -19,6 +19,10 @@ for reviewing every library shipped inside a prebuilt native archive.
 
 ## Example assets
 
+The examples' shared Inter font is distributed under the
+[SIL Open Font License 1.1](examples/assets/fonts/OFL.txt). Preserve that license;
+[font provenance and usage](examples/assets/fonts/README.md) record its source.
+
 [docs/asset_credits.json](docs/asset_credits.json) records the current asset groups
 and the evidence still needed. The Brackeys pack includes its own
 [license and credits](<examples/assets/brackeys_platformer_assets/LICENSE & CREDITS.txt>),

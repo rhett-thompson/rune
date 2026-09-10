@@ -1,1 +1,1 @@
-odin run examples/launcher -out:build/launcher.exe
+odin run examples/launcher -collection:rune=rune -out:build/launcher.exe

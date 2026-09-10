@@ -3,6 +3,17 @@
   "name": "First Person Blockout",
   "entities": [
     {
+      "id": "post",
+      "name": "Post Processing",
+      "components": {
+        "PostProcessing": {
+          "ssao": {
+            "enabled": true
+          }
+        }
+      }
+    },
+    {
       "id": "ambient",
       "name": "Sky Fill",
       "components": {
@@ -22,7 +33,7 @@
           "intensity": 2.2,
           "range": 60,
           "shadows": true,
-          "shadow_softness": 1.5,
+          "shadow_softness": 2.5,
           "shadow_opacity": 1
         }
       }

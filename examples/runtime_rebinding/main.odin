@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import rune "rune:core"
 import "rune:input"
@@ -36,19 +38,19 @@ on_update :: proc(game: ^rune.Engine) {
 }
 
 on_draw :: proc(game: ^rune.Engine) {
-	rl.DrawText("Runtime Key Rebinding", 32, 32, 32, rl.DARKGRAY)
-	rl.DrawText("Press R to switch the movement bindings.", 32, 80, 20, rl.GRAY)
+	example_text.draw("Runtime Key Rebinding", 32, 32, 32, rl.DARKGRAY)
+	example_text.draw("Press R to switch the movement bindings.", 32, 80, 20, rl.GRAY)
 	if using_arrow_keys {
-		rl.DrawText("Current movement keys: Left / Right", 32, 112, 22, rl.MAROON)
+		example_text.draw("Current movement keys: Left / Right", 32, 112, 22, rl.MAROON)
 	} else {
-		rl.DrawText("Current movement keys: A / D", 32, 112, 22, rl.MAROON)
+		example_text.draw("Current movement keys: A / D", 32, 112, 22, rl.MAROON)
 	}
 	rl.DrawRectangle(28, 190, 904, 4, rl.LIGHTGRAY)
 	rl.DrawCircle(i32(player_x), 192, 28, rl.SKYBLUE)
 	if last_save_succeeded {
-		rl.DrawText("Saved to input/default.input.json", 32, 250, 18, rl.DARKGREEN)
+		example_text.draw("Saved to input/default.input.json", 32, 250, 18, rl.DARKGREEN)
 	} else {
-		rl.DrawText("Could not save input/default.input.json", 32, 250, 18, rl.MAROON)
+		example_text.draw("Could not save input/default.input.json", 32, 250, 18, rl.MAROON)
 	}
 }
 
@@ -59,6 +61,7 @@ main :: proc() {
 		return
 	}
 	defer rune.shutdown(&game)
+	if !example_text.init(&game.assets) { fmt.eprintln("Could not load shared example font"); return }
 
 	left_binding, found := input.keyboard_binding(rune.input_state(&game), "move_left")
 	using_arrow_keys = found && left_binding == "LEFT"

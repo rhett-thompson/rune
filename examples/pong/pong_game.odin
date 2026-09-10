@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import "core:math"
 import "core:strings"
@@ -144,7 +146,7 @@ update_pong :: proc(game: ^Pong_Game, engine: ^rune.Engine) {
 
 center_text :: proc(text: string, width, y, size: i32, tint: rl.Color) {
 	c, _ := strings.clone_to_cstring(text, context.temp_allocator)
-	rl.DrawText(c, (width - rl.MeasureText(c, size)) / 2, y, size, tint)
+	example_text.draw(c, (width - example_text.measure(c, size)) / 2, y, size, tint)
 }
 
 draw_pong :: proc(game: ^Pong_Game) {
@@ -181,8 +183,8 @@ draw_pong :: proc(game: ^Pong_Game) {
 	ls, rs := fmt.tprintf("%d", game.match.left_score), fmt.tprintf("%d", game.match.right_score)
 	lc, _ := strings.clone_to_cstring(ls, context.temp_allocator)
 	rc, _ := strings.clone_to_cstring(rs, context.temp_allocator)
-	rl.DrawText(lc, a.width / 2 - 112 - rl.MeasureText(lc, 52) / 2, 28, 52, text)
-	rl.DrawText(rc, a.width / 2 + 112 - rl.MeasureText(rc, 52) / 2, 28, 52, text)
+	example_text.draw(lc, a.width / 2 - 112 - example_text.measure(lc, 52) / 2, 28, 52, text)
+	example_text.draw(rc, a.width / 2 + 112 - example_text.measure(rc, 52) / 2, 28, 52, text)
 	rl.DrawRectangle(
 		i32(game.left.x) - game.left.width / 2,
 		i32(game.left.y) - game.left.height / 2,
@@ -214,6 +216,6 @@ draw_pong :: proc(game: ^Pong_Game) {
 	} else if game.match.serving { center_text("PRESS SPACE TO SERVE", a.width, a.height / 2 - 12, 22, muted) }
 	mode := "1 PLAYER  |  W/S TO MOVE" if !game.match.two_player else "2 PLAYERS  |  W/S + UP/DOWN"
 	center_text(mode, a.width, a.height - 39, 16, muted)
-	rl.DrawText("P: CHANGE PLAYERS", 22, a.height - 37, 14, muted)
-	rl.DrawText("R: RESTART", a.width - 112, a.height - 37, 14, muted)
+	example_text.draw("P: CHANGE PLAYERS", 22, a.height - 37, 14, muted)
+	example_text.draw("R: RESTART", a.width - 112, a.height - 37, 14, muted)
 }

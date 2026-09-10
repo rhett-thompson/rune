@@ -13,6 +13,7 @@ $failures = [System.Collections.Generic.List[string]]::new()
 $builtValidators = [System.Collections.Generic.List[string]]::new()
 $executableSuffix = if ($IsWindows) { '.exe' } else { '' }
 $runtimeValidators = @(
+	'asset_validation',
     'terrain_validation',
     'skybox_validation', 'post_processing_validation', 'model_animation_validation', 'sprite_animation_validation',
     'particle_validation', 'component_features_validation', 'collider_2d_validation', 'polygon_2d_validation', 'resolution_validation', 'ui_validation',

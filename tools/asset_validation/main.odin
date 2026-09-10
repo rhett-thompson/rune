@@ -1,9 +1,11 @@
 package main
 
 import "core:fmt"
+import "core:os"
 import "core:strings"
 import "rune:assets"
 import "rune:validation"
+import rl "vendor:raylib"
 
 main :: proc() {
 	report := validation.validate_project("tools/asset_validation/fixtures/project.json")
@@ -28,7 +30,49 @@ main :: proc() {
 	validate_runtime_diagnostics()
 	validate_asset_cache_ownership()
 	validate_repeated_report_ownership()
+	for arg in os.args[1:] {if arg == "--runtime" {validate_fonts()}}
 	fmt.println("Asset reference validation passed")
+}
+
+validate_fonts :: proc() {
+	rl.SetConfigFlags({.WINDOW_HIDDEN})
+	rl.InitWindow(320, 200, "Font asset validation")
+	defer rl.CloseWindow()
+	manager := assets.init("build")
+	defer assets.shutdown(&manager)
+	path :: "asset-validation-font.ttf"
+	full_path :: "build/asset-validation-font.ttf"
+	data, err := os.read_entire_file("examples/assets/fonts/Inter.ttf", context.allocator)
+	assert(err == nil)
+	defer delete(data)
+	assert(os.write_entire_file(full_path, data) == nil)
+	defer os.remove(full_path)
+
+	font, ok := assets.font(&manager, path)
+	assert(ok && font.baseSize == 64)
+	assert(font.texture.id != rl.GetFontDefault().texture.id)
+	assert(font.glyphs[rl.GetGlyphIndex(font, '°')].value == '°', "Latin-1 glyphs remain available")
+	assert(rl.MeasureTextEx(font, "WWW", 20, 0).x > rl.MeasureTextEx(font, "iii", 20, 0).x)
+	cached, cached_ok := assets.font(&manager, path)
+	assert(cached_ok && cached.glyphs == font.glyphs, "font requests share an atlas")
+
+	assert(os.remove(full_path) == nil)
+	assets.refresh(&manager)
+	retained, retained_ok := assets.font(&manager, path)
+	assert(retained_ok && retained.texture.id == font.texture.id, "failed reload keeps the working font")
+	_, missing_ok := assets.font(&manager, "asset-validation-missing.ttf")
+	assert(!missing_ok && len(manager.fonts) == 1, "raylib fallback is not cached as an owned font")
+
+	assert(os.write_entire_file(full_path, data) == nil)
+	// Force a poll independently of the filesystem timestamp resolution.
+	stale := manager.fonts[path]
+	stale.modified_time = -2
+	manager.fonts[path] = stale
+	assets.refresh(&manager)
+	reloaded, reloaded_ok := assets.font(&manager, path)
+	assert(reloaded_ok && reloaded.baseSize == 64 && reloaded.texture.id != font.texture.id)
+	assert(rl.MeasureTextEx(reloaded, "Reloaded", 20, 0).x > 0)
+	fmt.println("Font loading, Latin-1 glyphs, cache ownership, reload and failure recovery passed")
 }
 
 validate_repeated_report_ownership :: proc() {

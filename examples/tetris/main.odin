@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import "core:strings"
 import rune "rune:core"
@@ -229,15 +231,15 @@ draw_piece :: proc(piece: Piece, origin_x, origin_y: int, ghost := false) {
 }
 
 draw_value :: proc(label: cstring, value: int, x, y: i32) {
-	rl.DrawText(label, x, y, 16, {128, 145, 175, 255})
+	example_text.draw(label, x, y, 16, {128, 145, 175, 255})
 	text := fmt.tprintf("%d", value)
 	c_text, _ := strings.clone_to_cstring(text, context.temp_allocator)
-	rl.DrawText(c_text, x, y + 22, 28, rl.RAYWHITE)
+	example_text.draw(c_text, x, y + 22, 28, rl.RAYWHITE)
 }
 
 draw_tetris :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 
-	rl.DrawText("RUNE BLOCKS", 34, 40, 22, {53, 214, 255, 255})
+	example_text.draw("RUNE BLOCKS", 34, 40, 22, {53, 214, 255, 255})
 
 	draw_value("SCORE", game.score, 42, 135)
 	draw_value("LINES", game.lines, 42, 215)
@@ -269,7 +271,7 @@ draw_tetris :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 	draw_piece(game.active, BOARD_X, BOARD_Y)
 
 	panel_x := BOARD_X + BOARD_W * CELL + 38
-	rl.DrawText("NEXT", i32(panel_x), 48, 18, {128, 145, 175, 255})
+	example_text.draw("NEXT", i32(panel_x), 48, 18, {128, 145, 175, 255})
 	rl.DrawRectangleLines(i32(panel_x), 76, 136, 118, {45, 59, 88, 255})
 	preview := Piece {
 		kind = game.next_kind,
@@ -283,23 +285,27 @@ draw_tetris :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 			}
 		}
 	}
-	rl.DrawText("CONTROLS", i32(panel_x), 235, 18, {128, 145, 175, 255})
-	rl.DrawText("LEFT/RIGHT  MOVE", i32(panel_x), 270, 14, rl.LIGHTGRAY)
-	rl.DrawText("DOWN        SOFT DROP", i32(panel_x), 296, 14, rl.LIGHTGRAY)
-	rl.DrawText("SPACE       HARD DROP", i32(panel_x), 322, 14, rl.LIGHTGRAY)
-	rl.DrawText("UP / Z      ROTATE", i32(panel_x), 348, 14, rl.LIGHTGRAY)
-	rl.DrawText("P           PAUSE", i32(panel_x), 374, 14, rl.LIGHTGRAY)
-	rl.DrawText("R           RESTART", i32(panel_x), 400, 14, rl.LIGHTGRAY)
+	example_text.draw("CONTROLS", i32(panel_x), 235, 18, {128, 145, 175, 255})
+	controls := [6][2]cstring {
+		{"LEFT/RIGHT", "MOVE"}, {"DOWN", "SOFT DROP"},
+		{"SPACE", "HARD DROP"}, {"UP / Z", "ROTATE"},
+		{"P", "PAUSE"}, {"R", "RESTART"},
+	}
+	for control, index in controls {
+		y := i32(270 + index * 26)
+		example_text.draw(control[0], i32(panel_x), y, 14, rl.LIGHTGRAY)
+		example_text.draw(control[1], i32(panel_x) + 90, y, 14, rl.LIGHTGRAY)
+	}
 
 	if game.paused || game.game_over {
 		rl.DrawRectangle(BOARD_X, BOARD_Y + 225, BOARD_W * CELL, 110, {5, 8, 18, 235})
 		title: cstring = "PAUSED"
 		subtitle: cstring = "P TO CONTINUE"
 		if game.game_over { title, subtitle = "GAME OVER", "R TO RESTART" }
-		title_w := rl.MeasureText(title, 30)
-		subtitle_w := rl.MeasureText(subtitle, 16)
-		rl.DrawText(title, BOARD_X + (BOARD_W * CELL - title_w) / 2, BOARD_Y + 245, 30, rl.RAYWHITE)
-		rl.DrawText(subtitle, BOARD_X + (BOARD_W * CELL - subtitle_w) / 2, BOARD_Y + 288, 16, {128, 145, 175, 255})
+		title_w := example_text.measure(title, 30)
+		subtitle_w := example_text.measure(subtitle, 16)
+		example_text.draw(title, BOARD_X + (BOARD_W * CELL - title_w) / 2, BOARD_Y + 245, 30, rl.RAYWHITE)
+		example_text.draw(subtitle, BOARD_X + (BOARD_W * CELL - subtitle_w) / 2, BOARD_Y + 288, 16, {128, 145, 175, 255})
 	}
 }
 
@@ -314,6 +320,7 @@ main :: proc() {
 	engine, ok := rune.init("examples/tetris/project.json")
 	if !ok { fmt.eprintln("Could not load examples/tetris/project.json"); return }
 	defer rune.shutdown(&engine)
+	if !example_text.init(&engine.assets) { fmt.eprintln("Could not load shared example font"); return }
 
 	if !rune.register_system(
 		&engine,

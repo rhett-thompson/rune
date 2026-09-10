@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import "core:math"
 import "core:strings"
@@ -373,7 +375,7 @@ update_tanks :: proc(game: ^Tanks_Game, engine: ^rune.Engine, scene_world: ^ecs.
 
 center_text :: proc(text: string, width, y, size: i32, tint: rl.Color) {
 	c, _ := strings.clone_to_cstring(text, context.temp_allocator)
-	rl.DrawText(c, (width - rl.MeasureText(c, size)) / 2, y, size, tint)
+	example_text.draw(c, (width - example_text.measure(c, size)) / 2, y, size, tint)
 }
 
 draw_tank :: proc(tank: Tank) {
@@ -464,6 +466,6 @@ draw_tanks :: proc(game: ^Tanks_Game) {
 	mode :=
 		"1 PLAYER  |  W/S DRIVE  A/D TURN  MOUSE AIM  LEFT CLICK FIRE" if !game.match.two_player else "2 PLAYERS  |  BLUE: WASD + MOUSE   ORANGE: ARROWS + ENTER"
 	center_text(mode, a.width, a.height - 28, 14, muted)
-	rl.DrawText("P: CHANGE PLAYERS", 18, 17, 13, muted)
-	rl.DrawText("R: RESTART", a.width - 96, 17, 13, muted)
+	example_text.draw("P: CHANGE PLAYERS", 18, 17, 13, muted)
+	example_text.draw("R: RESTART", a.width - 96, 17, 13, muted)
 }

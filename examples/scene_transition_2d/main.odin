@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import rune "rune:core"
 import "rune:ecs"
@@ -63,9 +65,9 @@ on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 		}
 	}
 
-	rl.DrawText("Runtime scene transition", 32, 28, 30, rl.RAYWHITE)
-	rl.DrawText(scene_names[scene_index], 32, 72, 24, scene_colors[scene_index])
-	rl.DrawText("Left-click to change scene", 32, 108, 18, rl.LIGHTGRAY)
+	example_text.draw("Runtime scene transition", 32, 28, 30, rl.RAYWHITE)
+	example_text.draw(scene_names[scene_index], 32, 72, 24, scene_colors[scene_index])
+	example_text.draw("Left-click to change scene", 32, 108, 18, rl.LIGHTGRAY)
 	if transition_state != .Idle {
 		alpha := tween.value_f32(&fade, 0, 1)
 		if transition_state == .Fading_From_Black { alpha = 1 - alpha }
@@ -77,6 +79,7 @@ main :: proc() {
 	game, ok := rune.init("examples/scene_transition_2d/project.json")
 	if !ok { fmt.eprintln("Could not load examples/scene_transition_2d/project.json"); return }
 	defer rune.shutdown(&game)
+	if !example_text.init(&game.assets) { fmt.eprintln("Could not load shared example font"); return }
 
 	if !rune.register_system(&game, {name = "scene_transition", update = on_update, draw = on_draw}) {
 		fmt.eprintln("Could not register scene-transition system")

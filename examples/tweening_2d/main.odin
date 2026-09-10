@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import rune "rune:core"
 import "rune:ecs"
@@ -61,15 +63,16 @@ on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	color := tween.value_color(&motion, Color_Start, Color_Target)
 	render_color := rl.Color{u8(color.r * 255), u8(color.g * 255), u8(color.b * 255), u8(color.a * 255)}
 	rl.DrawCircleV({transform.position[0], transform.position[1]}, 38, render_color)
-	rl.DrawText("Tweening and easing", 32, 28, 30, rl.RAYWHITE)
-	rl.DrawText("Left-click to change easing", 32, 68, 18, rl.LIGHTGRAY)
-	rl.DrawText(easing_options[easing_index].name, 32, 100, 22, rl.SKYBLUE)
+	example_text.draw("Tweening and easing", 32, 28, 30, rl.RAYWHITE)
+	example_text.draw("Left-click to change easing", 32, 68, 18, rl.LIGHTGRAY)
+	example_text.draw(easing_options[easing_index].name, 32, 100, 22, rl.SKYBLUE)
 }
 
 main :: proc() {
 	game, ok := rune.init("examples/tweening_2d/project.json")
 	if !ok { fmt.eprintln("Could not load examples/tweening_2d/project.json"); return }
 	defer rune.shutdown(&game)
+	if !example_text.init(&game.assets) { fmt.eprintln("Could not load shared example font"); return }
 
 	if !rune.register_system(
 		&game,

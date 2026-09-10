@@ -118,7 +118,7 @@ font :: proc(
 	if asset, found := manager.fonts[path]; found {return asset.font, true}
 	full_path := resolve_path(manager, path)
 	path_cstring, _ := strings.clone_to_cstring(full_path)
-	loaded := rl.LoadFont(path_cstring)
+	loaded := load_font_file(path_cstring)
 	delete(path_cstring)
 	if !rl.IsFontValid(loaded) {
 		report_failure(
@@ -140,6 +140,30 @@ font :: proc(
 		modified_time = modified_time(full_path),
 	}
 	return loaded, true
+}
+
+// Rasterize scalable fonts with enough detail for example headings as well as
+// smaller UI labels. Bitmap fonts keep raylib's original pixel filtering.
+@(private)
+load_font_file :: proc(path: cstring) -> rl.Font {
+	scalable := rl.IsFileExtension(path, ".ttf;.otf")
+	// Printable Latin-1, including degree signs in HUDs. Skip controls and the
+	// invisible soft hyphen; fonts commonly omit glyphs for these codepoints.
+	codepoints: [190]rune
+	count := 0
+	for codepoint in 32 ..< 256 {
+		if (codepoint >= 127 && codepoint < 160) || codepoint == 173 {continue}
+		codepoints[count] = rune(codepoint)
+		count += 1
+	}
+	loaded := rl.LoadFontEx(path, 64, raw_data(codepoints[:]), len(codepoints)) if scalable else rl.LoadFont(path)
+	// raylib returns its valid default font on failure. Never cache/unload that
+	// borrowed fallback or treat it as a successful hot-reload replacement.
+	if loaded.texture.id == rl.GetFontDefault().texture.id {return {}}
+	if scalable && rl.IsFontValid(loaded) {
+		rl.SetTextureFilter(loaded.texture, .BILINEAR)
+	}
+	return loaded
 }
 
 // model_revision registers a project-relative model for timestamp polling and
@@ -570,7 +594,7 @@ refresh :: proc(manager: ^Asset_Manager) {
 		current_time := modified_time(full_path)
 		if current_time == asset.modified_time {continue}
 		path_cstring, _ := strings.clone_to_cstring(full_path)
-		replacement := rl.LoadFont(path_cstring)
+		replacement := load_font_file(path_cstring)
 		delete(path_cstring)
 		if !rl.IsFontValid(replacement) {
 			report_failure(

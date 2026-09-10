@@ -21,7 +21,7 @@
             "Transform": { "position": [-456, 180, 0] },
             "TextRenderer": {
               "text": "WASD: explore    Smooth bounded camera",
-              "font": "../hello_world/assets/fonts/mecha.png",
+              "font": "../assets/fonts/Inter.ttf",
               "font_size": 18,
               "spacing": 1,
               "color": [255, 255, 255, 255],

@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import rune "rune:core"
 import "rune:ecs"
@@ -56,6 +58,7 @@ main :: proc() {
 	engine, ok := rune.init("examples/asteroids/project.json")
 	if !ok { fmt.eprintln("Could not load examples/asteroids/project.json"); return }
 	defer rune.shutdown(&engine)
+	if !example_text.init(&engine.assets) { fmt.eprintln("Could not load shared example font"); return }
 
 	rune_registry = rune.component_registry(&engine)
 	if !ecs.register_component(

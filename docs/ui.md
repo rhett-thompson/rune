@@ -176,6 +176,11 @@ raylib's UTF-8 functions; available glyphs depend on the loaded font. One font i
 used per UI context in this first version. Call `set_font` after asset refresh
 before using a hot-reloaded font, and keep all borrowed assets alive through draw.
 
+Rune's asset manager rasterizes `.ttf` and `.otf` fonts at 64 pixels with bilinear
+filtering for smooth scaling. Bitmap fonts retain their original filtering.
+The examples share [Inter](../examples/assets/fonts/README.md), including their
+HUD text, scene text, and the Clay menu.
+
 For scroll panels, use `ui.scroll_panel` with a constrained viewport height/width
 and declare its children normally. The wrapper applies Clay's stored scroll
 position and the wheel deltas passed to `begin`. Keyboard focus does not yet

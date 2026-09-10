@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import "core:math"
 import "rune:audio"
@@ -59,26 +61,26 @@ draw_audio_components :: proc(game: ^rune.Engine, scene_world: ^ecs.World) {
 	listener, listener_found := ecs.get_audio_listener(scene_world, listener_entity)
 	player, player_found := ecs.get_audio_player(scene_world, player_entity, "bell")
 	if !listener_found || !player_found {
-		rl.DrawText("Audio component data is missing", 24, 24, 28, rl.MAROON)
+		example_text.draw("Audio component data is missing", 24, 24, 28, rl.MAROON)
 		return
 	}
 
 	r3d_bridge.draw_scene_ex(&bridge, scene_world, rune.asset_manager(game), scene_view)
-	rl.DrawText("Rune Audio Components", 24, 24, 30, rl.DARKGRAY)
-	rl.DrawText("AudioListener is attached to the Camera3D entity.", 24, 78, 20, rl.GRAY)
-	rl.DrawText("AudioPlayer is attached to the moving orange sphere.", 24, 108, 20, rl.GRAY)
+	example_text.draw("Rune Audio Components", 24, 24, 30, rl.DARKGRAY)
+	example_text.draw("AudioListener is attached to the Camera3D entity.", 24, 78, 20, rl.GRAY)
+	example_text.draw("AudioPlayer is attached to the moving orange sphere.", 24, 108, 20, rl.GRAY)
 	if listener.active {
-		rl.DrawText("Listener: active", 24, 164, 22, rl.DARKGREEN)
+		example_text.draw("Listener: active", 24, 164, 22, rl.DARKGREEN)
 	} else {
-		rl.DrawText("Listener: inactive", 24, 164, 22, rl.MAROON)
+		example_text.draw("Listener: inactive", 24, 164, 22, rl.MAROON)
 	}
-	rl.DrawText("Sphere moves away from and returns to the listener.", 24, 198, 22, rl.DARKBLUE)
-	rl.DrawText("Left-click to play the spatial bell.", 24, 256, 18, rl.GRAY)
+	example_text.draw("Sphere moves away from and returns to the listener.", 24, 198, 22, rl.DARKBLUE)
+	example_text.draw("Left-click to play the spatial bell.", 24, 256, 18, rl.GRAY)
 	if last_play_succeeded {
-		rl.DrawText("Playing", 24, 282, 18, rl.DARKGREEN)
+		example_text.draw("Playing", 24, 282, 18, rl.DARKGREEN)
 	}
 	rl.DrawFPS(24, 312)
-	rl.DrawText(
+	example_text.draw(
 		fmt.ctprintf(
 			"SFX bus %.0f%%   muted: %t | M mute  F fade  R restore",
 			game.audio.mixer.buses[.sfx].volume * 100,
@@ -98,6 +100,7 @@ main :: proc() {
 		return
 	}
 	defer rune.shutdown(&game)
+	if !example_text.init(&game.assets) { fmt.eprintln("Could not load shared example font"); return }
 
 	if !rune.register_system(
 		   &game,

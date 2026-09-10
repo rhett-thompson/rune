@@ -14,6 +14,21 @@
     "height_offset": {"type": "number", "minimum": -100000, "maximum": 100000, "default": 0},
     "chunk_cells": {"enum": [8,16,32,64,128], "default": 64},
     "uv_scale": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "exclusiveMinimum": 0, "maximum": 4096}, "default": [16,16]},
-    "material": {"type": "string", "description": "Project-relative material JSON; empty uses a green material. Terrain texture maps repeat."}
+    "material": {"type": "string", "description": "Project-relative material JSON; empty uses a green material. Terrain texture maps repeat."},
+    "blend": {
+      "type": "object",
+      "additionalProperties": false,
+      "dependentRequired": {"grass": ["dirt", "rock"], "dirt": ["grass", "rock"], "rock": ["grass", "dirt"]},
+      "description": "Optional automatic grass/dirt/rock albedo blending. Supply all three texture paths to enable. Heights and slopes are terrain-local; thresholds must be increasing. An empty object disables blending.",
+      "properties": {
+        "grass": {"type": "string", "description": "Project-relative grass color texture."},
+        "dirt": {"type": "string", "description": "Project-relative low-ground color texture."},
+        "rock": {"type": "string", "description": "Project-relative steep-slope color texture."},
+        "dirt_height": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "minimum": -100000, "maximum": 100000}, "default": [3,9], "description": "Full dirt below the first local height, fading to grass at the second."},
+        "rock_slope": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "minimum": 0, "maximum": 90}, "default": [20,38], "description": "Rock starts at the first slope angle and covers the surface at the second, in degrees."},
+        "noise_scale": {"type": "number", "exclusiveMinimum": 0, "maximum": 100, "default": 0.12, "description": "Transition noise frequency per local terrain unit."},
+        "noise_strength": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.2, "description": "Transition variation as a fraction of each blend range; zero gives smooth height/slope bands."}
+      }
+    }
   }
 }

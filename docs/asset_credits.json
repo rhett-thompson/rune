@@ -1,6 +1,14 @@
 {
   "groups": [
     {
+      "name": "Shared Inter example font",
+      "paths": ["examples/assets/fonts/*"],
+      "status": "documented",
+      "license": "SIL Open Font License 1.1",
+      "evidence": "examples/assets/fonts/OFL.txt",
+      "notes": "Inter Project Authors. Unmodified upright variable font from google/fonts; source URL and SHA-256 in examples/assets/fonts/README.md."
+    },
+    {
       "name": "Skeletal animation fixture",
       "paths": ["examples/skeletal_animation_3d/assets/*"],
       "status": "documented",

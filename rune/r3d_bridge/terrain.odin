@@ -1,6 +1,7 @@
 package r3d_bridge
 
 import "core:math/linalg"
+import "core:strings"
 import "rune:assets"
 import "rune:ecs"
 import "rune:terrain"
@@ -10,11 +11,13 @@ import rl "vendor:raylib"
 Terrain_Cache :: struct {
 	revision: u64,
 	chunks: [dynamic]r3d.Mesh,
+	blend_shader: ^r3d.SurfaceShader,
 }
 
 release_terrain_cache :: proc(cache: ^Terrain_Cache) {
 	for mesh in cache.chunks {r3d.UnloadMesh(mesh)}
 	delete(cache.chunks)
+	if cache.blend_shader != nil {r3d.UnloadSurfaceShader(cache.blend_shader)}
 	cache^ = {}
 }
 
@@ -46,6 +49,11 @@ prepare_terrains :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.Asse
 		cache := Terrain_Cache{revision=revision,chunks=make([dynamic]r3d.Mesh)}
 		d := data.description
 		ok := true
+		if terrain.blend_enabled(d.blend) {
+			source :: #load("terrain_blend.glsl", string)
+			cache.blend_shader = r3d.LoadSurfaceShaderFromMemory(strings.clone_to_cstring(source,context.temp_allocator))
+			ok = cache.blend_shader != nil
+		}
 		for z := 0; z < d.resolution[1]-1 && ok; z += d.chunk_cells {
 			for x := 0; x < d.resolution[0]-1; x += d.chunk_cells {
 				mesh,valid := upload_terrain_chunk(data,x,z,min(d.chunk_cells,d.resolution[0]-1-x),min(d.chunk_cells,d.resolution[1]-1-z))
@@ -56,7 +64,7 @@ prepare_terrains :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.Asse
 		if !ok {
 			release_terrain_cache(&cache)
 			value,_ := ecs.get_terrain(world,entity)
-			assets.report_failure(manager,{kind=.Terrain,operation=.Load,source_path=value.asset,field="mesh",asset_path=value.asset,detail="could not upload terrain chunks; keeping previous GPU meshes"})
+			assets.report_failure(manager,{kind=.Terrain,operation=.Load,source_path=value.asset,field="mesh",asset_path=value.asset,detail="could not create terrain meshes or blend shader; keeping previous GPU resources"})
 			continue
 		}
 		if old,exists := ctx.terrains[entity]; exists {release_terrain_cache(&old)}
@@ -95,6 +103,32 @@ draw_terrains :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.Asset_M
 		data,_,loaded := ecs.terrain_runtime(world,entity)
 		if !found || !valid || !loaded {continue}
 		material := material_from_path(ctx,manager,data.description.material,{113,139,77,255})
+		if cache.blend_shader != nil {
+			b := data.description.blend
+			paths := [3]string{b.grass,b.dirt,b.rock}
+			names := [3]cstring{"u_grass","u_dirt","u_rock"}
+			fields := [3]string{"blend.grass","blend.dirt","blend.rock"}
+			ready := true
+			for path,i in paths {
+				texture,ok := assets.material_texture(manager,path,"anisotropic_8x",true,value.asset,fields[i])
+				ready = ready && ok
+				if ok {
+					rl.SetTextureWrap(texture,.REPEAT)
+					r3d.SetSurfaceShaderSampler(cache.blend_shader,names[i],texture)
+				}
+			}
+			if ready {
+				// Each terrain owns a shader: R3D resolves uniforms at End(), so
+				// sharing one would give every terrain the last entity's settings.
+				uv := data.description.uv_scale/data.description.size
+				noise := [2]f32{b.noise_scale,b.noise_strength}
+				r3d.SetSurfaceShaderUniform(cache.blend_shader,"u_uv_scale",&uv)
+				r3d.SetSurfaceShaderUniform(cache.blend_shader,"u_dirt_height",&b.dirt_height)
+				r3d.SetSurfaceShaderUniform(cache.blend_shader,"u_rock_slope",&b.rock_slope)
+				r3d.SetSurfaceShaderUniform(cache.blend_shader,"u_noise",&noise)
+				material.shader = cache.blend_shader
+			}
+		}
 		for texture in ([4]rl.Texture2D{material.albedo.texture,material.normal.texture,material.orm.texture,material.emission.texture}) {
 			if texture.id != 0 {rl.SetTextureWrap(texture,.REPEAT)}
 		}

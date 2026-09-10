@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import rune "rune:core"
 import "rune:ecs"
@@ -32,8 +34,8 @@ on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 
 on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	r3d_bridge.draw_scene_ex(&bridge, world, rune.asset_manager(game), scene_view)
-	rl.DrawText("Rune Solar System", 24, 24, 28, rl.DARKGRAY)
-	rl.DrawText("Earth orbits at 12°/s, spins at 48°/s; Moon orbits at 160°/s", 24, 60, 18, rl.GRAY)
+	example_text.draw("Rune Solar System", 24, 24, 28, rl.DARKGRAY)
+	example_text.draw("Earth orbits at 12°/s, spins at 48°/s; Moon orbits at 160°/s", 24, 60, 18, rl.GRAY)
 	rl.DrawFPS(24, 94)
 }
 
@@ -44,6 +46,7 @@ main :: proc() {
 		return
 	}
 	defer rune.shutdown(&game)
+	if !example_text.init(&game.assets) { fmt.eprintln("Could not load shared example font"); return }
 
 	if !rune.register_system(
 		&game,

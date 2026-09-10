@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import rune "rune:core"
 import "rune:ecs"
@@ -58,18 +60,18 @@ move_platform :: proc(game:^rune.Engine,world:^ecs.World) {
 
 on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if !r3d_bridge.draw_scene_ex(&bridge, world, rune.asset_manager(game), scene_view) {
-		rl.DrawText("No active Camera3D entity", 24, 24, 28, rl.MAROON)
+		example_text.draw("No active Camera3D entity", 24, 24, 28, rl.MAROON)
 		return
 	}
 }
 
 on_draw_ui :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	draw_weapon(game, world)
-	rl.DrawText("Rune First Person Controller", 24, 24, 28, rl.RAYWHITE)
-	rl.DrawText("WASD move | Space jump | Shift sprint | Ctrl crouch | Escape cursor", 24, 60, 18, rl.RAYWHITE)
+	example_text.draw("Rune First Person Controller", 24, 24, 28, rl.RAYWHITE)
+	example_text.draw("WASD move | Space jump | Shift sprint | Ctrl crouch | Escape cursor", 24, 60, 18, rl.RAYWHITE)
 	motor,_:=ecs.get_character_controller_3d_state(world,player)
-	rl.DrawText(fmt.ctprintf("Grounded: %t   Crouched: %t   Stand blocked: %t",motor.grounded,motor.crouched,motor.stand_blocked),24,86,18,rl.LIGHTGRAY)
-	rl.DrawText("Blue ramps | Orange stairs | Purple crawl tunnel | Green moving platform",24,138,18,rl.RAYWHITE)
+	example_text.draw(fmt.ctprintf("Grounded: %t   Crouched: %t   Stand blocked: %t",motor.grounded,motor.crouched,motor.stand_blocked),24,86,18,rl.LIGHTGRAY)
+	example_text.draw("Blue ramps | Orange stairs | Purple crawl tunnel | Green moving platform",24,138,18,rl.RAYWHITE)
 	rl.DrawFPS(24, 112)
 }
 
@@ -80,6 +82,7 @@ main :: proc() {
 		return
 	}
 	defer rune.shutdown(&game)
+	if !example_text.init(&game.assets) { fmt.eprintln("Could not load shared example font"); return }
 	if !ecs.register_component(
 		rune.component_registry(&game),
 		"FirstPersonController",

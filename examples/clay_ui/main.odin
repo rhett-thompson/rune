@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import "core:math"
 import "rune:audio"
@@ -16,7 +18,7 @@ volume: f32 = 0.65
 elapsed: f32
 
 start :: proc(game: ^rune.Engine, world: ^ecs.World) {
-	assert(ui.init(&interface))
+	assert(ui.init(&interface, example_text.font()))
 	rl.SetExitKey(rl.KeyboardKey(0))
 	audio.set_bus_volume(&game.audio.mixer, .master, volume)
 	menu_open = true
@@ -27,6 +29,7 @@ shutdown :: proc(game: ^rune.Engine, world: ^ecs.World) { ui.destroy(&interface)
 
 ui_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if rl.IsKeyPressed(.F11) { rune.toggle_borderless(game) }
+	ui.set_font(&interface, example_text.font())
 	controls := ui.read_input(rune.input_state(game))
 	controls.blocked = console.is_open(rune.developer_console(game))
 	was_open := menu_open
@@ -134,6 +137,7 @@ main :: proc() {
 	game, ok := rune.init("examples/clay_ui/project.json")
 	if !ok { fmt.eprintln("Could not initialize Clay UI example"); return }
 	defer rune.shutdown(&game)
+	if !example_text.init(&game.assets) { fmt.eprintln("Could not load shared example font"); return }
 	console.register(rune.developer_console(&game), "ui_status", "Read menu, focus and volume state.", ui_status)
 	if !rune.register_system(
 		&game,

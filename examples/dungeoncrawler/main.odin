@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import "core:os"
 import "core:path/filepath"
@@ -21,6 +23,7 @@ main :: proc() {
 		return
 	}
 	defer rune.shutdown(&engine)
+	if !example_text.init(&engine.assets) { fmt.eprintln("Could not load shared example font"); return }
 	registry := rune.component_registry(&engine)
 	if !ecs.register_component(
 		   registry,

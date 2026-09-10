@@ -43,6 +43,7 @@ write_heightmap :: proc(offset: u16 = 0) {
 
 main :: proc() {
 	validate_png()
+	validate_blend()
 	write_heightmap()
 	assert(write_fixture("build/terrain-test.terrain.json",`{"heightmap":"build/terrain-test.r16","resolution":[17,17],"size":[16,16],"height_scale":16,"chunk_cells":8}`)==nil)
 	data,_,error := terrain.load(".","build/terrain-test.terrain.json")
@@ -138,6 +139,41 @@ main :: proc() {
 	fmt.println("PASS terrain removal and resource lifetime")
 	validate_snapshot(&r,&manager)
 	for arg in os.args[1:] {if arg=="--runtime" {validate_runtime()}}
+}
+
+validate_blend :: proc() {
+	path := "build/terrain-blend.terrain.json"
+	base :: `{"heightmap":"tools/terrain_validation/fixtures/precision.png","resolution":[2,2],"blend":`
+	for blend in ([]string{
+		`{"grass":"grass.png"}`,
+		`{"grass":12}`,
+		`{"unknown":true}`,
+		`{"dirt_height":[2,1]}`,
+		`{"dirt_height":[1,1]}`,
+		`{"rock_slope":[0,91]}`,
+		`{"rock_slope":[20]}`,
+		`{"noise_scale":0}`,
+		`{"noise_strength":1.1}`,
+		`null`,
+	}) {
+		assert(write_fixture(path,fmt.tprint(base,blend,"}"))==nil)
+		data,_,error := terrain.load(".",path)
+		assert(error!="","reject malformed or incomplete blend")
+		terrain.destroy(&data)
+	}
+	assert(write_fixture(path,fmt.tprint(base,`{"grass":"grass.png","dirt":"dirt.png","rock":"rock.png"}}`))==nil)
+	data,_,error := terrain.load(".",path)
+	assert(error=="",error)
+	assert(data.description.blend.dirt_height==[2]f32{3,9},"omitted blend fields retain defaults")
+	copy := terrain.clone(data)
+	terrain.destroy(&data)
+	assert(copy.description.blend.grass=="grass.png" && copy.description.blend.dirt=="dirt.png" && copy.description.blend.rock=="rock.png","cloned blend paths outlive source")
+	terrain.destroy(&copy)
+	assert(write_fixture(path,fmt.tprint(base,`{}}`))==nil)
+	data,_,error = terrain.load(".",path)
+	assert(error=="" && !terrain.blend_enabled(data.description.blend),"empty blend disables layers")
+	terrain.destroy(&data)
+	fmt.println("PASS terrain blend validation, defaults and owned layer paths")
 }
 
 validate_png :: proc() {

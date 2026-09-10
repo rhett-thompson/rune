@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import "core:math"
 import rune "rune:core"
@@ -31,9 +33,9 @@ on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	rl.EndMode3D()
 
 	counters, _ := ecs.physics_3d_counters(world)
-	rl.DrawText("Rolling balls", 24, 24, 28, rl.RAYWHITE)
-	rl.DrawText("R: reset", 24, 60, 18, rl.LIGHTGRAY)
-	rl.DrawText(
+	example_text.draw("Rolling balls", 24, 24, 28, rl.RAYWHITE)
+	example_text.draw("R: reset", 24, 60, 18, rl.LIGHTGRAY)
+	example_text.draw(
 		fmt.ctprintf("%d bodies  |  %d contacts", counters.bodyCount, counters.contactCount),
 		24,
 		88,
@@ -164,6 +166,9 @@ main :: proc() {
 		fmt.eprintln("Could not load examples/box3d_balls/project.json")
 		return
 	}
+
+	defer rune.shutdown(&game)
+	if !example_text.init(&game.assets) { fmt.eprintln("Could not load shared example font"); return }
 
 	if !rune.register_system(&game, {name = "box3d_balls", update = on_update, draw = on_draw}) {
 		fmt.eprintln("Could not register Box3D system")

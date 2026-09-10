@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import rune "rune:core"
 import "rune:ecs"
@@ -38,7 +40,7 @@ on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 
 on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if !r3d_bridge.draw_scene_ex(&bridge, world, rune.asset_manager(game), scene_view) {
-		rl.DrawText("No active Camera3D entity", 24, 24, 28, rl.MAROON)
+		example_text.draw("No active Camera3D entity", 24, 24, 28, rl.MAROON)
 		return
 	}
 }
@@ -51,6 +53,7 @@ main :: proc() {
 		return
 	}
 	defer rune.shutdown(&game)
+	if !example_text.init(&game.assets) { fmt.eprintln("Could not load shared example font"); return }
 
 	if !rune.register_system(
 		&game,

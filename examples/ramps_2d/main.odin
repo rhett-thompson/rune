@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import rune "rune:core"
 import "rune:ecs"
@@ -85,24 +87,24 @@ draw_terrain :: proc(game: ^rune.Engine, world: ^ecs.World) {
 }
 
 draw_ui :: proc(game: ^rune.Engine, world: ^ecs.World) {
-	rl.DrawText("RAMPS + CHAINED DASHES",32,24,26,rl.RAYWHITE)
-	rl.DrawText("A/D: move   SPACE: jump   SHIFT: dash   S/DOWN: crouch   S + SPACE: drop",32,65,18,rl.LIGHTGRAY)
-	rl.DrawText("Tap SPACE for a short hop; hold it to reach the orange ledge.",32,96,18,rl.LIGHTGRAY)
-	rl.DrawText("Tap SHIFT again during a dash to chain; steer to redirect. Up to 3 before cooldown.",32,127,18,rl.LIGHTGRAY)
-	rl.DrawText("Walk right into the shaft. Jump between walls to climb; press toward a wall to slide.",32,158,16,rl.LIGHTGRAY)
-	rl.DrawText("WALL SHAFT",1050,195,16,rl.LIGHTGRAY)
-	rl.DrawText("ENTER BELOW",1030,515,16,rl.LIGHTGRAY)
-	rl.DrawText("ONE-WAY SHUTTLE",340,245,16,rl.LIGHTGRAY)
-	rl.DrawText("ELEVATOR",50,515,16,rl.LIGHTGRAY)
-	rl.DrawText("LOW TUNNEL",704,515,16,rl.LIGHTGRAY)
-	rl.DrawText("ONE-WAY",782,237,16,rl.ORANGE)
-	rl.DrawText("CROUCH STEP",520,268,16,rl.LIGHTGRAY)
-	rl.DrawText("CONVEX POLYGON",320,466,16,rl.LIGHTGRAY)
-	rl.DrawText("SEGMENT BRIDGE",662,408,16,rl.LIGHTGRAY)
+	example_text.draw("RAMPS + CHAINED DASHES",32,24,26,rl.RAYWHITE)
+	example_text.draw("A/D: move   SPACE: jump   SHIFT: dash   S/DOWN: crouch   S + SPACE: drop",32,65,18,rl.LIGHTGRAY)
+	example_text.draw("Tap SPACE for a short hop; hold it to reach the orange ledge.",32,96,18,rl.LIGHTGRAY)
+	example_text.draw("Tap SHIFT again during a dash to chain; steer to redirect. Up to 3 before cooldown.",32,127,18,rl.LIGHTGRAY)
+	example_text.draw("Walk right into the shaft. Jump between walls to climb; press toward a wall to slide.",32,158,16,rl.LIGHTGRAY)
+	example_text.draw("WALL SHAFT",1050,195,16,rl.LIGHTGRAY)
+	example_text.draw("ENTER BELOW",1030,515,16,rl.LIGHTGRAY)
+	example_text.draw("ONE-WAY SHUTTLE",340,245,16,rl.LIGHTGRAY)
+	example_text.draw("ELEVATOR",50,515,16,rl.LIGHTGRAY)
+	example_text.draw("LOW TUNNEL",704,515,16,rl.LIGHTGRAY)
+	example_text.draw("ONE-WAY",782,237,16,rl.ORANGE)
+	example_text.draw("CROUCH STEP",520,268,16,rl.LIGHTGRAY)
+	example_text.draw("CONVEX POLYGON",320,466,16,rl.LIGHTGRAY)
+	example_text.draw("SEGMENT BRIDGE",662,408,16,rl.LIGHTGRAY)
 	state,_ := ecs.get_character_controller_2d_state(world,player)
 	support,_ := ecs.entity_id(world,state.support_entity)
 	if !state.grounded {support = "air"}
-	rl.DrawText(fmt.ctprintf("Support: %s    Carry: %.0f, %.0f    Sensor entries: %d",support,state.support_velocity[0],state.support_velocity[1],sensor_entries),32,537,18,rl.GOLD)
+	example_text.draw(fmt.ctprintf("Support: %s    Carry: %.0f, %.0f    Sensor entries: %d",support,state.support_velocity[0],state.support_velocity[1],sensor_entries),32,537,18,rl.GOLD)
 	stance := "standing"
  if state.crouched {stance = "crouching"}
  if state.stand_blocked {stance = "ceiling blocks standing"}
@@ -110,8 +112,8 @@ draw_ui :: proc(game: ^rune.Engine, world: ^ecs.World) {
  if state.wall_jump_lock_remaining > 0 {stance = "wall jump"}
  if state.dashing {stance = "dashing"}
  config,_ := ecs.get_character_controller_2d(world,player)
- rl.DrawText(fmt.ctprintf("Dash %d/%d  |  queued: %t  |  cooldown: %.2f",state.dash_chain_index,config.dash_chain_count,state.dash_queued,state.dash_cooldown_remaining),740,537,16,rl.SKYBLUE)
- rl.DrawText(fmt.ctprintf("%s   |   Backtick: console   |   Try: set player CharacterController2D.dash_chain_count 5",stance),32,570,15,rl.LIGHTGRAY)
+ example_text.draw(fmt.ctprintf("Dash %d/%d  |  queued: %t  |  cooldown: %.2f",state.dash_chain_index,config.dash_chain_count,state.dash_queued,state.dash_cooldown_remaining),740,537,16,rl.SKYBLUE)
+ example_text.draw(fmt.ctprintf("%s   |   Backtick: console   |   Try: set player CharacterController2D.dash_chain_count 5",stance),32,570,15,rl.LIGHTGRAY)
 	pose,found := ecs.get_transform(world,player)
 	if found {
 		filter := ecs.Default_Physics_Query_Filter
@@ -129,6 +131,7 @@ main :: proc() {
 	game,ok := rune.init("examples/ramps_2d/project.json")
 	if !ok {return}
 	defer rune.shutdown(&game)
+	if !example_text.init(&game.assets) { fmt.eprintln("Could not load shared example font"); return }
 	assert(ecs.register_component(rune.component_registry(&game),"PlatformMotion",PlatformMotion,PlatformMotion{},"Example-only platform path and speed; Odin supplies kinematic velocity."))
 	assert(rune.register_system(&game,{name="ramps",start=after_load,on_scene_reloaded=after_load,fixed_update=control,post_physics=after_physics,pre_draw=draw_terrain,draw_ui=draw_ui}))
 	rune.run_project(&game)

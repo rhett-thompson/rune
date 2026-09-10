@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import rune "rune:core"
 import "rune:ecs"
@@ -21,9 +23,9 @@ draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	sky, _ := ecs.find_entity_by_id(world, "sky")
 	value, _ := ecs.get_skybox(world, sky)
 	rl.DrawRectangle(20,20,730,114,{12,22,34,210})
-	rl.DrawText(fmt.ctprintf("SKYBOX / %v", value.mode), 36,32,26,rl.RAYWHITE)
-	rl.DrawText("Left-drag: orbit   TAB: sky mode   Sun: automatic 60-second cycle",36,72,18,rl.RAYWHITE)
-	rl.DrawText("Atmosphere: rotating sun and moon, with a dim blue night sky.",36,103,16,rl.RAYWHITE)
+	example_text.draw(fmt.ctprintf("SKYBOX / %v", value.mode), 36,32,26,rl.RAYWHITE)
+	example_text.draw("Left-drag: orbit   TAB: sky mode   Sun: automatic 60-second cycle",36,72,18,rl.RAYWHITE)
+	example_text.draw("Atmosphere: rotating sun and moon, with a dim blue night sky.",36,103,16,rl.RAYWHITE)
 }
 
 update :: proc(game: ^rune.Engine, world: ^ecs.World) {
@@ -58,6 +60,7 @@ main :: proc() {
 	game, ok := rune.init("examples/skybox_3d/project.json")
 	if !ok {fmt.eprintln("Could not load skybox project"); return}
 	defer rune.shutdown(&game)
+	if !example_text.init(&game.assets) { fmt.eprintln("Could not load shared example font"); return }
 	if !rune.register_system(&game, {name = "skybox", start = start, update = update, draw = draw, shutdown = shutdown}) {return}
 	if !rune.run(&game) {fmt.eprintln(rune.last_scene_error())}
 }

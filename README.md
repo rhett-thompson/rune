@@ -97,10 +97,12 @@ Licensing and asset-credit work is tracked in [THIRD_PARTY.md](THIRD_PARTY.md).
 Browse, build, and run the examples from one small launcher:
 
 ```powershell
-odin run examples/launcher
+odin run examples/launcher -collection:rune=rune
 ```
 
-Use the arrow keys and Enter, or the mouse, to choose an example. Each example
+Use the category tabs to filter examples. Left/Right switches tabs; Up/Down or
+the mouse wheel browses the list; Enter or a click runs the selected example.
+The launcher keeps the active category when the example closes. Each example
 remains an independent Odin program and can still be run directly with its
 usual `odin run examples/<name> -collection:rune=rune` command. Launcher
 entries and descriptions live in `examples/examples.json`. See the
@@ -374,7 +376,7 @@ odin run examples/third_person_3d -collection:rune=rune -collection:r3d=third_pa
 
 `rune:ui` adds optional Clay layouts, styled buttons and sliders, pointer capture,
 and keyboard/gamepad focus. Build UI in the new `System.ui_update` phase, which
-continues while gameplay is paused, and draw it in `System.draw`. The
+continues while gameplay is paused, and draw it in `System.draw_ui`. The
 [Clay UI guide](docs/ui.md) covers input ownership, fonts, lifecycle, and the
 resizable pause-menu example:
 

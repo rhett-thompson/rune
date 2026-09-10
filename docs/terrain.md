@@ -53,6 +53,47 @@ the descriptor. Absolute paths are also accepted. The schema is
   maps to repeat; a material shared with other meshes therefore repeats there too.
   An empty material path uses a green fallback.
 
+## Texture blending
+
+Add an optional `blend` object to the terrain descriptor to mix three color
+textures automatically. Paths are relative to the project root, as for the
+heightmap. Existing descriptors without `blend` keep their single material.
+
+```json
+"blend": {
+  "grass": "assets/grass.png",
+  "dirt": "assets/dirt.png",
+  "rock": "assets/rock.png",
+  "dirt_height": [3, 9],
+  "rock_slope": [20, 38],
+  "noise_scale": 0.12,
+  "noise_strength": 0.2
+}
+```
+
+Supply all three paths to enable blending. Dirt covers low ground, fading to
+grass between the two `dirt_height` values. Rock overrides that mix as the slope
+increases between the two `rock_slope` angles (degrees, 0–90). Both ranges must
+increase. These thresholds use local terrain coordinates, so moving or rotating
+the entity keeps its painted appearance attached. Noise adds irregularity to
+the transitions; `noise_strength: 0` disables it. The values above are defaults.
+
+The renderer projects textures along three axes and blends those projections
+using the surface normal, reducing stretching on steep faces. `uv_scale` controls
+repeats across the full X/Z extent; the vertical repeat rate averages those two
+rates. Textures use mipmaps, anisotropic filtering, and repeat wrapping. These
+sampling settings also affect other users of the same cached textures.
+
+Blending multiplies the material's albedo; use a white `base_color` and no base
+texture for the original layer colors. Roughness, metallic, lighting and shadows
+continue to come from the material. This blends color textures only, not separate
+normal or roughness maps. An unavailable layer falls back to the base material
+with an asset diagnostic. Texture edits use normal texture hot reload; invalid
+replacements retain the last working texture. Descriptor edits reload the blend
+settings with the terrain. Remove `blend` or set it to `{}` to disable it.
+
+## Geometry and collision
+
 Normals use neighboring samples across chunk boundaries. Collision uses the
 same triangle diagonal as rendering, stored in one native Box3D triangle mesh
 per terrain entity so collision edges remain connected across render chunks.
@@ -120,7 +161,8 @@ On Linux, use `-out:build/terrain_3d` and run that executable. PowerShell script
 in the repository select the appropriate extension automatically.
 
 `tools/terrain_validation` checks decoding, collision, character traversal,
-activation, hierarchy edits, reload recovery, and ownership. It runs as part of
+activation, hierarchy edits, reload recovery, and ownership. Its GPU checks also
+verify blend layer colors, transitions, noise continuity and shader cleanup. It runs as part of
 `pwsh -NoProfile -File tools/validate.ps1 -AllExamples`.
 
 To run its GPU checks independently:

@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import rune "rune:core"
 import "rune:ecs"
@@ -53,9 +55,9 @@ after_physics :: proc(game: ^rune.Engine, world: ^ecs.World) {
 
 draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	rl.ClearBackground({22, 26, 34, 255})
-	rl.DrawText("PHYSICS QUERIES", 40, 32, 28, rl.RAYWHITE)
-	rl.DrawText("A / D to move. Gold sensors are pickups; blue walls are solid.", 40, 74, 18, rl.LIGHTGRAY)
-	rl.DrawText("The ray points right. The faint circle queries nearby colliders.", 40, 100, 18, rl.LIGHTGRAY)
+	example_text.draw("PHYSICS QUERIES", 40, 32, 28, rl.RAYWHITE)
+	example_text.draw("A / D to move. Gold sensors are pickups; blue walls are solid.", 40, 74, 18, rl.LIGHTGRAY)
+	example_text.draw("The ray points right. The faint circle queries nearby colliders.", 40, 100, 18, rl.LIGHTGRAY)
 	for entity, collider in world.box_colliders_2d {
 		transform, found := ecs.get_transform(world, entity)
 		if !found { continue }
@@ -81,13 +83,14 @@ draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 		nearby,
 		touching_wall,
 	)
-	rl.DrawText(label, 40, 430, 20, rl.RAYWHITE)
+	example_text.draw(label, 40, 430, 20, rl.RAYWHITE)
 }
 
 main :: proc() {
 	game, ok := rune.init("examples/physics_queries_2d/project.json")
 	if !ok { fmt.eprintln("Could not load physics queries project"); return }
 	defer rune.shutdown(&game)
+	if !example_text.init(&game.assets) { fmt.eprintln("Could not load shared example font"); return }
 	if !rune.register_system(
 		&game,
 		{

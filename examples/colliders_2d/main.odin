@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import rune "rune:core"
 import "rune:ecs"
@@ -47,10 +49,10 @@ after_physics :: proc(game: ^rune.Engine, world: ^ecs.World) {
 }
 
 draw_ui :: proc(game: ^rune.Engine, world: ^ecs.World) {
-	rl.DrawText("COLLIDER OFFSETS + CAPSULES", 32, 24, 26, rl.RAYWHITE)
-	rl.DrawText("A / D: move   SPACE: jump   Backtick: console", 32, 63, 18, rl.LIGHTGRAY)
-	rl.DrawText("Green: collision outlines   White crosses: entity origins", 32, 92, 18, rl.LIGHTGRAY)
-	rl.DrawText("Player origin is at its feet. Collider offset is [0, -32].", 32, 121, 18, rl.LIGHTGRAY)
+	example_text.draw("COLLIDER OFFSETS + CAPSULES", 32, 24, 26, rl.RAYWHITE)
+	example_text.draw("A / D: move   SPACE: jump   Backtick: console", 32, 63, 18, rl.LIGHTGRAY)
+	example_text.draw("Green: collision outlines   White crosses: entity origins", 32, 92, 18, rl.LIGHTGRAY)
+	example_text.draw("Player origin is at its feet. Collider offset is [0, -32].", 32, 121, 18, rl.LIGHTGRAY)
 	for entity in ecs.query(world, ecs.Transform) {
 		if !ecs.has_component_data(world,entity,"BoxCollider2D") &&
 		   !ecs.has_component_data(world,entity,"CircleCollider2D") &&
@@ -67,14 +69,15 @@ draw_ui :: proc(game: ^rune.Engine, world: ^ecs.World) {
 		rl.DrawLineEx({origin[0],origin[1]}, {ray_end[0],ray_end[1]}, 2, rl.ORANGE if ray_hit else rl.GRAY)
 	}
 	label := fmt.ctprintf("Gold capsule is a sensor. Entries: %d",sensor_entries)
-	rl.DrawText(label,32,544,18,rl.GOLD)
-	rl.DrawText("Try: set player CapsuleCollider2D.offset [20,-32]",32,573,17,rl.LIGHTGRAY)
+	example_text.draw(label,32,544,18,rl.GOLD)
+	example_text.draw("Try: set player CapsuleCollider2D.offset [20,-32]",32,573,17,rl.LIGHTGRAY)
 }
 
 main :: proc() {
 	game, ok := rune.init("examples/colliders_2d/project.json")
 	if !ok {return}
 	defer rune.shutdown(&game)
+	if !example_text.init(&game.assets) { fmt.eprintln("Could not load shared example font"); return }
 	assert(rune.register_system(&game,{name="capsule_playground",start=start,on_scene_reloaded=start,fixed_update=control,post_physics=after_physics,draw_ui=draw_ui}))
 	rune.run_project(&game)
 }

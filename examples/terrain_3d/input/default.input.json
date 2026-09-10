@@ -8,6 +8,7 @@
     "jump":[{"type":"keyboard","key":"SPACE"}],
     "sprint":[{"type":"keyboard","key":"LEFT_SHIFT"}],
     "toggle_cursor":[{"type":"keyboard","key":"ESCAPE"}],
+    "capture_cursor":[{"type":"mouse_button","button":"LEFT"}],
     "reset":[{"type":"keyboard","key":"R"}]
   },
   "axes": {

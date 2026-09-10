@@ -1,5 +1,4 @@
 {
-  "$schema": "../../../schemas/input.schema.json",
   "actions": {
     "move_left": [
       {

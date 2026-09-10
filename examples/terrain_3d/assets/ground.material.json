@@ -1,6 +1,6 @@
 {
   "$schema": "../../../schemas/material.schema.json",
-  "base_color": [153,174,100,255],
+  "base_color": [255,255,255,255],
   "roughness": 0.94,
   "metallic": 0,
   "lighting": true

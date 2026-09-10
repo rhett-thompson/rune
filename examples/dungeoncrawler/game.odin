@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import "core:math"
 import "rune:assets"
@@ -455,19 +457,19 @@ dungeon_draw_system :: proc(engine: ^rune.Engine, world: ^ecs.World) {
 	)
 	rl.DrawRectangle(18, h - 66, 250, 46, {5, 4, 5, 220}); rl.DrawRectangle(30, h - 45, 220, 16, {60, 15, 18, 255})
 	rl.DrawRectangle(30, h - 45, 220 * max(0, game.health) / 100, 16, {195, 35, 42, 255})
-	rl.DrawText(fmt.ctprintf("HEALTH %d", game.health), 30, h - 62, 16, rl.RAYWHITE)
-	rl.DrawText(fmt.ctprintf("DEPTH %d   KILLS %d", game.level, game.kills), 18, 18, 22, {235, 215, 170, 255})
-	rl.DrawText("WASD move  Mouse look  LMB/Space attack  Shift sprint", 18, 48, 16, {190, 185, 175, 255})
+	example_text.draw(fmt.ctprintf("HEALTH %d", game.health), 30, h - 62, 16, rl.RAYWHITE)
+	example_text.draw(fmt.ctprintf("DEPTH %d   KILLS %d", game.level, game.kills), 18, 18, 22, {235, 215, 170, 255})
+	example_text.draw("WASD move  Mouse look  LMB/Space attack  Shift sprint", 18, 48, 16, {190, 185, 175, 255})
 	rl.DrawCircle(w / 2, h / 2, 2, rl.GOLD)
 	sc: i32 = 4; ox: i32 = w - MAP * sc - 18; oy: i32 = 18; rl.DrawRectangle(ox - 4, oy - 4, MAP * sc + 8, MAP * sc + 8, {0, 0, 0, 160})
 	for y in 0 ..< MAP { for x in 0 ..< MAP { if game.tiles[y][x] != 0 { rl.DrawRectangle(ox + i32(x) * sc, oy + i32(y) * sc, sc, sc, {90, 75, 70, 220}) } } }
 	rl.DrawCircle(ox + i32(game.x * f32(sc)), oy + i32(game.y * f32(sc)), 3, rl.GOLD)
 	if game.hurt > 0 { rl.DrawRectangle(0, 0, w, h, {190, 0, 0, u8(game.hurt / .25 * 100)}) }
 	if game.health <=
-	   0 {rl.DrawRectangle(0, 0, w, h, {20, 0, 0, 210}); rl.DrawText("YOU DIED", w / 2 - rl.MeasureText("YOU DIED", 64) / 2, h / 2 - 60, 64, rl.RED)
-		rl.DrawText(
+	   0 {rl.DrawRectangle(0, 0, w, h, {20, 0, 0, 210}); example_text.draw("YOU DIED", w / 2 - example_text.measure("YOU DIED", 64) / 2, h / 2 - 60, 64, rl.RED)
+		example_text.draw(
 			"Press R to descend again",
-			w / 2 - rl.MeasureText("Press R to descend again", 24) / 2,
+			w / 2 - example_text.measure("Press R to descend again", 24) / 2,
 			h / 2 + 20,
 			24,
 			rl.RAYWHITE,

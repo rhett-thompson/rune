@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import "rune:console"
 import rune "rune:core"
@@ -27,21 +29,22 @@ on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 }
 
 on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
-	rl.DrawText("Particles", 40, 30, 30, {230, 238, 250, 255})
-	rl.DrawText("SPACE burst     E toggle emitters     C clear     F3 gizmos", 40, 77, 18, {150, 164, 189, 255})
-	rl.DrawText("Fountain", 123, 460, 20, {255, 204, 121, 255})
-	rl.DrawText("Textured smoke", 391, 460, 20, {155, 194, 225, 255})
-	rl.DrawText("Burst", 704, 460, 20, {140, 236, 210, 255})
+	example_text.draw("Particles", 40, 30, 30, {230, 238, 250, 255})
+	example_text.draw("SPACE burst     E toggle emitters     C clear     F3 gizmos", 40, 77, 18, {150, 164, 189, 255})
+	example_text.draw("Fountain", 123, 460, 20, {255, 204, 121, 255})
+	example_text.draw("Textured smoke", 391, 460, 20, {155, 194, 225, 255})
+	example_text.draw("Burst", 704, 460, 20, {140, 236, 210, 255})
 	count := 0
 	for entity in ecs.query(world, ecs.ParticleEmitter2D) { count += ecs.particle_count_2d(world, entity) }
 	label := fmt.ctprintf("%d live particles", count)
-	rl.DrawText(label, 40, 507, 16, {123, 138, 165, 255})
+	example_text.draw(label, 40, 507, 16, {123, 138, 165, 255})
 }
 
 main :: proc() {
 	game, ok := rune.init("examples/particles_2d/project.json")
 	if !ok { fmt.eprintln("Could not initialize particle example"); return }
 	defer rune.shutdown(&game)
+	if !example_text.init(&game.assets) { fmt.eprintln("Could not load shared example font"); return }
 	if !rune.register_system(&game, {name = "particles_demo", update = on_update, draw = on_draw}) {
 		fmt.eprintln("Could not register particle system")
 		return

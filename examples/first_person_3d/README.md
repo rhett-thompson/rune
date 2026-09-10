@@ -5,7 +5,9 @@ course. Blue ramps test slope following, orange stairs test step-up, purple
 geometry requires crouching, and a green platform moves back and forth. A crate
 can be pushed, and the red ramp is too steep to walk up.
 A warm directional sun casts soft shadows, with cool ambient fill keeping
-shaded surfaces readable. Tune the `sun` and `ambient` entities in the scene.
+shaded surfaces readable. SSAO adds contact shading around nearby geometry using
+Rune's default settings (16 samples, radius 1, intensity 1). Tune the `sun`,
+`ambient`, and `post` entities in the scene; see [post processing](../../docs/post-processing.md).
 
 See the [controller guide](../../docs/character-controller-3d.md) for the API and limits.
 

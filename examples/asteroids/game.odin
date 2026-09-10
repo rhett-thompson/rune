@@ -1,5 +1,7 @@
 package main
 
+import example_text "../shared/text"
+
 import "core:fmt"
 import "core:math"
 import "core:strings"
@@ -343,7 +345,7 @@ draw_asteroid :: proc(asteroid: Asteroid_Component, arena: Arena_Config, tint: r
 
 draw_centered :: proc(text: string, y, size, width: i32, tint: rl.Color) {
 	c_text, _ := strings.clone_to_cstring(text, context.temp_allocator)
-	rl.DrawText(c_text, (width - rl.MeasureText(c_text, size)) / 2, y, size, tint)
+	example_text.draw(c_text, (width - example_text.measure(c_text, size)) / 2, y, size, tint)
 }
 
 draw_game :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
@@ -381,10 +383,10 @@ draw_game :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 	score_c, _ := strings.clone_to_cstring(score_text, context.temp_allocator)
 	wave_c, _ := strings.clone_to_cstring(wave_text, context.temp_allocator)
 	lives_c, _ := strings.clone_to_cstring(lives_text, context.temp_allocator)
-	rl.DrawText(score_c, 22, 18, 20, line)
-	rl.DrawText(wave_c, game.arena.width / 2 - rl.MeasureText(wave_c, 20) / 2, 18, 20, muted)
-	rl.DrawText(lives_c, game.arena.width - rl.MeasureText(lives_c, 20) - 22, 18, 20, line)
-	rl.DrawText("A/D OR ARROWS: TURN   W/UP: THRUST   SPACE: FIRE   R: RESTART", 22, game.arena.height - 28, 14, muted)
+	example_text.draw(score_c, 22, 18, 20, line)
+	example_text.draw(wave_c, game.arena.width / 2 - example_text.measure(wave_c, 20) / 2, 18, 20, muted)
+	example_text.draw(lives_c, game.arena.width - example_text.measure(lives_c, 20) - 22, 18, 20, line)
+	example_text.draw("A/D OR ARROWS: TURN   W/UP: THRUST   SPACE: FIRE   R: RESTART", 22, game.arena.height - 28, 14, muted)
 	if game.game_over {
 		rl.DrawRectangle(0, game.arena.height / 2 - 70, game.arena.width, 140, {5, 8, 18, 230})
 		draw_centered("GAME OVER", game.arena.height / 2 - 48, 40, game.arena.width, accent)

@@ -21,6 +21,48 @@ Description :: struct {
 	chunk_cells: int,
 	uv_scale: [2]f32,
 	material: string,
+	blend: Blend,
+}
+
+// Optional automatic albedo layers; thresholds use terrain-local height and
+// slope in degrees. All three paths are required when blending is enabled.
+Blend :: struct {
+	grass, dirt, rock: string,
+	dirt_height: [2]f32,
+	rock_slope: [2]f32,
+	noise_scale, noise_strength: f32,
+}
+
+default_blend :: proc() -> Blend {
+	return {dirt_height={3,9},rock_slope={20,38},noise_scale=0.12,noise_strength=0.2}
+}
+
+blend_enabled :: proc(b: Blend) -> bool {return b.grass != "" || b.dirt != "" || b.rock != ""}
+
+blend_valid :: proc(b: Blend) -> bool {
+	if blend_enabled(b) && (b.grass=="" || b.dirt=="" || b.rock=="") {return false}
+	if !(b.dirt_height[0]>=-100000 && b.dirt_height[1]<=100000 && b.dirt_height[0]<b.dirt_height[1]) {return false}
+	if !(b.rock_slope[0]>=0 && b.rock_slope[1]<=90 && b.rock_slope[0]<b.rock_slope[1]) {return false}
+	return b.noise_scale>0 && b.noise_scale<=100 && b.noise_strength>=0 && b.noise_strength<=1
+}
+
+blend_json_valid :: proc(value: json.Value) -> bool {
+	object,ok := value.(json.Object)
+	if !ok {return false}
+	for key,field in object {
+		switch key {
+		case "grass","dirt","rock":
+			if _,valid := field.(json.String); !valid {return false}
+		case "dirt_height","rock_slope":
+			array,valid := field.(json.Array)
+			if !valid || len(array)!=2 {return false}
+			for n in array {if _,number := jsonutil.number(n); !number {return false}}
+		case "noise_scale","noise_strength":
+			if _,valid := jsonutil.number(field); !valid {return false}
+		case: return false
+		}
+	}
+	return true
 }
 
 Data :: struct {
@@ -29,7 +71,7 @@ Data :: struct {
 }
 
 default_description :: proc() -> Description {
-	return {size = {256,256}, height_scale = 32, chunk_cells = 64, uv_scale = {16,16}}
+	return {size = {256,256}, height_scale = 32, chunk_cells = 64, uv_scale = {16,16},blend=default_blend()}
 }
 
 description_valid :: proc(d: Description) -> bool {
@@ -39,7 +81,7 @@ description_valid :: proc(d: Description) -> bool {
 	if !(d.height_scale >= 0 && d.height_scale <= 100000) || !(d.height_offset >= -100000 && d.height_offset <= 100000) {return false}
 	if d.chunk_cells < 8 || d.chunk_cells > 128 || (d.chunk_cells & (d.chunk_cells-1)) != 0 {return false}
 	for n in d.uv_scale {if !(n > 0 && n <= 4096) {return false}}
-	return true
+	return blend_valid(d.blend)
 }
 
 resolve :: proc(root, path: string) -> string {
@@ -75,6 +117,8 @@ load :: proc(root, path: string) -> (result: Data, watched_heightmap: string, er
 			_,valid = field.(json.Integer)
 		case "height_scale","height_offset":
 			_,valid = jsonutil.number(field)
+		case "blend":
+			valid = blend_json_valid(field)
 		case:
 			return {},"",fmt.tprintf("unknown terrain field: %s",key)
 		}
@@ -85,6 +129,7 @@ load :: proc(root, path: string) -> (result: Data, watched_heightmap: string, er
 	if err := json.unmarshal(clean, &d, allocator = context.temp_allocator); err != nil {
 		return {}, "", fmt.tprintf("invalid terrain descriptor: %v", err)
 	}
+	if !blend_valid(d.blend) {return {},d.heightmap,"invalid terrain blend: provide all three textures, increasing height/slope ranges, slope 0..90, noise_scale (0,100], noise_strength 0..1"}
 	if !description_valid(d) {return {}, d.heightmap, "invalid terrain settings: resolution 2..513, positive size/UV scale, bounded finite heights, chunk_cells 8/16/32/64/128 required"}
 	samples, read_ok := os.read_entire_file(resolve(root,d.heightmap), context.temp_allocator)
 	if read_ok != nil {return {}, d.heightmap, "could not read heightmap"}
@@ -112,6 +157,7 @@ load :: proc(root, path: string) -> (result: Data, watched_heightmap: string, er
 	owned := d
 	owned.heightmap,_ = strings.clone(d.heightmap)
 	owned.material,_ = strings.clone(d.material)
+	owned.blend = clone_blend(d.blend)
 	return {owned,heights},d.heightmap,""
 }
 
@@ -119,6 +165,7 @@ clone :: proc(data: Data) -> Data {
 	result := data
 	result.description.heightmap,_ = strings.clone(data.description.heightmap)
 	result.description.material,_ = strings.clone(data.description.material)
+	result.description.blend = clone_blend(data.description.blend)
 	result.heights = make([]f32,len(data.heights))
 	copy(result.heights,data.heights)
 	return result
@@ -128,7 +175,18 @@ destroy :: proc(data: ^Data) {
 	delete(data.heights)
 	delete(data.description.heightmap)
 	delete(data.description.material)
+	delete(data.description.blend.grass)
+	delete(data.description.blend.dirt)
+	delete(data.description.blend.rock)
 	data^ = {}
+}
+
+clone_blend :: proc(b: Blend) -> Blend {
+	result := b
+	result.grass,_ = strings.clone(b.grass)
+	result.dirt,_ = strings.clone(b.dirt)
+	result.rock,_ = strings.clone(b.rock)
+	return result
 }
 
 position :: proc(data: Data, x,z: int) -> [3]f32 {
