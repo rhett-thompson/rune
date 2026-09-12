@@ -50,7 +50,7 @@ get_typed_component :: proc(world: ^World, entity: Entity, name: string, $T: typ
 }
 
 set_typed_component :: proc(world: ^World, entity: Entity, name: string, value: $T) -> bool {
-	when T == NavMesh3D || T == NavAgent3D || T == Interactable3D || T == Interactor3D {if !component_value_valid(value) {return false}}
+	when T == NavMesh3D || T == NavAgent3D || T == Interactable3D || T == Interactor3D || T == Trigger3D {if !component_value_valid(value) {return false}}
 	if !is_alive(world, entity) || world.typed_component_arena == nil {return false}
 	descriptor, descriptor_found := world.component_descriptors[name]
 	if !descriptor_found || descriptor.type_id != typeid_of(T) {return false}

@@ -12,6 +12,13 @@ import rl "vendor:raylib"
 interaction: ecs.Interaction_State_3D
 interaction_message: string
 interaction_message_time: f32
+interaction_message_buffer: [512]u8
+
+show_interaction_message :: proc(message:string,seconds:f32=5) {
+	count:=copy(interaction_message_buffer[:],transmute([]u8)message)
+	interaction_message=string(interaction_message_buffer[:count])
+	interaction_message_time=seconds
+}
 
 reset_interactions :: proc() {
 	interaction={};interaction_message="";interaction_message_time=0
@@ -27,6 +34,7 @@ suspend_interactions :: proc(game:^rune.Engine) {
 update_gameplay :: proc(game:^rune.Engine,world:^ecs.World) {
 	update_camera(game,world)
 	interaction_message_time=max(0,interaction_message_time-game.delta_time)
+	if actor_dead(world,player) {suspend_interactions(game);return}
 	if rune.is_paused(game) || console.is_open(rune.developer_console(game)) || !rl.IsWindowFocused() {
 		suspend_interactions(game);return
 	}
@@ -40,21 +48,22 @@ update_gameplay :: proc(game:^rune.Engine,world:^ecs.World) {
 	target:=ecs.update_interaction_3d(world,&interaction,player,feet.position+[3]f32{0,height*0.65,0},
 		{math.sin(yaw),0,math.cos(yaw)},input.is_down(rune.input_state(game),"interact"),game.delta_time)
 	if target!=0 {
-		interaction_message=activate_course_interaction(world,target)
-		interaction_message_time=5
+		show_interaction_message(activate_course_interaction(world,target))
 	}
 }
 
 // Game-specific effects; the engine only returns the activated entity.
 activate_course_interaction :: proc(world:^ecs.World,target:ecs.Entity) -> string {
+	actor,_:=ecs.find_entity_by_id(world,"player")
 	switch world.entity_ids[target] {
 	case "interaction_pickup":
-		ecs.set_enabled(world,target,false)
-		return "Collected the golden cube."
+		message:=collect_pickup(world,actor,target)
+		refresh_course_door_prompt(world)
+		return message
 	case "interaction_guide":
-		return "Guide: Try the door, then collect the golden cube. Hold E to talk again."
+		return "Guide: Take the brass key beside me, then unlock the blue door. F5 saves your progress."
 	case "interaction_door":
-		return toggle_course_door(world,target)
+		return toggle_course_door(world,target,actor)
 	}
 	return ""
 }

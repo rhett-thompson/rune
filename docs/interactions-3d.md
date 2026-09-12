@@ -78,8 +78,12 @@ as scene/component state; in-progress input state stays transient. Selection
 scans interactables and uses point visibility rather than swept-volume reach.
 
 The [third-person example](../examples/third_person_3d/README.md) demonstrates a
-door with collision and blocked-close checks, a disappearing pickup, and a guide
-with a hold-to-talk prompt. Its HUD uses the shared Inter font. Run regression
+key-locked animated door with collision and blocked-close checks, a brass-key
+pickup and inventory HUD, and a guide with a hold-to-talk prompt. F5/F9 save and
+restore collected items, inventory, and explicit door state. The example's
+game-owned inventory helpers and save setup can be adapted for other games;
+the engine's interaction API remains independent of item and door rules.
+Its HUD uses the shared Inter font. Run regression
 checks from the repository root:
 
 ```powershell

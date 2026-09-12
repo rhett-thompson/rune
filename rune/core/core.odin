@@ -724,6 +724,7 @@ run_fixed_pipeline :: proc(engine: ^Engine, world: ^ecs.World) {
 		ecs.update_navigation_3d(world, engine.fixed_delta_time)
 		ecs.physics_2d_update(world, engine.fixed_delta_time)
 		ecs.physics_3d_update(world, engine.fixed_delta_time)
+		ecs.update_triggers_3d(world)
 		for system in engine.systems {
 			if system.post_physics != nil {system.post_physics(engine, world)}
 		}

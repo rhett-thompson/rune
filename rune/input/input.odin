@@ -278,6 +278,18 @@ key_from_name :: proc(name: string) -> Key_Result {
 		if c >= '0' && c <= '9' {return {rl.KeyboardKey(c), true}}
 	}
 	switch upper {
+	case "F1": return {.F1, true}
+	case "F2": return {.F2, true}
+	case "F3": return {.F3, true}
+	case "F4": return {.F4, true}
+	case "F5": return {.F5, true}
+	case "F6": return {.F6, true}
+	case "F7": return {.F7, true}
+	case "F8": return {.F8, true}
+	case "F9": return {.F9, true}
+	case "F10": return {.F10, true}
+	case "F11": return {.F11, true}
+	case "F12": return {.F12, true}
 	case "SPACE":
 		return {.SPACE, true}
 	case "LEFT":

@@ -36,6 +36,8 @@ initialize_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	footstep_distance = 0
 	footsteps_moving = false
 	reset_interactions()
+	ecs.reset_triggers_3d(world)
+	refresh_course_door_prompt(world)
 	update_camera(game, world)
 }
 
@@ -58,6 +60,7 @@ on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if !r3d_bridge.draw_scene_ex(&bridge, world, rune.asset_manager(game), scene_view) {
 		example_text.draw("No active Camera3D entity", 24, 24, 28, rl.MAROON)
 	}
+	draw_course_zones(world)
 }
 
 on_draw_ui :: proc(game: ^rune.Engine, world: ^ecs.World) {
@@ -70,6 +73,9 @@ on_draw_ui :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	example_text.draw("Blue ramps | Orange stairs | Purple crawl tunnel | Green moving platform", 24, 138, 18, rl.RAYWHITE)
 	example_text.draw(fmt.ctprintf("%d FPS",rl.GetFPS()),24,164,18,rl.GREEN)
 	draw_interaction_ui(world)
+	draw_inventory_ui(game,world)
+	draw_zone_ui(world)
+	draw_health_ui(world)
 }
 
 main :: proc() {
@@ -77,9 +83,8 @@ main :: proc() {
 	if !ok {fmt.eprintln("Could not load examples/third_person_3d/project.json"); return}
 	defer rune.shutdown(&game)
 	if !example_text.init(&game.assets) {fmt.eprintln("Could not load shared example font"); return}
-	if !ecs.register_component(rune.component_registry(&game), "ThirdPersonController",
-		Third_Person_Settings, Third_Person_Defaults, "Third-person orbit camera, facing, and footstep tuning") {
-		fmt.eprintln("Could not register ThirdPersonController")
+	if !register_course_components(rune.component_registry(&game)) || !configure_course_saves(&game) {
+		fmt.eprintln("Could not configure course components or saves: ",rune.last_save_error(&game))
 		return
 	}
 	if !rune.register_system(&game, {
@@ -87,11 +92,12 @@ main :: proc() {
 		start = initialize_scene,
 		ui_update = sample_controls,
 		fixed_update = fixed_update,
-		post_physics = update_footsteps,
+		post_physics = course_post_physics,
 		update = update_gameplay,
 		draw = on_draw,
 		draw_ui = on_draw_ui,
 		on_scene_reloaded = initialize_scene,
+		on_save_restored = initialize_scene,
 		shutdown = shutdown_scene,
 	}) {
 		fmt.eprintln("Could not register third-person system")

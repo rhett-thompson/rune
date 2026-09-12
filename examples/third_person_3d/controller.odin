@@ -40,6 +40,7 @@ facing_yaw: f32
 jump_press_sent, jump_release_sent: bool
 
 sample_controls :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	sample_checkpoints(game)
 	jump_press_sent, jump_release_sent = false, false
 	if rune.is_paused(game) || console.is_open(rune.developer_console(game)) {
 		suspend_interactions(game)
@@ -63,6 +64,7 @@ sample_controls :: proc(game: ^rune.Engine, world: ^ecs.World) {
 // Fixed callbacks also see injected console input. Guards consume each jump edge
 // only once when several physics steps occur in one rendered frame.
 submit_movement :: proc(game: ^rune.Engine, world: ^ecs.World) {
+	if actor_dead(world,player) {ecs.character_controller_3d_move(world,player,{});return}
 	if console.is_open(rune.developer_console(game)) {
 		ecs.character_controller_3d_move(world, player, {})
 		return

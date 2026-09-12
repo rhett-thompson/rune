@@ -6,6 +6,7 @@ import "rune:particles"
 // These constraints are shared by JSON readers and typed setters. Keep checks
 // on hot gameplay paths scalar: no JSON serialization or scratch allocation.
 component_value_valid :: proc(value: $T) -> bool {
+	when T == Trigger3D {return trigger_3d_valid(value)}
 	when T == Interactable3D || T == Interactor3D {return interaction_component_3d_valid(value)}
 	when T == NavMesh3D {return value.asset!=""}
 	when T == NavAgent3D {return nav_agent_3d_valid(value)}

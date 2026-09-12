@@ -32,6 +32,32 @@ All fields and defaults appear in
 Scene saves hot reload through the normal scene loader; prefab overrides and
 runtime console inspection use the same component format.
 
+## Fog
+
+Fog is part of `PostProcessing`; add it to the scene's existing profile so the
+other effects stay together:
+
+```json
+"fog": {
+  "mode": "linear",
+  "color": [38, 49, 67, 255],
+  "start": 12,
+  "end": 45,
+  "sky_affect": 0
+}
+```
+
+This keeps nearby objects clear and fades distant geometry toward the
+third-person example's background color. Distances are measured from the camera
+in world units. `linear` uses `start` and `end`; `exp` and `exp2` use `density`
+(higher values produce thicker fog). `sky_affect` controls sky influence from
+0 to 1. Use `mode: "disabled"` to turn fog off without disabling other effects.
+
+This is distance fog applied to the rendered view. It does not create bounded
+fog banks or volumetric light scattering. Scene edits hot reload; for a running
+game, the console can also set `PostProcessing.fog.mode`, `.start`, `.end`,
+`.density`, and `.color` on the profile entity.
+
 ## Profile selection and lifetime
 
 1. An enabled profile on the active Camera3D entity wins.

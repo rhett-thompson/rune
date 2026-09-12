@@ -3,21 +3,60 @@
   "name": "Third Person Movement Course",
   "entities": [
     {
+      "id": "checkpoint_zone", "name": "Green checkpoint zone",
+      "components": {
+        "Transform": {"position": [-5, 1, 8]},
+        "Trigger3D": {"shape": "box", "size": [2.5, 2, 2.5], "layers": 4},
+        "ZoneEffect": {"kind": "checkpoint", "spawn_position": [-5, 0.05, 8]}
+      },
+      "children": [{"id": "checkpoint_pad", "components": {
+        "Transform": {"position": [0, -0.97, 0], "scale": [2.5, 0.06, 2.5]},
+        "MeshRenderer": {"primitive": "cube", "color": [40, 155, 100, 255], "shadows": false}
+      }}]
+    },
+    {
+      "id": "hazard_zone", "name": "Red hazard zone",
+      "components": {
+        "Transform": {"position": [5, 0.8, 8]},
+        "Trigger3D": {"shape": "sphere", "radius": 1.4, "layers": 4},
+        "ZoneEffect": {"kind": "hazard", "damage": 25}
+      },
+      "children": [{"id": "hazard_pad", "components": {
+        "Transform": {"position": [0, -0.77, 0], "scale": [2, 0.06, 2]},
+        "MeshRenderer": {"primitive": "cube", "color": [165, 45, 45, 255], "shadows": false}
+      }}]
+    },
+    {
       "id": "interaction_door", "name": "Door switch", "layers": ["Gameplay"],
       "components": {
         "Transform": {"position": [0, 1.25, 6.5], "scale": [2, 2.5, 0.36]},
-        "Interactable3D": {"prompt": "Open door"},
+        "Interactable3D": {"prompt": "Requires a brass key"},
+        "DoorState": {"required_key": "brass_key", "unlocked": false, "open": false},
         "MeshRenderer": {"primitive": "cube", "color": [60, 145, 185, 255], "shadows": true},
         "BoxCollider": {"size": [1, 1, 1], "is_static": true}
       }
     },
     {
-      "id": "interaction_pickup", "name": "Golden cube", "layers": ["Gameplay"],
+      "id": "interaction_pickup", "name": "Brass key", "layers": ["Gameplay"],
       "components": {
-        "Transform": {"position": [-2, 0.65, 8], "rotation": [0, 30, 0], "scale": [0.5, 0.5, 0.5]},
-        "MeshRenderer": {"primitive": "cube", "color": [255, 198, 60, 255], "shadows": true},
-        "Interactable3D": {"prompt": "Collect golden cube"}
-      }
+        "Transform": {"position": [-2, 0.85, 8]},
+        "Pickup": {"item_id": "brass_key", "quantity": 1},
+        "Interactable3D": {"prompt": "Take brass key"}
+      },
+      "children": [
+        {"id": "key_head", "components": {
+          "Transform": {"position": [0, 0.28, 0], "scale": [0.4, 0.4, 0.14]},
+          "MeshRenderer": {"primitive": "cube", "color": [255, 198, 60, 255], "shadows": true}
+        }},
+        {"id": "key_stem", "components": {
+          "Transform": {"position": [0, -0.16, 0], "scale": [0.13, 0.5, 0.13]},
+          "MeshRenderer": {"primitive": "cube", "color": [255, 198, 60, 255], "shadows": true}
+        }},
+        {"id": "key_tooth", "components": {
+          "Transform": {"position": [0.12, -0.32, 0], "scale": [0.23, 0.12, 0.13]},
+          "MeshRenderer": {"primitive": "cube", "color": [255, 198, 60, 255], "shadows": true}
+        }}
+      ]
     },
     {
       "id": "interaction_guide", "name": "Course guide", "layers": ["Gameplay"],
@@ -44,6 +83,13 @@
         "PostProcessing": {
           "ssao": {
             "enabled": true
+          },
+          "fog": {
+            "mode": "linear",
+            "color": [38, 49, 67, 255],
+            "start": 12,
+            "end": 45,
+            "sky_affect": 0
           }
         }
       }
@@ -122,6 +168,9 @@
         },
         "CharacterController3D": {},
         "Interactor3D": {},
+        "Inventory": {},
+        "RespawnPoint": {},
+        "Health": {},
         "ThirdPersonController": {
           "footstep_stride": 2.4,
           "camera_smoothing": 12,

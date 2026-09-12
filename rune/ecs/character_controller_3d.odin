@@ -106,6 +106,16 @@ character_controller_3d_ready :: proc(world: ^World, entity: Entity) -> bool {
 		!has_component_data(world,entity,"CharacterController")
 }
 
+// Teleport to a clear feet position, discarding velocity, support, and buffered
+// input. The caller chooses a safe destination; this does not sweep the route.
+character_controller_3d_teleport :: proc(world:^World,entity:Entity,position:[3]f32) -> bool {
+	if !character_controller_3d_ready(world,entity) || !physics_query_vector_valid(position) {return false}
+	pose:=world.transforms[entity];pose.position=position
+	if !set_transform(world,entity,pose) {return false}
+	delete_key(&world.character_controller_states_3d,entity)
+	return true
+}
+
 // Direction is world X/Z, preserves analog strength, and persists until replaced.
 character_controller_3d_move :: proc(world: ^World, entity: Entity, direction: [2]f32, sprint := false) -> bool {
 	if !has_component_data(world,entity,"CharacterController3D") || !is_enabled(world,entity) || !physics_query_vector_valid(direction) {return false}

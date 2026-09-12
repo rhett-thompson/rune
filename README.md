@@ -36,6 +36,7 @@ their game-specific fields are not completed by the built-in schemas.
 - [2D resolution policies](docs/display.md): fit, stretch, integer scaling, and canvas mouse mapping.
 - [3D character controller](docs/character-controller-3d.md): fixed-step capsule movement, slopes, stairs, crouching, and moving platforms.
 - [3D interactions](docs/interactions-3d.md): character reach, facing and visibility checks, press/hold actions, and prompts. The third-person course includes a door, pickup, and guide.
+- [3D trigger zones](docs/triggers-3d.md): box/sphere volumes, layer filtering, and enter/stay/exit events for characters and colliders. Try the third-person checkpoint and hazard.
 - [Animation transitions](docs/animation-transitions.md): queued sprite clips and skeletal pose blends.
 - [3D post processing](docs/post-processing.md): scene/camera profiles, bloom, tone mapping, occlusion, focus, and hot reload. Try [Post Processing 3D](examples/post_processing_3d/README.md).
 

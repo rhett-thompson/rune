@@ -413,6 +413,10 @@ validate_components :: proc(
 				add(report, file, field_path(path, name), "invalid post-processing profile: check effect fields, lowercase modes, finite ranges, fog end > start, and max_ev >= min_ev (see docs/post-processing.md)")
 			}
 		}
+		if name == "Trigger3D" {
+			if _,valid:=ecs.trigger_3d_from_json(value); !valid {add(report,file,field_path(path,name),"Trigger3D requires box/sphere shape, positive finite size/radius, and a finite offset")}
+			if _,exists:=components["Transform"]; !exists {add(report,file,field_path(path,name),"Trigger3D requires Transform")}
+		}
 		if name == "Interactable3D" || name == "Interactor3D" {
 			valid:bool
 			if name=="Interactable3D" {_,valid=ecs.interaction_component_3d_from_json(value,ecs.Interactable3D)}

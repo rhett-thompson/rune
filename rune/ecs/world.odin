@@ -46,6 +46,7 @@ Default_Layer: u8 : 0
 Default_Layer_Mask: u64 : u64(1) << Default_Layer
 
 World :: struct {
+	triggers_3d: Trigger_Runtime_3D,
 	navigation_3d: Navigation_Runtime_3D,
 	character_controllers_3d: map[Entity]CharacterController3D,
 	character_controller_states_3d: map[Entity]Character_Controller_State_3D,
@@ -241,6 +242,7 @@ init :: proc() -> World {
 destroy :: proc(world: ^World) {
 	if world == nil {return}
 	destroy_navigation_3d(world)
+	destroy_triggers_3d(world)
 	for _, &state in world.particle_states_2d {particles.destroy(&state)}
 	delete(world.particle_states_2d)
 	delete(world.particle_emitters_2d)

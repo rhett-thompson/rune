@@ -1,6 +1,8 @@
 {
   "$schema": "../../../schemas/input.schema.json",
   "actions": {
+    "save_checkpoint": [{ "type": "keyboard", "key": "F5" }],
+    "load_checkpoint": [{ "type": "keyboard", "key": "F9" }],
     "interact": [{ "type": "keyboard", "key": "E" }],
     "move_forward": [{ "type": "keyboard", "key": "W" }],
     "move_back": [{ "type": "keyboard", "key": "S" }],

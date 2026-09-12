@@ -2,24 +2,73 @@
 
 A third-person version of the [first-person movement course](../first_person_3d/README.md),
 using the same fixed-step `CharacterController3D` capsule motor, warm lighting,
-shadows, and ambient occlusion. Walk up blue ramps, climb orange stairs, crouch
+shadows, ambient occlusion, and distance fog. Walk up blue ramps, climb orange stairs, crouch
 through the purple tunnel, ride the green moving platform, and push the crate.
 The red ramp is deliberately too steep to climb.
 
-Near the starting point, face the blue door and press **E** to open or close it.
+**Health and zones:** The player starts with 100 health. The red wire sphere
+deals 25 damage on entry and again while you remain inside, with 0.75 seconds of
+protection after each hit. Step out to stop taking damage. At zero health, movement
+and interactions stop for 1.25 seconds before you respawn with full health and
+1.5 seconds of protection. The health bar shows remaining health, protection, and
+the death countdown. Overlapping hazards share the same per-character protection.
+
+Walk into the green wire box to set the respawn checkpoint. Before activating it,
+death returns you to the start. These volumes do not block movement, and only the
+Player layer activates them. Respawning clears momentum and keeps inventory and
+door progress. The HUD shows the selected respawn point; F5/F9 also save and
+restore it and your health. Activating the green zone changes the respawn point but does not write a file
+until you press F5. See [3D trigger zones](../../docs/triggers-3d.md) and
+[zones.odin](zones.odin) for the reusable events and example effects.
+
+[health.odin](health.odin) provides a game-owned `Health` component and
+`apply_damage` helper for any actor carrying it. Tune `current`, `maximum`,
+`hit_protection`, `respawn_delay`, and `respawn_protection` on the player's Health
+component; set damage per hit on the hazard's `ZoneEffect.damage`. Timers advance
+only during fixed gameplay ticks. Health and remaining protection/death timers
+are saved together, so loading while injured or during death resumes that state.
+Respawn destinations should be clear of hazards and solid geometry.
+
+The scene's `post` entity enables linear fog from 12 to 45 world units from the
+camera, tinted to match the dark blue background. Nearby interactions stay clear
+while the far side of the course fades into haze. Tune `PostProcessing.fog` in
+[scenes/main.scene.json](scenes/main.scene.json); set `mode` to `disabled` to
+compare. See [fog settings](../../docs/post-processing.md#fog).
+
+Near the starting point, the blue door requires a brass key. Face the gold key
+beside the guide and press **E** to collect it; the inventory HUD shows its count.
+Then face the door and press **E** to unlock and open it. The key stays in your
+inventory, and the door remains unlocked for subsequent opening and closing.
 The door slides over 0.8 seconds with a gentle start and stop, and its collision
 follows the panel. Press E again to reverse it during travel. It refuses to close
 on a character or blocking object, and reopens if the doorway becomes blocked
 while closing. Tune the travel time in [door.odin](door.odin).
-Face the golden cube and press **E** to collect it. Face the
-purple guide and **hold E** to talk; the prompt shows hold progress. Release E
+Face the purple guide and **hold E** to talk; the prompt shows hold progress. Release E
 or turn away to cancel. Walls and terrain collision block interactions.
 The bottom HUD shows the selected action and its result.
 
 These use reusable `Interactor3D` / `Interactable3D` components; see the
 [interaction guide](../../docs/interactions-3d.md). Effects live in
-[interactions.odin](interactions.odin). Pickup and door changes last for the
-current scene; a full reload restores the authored course.
+[interactions.odin](interactions.odin). **F5 saves a checkpoint; F9 loads it**,
+including after restarting the example. The HUD reports success or failure.
+Checkpoints live in `build/saves/third_person_3d/checkpoint.save.json` relative to
+the repository root; the previous save is retained as a `.bak` file. Console
+commands `checkpoint` and `restore` perform the same operations. Saving is manual;
+a fresh launch starts the authored course until you press F9.
+
+[inventory.odin](inventory.odin) provides game-owned `Inventory` (item ID to
+count), `Pickup` (item ID and quantity), and `DoorState` (required key, unlocked,
+and open destination) components. Inventory helpers copy borrowed data before
+changing counts, cap each stack at 99, and reject duplicate collection of a
+disabled pickup. The inventory HUD lists item names and counts.
+
+[checkpoints.odin](checkpoints.odin) opts `Inventory`, `DoorState`, `Transform`,
+`RespawnPoint`, `Health`, and `Interactable3D` into Rune's save system. Entity enablement preserves collected
+pickups automatically. Door state is independent of prompt text; a checkpoint
+saved during travel resumes from the saved height toward its saved destination.
+Restoring reinitializes the camera/render bridge and clears transient interaction
+and animation handles. Full scene reloads restore authored values; use F9 to
+recover a saved checkpoint.
 
 **Controls:** WASD moves relative to camera yaw; Space jumps (release early for a
 short hop); Left Shift sprints; Left Ctrl crouches; mouse wheel zooms. Left-drag

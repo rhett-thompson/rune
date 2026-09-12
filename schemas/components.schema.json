@@ -5,6 +5,19 @@
   "type": "object",
   "description": "Components attached to an entity. Custom Odin components are allowed.",
   "properties": {
+    "Trigger3D": {
+      "type": "object", "additionalProperties": false,
+      "description": "Query-only box or sphere zone. Requires Transform; boxes remain world-axis aligned. Emits events after physics.",
+      "properties": {
+        "shape": {"enum": ["box", "sphere", 0, 1], "default": "box", "description": "box (0) or sphere (1); numeric forms support typed serialization."},
+        "size": {"type": "array", "items": {"type": "number", "exclusiveMinimum": 0}, "minItems": 3, "maxItems": 3, "default": [2, 2, 2]},
+        "radius": {"type": "number", "exclusiveMinimum": 0, "default": 1},
+        "offset": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "default": [0, 0, 0]},
+        "layers": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615, "description": "Accepted target layer bits; all bits by default."},
+        "enabled": {"type": "boolean", "default": true},
+        "include_sensors": {"type": "boolean", "default": false}
+      }
+    },
     "Interactable3D": {
       "type": "object", "additionalProperties": false,
       "description": "Interaction point at Transform position plus a world-axis offset; requires Transform.",
