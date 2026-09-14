@@ -8,6 +8,7 @@ Add `ModelAnimator` beside `ModelRenderer` to play a clip embedded in a model:
   "ModelRenderer": { "model": "assets/character.glb" },
   "ModelAnimator": {
     "clip": "walk",
+    "events": "assets/character.model-events.json",
     "speed": 1,
     "loop": true,
     "autoplay": true
@@ -17,7 +18,9 @@ Add `ModelAnimator` beside `ModelRenderer` to play a clip embedded in a model:
 
 `clip` is case-sensitive; an empty name selects the first imported clip.
 `speed` must be finite and nonzero. Negative speed plays in reverse.
-The other fields default to the values shown above.
+`events` is optional and defaults to an empty path; see
+[skeletal animation events](model-animation-events.md). The other fields default
+to the values shown above.
 
 The R3D bridge remains optional. Register a simulation update callback which
 calls `update_animations` once, and draw through the existing bridge:
@@ -53,8 +56,9 @@ bool; `get_model_animation_state` returns the state and a found flag:
 | `get_model_animation_state(world, entity)` | Return state and a found flag. |
 
 State includes `elapsed` and `duration` in seconds, `playing`, `finished`,
-and `initialized`. A non-looping clip holds its final pose. Looping is handled
-by R3D. A finished clip can be restarted with `play_model_animation`.
+and `initialized`. A non-looping clip holds its final pose. Rune advances the
+playback clock and marker events together; R3D evaluates the resulting pose.
+A finished clip can be restarted with `play_model_animation`.
 
 Use `ecs.get(world, entity, ecs.ModelAnimator)` and `ecs.set` for typed
 configuration edits. Changing speed or loop preserves playback time; changing
@@ -104,6 +108,9 @@ odin build tools/model_animation_validation -collection:rune=rune -collection:r3
 The example shows three instances of an original two-joint glTF model. Press
 1/2 to switch the left instance's clip, P to pause it, and R to resume it.
 Its checked-in model can be regenerated with `generate_fixture.ps1`.
+S cycles playback speed, V reverses direction, and H silently seeks to one
+second. The left rig's JSON marker tracks trigger sounds and visible effects;
+`clip_events` in the runtime console returns their counters.
 
 The normal validator checks component, serialization, control, and scene-reload
 behavior without opening a window. `--runtime` additionally uses a hidden

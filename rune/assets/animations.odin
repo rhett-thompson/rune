@@ -1,15 +1,64 @@
 package assets
 
 import "core:encoding/json"
+import "core:fmt"
+import "core:math"
 import "core:os"
 import "core:strings"
 import "rune:jsonutil"
 
 Animation_Clip :: struct {
+	markers: []Animation_Marker,
 	frames: []i32,
 	origin: [2]i32,
 	fps:    f32,
 	loop:   bool,
+}
+
+// frame is a zero-based position in the clip's frames array, not an atlas index.
+Animation_Marker :: struct {
+	frame: int,
+	name: string,
+}
+
+MAX_ANIMATION_MARKERS :: 4096
+
+// Shared by loading and project validation. Successful results are caller-owned.
+decode_animation_markers :: proc(value: json.Value, frame_count: int) -> ([]Animation_Marker, string) {
+	array, ok := value.(json.Array)
+	if !ok || len(array) > MAX_ANIMATION_MARKERS {return nil, "must be an array of at most 4096 markers"}
+	markers := make([]Animation_Marker, len(array))
+	valid := false
+	defer if !valid {destroy_animation_markers(markers)}
+	previous := -1
+	for entry, index in array {
+		object, object_ok := entry.(json.Object)
+		if !object_ok {return nil, fmt.tprintf("[%d] must be an object", index)}
+		for key in object {
+			if key != "frame" && key != "name" {return nil, fmt.tprintf("[%d].%s is unknown", index, key)}
+		}
+		frame: f64
+		#partial switch number in object["frame"] {
+		case json.Integer: frame = f64(number)
+		case json.Float: frame = f64(number)
+		case: return nil, fmt.tprintf("[%d].frame must be a number", index)
+		}
+		if math.is_nan(frame) || math.is_inf(frame) || frame < 0 || frame >= f64(frame_count) || frame != math.floor(frame) {
+			return nil, fmt.tprintf("[%d].frame must be an integer position in the clip's frames array", index)
+		}
+		if int(frame) < previous {return nil, fmt.tprintf("[%d].frame must be in nondecreasing order", index)}
+		name, name_ok := object["name"].(json.String)
+		if !name_ok || len(name) == 0 {return nil, fmt.tprintf("[%d].name must be a non-empty string", index)}
+		markers[index] = {frame = int(frame), name = clone_asset_string(name)}
+		previous = int(frame)
+	}
+	valid = true
+	return markers, ""
+}
+
+destroy_animation_markers :: proc(markers: []Animation_Marker) {
+	for marker in markers {delete(marker.name)}
+	delete(markers)
 }
 
 Animation_Data :: struct {
@@ -106,7 +155,7 @@ load_animation_data :: proc(full_path: string) -> (Animation_Data, bool) {
 			loop   = true,
 		}
 		clip_valid := false
-		defer if !clip_valid {delete(clip.frames)}
+		defer if !clip_valid {delete(clip.frames); destroy_animation_markers(clip.markers)}
 		for frame_value, index in frames_array {
 			frame, frame_ok := jsonutil.number(frame_value)
 			if !frame_ok || frame < 0 || frame != f32(i32(frame)) {return {}, false}
@@ -131,6 +180,11 @@ load_animation_data :: proc(full_path: string) -> (Animation_Data, bool) {
 			clip.loop, clip_ok = loop_value.(json.Boolean)
 			if !clip_ok {return {}, false}
 		}
+		if markers, found := clip_object["markers"]; found {
+			error: string
+			clip.markers, error = decode_animation_markers(markers, len(clip.frames))
+			if error != "" {return {}, false}
+		}
 		owned_name, _ := strings.clone(name)
 		result.clips[owned_name] = clip
 		clip_valid = true
@@ -141,6 +195,7 @@ load_animation_data :: proc(full_path: string) -> (Animation_Data, bool) {
 
 refresh_animations :: proc(manager: ^Asset_Manager) {
 	if manager == nil {return}
+	refresh_model_events(manager)
 	for path, asset in manager.animations {
 		full_path := resolve_path(manager, path)
 		current_time := modified_time(full_path)
@@ -176,6 +231,7 @@ destroy_animation_data :: proc(data: ^Animation_Data) {
 	if data == nil {return}
 	delete(data.texture)
 	for name, clip in data.clips {
+		destroy_animation_markers(clip.markers)
 		delete(clip.frames)
 		delete(name)
 	}

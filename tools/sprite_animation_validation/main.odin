@@ -9,6 +9,7 @@ import "rune:scene"
 import rl "vendor:raylib"
 
 main :: proc() {
+	validate_events()
 	data, loaded := assets.load_animation_data(
 		"examples/sprite_animation_2d/animations/coin.animation.json",
 	)
@@ -106,4 +107,5 @@ validate_queue :: proc(world: ^ecs.World, knight: ecs.Entity) {
 	assert(ecs.stop_sprite_animation(world,knight))
 	state, _ = ecs.get_sprite_animation_state(world,knight)
 	assert(state.next_clip=="" && !state.finished)
+	validate_runtime_markers()
 }

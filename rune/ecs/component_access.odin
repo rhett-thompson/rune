@@ -58,6 +58,7 @@ play_sprite_animation :: proc(
 	commit_component_value(world, entity, "SpriteAnimator", &world.sprite_animators, animator)
 	state := world.sprite_animation_states[entity]
 	if restart || clip_changed {
+		state.markers_started = false
 		state.elapsed = 0
 		state.frame = 0
 		state.next_clip = ""
@@ -90,6 +91,7 @@ resume_sprite_animation :: proc(world: ^World, entity: Entity) -> bool {
 stop_sprite_animation :: proc(world: ^World, entity: Entity) -> bool {
 	state, found := world.sprite_animation_states[entity]
 	if !found {return false}
+	state.markers_started = false
 	state.elapsed = 0
 	state.frame = 0
 	state.initialized = true

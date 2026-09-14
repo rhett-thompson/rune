@@ -134,6 +134,8 @@ commit_component_value :: proc(
 	} else when T == BoxCollider || T == SphereCollider {
 		if !existed || previous != value {physics_3d_remove_entity(world, entity)}
 	} else when T == ModelAnimator {
+		stored_value.clip = retain_scene_string(world, value.clip)
+		stored_value.events = retain_scene_string(world, value.events)
 		if !existed || previous.clip != value.clip || previous.autoplay != value.autoplay {
 			world.model_animation_states[entity] = {}
 		}

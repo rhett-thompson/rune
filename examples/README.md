@@ -35,6 +35,7 @@ the window to quit; the developer console is available with the backtick key.
 | --- | --- |
 | [Shapes 2D](shapes_2d/README.md) | Texture-free shapes, activation, and timed entity expiry. |
 | [Sprite Animation 2D](sprite_animation_2d/README.md) | Sprite clips and playback controls. |
+| [Animation Events 2D](animation_events_2d/README.md) | Frame-timed footsteps, strike damage, and particles at variable speeds. |
 | [Tweening 2D](tweening_2d/README.md) | Compare six easing curves. |
 | [Scene Transition 2D](scene_transition_2d/README.md) | Fade between two scenes. |
 | [Checkpoint Saves](save_load_2d/README.md) | Save slots, pickups, spawned objects, and progress across rooms. |

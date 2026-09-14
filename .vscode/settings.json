@@ -1,5 +1,6 @@
 {
   "json.schemas": [
+    {"fileMatch":["**/*.model-events.json"],"url":"./schemas/model-events.schema.json"},
     {"fileMatch":["**/*.navbake.json"],"url":"./schemas/navbake.schema.json"},
     {"fileMatch":["**/*.navmesh.json"],"url":"./schemas/navmesh.schema.json"},
     {"fileMatch": ["**/*.save.json", "**/*.save.json.bak"], "url": "./schemas/save.schema.json"},

@@ -63,6 +63,8 @@ World :: struct {
 	particle_states_2d: map[Entity]particles.State,
 	model_animators: map[Entity]ModelAnimator,
 	model_animation_states: map[Entity]Model_Animation_State,
+	model_animation_event_buffer: [dynamic]Model_Animation_Event,
+	model_animation_event_overflow: bool,
 	physics_2d, physics_3d: Physics_State,
 	generation:                  u32,
 	next_entity:                 u32,
@@ -97,6 +99,8 @@ World :: struct {
 	sprite_renderers:            map[Entity]SpriteRenderer,
 	sprite_animators:            map[Entity]SpriteAnimator,
 	sprite_animation_states:     map[Entity]Sprite_Animation_State,
+	sprite_animation_event_buffer: [dynamic]Sprite_Animation_Event,
+	sprite_animation_event_overflow: bool,
 	mesh_renderers:              map[Entity]MeshRenderer,
 	sphere_renderers:            map[Entity]SphereRenderer,
 	model_renderers:             map[Entity]ModelRenderer,
@@ -285,8 +289,12 @@ destroy :: proc(world: ^World) {
 	delete(world.sprite_renderers)
 	delete(world.model_animators)
 	delete(world.model_animation_states)
+	clear_model_animation_events(world)
+	delete(world.model_animation_event_buffer)
 	delete(world.sprite_animators)
 	delete(world.sprite_animation_states)
+	clear_sprite_animation_events(world)
+	delete(world.sprite_animation_event_buffer)
 	delete(world.mesh_renderers)
 	delete(world.sphere_renderers)
 	delete(world.model_renderers)

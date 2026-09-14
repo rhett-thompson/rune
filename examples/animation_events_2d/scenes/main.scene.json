@@ -1,0 +1,29 @@
+{
+  "$schema": "../../../schemas/scene.schema.json",
+  "name": "Animation Events",
+  "entities": [
+    {"id": "camera", "components": {"Transform": {}, "Camera2D": {"active": true}}},
+    {"id": "knight", "components": {
+      "Transform": {"position": [520, 330, 0], "scale": [5, 5, 1]},
+      "SpriteRenderer": {"origin": [0.5, 0.5]},
+      "SpriteAnimator": {"animation": "animations/knight.animation.json", "clip": "idle"},
+      "AudioPlayer": {
+        "step": {"sound": "../assets/brackeys_platformer_assets/sounds/tap.wav", "volume": 0.25},
+        "impact": {"sound": "../assets/brackeys_platformer_assets/sounds/hurt.wav", "volume": 0.35}
+      }
+    }},
+    {"id": "target", "components": {
+      "Transform": {"position": [650, 335, 0]},
+      "ShapeRenderer2D": {"size": [55, 84], "color": [195, 116, 69, 255]},
+      "TrainingTarget": {"health": 100}
+    }},
+    {"id": "dust", "components": {
+      "Transform": {},
+      "ParticleEmitter2D": {"emitting": false, "max_particles": 128, "lifetime": [0.2, 0.45], "speed": [15, 45], "angle": -90, "spread": 130, "start_size": 5, "end_size": 0, "start_color": [172, 155, 128, 180], "end_color": [172, 155, 128, 0], "draw_order": 2}
+    }},
+    {"id": "impact", "components": {
+      "Transform": {"position": [630, 330, 0]},
+      "ParticleEmitter2D": {"emitting": false, "max_particles": 256, "lifetime": [0.2, 0.5], "speed": [60, 170], "spread": 360, "gravity": [0, 180], "start_size": 7, "end_size": 0, "start_color": [255, 215, 90, 255], "end_color": [255, 95, 35, 0], "draw_order": 3}
+    }}
+  ]
+}

@@ -539,6 +539,11 @@ validate_components :: proc(
 			project_directory,
 			allow_empty_texture = name == "ParticleEmitter2D",
 		)
+		if name == "ModelAnimator" {
+			if value, found := component["events"]; found {
+				validate_model_events_reference(report, file, field_path(field_path(path, name), "events"), value, project_directory)
+			}
+		}
 		if name == "ModelRenderer" {
 			validate_material_overrides(
 				report,

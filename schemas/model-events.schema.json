@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "model-events.schema.json",
+  "title": "Rune skeletal animation markers",
+  "type": "object",
+  "required": ["clips"],
+  "properties": {
+    "$schema": {"type": "string"},
+    "clips": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"minLength": 1},
+      "additionalProperties": {
+        "type": "array", "maxItems": 4096,
+        "description": "Markers in nondecreasing clip seconds. Times must not exceed the imported clip duration.",
+        "items": {
+          "type": "object", "required": ["time", "name"],
+          "properties": {"time": {"type": "number", "minimum": 0}, "name": {"type": "string", "minLength": 1}},
+          "additionalProperties": false
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

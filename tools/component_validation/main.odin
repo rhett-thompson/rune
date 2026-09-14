@@ -435,17 +435,17 @@ validate_motion_components :: proc() {
 }
 
 validate_sphere_collider :: proc() {
-	project, project_loaded := rune.load_project("examples/third_person_3d/project.json")
-	assert(project_loaded)
-	defer rune.destroy_project(&project)
 	registry := ecs.init_registry()
+	defer ecs.destroy_registry(&registry)
 	assert(ecs.register_builtin_components(&registry))
-	world, loaded := scene.load_with_layers(
-		"examples/third_person_3d/scenes/main.scene.json",
+	// Keep this legacy-controller test independent of the third-person game's
+	// custom components and its newer CharacterController3D movement course.
+	world, loaded := scene.load(
+		"tools/component_validation/fixtures/sphere-collider.scene.json",
 		&registry,
-		project.layers,
 	)
-	assert(loaded)
+	assert(loaded, scene.last_load_error())
+	defer ecs.destroy(&world)
 	target, found := ecs.find_entity_by_id(&world, "look_target")
 	assert(found)
 	collider, has_collider := ecs.get_sphere_collider(&world, target)

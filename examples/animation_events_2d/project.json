@@ -1,0 +1,8 @@
+{
+  "$schema": "../../schemas/project.schema.json",
+  "name": "Animation Events",
+  "startup_scene": "scenes/main.scene.json",
+  "window": {"width": 960, "height": 550, "title": "Rune - Animation Events", "vsync": true},
+  "background_color": [15, 21, 31, 255],
+  "input": "input/default.input.json"
+}

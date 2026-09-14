@@ -109,6 +109,7 @@ update_animations :: proc(
 	manager: ^assets.Asset_Manager,
 	dt: f32,
 ) {
+	ecs.clear_model_animation_events(world)
 	if dt < 0 || math.is_nan(dt) || math.is_inf(dt) {return}
 	prepare_animations(ctx, world, manager, dt, true)
 }
@@ -197,6 +198,11 @@ prepare_animations :: proc(
 		state.duration = clip.duration / clip.ticksPerSecond
 		if state.elapsed < 0 {state.elapsed = state.duration}
 		state.elapsed = clamp(state.elapsed, 0, state.duration)
+		if publish {
+			name := imported_clip_name(&clip)
+			markers := model_event_track(manager, animator.events, name, asset.animations)
+			advance_model_timeline(world, entity, renderer.model, name, &state, animator, markers, dt)
+		}
 		r3d.PlayAnimation(&cached.player, index)
 		r3d.SetAnimationSpeed(&cached.player, index, animator.speed)
 		r3d.SetAnimationLoop(&cached.player, index, animator.loop)
@@ -207,13 +213,6 @@ prepare_animations :: proc(
 		if state.elapsed ==
 		   state.duration {cached.player.states[index].currentTime = state.elapsed}
 		if !state.playing {r3d.PauseAnimation(&cached.player)}
-		if publish && state.playing {r3d.AdvanceAnimationTime(&cached.player, dt)}
-		state.elapsed = r3d.GetAnimationTime(cached.player, index)
-		state.playing = r3d.IsAnimationPlaying(cached.player)
-		state.finished =
-			!animator.loop &&
-			!state.playing &&
-			(state.elapsed >= state.duration if animator.speed > 0 else state.elapsed <= 0)
 		blending := len(cached.blend_pose)>0
 		if blending && publish && (state.playing || state.finished) {cached.blend_elapsed += dt}
 		if !cached.ready || cached.clip_index != index || cached.pose_time != state.elapsed || blending {

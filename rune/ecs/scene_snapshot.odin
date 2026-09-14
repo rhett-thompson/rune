@@ -479,6 +479,7 @@ rehome_builtin_strings :: proc(world, snapshot: ^World) {
 	for entity, value in world.model_animators {
 		owned := value
 		owned.clip = retain_scene_string(snapshot, value.clip)
+		owned.events = retain_scene_string(snapshot, value.events)
 		world.model_animators[entity] = owned
 	}
 	for entity, value in world.sprite_renderers {

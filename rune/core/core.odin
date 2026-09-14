@@ -91,6 +91,9 @@ System :: struct {
 	fixed_update:      System_Update_Proc,
 	post_physics:      System_Update_Proc,
 	update:            System_Update_Proc,
+	// Consume animation markers before particles/audio. Optional 3D bridges
+	// should advance their animators in an update callback before this phase.
+	post_animation:    System_Update_Proc,
 	// Runs every rendered frame, before simulation, including while paused.
 	ui_update:         System_Update_Proc,
 	pre_draw:          System_Draw_Proc,
@@ -644,6 +647,9 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 				canvas_size(engine),
 			)
 			render.update_sprite_animators(world, &engine.assets, engine.delta_time)
+			for system in engine.systems {
+				if system.post_animation != nil {system.post_animation(engine, world)}
+			}
 			ecs.update_particles_2d(world, engine.delta_time)
 			ecs.update_lifetimes(world, engine.delta_time)
 			engine.debug.sample.update_ms = (rl.GetTime() - update_started) * 1000

@@ -1,5 +1,6 @@
 {
   "examples": [
+    {"name": "Animation Events 2D", "path": "animation_events_2d", "description": "Frame-timed footsteps, roll-strike damage, and impact particles at variable speeds.", "group": "2D"},
     {"name":"Navigation 3D","path":"navigation_3d","description":"Click-to-move agents, ramp traversal, triangle navmeshes, and blocked routes.","group":"3D"},
     {"name": "Checkpoint Saves", "path": "save_load_2d", "description": "Save and restore health, pickups, spawned objects, and progress across rooms.", "group": "2D"},
     {"name": "Terrain 3D", "path": "terrain_3d", "description": "Walk across a heightmap landscape with chunked meshes, collision, and live reload.", "collections": [{"name": "r3d", "path": "third_party/r3d-odin"}], "group": "3D"},
@@ -24,7 +25,7 @@
     {"name": "Hello 3D", "path": "hello_3d", "description": "A rotating cube and a camera.", "collections": [{"name": "r3d", "path": "third_party/r3d-odin"}], "group": "3D"},
     {"name": "Model Scene 3D", "path": "model_scene_3d", "description": "Load a model and orbit around it.", "collections": [{"name": "r3d", "path": "third_party/r3d-odin"}], "group": "3D"},
     {"name": "Textured Model 3D", "path": "textured_model_3d", "description": "Inspect a model's material maps.", "collections": [{"name": "r3d", "path": "third_party/r3d-odin"}], "group": "3D"},
-    {"name": "Skeletal Animation 3D", "path": "skeletal_animation_3d", "description": "Independent animation playback.", "collections": [{"name": "r3d", "path": "third_party/r3d-odin"}], "group": "3D"},
+    {"name": "Skeletal Animation 3D", "path": "skeletal_animation_3d", "description": "Independent clips, pose blends, and marker-driven sound and effects.", "collections": [{"name": "r3d", "path": "third_party/r3d-odin"}], "group": "3D"},
     {"name": "Orbit Camera", "path": "orbit_camera", "description": "Control a camera with the mouse.", "collections": [{"name": "r3d", "path": "third_party/r3d-odin"}], "group": "3D"},
     {"name": "Camera Switching", "path": "camera_switching", "description": "Switch between three cameras.", "collections": [{"name": "r3d", "path": "third_party/r3d-odin"}], "group": "3D"},
     {"name": "First Person 3D", "path": "first_person_3d", "description": "Capsule movement, ramps, stairs, crouching, and moving platforms.", "collections": [{"name": "r3d", "path": "third_party/r3d-odin"}], "group": "3D"},

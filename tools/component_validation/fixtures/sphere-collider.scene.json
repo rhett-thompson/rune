@@ -1,0 +1,13 @@
+{
+  "name": "Legacy sphere collision validation",
+  "entities": [
+    {"id": "look_target", "components": {
+      "Transform": {"position": [0, 0.75, -9]},
+      "SphereCollider": {"radius": 0.75, "is_static": true}
+    }},
+    {"id": "player", "components": {
+      "Transform": {"position": [0, 0.75, -7.5]},
+      "CharacterController": {"radius": 0.35, "height": 1.8, "eye_height": 1.6, "gravity": 24}
+    }}
+  ]
+}

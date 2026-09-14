@@ -26,6 +26,10 @@ their game-specific fields are not completed by the built-in schemas.
 
 ## Current capabilities
 
+- [Skeletal animation events](docs/model-animation-events.md): reusable JSON marker tracks, reverse playback, silent seeks, and destination-clip events during blends. The skeletal example includes marker-driven sounds and effects.
+
+- [Sprite animation events](docs/animation-events.md): frame markers and a buffered Odin API for synchronized sounds, damage, and effects. Try [Animation Events 2D](examples/animation_events_2d/README.md).
+
 - [3D navigation](docs/navigation-3d.md): navmesh baking from static geometry and heightmap terrain, path queries, fixed-step agents, capsule-controller integration, and hot reload. Try [Navigation 3D](examples/navigation_3d/README.md).
 
 - [Checkpoint saves](docs/save-load.md): opt-in components, game globals, spawned/deleted entities, per-scene progress, backups, and migrations. Try [Checkpoint Saves](examples/save_load_2d/README.md).
@@ -164,6 +168,7 @@ rune.register_system(&game, rune.System{
     fixed_update = update_physics_controls,
     post_physics = handle_physics_events,
     update = update_gameplay,
+    post_animation = handle_animation_events,
     pre_draw = draw_background,
     draw = draw_overlay,
     draw_ui = draw_interface,
@@ -178,7 +183,8 @@ if !rune.run(&game) {
 
 The scene loop samples input and the console, polls scene reloads, and calls
 `ui_update` before simulation. It then runs fixed-step systems and physics,
-post-physics systems, normal update systems, and audio. Drawing runs `pre_draw`,
+post-physics systems, normal update systems, sprite animation, `post_animation`
+systems, particles, lifetimes, and audio. Drawing runs `pre_draw`,
 automatic 2D scene rendering, `draw`, and gizmos inside the game canvas, followed
 by `draw_ui` and the console at native UI resolution. Use `pre_draw` for content
 behind the scene, `draw` for game overlays, and `draw_ui` for menus that should

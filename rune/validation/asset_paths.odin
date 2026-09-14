@@ -6,6 +6,17 @@ import "core:path/filepath"
 import "core:strconv"
 import "core:strings"
 import "rune:jsonutil"
+import "rune:assets"
+
+validate_model_events_reference :: proc(report: ^Report, file, path: string, value: json.Value, project_directory: string) {
+	asset, ok := value.(json.String)
+	if !ok {add(report, file, path, "must be a marker asset path or an empty string"); return}
+	if asset == "" || project_directory == "" {return}
+	resolved := path_from(report, project_directory, asset)
+	data, error := assets.load_model_events_data(resolved)
+	if error != "" {add(report, resolved, "$", error)}
+	assets.destroy_model_events_data(&data)
+}
 
 SUPPORTED_TEXTURE_FORMATS :: ".png, .bmp, .gif, .qoi, and .dds"
 
@@ -291,6 +302,11 @@ validate_animation :: proc(report: ^Report, animation_path, project_directory: s
 					)
 				}
 			}
+		}
+		if markers_value, found := clip["markers"]; found {
+			markers, error := assets.decode_animation_markers(markers_value, len(frames))
+			if error != "" {add(report, animation_path, field_path(clip_path, "markers"), error)}
+			assets.destroy_animation_markers(markers)
 		}
 		if fps_value, found := clip["fps"]; found {
 			fps, fps_ok := jsonutil.number(fps_value)

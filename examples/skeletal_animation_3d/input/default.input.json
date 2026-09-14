@@ -1,6 +1,9 @@
 {
   "$schema": "../../../schemas/input.schema.json",
   "actions": {
+    "speed": [{ "type": "keyboard", "key": "S" }],
+    "reverse": [{ "type": "keyboard", "key": "V" }],
+    "seek": [{ "type": "keyboard", "key": "H" }],
     "pause": [{ "type": "keyboard", "key": "P" }],
     "resume": [{ "type": "keyboard", "key": "R" }],
     "bend": [{ "type": "keyboard", "key": "1" }],

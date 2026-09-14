@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../schemas/input.schema.json",
+  "actions": {
+    "left": [{"type": "keyboard", "key": "A"}],
+    "right": [{"type": "keyboard", "key": "D"}],
+    "attack": [{"type": "keyboard", "key": "SPACE"}],
+    "speed": [{"type": "keyboard", "key": "TAB"}],
+    "pause_animation": [{"type": "keyboard", "key": "P"}],
+    "reset": [{"type": "keyboard", "key": "R"}]
+  },
+  "axes": {"move_x": {"negative": "left", "positive": "right"}}
+}

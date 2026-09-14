@@ -1,0 +1,7 @@
+{
+  "$schema": "../../../schemas/model-events.schema.json",
+  "clips": {
+    "bend": [{"time": 0.5, "name": "impact"}, {"time": 1.5, "name": "impact"}],
+    "sway": [{"time": 0.5, "name": "footstep"}, {"time": 1.5, "name": "footstep"}]
+  }
+}

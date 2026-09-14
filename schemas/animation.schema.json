@@ -39,6 +39,20 @@
           "maxItems": 2,
           "default": [0, 0]
         },
+        "markers": {
+          "type": "array",
+          "description": "Named frame-entry events in nondecreasing frame order. Frame is a zero-based position in this clip's frames array, not an atlas index. Odin handles their behavior.",
+          "maxItems": 4096,
+          "items": {
+            "type": "object",
+            "required": ["frame", "name"],
+            "properties": {
+              "frame": { "type": "integer", "minimum": 0 },
+              "name": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          }
+        },
         "fps": { "type": "number", "exclusiveMinimum": 0, "default": 12 },
         "loop": { "type": "boolean", "default": true }
       },

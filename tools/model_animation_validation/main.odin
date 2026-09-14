@@ -192,6 +192,7 @@ validate_runtime :: proc(registry: ^ecs.Component_Registry) {
 	assert(world.generation != old_generation && len(ctx.animation_players) == 3)
 	left, _ = ecs.find_entity_by_id(&world,"left")
 	validate_transitions(&ctx,&world,&manager,left)
+	validate_model_marker_runtime(&ctx, &world, &manager, left, registry)
 }
 
 validate_transitions :: proc(ctx: ^bridge.Context, world: ^ecs.World, manager: ^assets.Asset_Manager, entity: ecs.Entity) {
@@ -295,6 +296,7 @@ main :: proc() {
 	mem.dynamic_arena_init(&arena)
 	defer mem.dynamic_arena_destroy(&arena)
 	context.temp_allocator = mem.dynamic_arena_allocator(&arena)
+	validate_event_timeline()
 	registry := ecs.init_registry()
 	defer ecs.destroy_registry(&registry)
 	assert(ecs.register_builtin_components(&registry))

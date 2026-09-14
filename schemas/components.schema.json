@@ -591,6 +591,7 @@
     "modelAnimator": {
       "type": "object",
       "properties": {
+		"events": { "type": "string", "default": "", "description": "Project-relative skeletal marker track JSON; empty disables markers." },
         "clip": { "type": "string", "default": "", "description": "Embedded clip name; empty selects the first clip." },
         "blend_time": { "type": "number", "minimum": 0, "default": 0 },
         "speed": { "type": "number", "not": { "const": 0 }, "default": 1 },

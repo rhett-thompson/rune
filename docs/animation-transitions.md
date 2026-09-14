@@ -1,5 +1,8 @@
 # Animation transitions
 
+For frame-timed gameplay reactions, see [sprite animation events](animation-events.md).
+For time markers in model clips, see [skeletal animation events](model-animation-events.md).
+
 Transition decisions remain ordinary Odin gameplay code. There is no state graph
 or behavior encoded in JSON in this first implementation.
 

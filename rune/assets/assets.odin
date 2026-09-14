@@ -70,6 +70,7 @@ Asset_Manager :: struct {
 	fonts:                    map[string]Font_Asset,
 	materials:                map[string]Material_Asset,
 	animations:               map[string]Animation_Asset,
+	model_events:             map[string]Model_Events_Asset,
 	tilesets:                 map[string]Tileset_Asset,
 	generated_orm_textures:   map[u64]Texture_Asset,
 	material_texture_watches: map[string]i64,
@@ -1067,6 +1068,8 @@ shutdown :: proc(manager: ^Asset_Manager) {
 	delete(manager.fonts)
 	delete(manager.materials)
 	delete(manager.animations)
+	for _, &cached in manager.model_events {destroy_model_events_data(&cached.data)}
+	delete(manager.model_events)
 	delete(manager.tilesets)
 	delete(manager.material_texture_watches)
 	delete(manager.missing_textures)

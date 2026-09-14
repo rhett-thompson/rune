@@ -27,9 +27,11 @@ SpriteAnimator :: struct {
 }
 
 Sprite_Animation_State :: struct {
+	markers_started: bool,
 	finished:       bool,
 	next_clip:      string,
-	elapsed:        f32,
+	// Fractional clip seconds within the current frame (independent of speed).
+	elapsed:        f64,
 	frame:          int,
 	asset_revision: u64,
 	initialized:    bool,

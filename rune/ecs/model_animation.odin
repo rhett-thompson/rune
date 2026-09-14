@@ -6,6 +6,7 @@ import "core:math"
 // Clips come from the ModelRenderer model's embedded animation library.
 // Empty clip selects the first clip. R3D resources stay in r3d_bridge.
 ModelAnimator :: struct {
+	events: string,
 	blend_time: f32,
 	clip:     string,
 	speed:    f32,
@@ -14,6 +15,8 @@ ModelAnimator :: struct {
 }
 
 Model_Animation_State :: struct {
+	markers_started: bool,
+	marker_boundary_crossed: bool,
 	elapsed:     f32,
 	duration:    f32,
 	playing:     bool,
@@ -28,6 +31,10 @@ model_animator_from_json :: proc(data: json.Value) -> (ModelAnimator, bool) {
 		speed    = 1,
 		loop     = true,
 		autoplay = true,
+	}
+	if value, found := object["events"]; found {
+		result.events, ok = value.(json.String)
+		if !ok {return {}, false}
 	}
 	if value, found := object["blend_time"]; found {
 		result.blend_time, ok = read_number(value)
@@ -62,6 +69,7 @@ set_model_animator :: proc(world: ^World, entity: Entity, value: ModelAnimator) 
 	   !component_value_valid(value) {return false}
 	owned := value
 	owned.clip = retain_scene_string(world, value.clip)
+	owned.events = retain_scene_string(world, value.events)
 	commit_component_value(world, entity, "ModelAnimator", &world.model_animators, owned)
 	return true
 }
@@ -79,6 +87,8 @@ play_model_animation :: proc(
 	if !set_model_animator(world, entity, animator) {return false}
 	state := world.model_animation_states[entity]
 	if restart || changed {
+		state.markers_started = false
+		state.marker_boundary_crossed = false
 		// Negative sentinel is resolved once the imported duration is known.
 		state.elapsed = -1 if animator.speed < 0 else 0
 	}
@@ -123,6 +133,8 @@ stop_model_animation :: proc(world: ^World, entity: Entity) -> bool {
 	if !pause_model_animation(world, entity) {return false}
 	state := world.model_animation_states[entity]
 	state.elapsed = 0
+	state.markers_started = false
+	state.marker_boundary_crossed = false
 	state.finished = false
 	world.model_animation_states[entity] = state
 	return true
@@ -143,6 +155,9 @@ seek_model_animation :: proc(world: ^World, entity: Entity, seconds: f32) -> boo
 	if !state.initialized {state.playing = world.model_animators[entity].autoplay}
 	state.initialized = true
 	state.elapsed = seconds
+	// Seeking does not synthesize events at or before the destination.
+	state.markers_started = true
+	state.marker_boundary_crossed = false
 	state.finished = false
 	world.model_animation_states[entity] = state
 	return true
