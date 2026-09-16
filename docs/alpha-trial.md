@@ -9,10 +9,11 @@ Allow about 20–30 minutes and ask testers to use only the repository documenta
 
 1. Clone the GitHub repository with submodules and follow README setup. Record
    the OS, `odin version`, and PowerShell version.
-2. Run `tools/validate.ps1 -AllExamples`. Save any error output.
+2. Run `pwsh -NoProfile -File tools/validate.ps1 -AllExamples`. Save any error output.
 3. Use `tools/new_project.ps1` to create a game outside the engine folder. Build
    and run it using its own `build.ps1`. Confirm the empty scene opens.
-4. Run the Tilemap 2D example from the launcher. Move the knight, then save a
+4. Open the launcher with `launcher.bat` on Windows or `sh launcher.sh` on Linux.
+   Run the Tilemap 2D example. Move the knight, then save a
    small scene change and confirm hot reload. Restore the scene afterward.
 5. Start the example with a console inbox. Use `status`, `pause`, `inspect`,
    `step`, and `capture`; locate and open the captured PNG.

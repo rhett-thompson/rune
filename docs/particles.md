@@ -124,11 +124,14 @@ simulation, 3D billboards, and GPU simulation can be added as needed.
 ## Example and validation
 
 ```powershell
-odin build examples/particles_2d -collection:rune=rune -out:build/particles_2d.exe
-./build/particles_2d.exe
-odin build tools/particle_validation -collection:rune=rune -out:build/particle_validation.exe
-./build/particle_validation.exe
-./build/particle_validation.exe --runtime
+# PowerShell 7 on Windows or Linux
+New-Item -ItemType Directory -Force build | Out-Null
+$exe = if ($IsWindows) { '.exe' } else { '' }
+odin build examples/particles_2d -collection:rune=rune "-out:build/particles_2d$exe"
+& "./build/particles_2d$exe"
+odin build tools/particle_validation -collection:rune=rune "-out:build/particle_validation$exe"
+& "./build/particle_validation$exe"
+& "./build/particle_validation$exe" --runtime
 ```
 
 The example shows an additive fountain, textured smoke, and an Odin-triggered

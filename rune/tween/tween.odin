@@ -218,7 +218,7 @@ ease_in_out_bounce :: proc(t: f32) -> f32 {if t < 0.5 {return (1 - ease_out_boun
 ease_in_elastic :: proc(t: f32) -> f32 {
 	if t == 0 || t == 1 {return t}
 	c4 := 2 * math.PI / 3
-	return -f32(math.pow(2, f64(10 * t - 10))) * f32(math.sin(f64(10 * t - 10) * c4))
+	return -f32(math.pow(2, f64(10 * t - 10))) * f32(math.sin(f64(10 * t - 10.75) * c4))
 }
 ease_out_elastic :: proc(t: f32) -> f32 {
 	if t == 0 || t == 1 {return t}

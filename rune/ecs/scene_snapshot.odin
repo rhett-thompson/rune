@@ -44,7 +44,7 @@ apply_value_snapshot :: proc(world: ^World, snapshot: ^World) -> bool {
 	for snapshot_entity, target_entity in entity_translation {
 		world.entity_names[target_entity] = snapshot.entity_names[snapshot_entity]
 		world.entity_tags[target_entity] = snapshot.entity_tags[snapshot_entity]
-		world.layer_masks[target_entity] = snapshot.layer_masks[snapshot_entity]
+		set_entity_layer_mask(world, target_entity, snapshot.layer_masks[snapshot_entity])
 		set_enabled(world, target_entity, is_locally_enabled(snapshot, snapshot_entity))
 	}
 
@@ -492,6 +492,13 @@ rehome_builtin_strings :: proc(world, snapshot: ^World) {
 		owned.animation = retain_scene_string(snapshot, value.animation)
 		owned.clip = retain_scene_string(snapshot, value.clip)
 		world.sprite_animators[entity] = owned
+	}
+	// Playback survives value-only reloads too; queued names belong to the
+	// outgoing scene arena just like the animator's current clip.
+	for entity, value in world.sprite_animation_states {
+		owned := value
+		owned.next_clip = retain_scene_string(snapshot, value.next_clip)
+		world.sprite_animation_states[entity] = owned
 	}
 	for entity, value in world.mesh_renderers {
 		owned := value

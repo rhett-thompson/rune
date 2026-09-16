@@ -27,6 +27,11 @@ resetting a clip already selected. The Sprite Animation example queues idle
 after roll and hit. Sprite transitions switch frames; they do not alpha-blend
 two sprites.
 
+Value-only scene reload preserves playback and the queued name when the
+animator's animation asset, clip, and autoplay settings are unchanged. Rune owns
+the queued string across these reloads. Changes to those settings reset playback
+and clear the queue; structural reload creates fresh animation state.
+
 ## Skeletal clips
 
 ```odin
@@ -56,8 +61,11 @@ The Skeletal Animation example blends between keys 1 and 2 over 0.35 seconds.
 Its P/R pause/resume controls also demonstrate freezing and resuming a blend.
 
 ```powershell
-odin build tools/model_animation_validation -collection:rune=rune -collection:r3d=third_party/r3d-odin -out:build/model_animation_validation.exe
-./build/model_animation_validation.exe --runtime
-odin build tools/sprite_animation_validation -collection:rune=rune -out:build/sprite_animation_validation.exe
-./build/sprite_animation_validation.exe --runtime
+# PowerShell 7 on Windows or Linux
+New-Item -ItemType Directory -Force build | Out-Null
+$exe = if ($IsWindows) { '.exe' } else { '' }
+odin build tools/model_animation_validation -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/model_animation_validation$exe"
+& "./build/model_animation_validation$exe" --runtime
+odin build tools/sprite_animation_validation -collection:rune=rune "-out:build/sprite_animation_validation$exe"
+& "./build/sprite_animation_validation$exe" --runtime
 ```

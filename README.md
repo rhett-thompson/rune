@@ -119,9 +119,26 @@ Licensing and asset-credit work is tracked in [THIRD_PARTY.md](THIRD_PARTY.md).
 
 Browse, build, and run the examples from one small launcher:
 
-```powershell
-odin run examples/launcher -collection:rune=rune
+On Windows, run `launcher.bat`. On Linux, run:
+
+```sh
+sh launcher.sh
 ```
+
+Both scripts find the checkout from their own location and put the launcher in
+`build/`. The Linux launcher needs Odin on `PATH` and a desktop session; it does
+not require PowerShell. See [Linux development](docs/linux.md) for dependencies.
+
+To invoke Odin directly from the checkout with PowerShell 7 on either platform:
+
+```powershell
+New-Item -ItemType Directory -Force build | Out-Null
+$exe = if ($IsWindows) { '.exe' } else { '' }
+odin run examples/launcher -collection:rune=rune "-out:build/launcher$exe"
+```
+
+The other direct Odin commands below use this `build/` directory and `$exe`
+variable. From Bash, use the shell launcher or follow the Linux guide's commands.
 
 Use the category tabs to filter examples. Left/Right switches tabs; Up/Down or
 the mouse wheel browses the list; Enter or a click runs the selected example.
@@ -208,9 +225,13 @@ if !rune.change_scene(game, "scenes/level_2.scene.json") {
 }
 ```
 
-The new scene is loaded before the current one is disturbed. Rune then runs
-system shutdown callbacks, destroys the old World, installs the new World, and
+Without configured saves, the new scene is loaded before the current one is
+disturbed. Rune then runs system shutdown callbacks, destroys the old World, installs the new World, and
 runs start callbacks. A load failure leaves the current scene running.
+
+With saves configured, `change_scene` queues a transition for the next frame
+boundary, preserving per-scene progress. Check `last_save_result` for completion;
+revisited scenes invoke `on_save_restored`. See [checkpoint saves](docs/save-load.md).
 
 `Transform`, `SpriteRenderer`, `SpriteAnimator`, `MeshRenderer`, `SphereRenderer`, `Camera2D`, `Camera3D`, `AudioListener`, and `AudioPlayer` are data
 components. Their behavior stays in Odin systems, rather than turning scene
@@ -366,7 +387,7 @@ RGBA color interpolation. Set `mode` to `.Restart` or `.Ping_Pong` and
 needed. Run its non-windowed validation with:
 
 ```powershell
-odin run tools/tween_validation -collection:rune=rune
+odin run tools/tween_validation -collection:rune=rune "-out:build/tween_validation$exe"
 ```
 
 The runnable [`tweening_2d`](examples/tweening_2d) example loads an orb from
@@ -374,7 +395,7 @@ scene JSON, then uses a ping-pong tween to animate its position and color.
 Left-click to cycle through easing equations:
 
 ```powershell
-odin run examples/tweening_2d -collection:rune=rune
+odin run examples/tweening_2d -collection:rune=rune "-out:build/tweening_2d$exe"
 ```
 
 [`scene_transition_2d`](examples/scene_transition_2d) demonstrates replacing
@@ -382,7 +403,7 @@ the runtime `World` with another JSON scene. A left click fades to black,
 loads the next scene, then fades back in:
 
 ```powershell
-odin run examples/scene_transition_2d -collection:rune=rune
+odin run examples/scene_transition_2d -collection:rune=rune "-out:build/scene_transition_2d$exe"
 ```
 
 [`third_person_3d`](examples/third_person_3d) demonstrates a code-driven
@@ -397,7 +418,7 @@ character follows the motor's crouch height; the camera pulls inward around
 obstacles. See the [example guide](examples/third_person_3d/README.md) for tuning.
 
 ```powershell
-odin run examples/third_person_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin
+odin run examples/third_person_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/third_person_3d$exe"
 ```
 
 [`planetary_3d`](examples/planetary_3d) takes the same built-in capsule motor
@@ -624,7 +645,7 @@ between arrows and `A`/`D`; each change is saved to `input/default.input.json`,
 and later launches use the saved keys:
 
 ```powershell
-odin run examples/runtime_rebinding -collection:rune=rune
+odin run examples/runtime_rebinding -collection:rune=rune "-out:build/runtime_rebinding$exe"
 ```
 
 Mouse motion can be exposed as an axis using `"type": "mouse_delta"` and
@@ -646,7 +667,7 @@ raylib binding for windowing, input, audio, 2D rendering, and debug overlays;
 From the repository root on Windows:
 
 ```powershell
-odin run examples/hello_world -collection:rune=rune
+odin run examples/hello_world -collection:rune=rune "-out:build/hello_world$exe"
 ```
 
 The example loads `project.json`; `scene.load` then reads `scenes/main.scene.json` and returns its populated runtime `World`.
@@ -660,7 +681,7 @@ overrides, and rejects texture formats unavailable in the bundled raylib build.
 Failures are reported as `file: $.json.path: message`.
 
 ```powershell
-odin run tools/project_validator -collection:rune=rune -- examples/hello_world/project.json
+odin run tools/project_validator -collection:rune=rune "-out:build/project_validator$exe" -- examples/hello_world/project.json
 ```
 
 The project path is optional and defaults to the hello-world example. Runtime
@@ -814,7 +835,7 @@ not require that listener to carry a camera component.
 The runnable component-loading example is available at:
 
 ```powershell
-odin run examples/audio_components -collection:rune=rune -collection:r3d=third_party/r3d-odin
+odin run examples/audio_components -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/audio_components$exe"
 ```
 
 When using the scene-owning `rune.run`, the engine updates audio automatically. Odin
@@ -893,7 +914,7 @@ retrying disk loading every frame.
 Validate scene-to-typed-transform loading without starting a game window:
 
 ```powershell
-odin run tools/component_validation -collection:rune=rune
+odin run tools/component_validation -collection:rune=rune "-out:build/component_validation$exe"
 ```
 
 ## 3D hello world
@@ -901,7 +922,7 @@ odin run tools/component_validation -collection:rune=rune
 The 3D sample loads a JSON scene and shows a rotating cube with a perspective camera:
 
 ```powershell
-odin run examples/hello_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin
+odin run examples/hello_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/hello_3d$exe"
 ```
 
 ## JSON sprite scene
@@ -912,7 +933,7 @@ Edit the sprite's position, scale, or texture in `scenes/main.scene.json`
 while it runs to see hot reload:
 
 ```powershell
-odin run examples/sprite_scene_2d -collection:rune=rune
+odin run examples/sprite_scene_2d -collection:rune=rune "-out:build/sprite_scene_2d$exe"
 ```
 
 ## Sprite-sheet animation
@@ -955,7 +976,7 @@ Odin systems can call `ecs.play_sprite_animation`,
 `ecs.stop_sprite_animation`. Run the complete example with:
 
 ```powershell
-odin run examples/sprite_animation_2d -collection:rune=rune
+odin run examples/sprite_animation_2d -collection:rune=rune "-out:build/sprite_animation_2d$exe"
 ```
 
 The example animates both the coin and knight sheets. Press `Tab` to cycle the
@@ -987,13 +1008,13 @@ rules, stable child lookup, and migration details.
 Run the multiple-instance example with:
 
 ```powershell
-odin run examples/prefabs_2d -collection:rune=rune
+odin run examples/prefabs_2d -collection:rune=rune "-out:build/prefabs_2d$exe"
 ```
 
 Validate prefab scene loading without opening a window:
 
 ```powershell
-odin run tools/prefab_validation -collection:rune=rune
+odin run tools/prefab_validation -collection:rune=rune "-out:build/prefab_validation$exe"
 ```
 
 ## Development hot reload
@@ -1009,20 +1030,28 @@ following when the block is omitted:
   "prefabs": true,
   "textures": true,
   "models": true,
+  "terrains": true,
   "materials": true,
   "animations": true,
-  "tilesets": true
+  "tilesets": true,
+  "navmeshes": true
 }
 ```
 
-Texture, model, material, tileset, and animation reload use their corresponding
-flags; font reload follows `textures`. Project settings, input mappings, and
+Texture, model, terrain, material, tileset, animation, and navmesh reload use
+their corresponding flags; font reload follows `textures`. Project settings, input mappings, and
 audio-file contents are not automatically reloaded.
 The normal engine-owned `rune.run(&game)`
 workflow watches the active scene automatically. Component-value-only edits
 are applied to the existing World; structural edits rebuild it and invoke each
 system's `on_scene_reloaded` callback so cached entity handles can be
-reacquired.
+reacquired. Preserving handles requires the same non-empty entity IDs, parent
+relationships, and component memberships in the running World and loaded scene.
+
+Layer-only edits also preserve entity handles while rebuilding affected native
+physics bodies, so the next 2D or 3D query uses the new collision filters.
+Queued sprite transitions survive value-only reloads when the animator's asset,
+clip, and autoplay settings are unchanged; edits to those settings reset playback.
 
 Advanced callback-based programs that own a World can poll explicitly:
 
@@ -1168,14 +1197,14 @@ r3d material slots:
 Run the self-contained OBJ example with:
 
 ```powershell
-odin run examples/model_scene_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin
+odin run examples/model_scene_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/model_scene_3d$exe"
 ```
 
 The `textured_model_3d` example adds a UV-mapped cube model and a textured,
 lit material:
 
 ```powershell
-odin run examples/textured_model_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin
+odin run examples/textured_model_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/textured_model_3d$exe"
 ```
 
 The bridge is intentionally small for now. Rune scene loading, ECS, input,
@@ -1280,7 +1309,7 @@ useful for scene-authored HUD text.
 Run the example with:
 
 ```powershell
-odin run examples/tilemap_2d -collection:rune=rune
+odin run examples/tilemap_2d -collection:rune=rune "-out:build/tilemap_2d$exe"
 ```
 
 `TilemapCollider` uses the same grid and blocks IDs in `solid_tiles`. A solid
@@ -1362,8 +1391,8 @@ which makes jumping an explicit game-code decision. Callback-based programs may
 still call `ecs.physics_2d_update` directly. Run the example and validation:
 
 ```powershell
-odin run examples/physics_platformer_2d -collection:rune=rune
-odin run tools/physics_2d_validation -collection:rune=rune
+odin run examples/physics_platformer_2d -collection:rune=rune "-out:build/physics_platformer_2d$exe"
+odin run tools/physics_2d_validation -collection:rune=rune "-out:build/physics_2d_validation$exe"
 ```
 
 ## Scene text
@@ -1387,7 +1416,7 @@ The camera-switching sample has three `Camera3D` entities loaded from JSON.
 Press `1`, `2`, or `3` to select the wide, front, or side camera:
 
 ```powershell
-odin run examples/camera_switching -collection:rune=rune -collection:r3d=third_party/r3d-odin
+odin run examples/camera_switching -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/camera_switching$exe"
 ```
 
 ## Orbit camera
@@ -1416,7 +1445,7 @@ registered systems run. Callback-based programs can call
 drag in the orbit-camera example to control the orbit:
 
 ```powershell
-odin run examples/orbit_camera -collection:rune=rune -collection:r3d=third_party/r3d-odin
+odin run examples/orbit_camera -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/orbit_camera$exe"
 ```
 
 ## First-person controller
@@ -1441,7 +1470,7 @@ around; Escape releases or recaptures the cursor. F3 shows physics gizmos.
 This sample shows nested scene entities and transform inheritance: `Sun > Earth > Moon`.
 
 ```powershell
-odin run examples/solar_system -collection:rune=rune -collection:r3d=third_party/r3d-odin
+odin run examples/solar_system -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/solar_system$exe"
 ```
 
 ## Custom component updating a Transform
@@ -1483,7 +1512,7 @@ validates a replacement struct, then swaps it into the existing World while
 preserving the entity handle.
 
 ```powershell
-odin run examples/custom_mover -collection:rune=rune
+odin run examples/custom_mover -collection:rune=rune "-out:build/custom_mover$exe"
 ```
 
 ## Tetris
@@ -1493,7 +1522,7 @@ scene, system, and input APIs. It includes all seven tetrominoes, scoring,
 levels, next-piece and ghost previews, pause, and restart:
 
 ```powershell
-odin run examples/tetris -collection:rune=rune
+odin run examples/tetris -collection:rune=rune "-out:build/tetris$exe"
 ```
 
 ### Skyboxes

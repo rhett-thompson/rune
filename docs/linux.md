@@ -8,7 +8,8 @@ targets; the bundled native dependencies need separate verification.
 ## Verification status
 
 Validation is run locally on each platform. Linux execution has not yet been
-verified from this Windows checkout: WSL is not installed. Keep `toolchain.json`'s
+verified from this Windows checkout. Shell-launcher checks using Git's shell on
+Windows do not establish Linux compiler or runtime support. Keep `toolchain.json`'s
 `tested_platforms` limited to platforms with actual passing runs; `target_platforms`
 records intended support separately. Record the Linux run and compiler revision
 after completing validation on a Linux machine.
@@ -65,6 +66,45 @@ their relative project and asset paths resolve. Paths and filenames must match
 case exactly on Linux. The default toolchain links X11; on a Wayland desktop,
 install/enable XWayland. A working XWayland session does not establish native
 Wayland support.
+
+## Example launcher
+
+From the checkout, run:
+
+```sh
+sh launcher.sh
+```
+
+You can also invoke it from another directory with
+`sh /path/to/rune/launcher.sh` (quote paths containing spaces). It builds and runs
+the launcher with the checkout as its working directory and writes the executable
+to `build/launcher`. Compiler or launcher failures propagate to the calling shell.
+The launcher requires a desktop session and Odin on `PATH`; PowerShell is not
+needed for launching or running games. Windows has the matching `launcher.bat`.
+
+## Shared tooling
+
+Rune uses PowerShell **7** (`pwsh`) for its shared development tools on both
+platforms. Windows PowerShell (`powershell.exe`) is not the required runtime.
+Keep the build, validation, and release logic shared so fixes reach both platforms.
+
+| Task | Linux command |
+| --- | --- |
+| Install the pinned compiler | `pwsh -NoProfile -File tools/install_odin.ps1 -Destination build/odin-toolchain` |
+| Validate and build all examples | `pwsh -NoProfile -File tools/validate.ps1 -AllExamples` |
+| Check an isolated release export | `pwsh -NoProfile -File tools/release_check.ps1 -WorkingTree` |
+| Create a project | `pwsh -NoProfile -File tools/new_project.ps1 -Path ../MyGame -Name 'My Game'` |
+| Build a generated project | `pwsh -NoProfile -File /path/to/MyGame/build.ps1 -RuneRoot /path/to/rune` |
+| Send a console command | `pwsh -NoProfile -File tools/console.ps1 -Directory build/console -Command status -Json` |
+
+The build and validation helpers select executable names for the host platform.
+Window-specific process options are guarded by `$IsWindows`. The importer rebuild
+helper supports `-Target Linux`; its Windows target requires MSVC headers and the
+Windows SDK on a Windows host. The example mesh and animation fixture generators
+use PowerShell/.NET file and JSON APIs and can also be invoked through `pwsh`.
+
+These portability choices still require actual Linux validation; the verification
+status above distinguishes intended support from completed platform testing.
 
 ## Create a game
 

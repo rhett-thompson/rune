@@ -123,10 +123,13 @@ components; R3D remains available for those advanced uses.
 ## Example and checks
 
 ```powershell
-odin build examples/skeletal_animation_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin -out:build/skeletal_animation_3d.exe
-./build/skeletal_animation_3d.exe
-odin build tools/model_animation_validation -collection:rune=rune -collection:r3d=third_party/r3d-odin -out:build/model_animation_validation.exe
-./build/model_animation_validation.exe --runtime
+# PowerShell 7 on Windows or Linux
+New-Item -ItemType Directory -Force build | Out-Null
+$exe = if ($IsWindows) { '.exe' } else { '' }
+odin build examples/skeletal_animation_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/skeletal_animation_3d$exe"
+& "./build/skeletal_animation_3d$exe"
+odin build tools/model_animation_validation -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/model_animation_validation$exe"
+& "./build/model_animation_validation$exe" --runtime
 ```
 
 The example shows three instances of an original two-joint glTF model alongside

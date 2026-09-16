@@ -10,6 +10,8 @@ main :: proc() {
 	validate_hello_world_value_reload()
 	validate_textured_model_light_edit()
 	validate_repeated_value_reload()
+	validate_collision_layer_reload()
+	validate_queued_animation_reload()
 	fmt.println("Scene value reload validation passed")
 }
 

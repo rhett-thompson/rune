@@ -15,8 +15,11 @@ Programs that do not import `rune:ui` do not link Clay.
 From the repository root:
 
 ```powershell
-odin build examples/clay_ui -collection:rune=rune -out:build/clay_ui.exe
-./build/clay_ui.exe
+# PowerShell 7 on Windows or Linux
+New-Item -ItemType Directory -Force build | Out-Null
+$exe = if ($IsWindows) { '.exe' } else { '' }
+odin build examples/clay_ui -collection:rune=rune "-out:build/clay_ui$exe"
+& "./build/clay_ui$exe"
 ```
 
 The demo starts paused. Resume starts the moving orb; A/D moves it horizontally.
@@ -197,9 +200,12 @@ callbacks free of gameplay mutations.
 ## Validation
 
 ```powershell
-odin build tools/ui_validation -collection:rune=rune -out:build/ui_validation.exe
-./build/ui_validation.exe
-./build/ui_validation.exe --runtime
+# PowerShell 7 on Windows or Linux
+New-Item -ItemType Directory -Force build | Out-Null
+$exe = if ($IsWindows) { '.exe' } else { '' }
+odin build tools/ui_validation -collection:rune=rune "-out:build/ui_validation$exe"
+& "./build/ui_validation$exe"
+& "./build/ui_validation$exe" --runtime
 ```
 
 Headless checks cover the native ABI/layout, resizing, focus traversal, disabled

@@ -106,8 +106,11 @@ Set `render_2d.policy` in its `project.json` before launching to try another
 policy. The runtime validator below checks fit, stretch, and integer scaling.
 
 ```powershell
-odin build tools/resolution_validation -collection:rune=rune -out:build/resolution_validation.exe
-./build/resolution_validation.exe --runtime
+# PowerShell 7 on Windows or Linux
+New-Item -ItemType Directory -Force build | Out-Null
+$exe = if ($IsWindows) { '.exe' } else { '' }
+odin build tools/resolution_validation -collection:rune=rune "-out:build/resolution_validation$exe"
+& "./build/resolution_validation$exe" --runtime
 ```
 
 - Use `GetScreenWidth/Height` for screen-space drawing, Clay layout, camera
@@ -135,12 +138,15 @@ Runtime checks are validated on Windows at 200% DPI. Multi-monitor DPI moves,
 macOS, and Linux require testing on those configurations.
 
 ```powershell
-odin build tools/window_validation -collection:rune=rune -out:build/window_validation.exe
-./build/window_validation.exe
-./build/window_validation.exe --runtime
-./build/window_validation.exe --startup-windowed
-./build/window_validation.exe --startup-borderless
-./build/window_validation.exe --startup-fullscreen
+# PowerShell 7 on Windows or Linux
+New-Item -ItemType Directory -Force build | Out-Null
+$exe = if ($IsWindows) { '.exe' } else { '' }
+odin build tools/window_validation -collection:rune=rune "-out:build/window_validation$exe"
+& "./build/window_validation$exe"
+& "./build/window_validation$exe" --runtime
+& "./build/window_validation$exe" --startup-windowed
+& "./build/window_validation$exe" --startup-borderless
+& "./build/window_validation$exe" --startup-fullscreen
 ```
 
 The runtime check exercises mode transitions, restoration, drawing/scissor

@@ -198,6 +198,11 @@ and layer edits are reflected in the next query. They only see colliders
 represented in the selected native world; tilemap-only movement and the simple
 `CharacterController` volume are separate systems.
 
+Layer-only scene hot reload uses the same native-body invalidation as
+`ecs.set_entity_layer_mask`. Entity handles remain valid, and the next query uses
+the updated layer filters in both physics backends. Rebuilding retains component
+values but resets native contact/sleep state.
+
 Overlap results use `context.temp_allocator` by default and expire when that
 allocator resets (normally the end of the game frame). To keep them longer,
 pass `allocator = context.allocator` and `delete(results)` when finished.

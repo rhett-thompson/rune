@@ -5,7 +5,11 @@ Basics in order for component registration, movement, and prefabs. Feature demos
 focus on one engine facility; games show how those pieces fit together.
 
 Run commands from the repository root. Keep each example in place: some use assets
-from neighboring examples. The launcher supplies any extra collections:
+from neighboring examples. Start the launcher with `launcher.bat` on Windows or
+`sh launcher.sh` on Linux. Both entry points find the checkout automatically and
+write executables to `build/`; the Linux entry point does not require PowerShell.
+
+The launcher supplies any extra collections. To invoke Odin directly:
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
