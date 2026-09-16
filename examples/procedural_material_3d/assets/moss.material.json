@@ -1,0 +1,10 @@
+{
+  "$schema": "../../../schemas/material.schema.json",
+  "lighting": true,
+  "roughness": 1,
+  "procedural": {
+    "seed": 71, "scale": 5, "octaves": 6, "persistence": 0.65, "contrast": 3,
+    "color_a": [28,42,26,255], "color_b": [157,175,75,255],
+    "bump_strength": 0.025, "roughness_variation": 0.15
+  }
+}

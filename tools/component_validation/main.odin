@@ -59,6 +59,7 @@ main :: proc() {
 	validate_text_renderer()
 	validate_motion_components()
 	validate_camera_components()
+	validate_orbit_pan()
 	validate_camera_follow_2d()
 	validate_audio_components()
 	validate_named_audio_instances()

@@ -54,23 +54,9 @@ after_physics :: proc(game: ^rune.Engine, world: ^ecs.World) {
 }
 
 draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
-	rl.ClearBackground({22, 26, 34, 255})
 	example_text.draw("PHYSICS QUERIES", 40, 32, 28, rl.RAYWHITE)
 	example_text.draw("A / D to move. Gold sensors are pickups; blue walls are solid.", 40, 74, 18, rl.LIGHTGRAY)
 	example_text.draw("The ray points right. The faint circle queries nearby colliders.", 40, 100, 18, rl.LIGHTGRAY)
-	for entity, collider in world.box_colliders_2d {
-		transform, found := ecs.get_transform(world, entity)
-		if !found { continue }
-		color := rl.GOLD if collider.is_sensor else rl.SKYBLUE
-		if entity == player { color = rl.GREEN }
-		rl.DrawRectangle(
-			i32(transform.position[0] - collider.size[0] / 2),
-			i32(transform.position[1] - collider.size[1] / 2),
-			i32(collider.size[0]),
-			i32(collider.size[1]),
-			color,
-		)
-	}
 	if transform, found := ecs.get_transform(world, player); found {
 		x, y := transform.position[0], transform.position[1]
 		rl.DrawCircleLines(i32(x), i32(y), 100, rl.DARKGRAY)

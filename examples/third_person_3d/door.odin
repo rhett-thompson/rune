@@ -2,6 +2,7 @@ package main
 
 import "core:math"
 import "rune:ecs"
+import "rune:tween"
 
 Door_Closed_Y :: f32(1.25)
 Door_Open_Y :: f32(4)
@@ -9,9 +10,12 @@ Door_Travel_Time :: f32(0.8)
 
 Door_Animation :: struct {
 	entity: ecs.Entity,
-	from_y, to_y, last_y, elapsed, duration: f32,
+	from_y, to_y, last_y: f32,
+	motion: tween.Tween,
 }
 door_animation: Door_Animation
+
+smoothstep :: proc(t: f32) -> f32 {return t*t*(3-2*t)}
 
 doorway_blocked :: proc(world:^ecs.World,door:ecs.Entity) -> bool {
 	// Motors are separate from ordinary collider queries. Check the whole
@@ -75,13 +79,11 @@ update_course_door :: proc(world:^ecs.World,dt:f32) {
 	}
 	if door_animation.entity!=door || door_animation.to_y!=target_y || door_animation.last_y!=pose.position.y {
 		door_animation={entity=door,from_y=pose.position.y,to_y=target_y,last_y=pose.position.y,
-			duration=max(0.01,Door_Travel_Time*math.abs(target_y-pose.position.y)/(Door_Open_Y-Door_Closed_Y))}
+			motion=tween.make(max(0.01,Door_Travel_Time*math.abs(target_y-pose.position.y)/(Door_Open_Y-Door_Closed_Y)),smoothstep)}
 	}
-	door_animation.elapsed=min(door_animation.elapsed+dt,door_animation.duration)
-	t:=door_animation.elapsed/door_animation.duration
-	// Smoothstep gives a gentle start and stop, with exact endpoint positions.
-	pose.position.y=door_animation.from_y+(target_y-door_animation.from_y)*(t*t*(3-2*t))
-	if t>=1 {
+	completed:=tween.update(&door_animation.motion,dt)
+	pose.position.y=tween.value_f32(&door_animation.motion,door_animation.from_y,target_y)
+	if completed {
 		pose.position.y=target_y
 		show_interaction_message("Door opened." if target_y==Door_Open_Y else "Door closed.",2)
 	}

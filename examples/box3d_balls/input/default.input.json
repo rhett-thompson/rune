@@ -1,5 +1,12 @@
 {
   "$schema": "../../../schemas/input.schema.json",
-  "actions": {},
+  "actions": {
+    "reset": [
+      {
+        "type": "keyboard",
+        "key": "R"
+      }
+    ]
+  },
   "axes": {}
 }

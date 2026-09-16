@@ -3,5 +3,6 @@
   "name": "Skeletal Animation 3D",
   "startup_scene": "scenes/main.scene.json",
   "window": { "width": 1100, "height": 680, "title": "Rune - Skeletal Animation", "vsync": true },
-  "input": "input/default.input.json"
+  "input": "input/default.input.json",
+  "layers": { "Gameplay": 1 }
 }

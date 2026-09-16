@@ -1,5 +1,42 @@
 {
   "$schema": "../../../schemas/scene.schema.json",
   "name": "Clay UI demo",
-  "entities": [{"id":"orb","components":{"Transform":{"position":[180,230,0]}}}]
+  "entities": [
+    {
+      "id": "camera",
+      "components": {
+        "Transform": {},
+        "Camera2D": {
+          "active": true
+        }
+      }
+    },
+    {
+      "id": "orb",
+      "components": {
+        "Transform": {
+          "position": [180, 230, 0]
+        },
+        "ShapeRenderer2D": {
+          "shape": "circle",
+          "radius": 32,
+          "color": [93, 225, 189, 255]
+        }
+      },
+      "children": [
+        {
+          "id": "outline",
+          "components": {
+            "Transform": {},
+            "ShapeRenderer2D": {
+              "shape": "circle",
+              "radius": 46,
+              "filled": false,
+              "color": [57, 126, 121, 255]
+            }
+          }
+        }
+      ]
+    }
+  ]
 }

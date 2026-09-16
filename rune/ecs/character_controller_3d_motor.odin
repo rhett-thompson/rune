@@ -31,7 +31,7 @@ character_push_3d :: proc(query:^Character_Plane_Query_3D,position,velocity:[3]f
 		native,valid := physics_3d_native_body(query.world,owner)
 		if !valid || b3.Body_GetType(native) != .dynamicBody {continue}
 		normal := character_array_3d(plane.plane.normal)
-		normal[1]=0
+		normal-=query.up*character_dot_3d(normal,query.up)
 		length := character_length_3d(normal)
 		if length < 0.01 {continue}
 		normal /= length
@@ -58,6 +58,9 @@ character_controllers_3d_step :: proc(world:^World,dt:f32) {
 		state := world.character_controller_states_3d[entity]
 		pose := world.transforms[entity]
 		position := pose.position
+		up := state.up
+		if character_length_3d(up) < 0.0001 {up={0,1,0}}
+		query.up=up
 		state.previous_position=position
 		if !state.active {state.height=config.height;state.active=true}
 		state.stepped,state.stand_blocked=false,false
@@ -80,15 +83,15 @@ character_controllers_3d_step :: proc(world:^World,dt:f32) {
 		// Feet stay fixed when changing posture. A taller capsule must fit first.
 		requested_height := config.crouch_height if state.crouch_requested else config.height
 		if requested_height > state.height {
-			state.stand_blocked=!character_clearance_3d(world,entity,position,config.radius,requested_height)
+			state.stand_blocked=!character_clearance_3d(world,entity,position,config.radius,requested_height,up)
 		}
 		if !state.stand_blocked {state.height=requested_height}
 		state.crouched=state.height < config.height-0.001
 
 		probe_distance := f32(0.04)
 		if was_grounded {probe_distance=max(probe_distance,config.ground_snap_distance)}
-		if state.velocity[1] <= 0 || state.grounded {
-			hit,landing,grounded := character_ground_3d(world,entity,position,config.radius,state.height,probe_distance,min_up)
+		if character_dot_3d(state.velocity,up) <= 0 || state.grounded {
+			hit,landing,grounded := character_ground_3d(world,entity,position,config.radius,state.height,probe_distance,min_up,up)
 			state.grounded=grounded
 			if grounded {position=landing;character_support_3d(world,&state,hit,position)}
 		} else {state.grounded=false}
@@ -108,32 +111,35 @@ character_controllers_3d_step :: proc(world:^World,dt:f32) {
 		if state.crouched {speed=config.crouch_speed}
 		else if state.sprint_requested {speed*=config.sprint_multiplier}
 		desired := [3]f32{state.move[0]*speed,0,state.move[1]*speed}
-		horizontal := [3]f32{state.velocity[0],0,state.velocity[2]}
+		if state.use_world_move {desired=state.world_move*speed}
+		desired-=up*character_dot_3d(desired,up)
+		horizontal := state.velocity-up*character_dot_3d(state.velocity,up)
 		acceleration := config.air_acceleration
 		if state.grounded {
 			acceleration=config.acceleration
-			if state.move == ([2]f32{}) {acceleration=config.braking}
+			if character_length_3d(desired) < 0.0001 {acceleration=config.braking}
 		} else {
-			desired[0]+=state.inherited_velocity[0]
-			desired[2]+=state.inherited_velocity[2]
+			desired+=state.inherited_velocity-up*character_dot_3d(state.inherited_velocity,up)
 		}
 		horizontal=character_approach_3d(horizontal,desired,acceleration*dt)
-		state.velocity[0],state.velocity[2]=horizontal[0],horizontal[2]
+		state.velocity=horizontal+up*character_dot_3d(state.velocity,up)
 		if state.grounded {
 			tangent := horizontal-state.ground_normal*character_dot_3d(horizontal,state.ground_normal)
 			length := character_length_3d(tangent)
 			if length > 0.0001 {tangent*=character_length_3d(horizontal)/length}
 			state.velocity=tangent
 			state.jump_cut_available=false
-		} else {state.velocity[1]=max(-config.max_fall_speed,state.velocity[1]-config.gravity*dt)}
+		} else {
+			vertical:=character_dot_3d(state.velocity,up)
+			state.velocity+=up*(max(-config.max_fall_speed,vertical-config.gravity*dt)-vertical)
+		}
 
 		jumped := false
 		if state.jump_buffer_remaining > 0 && (state.grounded || state.coyote_remaining > 0) {
 			if state.grounded {
-				state.velocity[0]+=state.support_velocity[0]
-				state.velocity[2]+=state.support_velocity[2]
+				state.velocity+=state.support_velocity-up*character_dot_3d(state.support_velocity,up)
 			}
-			state.velocity[1]=config.jump_speed+state.inherited_velocity[1]
+			state.velocity+=up*(config.jump_speed+character_dot_3d(state.inherited_velocity-state.velocity,up))
 			state.grounded=false
 			state.support_entity=0
 			state.coyote_remaining,state.jump_buffer_remaining=0,0
@@ -141,8 +147,8 @@ character_controllers_3d_step :: proc(world:^World,dt:f32) {
 			jumped=true
 		}
 		if state.jump_cut_available && (state.jump_release_requested || (jumped && state.jump_buffer_released)) {
-			relative_up := state.velocity[1]-state.inherited_velocity[1]
-			if relative_up > 0 {state.velocity[1]=state.inherited_velocity[1]+relative_up*config.jump_cut_multiplier}
+			relative_up := character_dot_3d(state.velocity-state.inherited_velocity,up)
+			if relative_up > 0 {state.velocity+=up*(relative_up*(config.jump_cut_multiplier-1))}
 			state.jump_cut_available=false
 		}
 		state.jump_release_requested=false
@@ -158,15 +164,17 @@ character_controllers_3d_step :: proc(world:^World,dt:f32) {
 		for plane in query.planes {
 			if plane.plane.offset < -0.01 {continue}
 			normal:=character_array_3d(plane.plane.normal)
-			if normal[1] < -0.1 && state.velocity[1] > 0 {state.velocity[1]=0}
+			if character_dot_3d(normal,up) < -0.1 && character_dot_3d(state.velocity,up) > 0 {
+				state.velocity-=up*character_dot_3d(state.velocity,up)
+			}
 		}
-		if !jumped && (state.grounded || state.velocity[1] <= 0) {
+		if !jumped && (state.grounded || character_dot_3d(state.velocity,up) <= 0) {
 			distance := f32(0.04)
 			if state.grounded {distance=max(distance,config.ground_snap_distance)}
-			hit,landing,grounded:=character_ground_3d(world,entity,position,config.radius,state.height,distance,min_up)
+			hit,landing,grounded:=character_ground_3d(world,entity,position,config.radius,state.height,distance,min_up,up)
 			if grounded {
 				position=landing
-				state.velocity[1]=0
+				state.velocity-=up*character_dot_3d(state.velocity,up)
 				state.inherited_velocity={}
 				character_support_3d(world,&state,hit,position)
 			} else if state.grounded {

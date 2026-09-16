@@ -463,6 +463,9 @@ set_orbit_camera_3d :: proc(
 	owned.yaw_axis = retain_scene_string(world, value.yaw_axis)
 	owned.pitch_axis = retain_scene_string(world, value.pitch_axis)
 	owned.zoom_axis = retain_scene_string(world, value.zoom_axis)
+	owned.pan_action = retain_scene_string(world, value.pan_action)
+	owned.pan_x_axis = retain_scene_string(world, value.pan_x_axis)
+	owned.pan_y_axis = retain_scene_string(world, value.pan_y_axis)
 	commit_component_value(world, entity, "OrbitCamera3D", &world.orbit_cameras_3d, owned)
 	return true
 }

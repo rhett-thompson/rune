@@ -20,6 +20,7 @@ Model_Asset :: struct {
 	animations: r3d.AnimationLib,
 	animations_loaded: bool,
 	animations_attempted: bool,
+	animation_sources_revision: u64,
 }
 
 R3D_Material_Asset :: struct {
@@ -33,6 +34,11 @@ R3D_Material_Asset :: struct {
 }
 
 Context :: struct {
+	detail_meshes: [3]r3d.Mesh,
+	terrain_shaders: [3]^r3d.SurfaceShader,
+	terrain_layers: map[string]Terrain_Layer_Asset,
+	animation_sources: [dynamic]Model_Animation_Source,
+	animation_source_version: u64,
 	skybox: Skybox_Cache,
 	terrains: map[ecs.Entity]Terrain_Cache,
 	terrain_world_generation: u32,
@@ -66,6 +72,7 @@ init :: proc(root: string, width, height: i32) -> (Context, bool) {
 	if !r3d.Init(width, height) {return {}, false}
 	r3d.SetAntiAliasingMode(.FXAA)
 	result := Context {
+		terrain_layers = make(map[string]Terrain_Layer_Asset),
 		match_framebuffer = true,
 		terrains = make(map[ecs.Entity]Terrain_Cache),
 		cube             = r3d.GenMeshCube(1, 1, 1),
@@ -93,6 +100,10 @@ init :: proc(root: string, width, height: i32) -> (Context, bool) {
 shutdown :: proc(ctx: ^Context) {
 	if !ctx.initialized {return}
 	release_terrains(ctx)
+	for mesh in ctx.detail_meshes {if r3d.IsMeshValid(mesh) {r3d.UnloadMesh(mesh)}}
+	for shader in ctx.terrain_shaders {if shader!=nil {r3d.UnloadSurfaceShader(shader)}}
+	for _, layer in ctx.terrain_layers {rl.UnloadTexture(layer.texture)}
+	delete(ctx.terrain_layers)
 	delete(ctx.terrains)
 	release_skybox(ctx)
 	destroy_scene_lights(ctx)
@@ -112,6 +123,7 @@ shutdown :: proc(ctx: ^Context) {
 	if r3d.IsMeshValid(ctx.sphere_no_shadow) {r3d.UnloadMesh(ctx.sphere_no_shadow)}
 	delete(ctx.models)
 	delete(ctx.animation_players)
+	delete(ctx.animation_sources)
 	delete(ctx.r3d_materials)
 	delete(ctx.scene_lights)
 	destroy_retained_paths(ctx)
@@ -168,6 +180,7 @@ draw_scene_ex :: proc(
 
 	r3d.Begin(camera)
 	draw_terrains(ctx,world,asset_manager)
+	draw_terrain_details(ctx,world,asset_manager,camera.position)
 	for root in ecs.root_entities(world) {
 		draw_entity_tree(ctx, world, asset_manager, root, identity_transform(), .Plane_Only)
 	}
@@ -441,7 +454,7 @@ load_model :: proc(
 	full_path := resolve_path(ctx, path)
 	cpath, _ := strings.clone_to_cstring(full_path)
 	defer delete(cpath)
-	loaded := r3d.LoadModel(cpath)
+	loaded := import_model(cpath)
 	if loaded.meshCount <= 0 {
 		assets.report_failure(
 			asset_manager,
@@ -463,7 +476,7 @@ load_model :: proc(
 	assets.resolve_asset_failure(asset_manager, "", "ModelRenderer.model", path)
 	animations: r3d.AnimationLib
 	if already_loaded && previous.animations_loaded {
-		animations = r3d.LoadAnimationLib(cpath)
+		animations = import_animation_set(ctx, asset_manager, path, loaded)
 		if !animation_library_valid(loaded, animations) {
 			r3d.UnloadAnimationLib(animations)
 			r3d.UnloadModel(loaded, true)
@@ -489,6 +502,7 @@ load_model :: proc(
 		animations = animations,
 		animations_loaded = already_loaded && previous.animations_loaded,
 		animations_attempted = already_loaded && previous.animations_loaded,
+		animation_sources_revision = animation_source_revision(ctx, asset_manager, path),
 	}
 	return loaded, true
 }
@@ -668,6 +682,9 @@ material_from_data :: proc(
 	}
 	if has_orm_texture {
 		material.orm.occlusion = data.ao_strength
+	}
+	if data.procedural.enabled && len(path) > 0 {
+		apply_procedural_material(&material, &asset, data)
 	}
 	material.orm.roughness = data.roughness
 	material.orm.metalness = data.metallic

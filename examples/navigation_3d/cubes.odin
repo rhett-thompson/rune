@@ -5,6 +5,7 @@ import "core:fmt"
 import rune "rune:core"
 import "rune:console"
 import "rune:ecs"
+import "rune:input"
 import "rune:navigation"
 import rl "vendor:raylib"
 
@@ -46,11 +47,9 @@ place_cube :: proc(game:^rune.Engine,world:^ecs.World,center:[3]f32) -> bool {
 	}
 	e:=ecs.create_entity(world);if e==0 {return false}
 	id:=fmt.tprintf("placed_cube_%d",ecs.entity_index(e))
-	pose,pose_ok:=ecs.runtime_json(ecs.Transform{position=center,scale={1,1,1}})
-	collider,collider_ok:=ecs.runtime_json(ecs.BoxCollider{size={Cube_Size,Cube_Size,Cube_Size},is_static=true,friction=0.8})
-	ok:=pose_ok && collider_ok && ecs.set_entity_metadata(world,e,id,"Placed cube",Cube_Tag,ecs.Default_Layer_Mask) &&
-		ecs.add_component(world,&game.registry,e,"Transform",pose) &&
-		ecs.add_component(world,&game.registry,e,"BoxCollider",collider)
+	ok:=ecs.set_entity_metadata(world,e,id,"Placed cube",Cube_Tag,ecs.Default_Layer_Mask) &&
+		ecs.add(world,&game.registry,e,ecs.Transform{position=center,scale={1,1,1}}) &&
+		ecs.add(world,&game.registry,e,ecs.BoxCollider{size={Cube_Size,Cube_Size,Cube_Size},is_static=true,friction=0.8})
 	if !ok {ecs.destroy_entity(world,e);return false}
 	if !rebake_course(game,world) {ecs.destroy_entity(world,e);return false}
 	console.info(rune.developer_console(game),"Cube placed; collision and navigation updated. Z undoes the last cube.")
@@ -68,7 +67,7 @@ undo_cube :: proc(game:^rune.Engine,world:^ecs.World) -> bool {
 }
 cube_controls :: proc(game:^rune.Engine,world:^ecs.World) {
 	cube_preview=false;cube_valid=false
-	if !placing_cubes || rl.IsMouseButtonDown(.RIGHT) || rl.IsMouseButtonDown(.MIDDLE) {return}
+	if !placing_cubes || input.frame_action(rune.input_state(game),"orbit_camera").is_down || input.frame_action(rune.input_state(game),"pan_camera").is_down {return}
 	if rl.GetMousePosition().y<145 || rl.GetMousePosition().y>630 {return}
 	agent,_:=ecs.find_entity_by_id(world,"agent")
 	ray:=rl.GetScreenToWorldRay(rl.GetMousePosition(),camera)
@@ -77,7 +76,7 @@ cube_controls :: proc(game:^rune.Engine,world:^ecs.World) {
 	center,supported:=cube_on_surface(hit.point,hit.normal)
 	if !supported {return}
 	cube_center=center;cube_preview=true;cube_valid=cube_position_clear(world,center) && placed_cube_count(world)<64
-	if rl.IsMouseButtonPressed(.LEFT) && cube_valid {
+	if input.frame_action(rune.input_state(game),"select").pressed && cube_valid {
 		place_cube(game,world,center)
 		cube_preview=false
 	}

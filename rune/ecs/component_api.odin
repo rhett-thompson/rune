@@ -339,52 +339,20 @@ set :: proc(world: ^World, entity: Entity, value: $T) -> bool {
 }
 
 add :: proc(world: ^World, registry: ^Component_Registry, entity: Entity, value: $T) -> bool {
-	when T == Terrain {
-		if !terrain_valid(value) {return false}
-		data,ok := runtime_json(value)
-		return ok && add_component(world,registry,entity,"Terrain",data)
-	}
-	when T == Skybox {
-		if !skybox_valid(value) {return false}
-		data, ok := skybox_json(value)
-		return ok && add_component(world, registry, entity, "Skybox", data)
-	}
-	when T == PostProcessing {
-		if !post_processing_valid(value) {return false}
-		data, ok := post_processing_json(value)
-		return ok && add_component(world, registry, entity, "PostProcessing", data)
-	}
-	when T == CapsuleCollider2D || T == BoxCollider2D || T == CircleCollider2D || T == PolygonCollider2D || T == SegmentCollider2D || T == CharacterController2D || T == CharacterController3D {
-		if !component_value_valid(value) {return false}
-		collider_name, registered := component_name_for_type(registry, T)
-		if !registered {return false}
-		data, ok := runtime_json(value)
-		if !ok {return false}
-		when T == CapsuleCollider2D {
-			object := data.(json.Object)
-			object["axis"] = json.String("vertical" if value.axis == .vertical else "horizontal")
-		}
-		return add_component(world, registry, entity, collider_name, data)
-	}
-	when T == ShapeRenderer2D || T == Lifetime {
-		if !component_value_valid(value) {return false}
-		data, ok := runtime_json(value)
-		when T == ShapeRenderer2D {
-			object := data.(json.Object)
-			object["shape"] = json.String("rectangle" if value.shape == .rectangle else "circle")
-			object["color"], _ = runtime_json([4]u8{value.color.r, value.color.g, value.color.b, value.color.a})
-			return ok && add_component(world, registry, entity, "ShapeRenderer2D", object)
-		} else {return ok && add_component(world, registry, entity, "Lifetime", data)}
-	}
-
-	when T == ParticleEmitter2D {
-		if !component_value_valid(value) {return false}
-		data, ok := runtime_json(value)
-		return ok && add_component(world, registry, entity, "ParticleEmitter2D", data)
-	}
+	when T == Terrain {if !terrain_valid(value) {return false}}
+	when T == Skybox {if !skybox_valid(value) {return false}}
+	when T == PostProcessing {if !post_processing_valid(value) {return false}}
 	name, found := component_name_for_type(registry, T)
 	if !found {return false}
-	return add_typed_component(world, registry, entity, name, value)
+	descriptor, _ := component_descriptor(registry, name)
+	// Named multi-instance components use add_component with an instance map.
+	if descriptor.allow_multiple {return false}
+	if descriptor.create_typed != nil {
+		return add_typed_component(world, registry, entity, name, value)
+	}
+	if !component_value_valid(value) {return false}
+	data, ok := component_value_json(value)
+	return ok && add_component(world, registry, entity, name, data)
 }
 
 query :: proc(world: ^World, $T: typeid, include_disabled := false) -> []Entity {

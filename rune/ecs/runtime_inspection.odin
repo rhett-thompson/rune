@@ -38,55 +38,60 @@ typed_component_serializer :: proc($T: typeid) -> Component_Serialize_Proc {
 	return proc(world: ^World, entity: Entity, name: string, allocator: mem.Allocator) -> (json.Value, bool) {
 		component, found := get(world, entity, T)
 		if !found {return {}, false}
-		when T == Skybox {return skybox_json(component, allocator)}
-		when T == PostProcessing {return post_processing_json(component, allocator)}
-		when T == TilemapRenderer {
-			return tilemap_renderer_json(component, allocator)
-		} else when T == TilemapCollider {
-			tiles := make([dynamic]i32, context.temp_allocator)
-			for id, solid in component.solid_tiles {
-				if solid {append(&tiles, id)}
-			}
-			slice.sort(tiles[:])
-			return runtime_json(struct {solid_tiles: []i32}{tiles[:]}, allocator)
-		} else {
-			value, ok := runtime_json(component)
-			if !ok {return {}, false}
-			object, is_object := value.(json.Object)
-			if !is_object {return json.clone_value(value, allocator), true}
+		return component_value_json(component, allocator)
+	}
+}
 
-			// Normalize in scratch, then clone the complete public value so keys
-			// and replacement fields can also be freed with the output allocator.
-			when T == SpriteRenderer || T == MeshRenderer || T == SphereRenderer ||
-			     T == ModelRenderer || T == AmbientLight || T == DirectionalLight ||
-			     T == PointLight || T == SpotLight || T == TextRenderer || T == ShapeRenderer2D {
-				color_keys := []string{"color", "tint"}
-				for key in color_keys {
-					if color, exists := object[key].(json.Object); exists {
-						channels := make(json.Array, 4, context.temp_allocator)
-						channels[0], channels[1], channels[2], channels[3] = color["r"], color["g"], color["b"], color["a"]
-						object[key] = channels
-					}
+// Use the same scene representation for typed creation and runtime snapshots.
+component_value_json :: proc(component: $T, allocator := context.temp_allocator) -> (json.Value, bool) {
+	when T == Skybox {return skybox_json(component, allocator)}
+	when T == PostProcessing {return post_processing_json(component, allocator)}
+	when T == TilemapRenderer {
+		return tilemap_renderer_json(component, allocator)
+	} else when T == TilemapCollider {
+		tiles := make([dynamic]i32, context.temp_allocator)
+		for id, solid in component.solid_tiles {
+			if solid {append(&tiles, id)}
+		}
+		slice.sort(tiles[:])
+		return runtime_json(struct {solid_tiles: []i32}{tiles[:]}, allocator)
+	} else {
+		value, ok := runtime_json(component)
+		if !ok {return {}, false}
+		object, is_object := value.(json.Object)
+		if !is_object {return json.clone_value(value, allocator), true}
+
+		// Normalize in scratch, then clone the complete public value so keys
+		// and replacement fields can also be freed with the output allocator.
+		when T == SpriteRenderer || T == MeshRenderer || T == SphereRenderer ||
+		     T == ModelRenderer || T == AmbientLight || T == DirectionalLight ||
+		     T == PointLight || T == SpotLight || T == TextRenderer || T == ShapeRenderer2D {
+			color_keys := []string{"color", "tint"}
+			for key in color_keys {
+				if color, exists := object[key].(json.Object); exists {
+					channels := make(json.Array, 4, context.temp_allocator)
+					channels[0], channels[1], channels[2], channels[3] = color["r"], color["g"], color["b"], color["a"]
+					object[key] = channels
 				}
 			}
-			when T == CapsuleCollider2D {
-				object["axis"] = json.String("vertical" if component.axis == .vertical else "horizontal")
-			}
-			when T == ShapeRenderer2D {
-				object["shape"] = json.String("rectangle" if component.shape == .rectangle else "circle")
-			}
-			when T == RigidBody2D || T == RigidBody3D {
-				object["type"] = object["body_type"]
-				delete_key(&object, "body_type")
-			} else when T == CameraFollow2D {
-				object["target"] = json.String(component.target.id)
-				delete_key(&object, "has_bounds")
-				if !component.has_bounds {delete_key(&object, "bounds")}
-			} else when T == NavGrid2D {
-				object["algorithm"] = json.String("a_star" if component.algorithm == .A_Star else "theta_star")
-			}
-			return json.clone_value(object, allocator), true
 		}
+		when T == CapsuleCollider2D {
+			object["axis"] = json.String("vertical" if component.axis == .vertical else "horizontal")
+		}
+		when T == ShapeRenderer2D {
+			object["shape"] = json.String("rectangle" if component.shape == .rectangle else "circle")
+		}
+		when T == RigidBody2D || T == RigidBody3D {
+			object["type"] = object["body_type"]
+			delete_key(&object, "body_type")
+		} else when T == CameraFollow2D {
+			object["target"] = json.String(component.target.id)
+			delete_key(&object, "has_bounds")
+			if !component.has_bounds {delete_key(&object, "bounds")}
+		} else when T == NavGrid2D {
+			object["algorithm"] = json.String("a_star" if component.algorithm == .A_Star else "theta_star")
+		}
+		return json.clone_value(object, allocator), true
 	}
 }
 

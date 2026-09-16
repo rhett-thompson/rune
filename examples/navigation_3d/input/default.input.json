@@ -1,14 +1,90 @@
 {
   "actions": {
-    "orbit_camera": [{"type":"mouse_button","button":"RIGHT"}],
-    "pan_camera": [{"type":"mouse_button","button":"MIDDLE"}],
-    "focus_agent": [{"type":"keyboard","key":"F"}],
-    "reset_camera": [{"type":"keyboard","key":"R"}]
+    "orbit_camera": [
+      {
+        "type": "mouse_button",
+        "button": "RIGHT"
+      }
+    ],
+    "pan_camera": [
+      {
+        "type": "mouse_button",
+        "button": "MIDDLE"
+      }
+    ],
+    "focus_agent": [
+      {
+        "type": "keyboard",
+        "key": "F"
+      }
+    ],
+    "reset_camera": [
+      {
+        "type": "keyboard",
+        "key": "R"
+      }
+    ],
+    "place_mode": [
+      {
+        "type": "keyboard",
+        "key": "C"
+      }
+    ],
+    "undo_cube": [
+      {
+        "type": "keyboard",
+        "key": "Z"
+      }
+    ],
+    "rebake": [
+      {
+        "type": "keyboard",
+        "key": "N"
+      }
+    ],
+    "pause": [
+      {
+        "type": "keyboard",
+        "key": "P"
+      }
+    ],
+    "mesh": [
+      {
+        "type": "keyboard",
+        "key": "M"
+      }
+    ],
+    "stop": [
+      {
+        "type": "keyboard",
+        "key": "SPACE"
+      }
+    ],
+    "ramp": [
+      {
+        "type": "keyboard",
+        "key": "B"
+      }
+    ],
+    "select": [
+      {
+        "type": "mouse_button",
+        "button": "LEFT"
+      }
+    ]
   },
   "axes": {
-    "orbit_x": {"type":"mouse_delta","axis":"x"},
-    "orbit_y": {"type":"mouse_delta","axis":"y"},
-    "zoom": {"type":"mouse_wheel"}
-  }
+    "orbit_x": {
+      "type": "mouse_delta",
+      "axis": "x"
+    },
+    "orbit_y": {
+      "type": "mouse_delta",
+      "axis": "y"
+    },
+    "zoom": {
+      "type": "mouse_wheel"
+    }
+  },
+  "$schema": "../../../schemas/input.schema.json"
 }
-

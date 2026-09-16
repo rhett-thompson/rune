@@ -1,6 +1,5 @@
 package main
 
-import "rune:ecs"
 import rl "vendor:raylib"
 
 Arena_Config :: struct {
@@ -24,9 +23,4 @@ Asteroid_Component :: struct {
 	position, velocity:  rl.Vector2,
 	radius, angle, spin: f32,
 	tier, seed:          i32,
-}
-
-Asteroid_Instance :: struct {
-	entity:    ecs.Entity,
-	component: Asteroid_Component,
 }

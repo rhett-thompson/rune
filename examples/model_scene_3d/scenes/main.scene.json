@@ -6,8 +6,15 @@
       "id": "camera",
       "name": "Camera",
       "components": {
-        "Transform": { "position": [4, 3, 6] },
-        "Camera3D": { "target": [0, 0.8, 0], "up": [0, 1, 0], "fovy": 45, "active": true },
+        "Transform": {
+          "position": [4, 3, 6]
+        },
+        "Camera3D": {
+          "target": [0, 0.8, 0],
+          "up": [0, 1, 0],
+          "fovy": 45,
+          "active": true
+        },
         "OrbitCamera3D": {
           "target": [0, 0.8, 0],
           "yaw": 56,
@@ -28,18 +35,32 @@
       "id": "scene_light",
       "name": "Scene Light",
       "components": {
-        "AmbientLight": { "color": [120, 150, 210, 255], "intensity": 0.18 },
-        "DirectionalLight": { "direction": [-0.45, -1, -0.35], "color": [255, 238, 205, 255], "intensity": 1.15 }
+        "AmbientLight": {
+          "color": [120, 150, 210, 255],
+          "intensity": 0.18
+        },
+        "DirectionalLight": {
+          "direction": [-0.45, -1, -0.35],
+          "color": [255, 238, 205, 255],
+          "intensity": 1.15
+        }
       }
     },
     {
       "id": "pyramid",
       "name": "Pyramid",
       "components": {
-        "Transform": { "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
+        "Transform": {
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        },
         "ModelRenderer": {
           "model": "assets/models/pyramid.obj",
           "material": "assets/materials/pyramid.material.json"
+        },
+        "Rotator": {
+          "degrees_per_second": 45
         }
       }
     }

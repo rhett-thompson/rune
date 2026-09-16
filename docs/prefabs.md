@@ -65,6 +65,35 @@ unit scale. A child camera supplies ownership and activation hierarchy; current
 still update them. Prefab composition does not change camera or physics transform
 semantics. See [the controller guide](character-controller-3d.md).
 
+## Shared 3D environment
+
+The [3D environment prefab](../examples/shared/prefabs/environment_3d.prefab.json)
+supplies the first-person, third-person, and skeletal animation examples with a skybox, 32-by-32 ground
+slab with a static collider, cool ambient fill, warm directional sun with soft
+shadows, and SSAO. The procedural sky uses a uniform blue matching the examples'
+original background; edit its colors to add a gradient. It needs no texture assets.
+
+From an example's `scenes/main.scene.json`, add:
+
+```json
+{
+  "id": "environment",
+  "prefab": "../../shared/prefabs/environment_3d.prefab.json"
+}
+```
+
+Adjust the relative prefab path for other project layouts. The consuming project
+must declare a `Gameplay` layer for the floor, or override the `floor` child's
+layers. Keep the instance at the origin with unit scale to retain the original
+ground placement. Cameras, controllers, and course obstacles belong to the scene.
+
+Children are addressed as `environment/sky`, `environment/floor`,
+`environment/sun`, `environment/ambient`, and `environment/post`. Use
+`child_overrides` with these local child names to customize one scene. The
+[third-person scene](../examples/third_person_3d/scenes/main.scene.json) demonstrates
+adding its distance fog through `child_overrides.post.component_overrides`, while
+inheriting the shared SSAO settings.
+
 ## Composition and overrides
 
 - Every `prefab` path is relative to the JSON file containing that reference.

@@ -29,7 +29,7 @@ initialize_player :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	}
 	player, _ = ecs.find_entity_by_id(world, "player")
 	camera_entity, _ = ecs.find_entity_by_id(world, "camera")
-	platform, _ = ecs.find_entity_by_id(world, "moving_platform")
+	platform, _ = ecs.find_entity_by_id(world, "course/moving_platform")
 	head_bob = {}
 	camera_height = {}
 	weapon_jump = {}

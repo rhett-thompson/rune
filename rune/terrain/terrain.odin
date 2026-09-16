@@ -22,9 +22,12 @@ Description :: struct {
 	uv_scale: [2]f32,
 	material: string,
 	blend: Blend,
+	layers: []Layer `json:"layers,omitempty"`,
+	control_maps: []string `json:"control_maps,omitempty"`,
+	details: []Detail `json:"details,omitempty"`,
 }
 
-// Optional automatic albedo layers; thresholds use terrain-local height and
+// Optional automatic image/material layers; thresholds use terrain-local height and
 // slope in degrees. All three paths are required when blending is enabled.
 Blend :: struct {
 	grass, dirt, rock: string,
@@ -38,6 +41,14 @@ default_blend :: proc() -> Blend {
 }
 
 blend_enabled :: proc(b: Blend) -> bool {return b.grass != "" || b.dirt != "" || b.rock != ""}
+
+blend_layer_is_material :: proc(path: string) -> bool {
+	return strings.to_lower(filepath.ext(path), context.temp_allocator) == ".json"
+}
+
+blend_uses_materials :: proc(b: Blend) -> bool {
+	return blend_layer_is_material(b.grass) || blend_layer_is_material(b.dirt) || blend_layer_is_material(b.rock)
+}
 
 blend_valid :: proc(b: Blend) -> bool {
 	if blend_enabled(b) && (b.grass=="" || b.dirt=="" || b.rock=="") {return false}
@@ -75,6 +86,8 @@ default_description :: proc() -> Description {
 }
 
 description_valid :: proc(d: Description) -> bool {
+	if !details_valid(d.details) {return false}
+	if !layers_valid(d) {return false}
 	if d.heightmap == "" {return false}
 	for n in d.resolution {if n < 2 || n > 513 {return false}}
 	for n in d.size {if !(n >= 0.01 && n <= 100000) {return false}}
@@ -119,17 +132,34 @@ load :: proc(root, path: string) -> (result: Data, watched_heightmap: string, er
 			_,valid = jsonutil.number(field)
 		case "blend":
 			valid = blend_json_valid(field)
+		case "layers":
+			valid = layers_json_valid(field)
+		case "details":
+			valid = details_json_valid(field)
+		case "control_maps":
+			array,ok := field.(json.Array)
+			valid = ok && len(array)<=2
+			if valid {for item in array {_,ok := item.(json.String); valid = valid && ok}}
 		case:
 			return {},"",fmt.tprintf("unknown terrain field: %s",key)
 		}
 		if !valid {return {},"",fmt.tprintf("invalid terrain field type or array size: %s",key)}
 	}
 	delete_key(&object,"$schema")
+	layers, layers_ok := layers_from_json(object)
+	if !layers_ok {return {},"","invalid terrain layers"}
+	delete_key(&object,"layers")
+	details,details_ok:=details_from_json(object)
+	if !details_ok {return {},"","invalid terrain details"}
+	delete_key(&object,"details")
 	clean,_ := json.marshal(object,allocator=context.temp_allocator)
 	if err := json.unmarshal(clean, &d, allocator = context.temp_allocator); err != nil {
 		return {}, "", fmt.tprintf("invalid terrain descriptor: %v", err)
 	}
-	if !blend_valid(d.blend) {return {},d.heightmap,"invalid terrain blend: provide all three textures, increasing height/slope ranges, slope 0..90, noise_scale (0,100], noise_strength 0..1"}
+	d.layers = layers
+	d.details = details
+	if !details_valid(d.details) {return {},d.heightmap,"invalid terrain details: check kinds, count limits, scale, height/slope ranges and draw distance"}
+	if !blend_valid(d.blend) {return {},d.heightmap,"invalid terrain blend: provide all three image/material paths, increasing height/slope ranges, slope 0..90, noise_scale (0,100], noise_strength 0..1"}
 	if !description_valid(d) {return {}, d.heightmap, "invalid terrain settings: resolution 2..513, positive size/UV scale, bounded finite heights, chunk_cells 8/16/32/64/128 required"}
 	samples, read_ok := os.read_entire_file(resolve(root,d.heightmap), context.temp_allocator)
 	if read_ok != nil {return {}, d.heightmap, "could not read heightmap"}
@@ -158,6 +188,8 @@ load :: proc(root, path: string) -> (result: Data, watched_heightmap: string, er
 	owned.heightmap,_ = strings.clone(d.heightmap)
 	owned.material,_ = strings.clone(d.material)
 	owned.blend = clone_blend(d.blend)
+	clone_layer_fields(&owned,d)
+	owned.details=clone_details(d.details)
 	return {owned,heights},d.heightmap,""
 }
 
@@ -166,6 +198,8 @@ clone :: proc(data: Data) -> Data {
 	result.description.heightmap,_ = strings.clone(data.description.heightmap)
 	result.description.material,_ = strings.clone(data.description.material)
 	result.description.blend = clone_blend(data.description.blend)
+	clone_layer_fields(&result.description,data.description)
+	result.description.details=clone_details(data.description.details)
 	result.heights = make([]f32,len(data.heights))
 	copy(result.heights,data.heights)
 	return result
@@ -178,6 +212,12 @@ destroy :: proc(data: ^Data) {
 	delete(data.description.blend.grass)
 	delete(data.description.blend.dirt)
 	delete(data.description.blend.rock)
+	for layer in data.description.layers {delete(layer.name); delete(layer.material)}
+	delete(data.description.layers)
+	for path in data.description.control_maps {delete(path)}
+	delete(data.description.control_maps)
+	for detail in data.description.details {delete(detail.name); delete(detail.kind); delete(detail.model); delete(detail.material)}
+	delete(data.description.details)
 	data^ = {}
 }
 

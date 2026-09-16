@@ -30,6 +30,8 @@ scene reloads and navmesh rebakes.
 
 Camera controls work while paused. Left-click destinations use the current camera
 view, and dragging the camera does not issue movement commands.
+Orbit, zoom, and pan use the shared OrbitCamera3D controller. Panning tracks the
+pointer at the current view distance, field of view, and window height.
 
 In placement mode, aim at a floor, ramp or cube top. A green preview marks a clear
 spot; red marks an overlap. Each 1.5-unit cube has static collision and immediately

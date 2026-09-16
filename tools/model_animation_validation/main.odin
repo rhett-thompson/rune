@@ -31,7 +31,10 @@ state :: proc(world: ^ecs.World, entity: ecs.Entity) -> ecs.Model_Animation_Stat
 }
 
 load :: proc(registry: ^ecs.Component_Registry) -> ecs.World {
-	world, ok := scene.load(Scene, registry)
+	layers := make(map[string]u8); defer delete(layers)
+	layers["Gameplay"] = 1
+	world, ok := scene.load_with_layers(Scene, registry, layers)
+	defer scene.clear_load_error()
 	assert(ok, scene.last_load_error())
 	return world
 }
@@ -181,18 +184,44 @@ validate_runtime :: proc(registry: ^ecs.Component_Registry) {
 	validate_failed_reload(&ctx, &manager, &world, left)
 	assert(ecs.destroy_entity(&world, middle))
 	bridge.update_animations(&ctx, &world, &manager, 0)
-	assert(len(ctx.animation_players) == 2)
+	assert(len(ctx.animation_players) == 3)
 	assert(ecs.remove_component(&world, left, "ModelAnimator"))
 	bridge.update_animations(&ctx, &world, &manager, 0)
-	assert(len(ctx.animation_players) == 1)
+	assert(len(ctx.animation_players) == 2)
 	old_generation := world.generation
 	ecs.destroy(&world)
 	world = load(registry)
 	bridge.update_animations(&ctx, &world, &manager, 0)
-	assert(world.generation != old_generation && len(ctx.animation_players) == 3)
+	assert(world.generation != old_generation && len(ctx.animation_players) == 4)
 	left, _ = ecs.find_entity_by_id(&world,"left")
 	validate_transitions(&ctx,&world,&manager,left)
+	validate_strut(&ctx, &world, &manager)
+	validate_external_clips(&ctx, &world, &manager)
 	validate_model_marker_runtime(&ctx, &world, &manager, left, registry)
+}
+
+validate_strut :: proc(ctx: ^bridge.Context, world: ^ecs.World, manager: ^assets.Asset_Manager) {
+	entity, found := ecs.find_entity_by_id(world, "strut")
+	assert(found)
+	player, ready := bridge.animation_player(ctx, entity)
+	assert(ready && state(world, entity).duration > 1, "walking clip imports and plays")
+	assert(ecs.seek_model_animation(world, entity, 0.25))
+	bridge.update_animations(ctx, world, manager, 0)
+	pose := make([]rl.Matrix, player.skeleton.boneCount)
+	defer delete(pose)
+	copy(pose, player.localPose[:len(pose)])
+	assert(ecs.seek_model_animation(world, entity, 0.75))
+	bridge.update_animations(ctx, world, manager, 0)
+	changed := 0
+	for previous, i in pose {
+		if previous != player.localPose[i] {changed += 1}
+	}
+	assert(changed > 20, "walking animates the full rig, including FBX pivot joints")
+	duration := state(world, entity).duration
+	assert(ecs.seek_model_animation(world, entity, duration - 0.1))
+	bridge.update_animations(ctx, world, manager, 0.35)
+	assert(near(state(world, entity).elapsed, 0.25) && state(world, entity).playing, "walking loops")
+	validate_fbx_importer(ctx, world, manager, entity)
 }
 
 validate_transitions :: proc(ctx: ^bridge.Context, world: ^ecs.World, manager: ^assets.Asset_Manager, entity: ecs.Entity) {
@@ -234,10 +263,10 @@ validate_reload :: proc(ctx: ^bridge.Context, manager: ^assets.Asset_Manager, wo
 	asset.revision += 1
 	manager.models[Model] = asset
 	bridge.update_animations(ctx, world, manager, 0)
-	assert(len(ctx.animation_players) == 3 && ctx.models[Model].revision == asset.revision)
+	assert(len(ctx.animation_players) == 4 && ctx.models[Model].revision == asset.revision)
 	for _, cached in ctx.animation_players {
-		assert(cached.player.skeleton.bones == ctx.models[Model].model.skeleton.bones)
-		assert(cached.player.animLib.animations == ctx.models[Model].animations.animations)
+		assert(cached.player.skeleton.bones == ctx.models[cached.path].model.skeleton.bones)
+		assert(cached.player.animLib.animations == ctx.models[cached.path].animations.animations)
 	}
 }
 

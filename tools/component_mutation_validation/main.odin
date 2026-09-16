@@ -40,10 +40,56 @@ main :: proc() {
 	registry := ecs.init_registry()
 	defer ecs.destroy_registry(&registry)
 	assert(ecs.register_builtin_components(&registry))
+	validate_typed_creation(&registry)
 	validate_2d(&registry)
 	validate_3d(&registry)
 	validate_cached_state(&registry)
 	fmt.println("Component mutation, native synchronization, and reload notifications passed")
+}
+
+validate_typed_creation :: proc(registry: ^ecs.Component_Registry) {
+	world := ecs.init()
+	defer ecs.destroy(&world)
+	entity := ecs.create_entity(&world)
+	pose := ecs.Transform{position = {3,4,5}, rotation = {10,20,30}, scale = {1,1,1}}
+	version := ecs.change_version(&world)
+	assert(ecs.add(&world, registry, entity, pose))
+	assert(ecs.change_version(&world) == version+1)
+	stored_pose, _ := ecs.get(&world, entity, ecs.Transform)
+	assert(stored_pose == pose)
+	assert(ecs.add(&world, registry, entity, ecs.BoxCollider{size = {2,3,4}, friction = 0.7}))
+	assert(ecs.add(&world, registry, entity, ecs.RigidBody3D{body_type = "kinematic", velocity = {1,0,0}}))
+	body, _ := ecs.get(&world, entity, ecs.RigidBody3D)
+	assert(body.body_type == "kinematic" && body.velocity.x == 1)
+	ecs.physics_3d_update(&world, ecs.Physics3D_Fixed_Delta)
+	assert(b3.Body_GetType(world.box3d_bodies[entity]) == .kinematicBody)
+	version = ecs.change_version(&world)
+	assert(!ecs.add(&world, registry, entity, ecs.BoxCollider{size = {-1,2,3}}))
+	assert(ecs.change_version(&world) == version)
+	box, _ := ecs.get(&world, entity, ecs.BoxCollider)
+	assert(box.size == [3]f32{2,3,4})
+
+	visual := ecs.create_entity(&world)
+	shape := ecs.default_shape_renderer_2d()
+	shape.shape = .circle; shape.color = {12,34,56,78}
+	assert(ecs.add(&world, registry, visual, shape))
+	stored_shape, _ := ecs.get(&world, visual, ecs.ShapeRenderer2D)
+	assert(stored_shape == shape)
+	assert(ecs.add(&world, registry, visual, ecs.CapsuleCollider2D{radius = 2, height = 8, axis = .horizontal}))
+	capsule, _ := ecs.get(&world, visual, ecs.CapsuleCollider2D)
+	assert(capsule.axis == .horizontal)
+	assert(ecs.add(&world, registry, visual, ecs.NavGrid2D{cell_size = 16, algorithm = .Theta_Star}))
+	grid, _ := ecs.get(&world, visual, ecs.NavGrid2D)
+	assert(grid.algorithm == .Theta_Star)
+	assert(ecs.add(&world, registry, visual, ecs.CameraFollow2D{target = {id = "player"}, smoothing = 4}))
+	follow, _ := ecs.get(&world, visual, ecs.CameraFollow2D)
+	assert(follow.target.id == "player" && !follow.has_bounds)
+	text := [4]u8{'t','e','s','t'}
+	assert(ecs.add(&world, registry, visual, ecs.TextRenderer{text = transmute(string)text[:], font = "font.ttf", font_size = 20, color = {1,2,3,255}}))
+	text[0] = 'X'
+	stored_text, _ := ecs.get(&world, visual, ecs.TextRenderer)
+	assert(stored_text.text == "test" && stored_text.color.r == 1, "typed creation must retain owned strings and normalize colors")
+	assert(!ecs.add(&world, registry, visual, ecs.AudioPlayer{}), "named audio players require an instance map")
 }
 
 validate_2d :: proc(registry: ^ecs.Component_Registry) {

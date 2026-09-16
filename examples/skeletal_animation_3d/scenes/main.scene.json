@@ -3,11 +3,31 @@
   "name": "Independent Animation Players",
   "entities": [
     { "id": "camera", "components": {
-      "Transform": { "position": [4, 3.5, 8] },
-      "Camera3D": { "target": [0, 1, 0], "active": true, "fovy": 45 }
+      "Transform": { "position": [4, 4, 11] },
+      "Camera3D": { "target": [1, 1, 0], "active": true, "fovy": 45 },
+      "OrbitCamera3D": {
+        "target": [1, 1, 0],
+        "yaw": 74.745,
+        "pitch": 14.743,
+        "distance": 11.79,
+        "min_distance": 3,
+        "max_distance": 24,
+        "manual_action": "orbit_camera",
+        "yaw_axis": "orbit_x",
+        "pitch_axis": "orbit_y",
+        "zoom_axis": "zoom",
+        "pan_action": "pan_camera",
+        "pan_x_axis": "pan_x",
+        "pan_y_axis": "pan_y",
+        "pan_sensitivity": 0.0015,
+        "orbit_sensitivity": 0.35,
+        "zoom_sensitivity": 1
+      }
     } },
-    { "id": "ambient", "components": { "AmbientLight": { "color": [255,255,255,255], "intensity": 0.6 } } },
-    { "id": "sun", "components": { "DirectionalLight": { "direction": [-1,-2,-1], "color": [255,255,255,255], "intensity": 3 } } },
+    {
+      "id": "environment",
+      "prefab": "../../shared/prefabs/environment_3d.prefab.json"
+    },
     { "id": "left", "components": {
       "Transform": { "position": [-2,0,0] },
       "ModelRenderer": { "model": "assets/arm.gltf", "tint": [80,180,255,255] },
@@ -26,6 +46,17 @@
       "Transform": { "position": [2,0,0] },
       "ModelRenderer": { "model": "assets/arm.gltf", "tint": [90,230,160,255] },
       "ModelAnimator": { "clip": "sway" }
+    } },
+    { "id": "strut", "components": {
+      "Transform": { "position": [4,0,0], "scale": [0.01,0.01,0.01] },
+      "ModelRenderer": {
+        "model": "../assets/Strut Walking.fbx",
+        "materials": {
+          "0": "assets/materials/strut.material.json",
+          "1": "assets/materials/strut-joints.material.json"
+        }
+      },
+      "ModelAnimator": { "clip": "mixamo.com", "speed": 1, "loop": true }
     } }
   ]
 }

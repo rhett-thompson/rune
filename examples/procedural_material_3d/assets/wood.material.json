@@ -1,0 +1,11 @@
+{
+  "$schema": "../../../schemas/material.schema.json",
+  "lighting": true,
+  "roughness": 0.8,
+  "procedural": {
+    "pattern": "wood",
+    "seed": 82, "scale": 12, "octaves": 3, "persistence": 0.3, "contrast": 0.9,
+    "color_a": [87,44,19,255], "color_b": [154,99,51,255],
+    "bump_strength": 0.0007, "roughness_variation": 0.2
+  }
+}

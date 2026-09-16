@@ -6,10 +6,6 @@ import rune "rune:core"
 import "rune:ecs"
 import "rune:scene"
 
-Player_Controller :: struct {
-	jump_height: f32,
-}
-
 main :: proc() {
 	project, project_loaded := rune.load_project("examples/physics_platformer_2d/project.json")
 	assert(project_loaded)
@@ -22,15 +18,8 @@ main :: proc() {
 	registry := ecs.init_registry()
 	defer ecs.destroy_registry(&registry)
 	assert(ecs.register_builtin_components(&registry))
-	assert(
-		ecs.register_component_type(
-			&registry,
-			"PlayerController",
-			Player_Controller,
-			Player_Controller{jump_height = 150},
-		),
-	)
 	layers := make(map[string]u8)
+	defer delete(layers)
 	layers["Gameplay"] = 1
 	world, loaded := scene.load_with_layers(
 		"examples/physics_platformer_2d/scenes/main.scene.json",
@@ -46,8 +35,8 @@ main :: proc() {
 	assert(scene_settings_ok && spawn_label_ok && spawn_label == "training")
 	player, found := ecs.find_entity_by_id(&world, "player")
 	assert(found)
-	controller, has_controller := ecs.get(&world, player, Player_Controller)
-	assert(has_controller && controller.jump_height > 0)
+	controller, has_controller := ecs.get(&world, player, ecs.CharacterController2D)
+	assert(has_controller && controller.jump_speed == 600)
 	for _ in 0 ..< 180 {ecs.physics_2d_update(&world, 1.0 / 60.0)}
 	body, has_body := ecs.get_rigid_body_2d(&world, player)
 	transform, has_transform := ecs.get_transform(&world, player)
@@ -56,9 +45,7 @@ main :: proc() {
 	ball, ball_found := ecs.find_entity_by_id(&world, "circle_ball")
 	_, has_circle := ecs.get_circle_collider_2d(&world, ball)
 	assert(ball_found && has_circle)
-	body.velocity[1] = -240
-	body.grounded = false
-	assert(ecs.set_rigid_body_2d(&world, player, body))
+	assert(ecs.character_controller_2d_jump(&world, player))
 	ecs.physics_2d_update(&world, 1.0 / 60.0)
 	transform, has_transform = ecs.get_transform(&world, player)
 	assert(has_transform && transform.position[1] < 460)

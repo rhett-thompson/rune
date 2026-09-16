@@ -1,0 +1,88 @@
+{
+  "$schema": "../../../schemas/scene.schema.json",
+  "name": "Pocket Planets",
+  "entities": [
+    {
+      "id": "player",
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            9,
+            0
+          ]
+        },
+        "CharacterController3D": {
+          "move_speed": 5.5,
+          "sprint_multiplier": 1.6,
+          "gravity": 18,
+          "jump_speed": 16,
+          "air_acceleration": 4,
+          "max_slope_angle": 58,
+          "ground_snap_distance": 0.35,
+          "step_height": 0.35
+        },
+        "AudioPlayer": {
+          "footsteps": {
+            "clips": [
+              "../first_person_3d/assets/audio/concrete_1.wav",
+              "../first_person_3d/assets/audio/concrete_2.wav",
+              "../first_person_3d/assets/audio/concrete_3.wav",
+              "../first_person_3d/assets/audio/concrete_4.wav"
+            ],
+            "volume": 0.45,
+            "random_pitch": 0.1,
+            "max_voices": 3,
+            "bus": "sfx"
+          },
+          "landing": {
+            "clips": [
+              "../first_person_3d/assets/audio/concrete_2.wav"
+            ],
+            "volume": 0.65,
+            "pitch": 0.7,
+            "bus": "sfx"
+          }
+        },
+        "OrientationSmoothing": {
+          "max_turn_speed": 4.4,
+          "angular_acceleration": 5,
+          "easing_rate": 5,
+          "facing_turn_speed": 8,
+          "facing_easing_rate": 12
+        }
+      }
+    },
+    {
+      "id": "follow_camera",
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            13,
+            22
+          ]
+        },
+        "Camera3D": {
+          "target": [
+            0,
+            9,
+            0
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "fovy": 65,
+          "active": true
+        },
+        "OrientationSmoothing": {
+          "max_turn_speed": 2.4,
+          "angular_acceleration": 5,
+          "easing_rate": 5
+        }
+      }
+    }
+  ]
+}

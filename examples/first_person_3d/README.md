@@ -1,13 +1,23 @@
 # First Person 3D
 
+The shared [controller course prefab](../shared/prefabs/controller_course.prefab.json)
+owns the ramps, stairs, crawl tunnel, moving platform, crate, and thin wall.
+Edit it to change both courses, or use `child_overrides` on the `course` instance.
+The platform is addressed as `course/moving_platform`.
+
 A reusable `CharacterController3D` motor with first-person look and a movement
 course. Blue ramps test slope following, orange stairs test step-up, purple
 geometry requires crouching, and a green platform moves back and forth. A crate
 can be pushed, and the red ramp is too steep to walk up.
 A warm directional sun casts soft shadows, with cool ambient fill keeping
 shaded surfaces readable. SSAO adds contact shading around nearby geometry using
-Rune's default settings (16 samples, radius 1, intensity 1). Tune the `sun`,
-`ambient`, and `post` entities in the scene; see [post processing](../../docs/post-processing.md).
+Rune's default settings (16 samples, radius 1, intensity 1). Both controller examples
+use the shared [3D environment prefab](../shared/prefabs/environment_3d.prefab.json)
+for the solid blue skybox, ground and collider, sun, ambient fill, and SSAO.
+Tune its `sky`, `floor`, `sun`, `ambient`, and `post` children, or use
+`child_overrides` on the scene's `environment` instance for local changes;
+see [prefabs](../../docs/prefabs.md#shared-3d-environment) and
+[post processing](../../docs/post-processing.md).
 
 See the [controller guide](../../docs/character-controller-3d.md) for the API and limits.
 

@@ -45,6 +45,10 @@
           "manual_action": "orbit_camera",
           "yaw_axis": "orbit_x",
           "pitch_axis": "orbit_y",
+          "pan_action": "pan_camera",
+          "pan_x_axis": "pan_x",
+          "pan_y_axis": "pan_y",
+          "pan_sensitivity": 0.0015,
           "orbit_sensitivity": 0.35
         }
       }

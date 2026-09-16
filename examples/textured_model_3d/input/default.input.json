@@ -2,12 +2,31 @@
   "$schema": "../../../schemas/input.schema.json",
   "actions": {
     "orbit_camera": [
-      { "type": "mouse_button", "button": "LEFT" }
+      {
+        "type": "mouse_button",
+        "button": "LEFT"
+      }
+    ],
+    "material_view": [
+      {
+        "type": "keyboard",
+        "key": "TAB"
+      }
     ]
   },
   "axes": {
-    "orbit_x": { "type": "mouse_delta", "axis": "x", "invert": true },
-    "orbit_y": { "type": "mouse_delta", "axis": "y" },
-    "zoom": { "type": "mouse_wheel", "scale": 0.75 }
+    "orbit_x": {
+      "type": "mouse_delta",
+      "axis": "x",
+      "invert": true
+    },
+    "orbit_y": {
+      "type": "mouse_delta",
+      "axis": "y"
+    },
+    "zoom": {
+      "type": "mouse_wheel",
+      "scale": 0.75
+    }
   }
 }

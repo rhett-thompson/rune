@@ -13,6 +13,7 @@ $failures = [System.Collections.Generic.List[string]]::new()
 $builtValidators = [System.Collections.Generic.List[string]]::new()
 $executableSuffix = if ($IsWindows) { '.exe' } else { '' }
 $runtimeValidators = @(
+	'procedural_material_validation',
 	'navigation_3d_validation',
 	'save_validation',
 	'asset_validation',
@@ -52,7 +53,7 @@ try {
 
     Get-ChildItem "tools" -Directory | Sort-Object Name | ForEach-Object {
         $collections = @()
-        if ($_.Name -in @("terrain_validation", "skybox_validation", "post_processing_validation", "r3d_cache_validation", "model_animation_validation")) {
+        if ($_.Name -in @("procedural_material_validation", "terrain_validation", "skybox_validation", "post_processing_validation", "r3d_cache_validation", "model_animation_validation")) {
             $collections += "-collection:r3d=third_party/r3d-odin"
         }
         Invoke-OdinBuild -Name $_.Name -Package $_.FullName -Collections $collections | Out-Null
@@ -115,6 +116,9 @@ try {
     Invoke-OdinBuild -Name "blank_project_template" -Package "templates/blank_project" | Out-Null
     Invoke-OdinBuild -Name "hello_world" -Package "examples/hello_world" | Out-Null
 
+    & odin test examples/planetary_3d -collection:rune=rune "-out:build/planetary_3d_test$executableSuffix"
+    if ($LASTEXITCODE -ne 0) { $failures.Add("test planetary_3d") }
+
     $hasR3d = Test-Path (Join-Path $r3dDirectory "r3d")
     if ($hasR3d) {
         Invoke-OdinBuild -Name "hello_3d" -Package "examples/hello_3d" -Collections @("-collection:r3d=third_party/r3d-odin") | Out-Null
@@ -123,6 +127,10 @@ try {
     }
 
     if ($AllExamples) {
+        foreach ($exampleTests in @('asteroids', 'tetris', 'physics_platformer_2d', 'first_person_3d', 'third_person_3d')) {
+            & odin test "examples/$exampleTests" -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/${exampleTests}_test$executableSuffix"
+            if ($LASTEXITCODE -ne 0) { $failures.Add("test $exampleTests") }
+        }
         Invoke-OdinBuild -Name "launcher" -Package "examples/launcher" | Out-Null
         $manifest = Get-Content "examples/examples.json" -Raw | ConvertFrom-Json
         foreach ($example in $manifest.examples) {

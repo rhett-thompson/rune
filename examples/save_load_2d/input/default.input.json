@@ -1,1 +1,81 @@
-{"actions":{},"axes":{}}
+{
+  "actions": {
+    "save": [
+      {
+        "type": "keyboard",
+        "key": "F5"
+      }
+    ],
+    "load": [
+      {
+        "type": "keyboard",
+        "key": "F9"
+      }
+    ],
+    "pause": [
+      {
+        "type": "keyboard",
+        "key": "P"
+      }
+    ],
+    "change_room": [
+      {
+        "type": "keyboard",
+        "key": "TAB"
+      }
+    ],
+    "damage": [
+      {
+        "type": "keyboard",
+        "key": "H"
+      }
+    ],
+    "collect": [
+      {
+        "type": "keyboard",
+        "key": "E"
+      }
+    ],
+    "drop": [
+      {
+        "type": "keyboard",
+        "key": "SPACE"
+      }
+    ],
+    "left": [
+      {
+        "type": "keyboard",
+        "key": "A"
+      }
+    ],
+    "right": [
+      {
+        "type": "keyboard",
+        "key": "D"
+      }
+    ],
+    "up": [
+      {
+        "type": "keyboard",
+        "key": "W"
+      }
+    ],
+    "down": [
+      {
+        "type": "keyboard",
+        "key": "S"
+      }
+    ]
+  },
+  "axes": {
+    "move_x": {
+      "negative": "left",
+      "positive": "right"
+    },
+    "move_y": {
+      "negative": "up",
+      "positive": "down"
+    }
+  },
+  "$schema": "../../../schemas/input.schema.json"
+}

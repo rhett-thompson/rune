@@ -153,3 +153,20 @@ inheritance, reparenting, query filtering, JSON roundtrips and rejection, lifeti
 reset/expiry/reload, and 2D/3D physics cleanup. `--runtime` adds GPU pixel checks and
 silent native sound/music suspension checks. The tool is included in
 `tools/validate.ps1`, including its optional `-Runtime` pass.
+
+## Typed component creation
+
+`ecs.add(world, registry, entity, value)` supports built-in single-instance
+components as well as registered custom types. It uses the built-in scene
+validation and ownership rules, including colors, enum names, entity references,
+and rigid-body types. Invalid values leave existing components unchanged.
+
+```odin
+entity := ecs.create_entity(world)
+ecs.add(world, registry, entity, ecs.Transform{position = {2, 3, 0}, scale = {1, 1, 1}})
+ecs.add(world, registry, entity, ecs.BoxCollider{size = {1, 2, 1}, is_static = true})
+```
+
+Typed values supply all fields; initialize them with the component's default
+helper when available, then override the fields you need. Named multi-instance
+`AudioPlayer` components still use `ecs.add_component` with an instance map.

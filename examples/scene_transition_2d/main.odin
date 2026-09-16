@@ -57,14 +57,6 @@ on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 }
 
 on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
-	orb, found := ecs.find_entity_by_id(world, "scene_orb")
-	if found {
-		transform, has_transform := ecs.get_transform(world, orb)
-		if has_transform {
-			rl.DrawCircleV({transform.position[0], transform.position[1]}, 96, scene_colors[scene_index])
-		}
-	}
-
 	example_text.draw("Runtime scene transition", 32, 28, 30, rl.RAYWHITE)
 	example_text.draw(scene_names[scene_index], 32, 72, 24, scene_colors[scene_index])
 	example_text.draw("Left-click to change scene", 32, 108, 18, rl.LIGHTGRAY)

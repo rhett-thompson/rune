@@ -27,6 +27,7 @@ Font_Asset :: struct {
 }
 
 Material_Data :: struct {
+	procedural:        Procedural_Material,
 	base_color:        [4]u8,
 	texture:           string,
 	normal:            string,
@@ -734,6 +735,7 @@ material_data_signature :: proc(data: Material_Data) -> u64 {
 	result = hash_string(result, data.blend)
 	result = hash_string(result, data.cull)
 	result = hash_value(result, data.height_scale)
+	result = procedural_material_signature(result, data.procedural)
 	return result
 }
 
@@ -784,6 +786,10 @@ load_material_data :: proc(full_path: string) -> (Material_Data, bool) {
 	if !ok {return {}, false}
 	result := Material_Data {
 		base_color = {255, 255, 255, 255},
+	}
+	if value, found := object["procedural"]; found {
+		result.procedural, ok, _ = procedural_material_from_json(value)
+		if !ok {return {}, false}
 	}
 	if value, found := object["base_color"];
 	   found && !read_color(value, &result.base_color) {return {}, false}

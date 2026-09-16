@@ -8,7 +8,8 @@
     "height": 540,
     "title": "Rune - Tweening",
     "fullscreen": false,
-    "vsync": true
+    "vsync": true,
+    "msaa_4x": true
   },
   "input": "input/default.input.json"
 }

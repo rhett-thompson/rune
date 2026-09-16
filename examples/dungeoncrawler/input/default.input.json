@@ -1,5 +1,81 @@
 {
   "$schema": "../../../schemas/input.schema.json",
-  "actions": {},
-  "axes": {}
+  "actions": {
+    "restart": [
+      {
+        "type": "keyboard",
+        "key": "R"
+      }
+    ],
+    "forward": [
+      {
+        "type": "keyboard",
+        "key": "W"
+      }
+    ],
+    "back": [
+      {
+        "type": "keyboard",
+        "key": "S"
+      }
+    ],
+    "left": [
+      {
+        "type": "keyboard",
+        "key": "A"
+      }
+    ],
+    "right": [
+      {
+        "type": "keyboard",
+        "key": "D"
+      }
+    ],
+    "turn_left": [
+      {
+        "type": "keyboard",
+        "key": "LEFT"
+      }
+    ],
+    "turn_right": [
+      {
+        "type": "keyboard",
+        "key": "RIGHT"
+      }
+    ],
+    "sprint": [
+      {
+        "type": "keyboard",
+        "key": "LEFT_SHIFT"
+      }
+    ],
+    "attack": [
+      {
+        "type": "keyboard",
+        "key": "SPACE"
+      },
+      {
+        "type": "mouse_button",
+        "button": "LEFT"
+      }
+    ]
+  },
+  "axes": {
+    "move_z": {
+      "negative": "back",
+      "positive": "forward"
+    },
+    "move_x": {
+      "negative": "left",
+      "positive": "right"
+    },
+    "turn": {
+      "negative": "turn_left",
+      "positive": "turn_right"
+    },
+    "look_x": {
+      "type": "mouse_delta",
+      "axis": "x"
+    }
+  }
 }

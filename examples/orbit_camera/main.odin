@@ -32,7 +32,7 @@ on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 		return
 	}
 	example_text.draw("Camera3D Orbit", 24, 24, 28, rl.DARKGRAY)
-	example_text.draw("Left-drag to orbit", 24, 60, 18, rl.DARKGRAY)
+	example_text.draw("Left-drag orbit   Middle-drag pan   Wheel zoom", 24, 60, 18, rl.DARKGRAY)
 }
 
 main :: proc() {

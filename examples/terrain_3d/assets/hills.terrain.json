@@ -7,14 +7,20 @@
   "height_offset": -6,
   "chunk_cells": 64,
   "uv_scale": [64,64],
-  "blend": {
-    "grass": "../assets/HandPaintedTextures_512/Textures_512/Grass_01_512.png",
-    "dirt": "../assets/HandPaintedTextures_512/Textures_512/Dirt_01_512.png",
-    "rock": "../assets/HandPaintedTextures_512/Textures_512/Rock_01_512.png",
-    "dirt_height": [3,9],
-    "rock_slope": [18,32],
-    "noise_scale": 0.12,
-    "noise_strength": 0.35
-  },
-  "material": "assets/ground.material.json"
+  "layers": [
+    {"name":"Grass", "material":"assets/grass.material.json", "tile_size":[4,4], "height":[2,6,16,26], "slope":[-1,0,18,32]},
+    {"name":"Dirt", "material":"assets/dirt.material.json", "height":[-4,0,4,10], "slope":[-1,0,18,32]},
+    {"name":"Rock", "material":"assets/rock.material.json", "tile_size":[6,6], "slope":[20,30,90,91]},
+    {"name":"Sand", "material":"assets/sand.material.json", "height":[-100001,-100000,-2,2], "slope":[-1,0,14,26]},
+    {"name":"Moss", "material":"assets/moss.material.json", "tile_size":[3,3], "weight":0.35, "height":[-3,1,5,9], "slope":[-1,0,10,20]},
+    {"name":"Granite", "material":"assets/granite.material.json", "tile_size":[5,5], "height":[14,22,100000,100001], "slope":[12,25,90,91]},
+    {"name":"Snow", "material":"assets/snow.material.json", "height":[24,32,100000,100001], "slope":[-1,0,20,35]},
+    {"name":"Clay", "material":"assets/terracotta.material.json", "weight":0.3, "height":[5,10,15,22], "slope":[10,20,28,40]}
+  ],
+  "material": "assets/ground.material.json",
+  "details": [
+    {"name":"Meadow grass", "kind":"grass", "count":60000, "seed":42, "scale":[0.9,1.6], "height":[0,23], "slope":[0,24], "draw_distance":55},
+    {"name":"Pine trees", "kind":"tree", "count":420, "seed":71, "scale":[0.8,1.5], "height":[2,23], "slope":[0,23], "draw_distance":280},
+    {"name":"Scattered rocks", "kind":"rock", "count":650, "seed":183, "scale":[0.35,1.35], "height":[-2,30], "slope":[0,42], "draw_distance":150}
+  ]
 }

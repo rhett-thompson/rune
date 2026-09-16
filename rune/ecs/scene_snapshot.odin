@@ -541,6 +541,9 @@ rehome_builtin_strings :: proc(world, snapshot: ^World) {
 		owned.yaw_axis = retain_scene_string(snapshot, value.yaw_axis)
 		owned.pitch_axis = retain_scene_string(snapshot, value.pitch_axis)
 		owned.zoom_axis = retain_scene_string(snapshot, value.zoom_axis)
+		owned.pan_action = retain_scene_string(snapshot, value.pan_action)
+		owned.pan_x_axis = retain_scene_string(snapshot, value.pan_x_axis)
+		owned.pan_y_axis = retain_scene_string(snapshot, value.pan_y_axis)
 		world.orbit_cameras_3d[entity] = owned
 	}
 	for entity, value in world.camera_follows_2d {

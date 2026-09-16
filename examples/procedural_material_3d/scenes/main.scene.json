@@ -1,0 +1,32 @@
+{
+  "$schema": "../../../schemas/scene.schema.json",
+  "name": "Procedural Material Studio",
+  "entities": [
+    { "id": "camera", "components": {
+      "Transform": { "position": [6,5,10] },
+      "Camera3D": { "target": [0,1,0], "fovy": 42, "active": true },
+      "OrbitCamera3D": { "target": [0,1,0], "distance": 12, "pitch": 22, "yaw": 65,
+        "manual_action": "orbit_camera", "yaw_axis": "orbit_x", "pitch_axis": "orbit_y", "orbit_sensitivity": 0.3 }
+    } },
+    { "id": "ambient", "components": { "AmbientLight": { "color": [185,205,230,255], "intensity": 0.35 } } },
+    { "id": "sun", "components": { "DirectionalLight": { "direction": [-0.5,-1,-0.5], "color": [255,242,220,255], "intensity": 2, "shadows": true, "shadow_softness": 2 } } },
+    { "id": "fill", "components": { "DirectionalLight": { "direction": [1,-0.4,0.4], "color": [165,205,255,255], "intensity": 0.6 } } },
+    { "id": "post", "components": { "PostProcessing": { "tonemap": { "mode": "aces", "exposure": 1 }, "ssao": { "enabled": true, "radius": 0.5, "intensity": 1 } } } },
+    { "id": "sphere", "components": {
+      "Transform": { "position": [-2,1.15,0] },
+      "SphereRenderer": { "radius": 1.15, "material": "assets/stone.material.json" }
+    } },
+    { "id": "cube", "components": {
+      "Transform": { "position": [1.05,1,0], "scale": [2,2,2], "rotation": [0,15,0] },
+      "MeshRenderer": { "primitive": "cube", "material": "assets/stone.material.json" }
+    } },
+    { "id": "tile", "components": {
+      "Transform": { "position": [0,0.03,2.2], "scale": [5,1,1.5] },
+      "MeshRenderer": { "primitive": "plane", "material": "assets/stone.material.json" }
+    } },
+    { "id": "floor", "components": {
+      "Transform": { "position": [0,-0.03,0], "scale": [200,1,200] },
+      "MeshRenderer": { "primitive": "plane", "material": "assets/floor.material.json" }
+    } }
+  ]
+}

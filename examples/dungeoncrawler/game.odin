@@ -7,6 +7,7 @@ import "core:math"
 import "rune:assets"
 import rune "rune:core"
 import "rune:ecs"
+import "rune:input"
 import rl "vendor:raylib"
 import rlgl "vendor:raylib/rlgl"
 
@@ -298,34 +299,31 @@ strike :: proc(engine: ^rune.Engine, world: ^ecs.World) {
 
 dungeon_update_system :: proc(engine: ^rune.Engine, world: ^ecs.World) {
 	dt := engine.delta_time
+	controls := rune.input_state(engine)
 	player_transform, found := ecs.get_transform(world, player_entity)
 	if !found { return }
 	game.x = player_transform.position[0]
 	game.y = player_transform.position[2]
 	game.attack = max(0, game.attack - dt); game.hurt = max(0, game.hurt - dt)
 	if game.health <= 0 {
-		if rl.IsKeyPressed(.R) {
+		if input.pressed(controls, "restart") {
 			reset_game(true)
 			player_transform.position = {game.x, player_settings.player_height, game.y}
 			ecs.set_transform(world, player_entity, player_transform)
 		}
 		return
 	}
-	game.angle += rl.GetMouseDelta().x * .0024
-	if rl.IsKeyDown(.LEFT) { game.angle -= 1.8 * dt }
-	if rl.IsKeyDown(.RIGHT) { game.angle += 1.8 * dt }
-	f, s := f32(0), f32(0)
-	if rl.IsKeyDown(.W) { f += 1 }; if rl.IsKeyDown(.S) { f -= 1 }
-	if rl.IsKeyDown(.D) { s += 1 }; if rl.IsKeyDown(.A) { s -= 1 }
+	game.angle += input.axis(controls, "look_x") * .0024 + input.axis(controls, "turn") * 1.8 * dt
+	f, s := input.axis(controls, "move_z"), input.axis(controls, "move_x")
 	if f != 0 || s != 0 {
 		l := f32(math.sqrt(f64(f * f + s * s))); f /= l; s /= l
-		speed := player_settings.walk_speed; if rl.IsKeyDown(.LEFT_SHIFT) { speed = player_settings.sprint_speed }
+		speed := player_settings.walk_speed; if input.is_down(controls, "sprint") { speed = player_settings.sprint_speed }
 		c, sn := f32(math.cos(f64(game.angle))), f32(math.sin(f64(game.angle)))
 		dx, dy := (c * f - sn * s) * speed * dt, (sn * f + c * s) * speed * dt
 		if open(game.x + dx, game.y) { game.x += dx }; if open(game.x, game.y + dy) { game.y += dy }
 		game.step -= dt; if game.step <= 0 { play_audio(engine, world, footstep_audio); game.step = .42 }
 	}
-	if rl.IsMouseButtonPressed(.LEFT) || rl.IsKeyPressed(.SPACE) { strike(engine, world) }
+	if input.pressed(controls, "attack") { strike(engine, world) }
 	alive := 0
 	for i in 0 ..< game.enemy_count {
 		e := &game.enemies[i]; if !e.alive { continue }; alive += 1

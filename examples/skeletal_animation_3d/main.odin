@@ -12,7 +12,10 @@ import "rune:r3d_bridge"
 import rl "vendor:raylib"
 
 bridge: r3d_bridge.Context
-left: ecs.Entity
+left, strut: ecs.Entity
+Strut_Model :: "../assets/Strut Walking.fbx"
+Punch_Source :: "../assets/Punching.fbx"
+Walk_Clip :: "mixamo.com"
 footsteps, impacts: int
 foot_age, impact_age: f32 = -1, -1
 impact_position: rl.Vector3
@@ -27,6 +30,10 @@ start :: proc(game: ^rune.Engine, world: ^ecs.World) {
 		if !ok { fmt.eprintln("Could not initialize R3D") }
 	}
 	left, _ = ecs.find_entity_by_id(world, "left")
+	strut, _ = ecs.find_entity_by_id(world, "strut")
+	if !r3d_bridge.register_model_animation_source(&bridge, Strut_Model, "punch", Punch_Source) {
+		fmt.eprintln("Could not register Punching.fbx")
+	}
 	footsteps, impacts = 0, 0
 	foot_age, impact_age = -1, -1
 	last_marker = "none"
@@ -34,6 +41,7 @@ start :: proc(game: ^rune.Engine, world: ^ecs.World) {
 
 update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	controls := rune.input_state(game)
+	update_character_animation(world, input.pressed(controls, "punch"))
 	if input.pressed(controls, "pause") { ecs.pause_model_animation(world, left) }
 	if input.pressed(controls, "resume") { ecs.resume_model_animation(world, left) }
 	if input.pressed(controls, "bend") { ecs.transition_model_animation(world, left, "bend", 0.35) }
@@ -52,6 +60,24 @@ update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if foot_age >= 0 {foot_age += game.delta_time; if foot_age > 0.4 {foot_age = -1}}
 	if impact_age >= 0 {impact_age += game.delta_time; if impact_age > 0.5 {impact_age = -1}}
 	r3d_bridge.update_animations(&bridge, world, rune.asset_manager(game), game.delta_time)
+}
+
+update_character_animation :: proc(world: ^ecs.World, punch: bool) {
+	animator, found := ecs.get_model_animator(world, strut)
+	if !found {return}
+	if punch {
+		animator.loop = false
+		ecs.set_model_animator(world, strut, animator)
+		if animator.clip == "punch" {
+			ecs.play_model_animation(world, strut, "punch")
+		} else {
+			ecs.transition_model_animation(world, strut, "punch", 0.12)
+		}
+	} else if state, ok := ecs.get_model_animation_state(world, strut); ok && state.finished && animator.clip == "punch" {
+		animator.loop = true
+		ecs.set_model_animator(world, strut, animator)
+		ecs.transition_model_animation(world, strut, Walk_Clip, 0.18)
+	}
 }
 
 post_animation :: proc(game: ^rune.Engine, world: ^ecs.World) {
@@ -94,11 +120,12 @@ draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 		rl.EndMode3D()
 	}
 	example_text.draw("SKELETAL ANIMATION", 30, 25, 28, rl.RAYWHITE)
-	example_text.draw("Shared model, independent R3D players: bend 1x / bend 0.5x / sway", 30, 66, 18, rl.LIGHTGRAY)
+	example_text.draw("Independent players: bend 1x / bend 0.5x / sway / Strut Walking", 30, 66, 18, rl.LIGHTGRAY)
 	example_text.draw("Left model: 1 bend   2 sway (0.35s blend)   P pause   R resume", 30, 94, 18, rl.LIGHTGRAY)
 	example_text.draw("S speed   V reverse   H seek to 1s (silent)", 30, 122, 18, rl.LIGHTGRAY)
+	example_text.draw("Space punch   Left-drag orbit   Middle-drag pan   Wheel zoom", 30, 150, 18, rl.LIGHTGRAY)
 	animator, _ := ecs.get_model_animator(world, left)
-	example_text.draw(fmt.ctprintf("Markers: footsteps %d / impacts %d   Last: %s   Speed: %.1fx", footsteps, impacts, last_marker, animator.speed), 30, 153, 20, rl.GOLD)
+	example_text.draw(fmt.ctprintf("Markers: footsteps %d / impacts %d   Last: %s   Speed: %.1fx", footsteps, impacts, last_marker, animator.speed), 30, 181, 20, rl.GOLD)
 	if state, found := ecs.get_model_animation_state(world, left); found {
 		example_text.draw(
 			fmt.ctprintf("Left: %.2f / %.2f seconds   playing: %t", state.elapsed, state.duration, state.playing),

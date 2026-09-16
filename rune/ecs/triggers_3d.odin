@@ -3,6 +3,7 @@ package ecs
 import "core:encoding/json"
 import "core:math"
 import "core:slice"
+import b3 "vendor:box3d"
 
 Trigger_Shape_3D :: enum {box, sphere}
 // Query-only volumes: no collider/body is required and they never block motion.
@@ -84,6 +85,25 @@ trigger_overlaps_character_3d :: proc(world:^World,actor:Entity,value:Trigger3D,
 	state:=world.character_controller_states_3d[actor]
 	height:=state.height if state.active else config.height
 	feet:=world.transforms[actor].position
+	if state.up != ([3]f32{}) && state.up != ([3]f32{0,1,0}) {
+		// Reuse Box3D's convex distance query for a tilted capsule. Both shapes
+		// are expressed relative to the feet to retain precision far from origin.
+		capsule:=[2]b3.Vec3{character_vec_3d(state.up*config.radius),character_vec_3d(state.up*(height-config.radius))}
+		points:[8]b3.Vec3
+		count:=i32(1)
+		trigger_radius:=radius
+		if value.shape==.box {
+			count=8;trigger_radius=0
+			for i in 0..<8 {
+				points[i]={half_size[0]*(-1 if i&1==0 else 1),half_size[1]*(-1 if i&2==0 else 1),half_size[2]*(-1 if i&4==0 else 1)}
+			}
+		}
+		cache:b3.SimplexCache
+		result:=b3.ShapeDistance({proxyA={points=raw_data(capsule[:]),count=2,radius=config.radius},
+			proxyB={points=raw_data(points[:]),count=count,radius=trigger_radius},
+			transform={p=character_vec_3d(center-feet),q=b3.MakeQuatFromAxisAngle({0,1,0},0)},useRadii=true},&cache,nil,0)
+		return result.distance<=0.00001
+	}
 	low,high:=feet.y+config.radius,feet.y+height-config.radius
 	delta:=[3]f32{math.abs(feet.x-center.x),max(low-center.y,center.y-high,0),math.abs(feet.z-center.z)}
 	combined_radius:=config.radius

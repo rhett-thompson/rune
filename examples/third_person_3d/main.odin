@@ -27,7 +27,7 @@ initialize_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	}
 	player, _ = ecs.find_entity_by_id(world, "player")
 	follow_camera, _ = ecs.find_entity_by_id(world, "follow_camera")
-	platform, _ = ecs.find_entity_by_id(world, "moving_platform")
+	platform, _ = ecs.find_entity_by_id(world, "course/moving_platform")
 	avatar_body, _ = ecs.find_entity_by_id(world, "player_body")
 	avatar_head, _ = ecs.find_entity_by_id(world, "player_head")
 	avatar_front, _ = ecs.find_entity_by_id(world, "player_front")

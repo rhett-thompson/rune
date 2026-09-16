@@ -1,0 +1,54 @@
+diff --git a/src/r3d_importer.c b/src/r3d_importer.c
+index 10616e7..dd32eb7 100644
+--- a/src/r3d_importer.c
++++ b/src/r3d_importer.c
+@@ -15,6 +15,7 @@
+ #   include "./importer/r3d_importer_internal.h"
+ #   include "./common/r3d_helper.h"
+ #   include <assimp/cimport.h>
++#   include <assimp/config.h>
+ #endif
+ 
+ // ========================================
+@@ -51,6 +52,17 @@
+ 
+ #ifdef R3D_SUPPORT_ASSIMP
+ 
++static struct aiPropertyStore* create_import_properties(void)
++{
++    struct aiPropertyStore* properties = aiCreatePropertyStore();
++    if (!properties) return NULL;
++
++    // R3D maps animation channels to mesh bones. FBX pivot helper nodes are
++    // not mesh bones, so keep their transforms on the actual animated joints.
++    aiSetImportPropertyInteger(properties, AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, 0);
++    return properties;
++}
++
+ static void determine_importer_name(char* outName, size_t outSize, const struct aiScene* scene, const char* hint)
+ {
+     if (!outName || outSize == 0) return;
+@@ -145,7 +157,10 @@ R3D_Importer* R3D_LoadImporter(const char* filePath, R3D_ImportFlags flags)
+         aiFlags = POST_PROCESS_PRESET_QUALITY;
+     }
+ 
+-    const struct aiScene* scene = aiImportFile(filePath, aiFlags);
++    struct aiPropertyStore* properties = create_import_properties();
++    if (!properties) return NULL;
++    const struct aiScene* scene = aiImportFileExWithProperties(filePath, aiFlags, NULL, properties);
++    aiReleasePropertyStore(properties);
+     if (!scene || !scene->mRootNode || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE)) {
+         R3D_TRACELOG(LOG_ERROR, "Assimp failed to load '%s': %s", filePath, aiGetErrorString());
+         return NULL;
+@@ -179,7 +194,10 @@ R3D_Importer* R3D_LoadImporterFromMemory(const void* data, unsigned int size, co
+         aiFlags = POST_PROCESS_PRESET_QUALITY;
+     }
+ 
+-    const struct aiScene* scene = aiImportFileFromMemory(data, size, aiFlags, hint);
++    struct aiPropertyStore* properties = create_import_properties();
++    if (!properties) return NULL;
++    const struct aiScene* scene = aiImportFileFromMemoryWithProperties(data, size, aiFlags, hint, properties);
++    aiReleasePropertyStore(properties);
+     if (!scene || !scene->mRootNode || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE)) {
+         if (hint && hint[0] != '\0') {
+             R3D_TRACELOG(LOG_ERROR, "Assimp failed to load memory asset '%s': %s", hint, aiGetErrorString());

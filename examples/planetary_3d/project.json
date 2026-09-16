@@ -1,0 +1,22 @@
+{
+  "$schema": "../../schemas/project.schema.json",
+  "name": "Pocket Planets",
+  "startup_scene": "scenes/main.scene.json",
+  "background_color": [
+    8,
+    12,
+    28,
+    255
+  ],
+  "window": {
+    "width": 1280,
+    "height": 800,
+    "title": "Rune - Pocket Planets",
+    "vsync": true,
+    "msaa_4x": true
+  },
+  "input": "input/default.input.json",
+  "gizmos": {
+    "enabled": false
+  }
+}

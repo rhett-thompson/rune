@@ -1,5 +1,9 @@
 # Asteroids
 
+Asteroids are live ECS components: movement, collisions, rendering, and spawning
+query the world. Console component edits apply immediately, and disabled
+asteroids stop moving, drawing, and colliding.
+
 Build an arcade loop with pooled bullets, asteroid spawning, particles, and audio.
 
 **Controls:** A/D or Left/Right turns; W or Up thrusts; Space fires; R restarts.

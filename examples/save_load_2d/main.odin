@@ -7,6 +7,7 @@ import "core:strings"
 import rune "rune:core"
 import "rune:console"
 import "rune:ecs"
+import "rune:input"
 import "rune:save"
 import rl "vendor:raylib"
 
@@ -44,44 +45,42 @@ capture_globals :: proc(game: ^rune.Engine, world: ^ecs.World) {
 }
 controls :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if console.is_open(rune.developer_console(game)) {return}
-	if rl.IsKeyPressed(.F5) {rune.request_save(game,"checkpoint")}
-	if rl.IsKeyPressed(.F9) {rune.request_load(game,"checkpoint")}
-	if rl.IsKeyPressed(.P) {rune.set_paused(game,!rune.is_paused(game))}
-	if rl.IsKeyPressed(.TAB) {
+	buttons := rune.input_state(game)
+	if input.frame_action(buttons,"save").pressed {rune.request_save(game,"checkpoint")}
+	if input.frame_action(buttons,"load").pressed {rune.request_load(game,"checkpoint")}
+	if input.frame_action(buttons,"pause").pressed {rune.set_paused(game,!rune.is_paused(game))}
+	if input.frame_action(buttons,"change_room").pressed {
 		path := "scenes/room_b.scene.json" if strings.has_suffix(game.active_scene_path,"room_a.scene.json") else "scenes/room_a.scene.json"
 		rune.change_scene(game,path)
 	}
 }
 update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if console.is_open(rune.developer_console(game)) {return}
+	buttons := rune.input_state(game)
 	player, found := ecs.find_entity_by_id(world,"player")
 	if !found {return}
 	transform, _ := ecs.get(world,player,ecs.Transform)
-	direction: [2]f32
-	if rl.IsKeyDown(.A) {direction.x -= 1}; if rl.IsKeyDown(.D) {direction.x += 1}
-	if rl.IsKeyDown(.W) {direction.y -= 1}; if rl.IsKeyDown(.S) {direction.y += 1}
+	direction := [2]f32{input.axis(buttons,"move_x"),input.axis(buttons,"move_y")}
 	transform.position.x = math.clamp(transform.position.x + direction.x * 220 * game.delta_time,30,870)
 	transform.position.y = math.clamp(transform.position.y + direction.y * 220 * game.delta_time,150,440)
 	ecs.set(world,player,transform)
-	if rl.IsKeyPressed(.H) {
+	if input.pressed(buttons,"damage") {
 		health, _ := ecs.get(world,player,Health)
 		health.current = max(0,health.current-10)
 		ecs.set(world,player,health)
 	}
 	progress, _ := ecs.resource(world,Progress)
-	if rl.IsKeyPressed(.E) {
+	if input.pressed(buttons,"collect") {
 		if chest, exists := ecs.find_entity_by_id(world,"chest"); exists {ecs.destroy_entity(world,chest); progress.coins += 10}
 	}
-	if rl.IsKeyPressed(.SPACE) {
+	if input.pressed(buttons,"drop") {
 		progress.next_drop += 1
 		drop := ecs.create_entity(world)
 		ecs.set_entity_metadata(world,drop,fmt.tprintf("drop_%d",progress.next_drop),"Dropped coin","",1)
-		shape_value: json.Value
-		_ = json.unmarshal(transmute([]u8)string(`{"shape":"circle","radius":9,"color":[245,190,80,255]}`),
-			&shape_value,allocator=context.temp_allocator)
-		position, _ := ecs.runtime_json(transform)
-		ecs.add_component(world,&game.registry,drop,"Transform",position)
-		ecs.add_component(world,&game.registry,drop,"ShapeRenderer2D",shape_value)
+		shape := ecs.default_shape_renderer_2d()
+		shape.shape = .circle; shape.radius = 9; shape.color = {245,190,80,255}
+		ecs.add(world,&game.registry,drop,transform)
+		ecs.add(world,&game.registry,drop,shape)
 		save.track_spawn(&game.saves,world,drop)
 	}
 }

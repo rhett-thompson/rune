@@ -3,46 +3,108 @@
   "name": "Physics Queries",
   "entities": [
     {
+      "id": "camera",
+      "components": {
+        "Transform": {},
+        "Camera2D": {
+          "active": true
+        }
+      }
+    },
+    {
       "id": "player",
       "components": {
-        "Transform": { "position": [150, 280, 0] },
-        "RigidBody2D": { "gravity_scale": 0 },
-        "BoxCollider2D": { "size": [32, 40] }
+        "Transform": {
+          "position": [150, 280, 0]
+        },
+        "RigidBody2D": {
+          "gravity_scale": 0
+        },
+        "BoxCollider2D": {
+          "size": [32, 40]
+        },
+        "ShapeRenderer2D": {
+          "size": [32, 40],
+          "color": [0, 228, 48, 255]
+        }
       }
     },
     {
       "id": "left_wall",
       "components": {
-        "Transform": { "position": [60, 280, 0] },
-        "BoxCollider2D": { "size": [24, 160] }
+        "Transform": {
+          "position": [60, 280, 0]
+        },
+        "BoxCollider2D": {
+          "size": [24, 160]
+        },
+        "ShapeRenderer2D": {
+          "size": [24, 160],
+          "color": [102, 191, 255, 255]
+        }
       }
     },
     {
       "id": "right_wall",
       "components": {
-        "Transform": { "position": [840, 280, 0] },
-        "BoxCollider2D": { "size": [24, 160] }
+        "Transform": {
+          "position": [840, 280, 0]
+        },
+        "BoxCollider2D": {
+          "size": [24, 160]
+        },
+        "ShapeRenderer2D": {
+          "size": [24, 160],
+          "color": [102, 191, 255, 255]
+        }
       }
     },
     {
       "id": "pickup_a",
       "components": {
-        "Transform": { "position": [310, 280, 0] },
-        "BoxCollider2D": { "size": [22, 28], "is_sensor": true }
+        "Transform": {
+          "position": [310, 280, 0]
+        },
+        "BoxCollider2D": {
+          "size": [22, 28],
+          "is_sensor": true
+        },
+        "ShapeRenderer2D": {
+          "size": [22, 28],
+          "color": [255, 203, 0, 255]
+        }
       }
     },
     {
       "id": "pickup_b",
       "components": {
-        "Transform": { "position": [470, 280, 0] },
-        "BoxCollider2D": { "size": [22, 28], "is_sensor": true }
+        "Transform": {
+          "position": [470, 280, 0]
+        },
+        "BoxCollider2D": {
+          "size": [22, 28],
+          "is_sensor": true
+        },
+        "ShapeRenderer2D": {
+          "size": [22, 28],
+          "color": [255, 203, 0, 255]
+        }
       }
     },
     {
       "id": "pickup_c",
       "components": {
-        "Transform": { "position": [630, 280, 0] },
-        "BoxCollider2D": { "size": [22, 28], "is_sensor": true }
+        "Transform": {
+          "position": [630, 280, 0]
+        },
+        "BoxCollider2D": {
+          "size": [22, 28],
+          "is_sensor": true
+        },
+        "ShapeRenderer2D": {
+          "size": [22, 28],
+          "color": [255, 203, 0, 255]
+        }
       }
     }
   ]

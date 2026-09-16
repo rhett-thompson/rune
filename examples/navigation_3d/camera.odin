@@ -1,7 +1,6 @@
 package main
 
 import "core:math"
-import "core:math/linalg"
 import rune "rune:core"
 import "rune:ecs"
 import "rune:input"
@@ -17,6 +16,9 @@ default_course_camera :: proc() -> ecs.OrbitCamera3D {
 	result.pitch=math.asin(20/result.distance)*180/math.PI
 	result.min_pitch=5;result.max_pitch=85
 	result.min_distance=4;result.max_distance=80
+	result.pan_action="pan_camera"
+	result.pan_x_axis="orbit_x"
+	result.pan_y_axis="orbit_y"
 	return result
 }
 
@@ -31,14 +33,8 @@ update_course_camera :: proc(game:^rune.Engine,world:^ecs.World) {
 	// Scale zoom and screen-plane panning with the view distance. Neither uses
 	// simulation dt, so orbit controls remain responsive while the game is paused.
 	orbit.zoom_sensitivity=orbit.distance*0.1
+	// Preserve pointer tracking across viewport sizes and field-of-view changes.
+	orbit.pan_sensitivity=2*math.tan(camera.fovy*math.PI/360)/f32(max(rl.GetScreenHeight(),1))
 	pose:=ecs.update_orbit_camera_3d(&orbit,controls,game.frame_delta_time)
 	camera.position=pose.position;camera.target=orbit.target
-	if input.is_down(controls,"pan_camera") {
-		forward:=linalg.normalize(camera.target-camera.position)
-		right:=linalg.normalize(linalg.cross(forward,camera.up))
-		up:=linalg.cross(right,forward)
-		units_per_pixel:=2*orbit.distance*math.tan(camera.fovy*math.PI/360)/f32(max(rl.GetScreenHeight(),1))
-		offset:=(-right*input.axis(controls,"orbit_x")+up*input.axis(controls,"orbit_y"))*units_per_pixel
-		orbit.target+=offset;camera.target+=offset;camera.position+=offset
-	}
 }

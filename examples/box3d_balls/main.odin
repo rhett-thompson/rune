@@ -6,6 +6,7 @@ import "core:fmt"
 import "core:math"
 import rune "rune:core"
 import "rune:ecs"
+import "rune:input"
 import b3 "vendor:box3d"
 import rl "vendor:raylib"
 
@@ -20,7 +21,7 @@ camera := rl.Camera3D {
 }
 
 on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
-	if rl.IsKeyPressed(.R) {
+	if input.pressed(rune.input_state(game), "reset") {
 		_ = rune.change_scene(game, "scenes/main.scene.json")
 	}
 }

@@ -6,6 +6,7 @@ import "core:fmt"
 import "core:strings"
 import rune "rune:core"
 import "rune:ecs"
+import "rune:console"
 import "rune:input"
 import rl "vendor:raylib"
 
@@ -27,7 +28,7 @@ Game :: struct {
 	next_kind:              int,
 	score, lines, level:    int,
 	fall_timer, move_timer: f32,
-	paused, game_over:      bool,
+	game_over:             bool,
 }
 
 world: ^ecs.World
@@ -159,11 +160,23 @@ hard_drop :: proc(g: ^Game, engine: ^rune.Engine) {
 	lock_piece(g, engine)
 }
 
+tetris_controls :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
+	if console.is_open(rune.developer_console(engine)) {return}
+	controls := rune.input_state(engine)
+	restart := input.frame_action(controls, "restart")
+	pause := input.frame_action(controls, "pause")
+	if restart.pressed {
+		reset_game(&game)
+		rune.set_paused(engine, false)
+		input.capture(controls)
+		return
+	}
+	if pause.pressed && !game.game_over {rune.set_paused(engine, !rune.is_paused(engine))}
+}
+
 update_tetris :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 	controls := rune.input_state(engine)
-	if input.pressed(controls, "restart") { reset_game(&game); return }
-	if input.pressed(controls, "pause") && !game.game_over { game.paused = !game.paused }
-	if game.paused || game.game_over { return }
+	if game.game_over { return }
 
 	if input.pressed(controls, "rotate_cw") { rotate_piece(&game, 1) }
 	if input.pressed(controls, "rotate_ccw") { rotate_piece(&game, -1) }
@@ -297,7 +310,7 @@ draw_tetris :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 		example_text.draw(control[1], i32(panel_x) + 90, y, 14, rl.LIGHTGRAY)
 	}
 
-	if game.paused || game.game_over {
+	if rune.is_paused(engine) || game.game_over {
 		rl.DrawRectangle(BOARD_X, BOARD_Y + 225, BOARD_W * CELL, 110, {5, 8, 18, 235})
 		title: cstring = "PAUSED"
 		subtitle: cstring = "P TO CONTINUE"
@@ -328,6 +341,7 @@ main :: proc() {
 			name = "tetris",
 			start = initialize_tetris,
 			update = update_tetris,
+			ui_update = tetris_controls,
 			draw = draw_tetris,
 			on_scene_reloaded = initialize_tetris,
 		},

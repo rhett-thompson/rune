@@ -37,7 +37,6 @@ Game :: struct {
 	ship_config:                                                                 Ship_Config,
 	spawner:                                                                     Asteroid_Spawner,
 	ship:                                                                        Ship,
-	asteroids:                                                                   [dynamic]Asteroid_Instance,
 	bullets:                                                                     pool.Pool(Bullet),
 	particles:                                                                   pool.Pool(Particle),
 	thruster_audio, destroy_audio, laser_audio, music_audio, ship_explode_audio: ecs.Entity,
@@ -206,11 +205,12 @@ update_ship :: proc(game: ^Game, engine: ^rune.Engine, controls: ^input.Input, d
 }
 
 update_asteroids :: proc(game: ^Game, engine: ^rune.Engine, dt: f32) {
-	for &instance in game.asteroids {
-		asteroid := &instance.component
+	for entity in ecs.query(world, Asteroid_Component) {
+		asteroid, _ := ecs.get(world, entity, Asteroid_Component)
 		asteroid.position += asteroid.velocity * dt
 		asteroid.angle += asteroid.spin * dt
 		wrap_position(&asteroid.position, f32(game.arena.width), f32(game.arena.height))
+		ecs.set(world, entity, asteroid)
 		if game.ship.alive && game.ship.invulnerable <= 0 {
 			d := wrapped_delta(asteroid.position, game.ship.position, f32(game.arena.width), f32(game.arena.height))
 			r := asteroid.radius * .82 + game.ship_config.radius
@@ -227,18 +227,18 @@ update_bullets :: proc(game: ^Game, engine: ^rune.Engine, dt: f32) {
 		bullet.life -= dt
 		bullet.position += bullet.velocity * dt
 		wrap_position(&bullet.position, f32(game.arena.width), f32(game.arena.height))
-		hit := -1
-		for instance, index in game.asteroids {
-			asteroid := instance.component
+		hit: ecs.Entity
+		for entity in ecs.query(world, Asteroid_Component) {
+			asteroid, _ := ecs.get(world, entity, Asteroid_Component)
 			d := wrapped_delta(asteroid.position, bullet.position, f32(game.arena.width), f32(game.arena.height))
-			if length_squared(d) <= asteroid.radius * asteroid.radius { hit = index; break }
+			if length_squared(d) <= asteroid.radius * asteroid.radius { hit = entity; break }
 		}
-		if hit >= 0 {
-			asteroid := game.asteroids[hit].component
+		if hit != 0 {
+			asteroid, _ := ecs.get(world, hit, Asteroid_Component)
 			game.score += 25 * (4 - asteroid.tier)
 			emit_particles(game, asteroid.position, 5 + asteroid.tier * 3, 120)
 			rune.play_audio(engine, world, game.destroy_audio, "default")
-			remove_asteroid(game, hit)
+			ecs.destroy_entity(world, hit)
 			if asteroid.tier > 1 {
 				spawn_asteroid(game, asteroid.position + {-5, 3}, asteroid.tier - 1)
 				spawn_asteroid(game, asteroid.position + {5, -3}, asteroid.tier - 1)
@@ -274,7 +274,7 @@ update_game :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 	update_asteroids(&game, engine, engine.delta_time)
 	update_bullets(&game, engine, engine.delta_time)
 	update_particles(&game, engine.delta_time)
-	if len(game.asteroids) == 0 { spawn_wave(&game) }
+	if len(ecs.query(world, Asteroid_Component, include_disabled = true)) == 0 { spawn_wave(&game) }
 }
 
 draw_wrapped_line :: proc(a, b: rl.Vector2, tint: rl.Color) {
@@ -359,7 +359,10 @@ draw_game :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 		brightness := u8(45 + (i * 37) % 75)
 		rl.DrawPixel(x, y, {line.r, line.g, line.b, brightness})
 	}
-	for asteroid in game.asteroids { draw_asteroid(asteroid.component, game.arena, line) }
+	for entity in ecs.query(world, Asteroid_Component) {
+		asteroid, _ := ecs.get(world, entity, Asteroid_Component)
+		draw_asteroid(asteroid, game.arena, line)
+	}
 	bullet_cursor := 0
 	for {
 		bullet, _ := pool.next(&game.bullets, &bullet_cursor)

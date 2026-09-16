@@ -1,0 +1,18 @@
+{
+  "$schema": "../../../schemas/material.schema.json",
+  "roughness": 0.92,
+  "filter": "anisotropic_8x",
+  "mipmaps": true,
+  "procedural": {
+    "resolution": 256,
+    "seed": 218,
+    "scale": 18,
+    "octaves": 4,
+    "persistence": 0.6,
+    "contrast": 1.5,
+    "color_a": [49,31,19,255],
+    "color_b": [149,113,69,255],
+    "bump_strength": 0.015,
+    "roughness_variation": 0.2
+  }
+}

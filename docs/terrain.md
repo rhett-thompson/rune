@@ -53,17 +53,83 @@ the descriptor. Absolute paths are also accepted. The schema is
   maps to repeat; a material shared with other meshes therefore repeats there too.
   An empty material path uses a green fallback.
 
-## Texture blending
+## Material and texture blending
 
-Add an optional `blend` object to the terrain descriptor to mix three color
-textures automatically. Paths are relative to the project root, as for the
+### Up to eight layers
+
+Use a `layers` list for 1–8 materials per terrain, with color, normals,
+roughness, metalness, occlusion and specular blended together. This matches
+[Unity HDRP's eight-layer limit](https://docs.unity3d.com/6000.0/Documentation/Manual/class-TerrainLayer.html);
+Unity's URP/Built-in multi-pass system can exceed eight. Rune renders the eight
+layers in one surface pass. Paths are relative to the project root.
+
+```json
+"layers": [
+  {"name":"Grass", "material":"assets/grass.material.json", "tile_size":[4,4], "height":[0,4,20,28], "slope":[-1,0,18,32]},
+  {"name":"Sand", "material":"assets/sand.material.json", "height":[-100001,-100000,0,4]},
+  {"name":"Rock", "material":"assets/rock.material.json", "tile_size":[6,6], "slope":[18,32,90,91]},
+  {"name":"Snow", "material":"assets/snow.material.json", "height":[20,28,100000,100001]}
+]
+```
+
+Each layer has:
+
+- `material`: a material JSON, including procedural generation, or a color image.
+- `tile_size`: X/Z terrain units per texture repeat, default `[4,4]`.
+- `weight`: nonnegative contribution multiplier, default `1`, maximum `1000`.
+- `height` and `slope`: four increasing values for fade-in start/end, then
+  fade-out start/end. Equal endpoints give hard edges. Defaults cover the full
+  supported terrain height/slope ranges. Heights and slopes are terrain-local.
+
+Automatic weights multiply the height and slope bands by `weight`, then normalize
+the result across active layers. Unrestricted layers with equal weights blend
+equally. If every weight is zero, layer 0 covers the surface.
+
+For authored placement, add `control_maps`: one RGBA image for layers 0–3,
+and a second for layers 4–7. Supply one map per group of four layers:
+
+```json
+"control_maps": ["assets/weights_0.png", "assets/weights_1.png"]
+```
+
+Red, green, blue and alpha select consecutive layers. Weight maps replace the
+automatic height/slope rules; the layer's `weight` multiplier still applies.
+Channels are linear weights and are normalized, so they need not sum to 255.
+Unused channels are ignored; all-zero areas select layer 0. Maps cover the whole
+terrain from X/Z origin at the image's top-left to its opposite corner, use
+bilinear sampling, and clamp at the edge. Preserve alpha when exporting: it is
+a layer weight, not transparency. Author these images in an image tool or generate
+them in code; Rune does not yet provide a terrain painting UI.
+
+Each material retains its own filtering and independent procedural resolution
+(8–1024). Use `"filter":"point", "mipmaps":false` for crisp texels; weight-map
+transitions remain smooth. Layer maps are packed into two GPU atlases, each
+holding four materials. Layers in a group are expanded with nearest sampling
+to the group's largest map size; lower-resolution texels remain intact. Color,
+normal and ORM maps are limited to 1024 pixels per side, and control maps to 2048.
+Large sets cost more texture memory and sampling work; use only the layers needed.
+
+Material and control-map edits hot reload without rebuilding terrain geometry.
+Invalid reloads retain the last working assets. Missing first-time assets fall
+back to the base terrain material and report diagnostics. Use a white base
+material to preserve layer colors. Base lighting, emission, alpha and shadows
+still control the entire terrain; layer transparency/emission are not blended.
+
+Do not combine a nonempty `layers` list with an enabled legacy `blend` object.
+Omitting both keeps the single base material. The Highland Walk example uses
+all eight slots with automatic height/slope placement.
+
+### Legacy three-layer blend
+
+Add an optional `blend` object to the terrain descriptor to mix three materials
+or color textures automatically. Paths are relative to the project root, as for the
 heightmap. Existing descriptors without `blend` keep their single material.
 
 ```json
 "blend": {
-  "grass": "assets/grass.png",
-  "dirt": "assets/dirt.png",
-  "rock": "assets/rock.png",
+  "grass": "assets/grass.material.json",
+  "dirt": "assets/dirt.material.json",
+  "rock": "assets/rock.material.json",
   "dirt_height": [3, 9],
   "rock_slope": [20, 38],
   "noise_scale": 0.12,
@@ -81,16 +147,86 @@ the transitions; `noise_strength: 0` disables it. The values above are defaults.
 The renderer projects textures along three axes and blends those projections
 using the surface normal, reducing stretching on steep faces. `uv_scale` controls
 repeats across the full X/Z extent; the vertical repeat rate averages those two
-rates. Textures use mipmaps, anisotropic filtering, and repeat wrapping. These
-sampling settings also affect other users of the same cached textures.
+rates. Each JSON layer uses its material's `filter` and `mipmaps` settings.
+For a retro layer, use `"filter": "point", "mipmaps": false`; procedural
+`resolution` remains independent and can be as low as 8. Scene FXAA can still
+soften edges, so disable it for a fully crisp result. Image paths use mipmaps
+and anisotropic filtering. All layers repeat across the terrain.
 
 Blending multiplies the material's albedo; use a white `base_color` and no base
-texture for the original layer colors. Roughness, metallic, lighting and shadows
-continue to come from the material. This blends color textures only, not separate
-normal or roughness maps. An unavailable layer falls back to the base material
-with an asset diagnostic. Texture edits use normal texture hot reload; invalid
-replacements retain the last working texture. Descriptor edits reload the blend
-settings with the terrain. Remove `blend` or set it to `{}` to disable it.
+texture for the original layer colors. A `.json` path loads a material, including
+procedural generation and file-map overrides. If any layer uses a material,
+the renderer also blends layer normals, roughness, metalness, occlusion and
+specular strength. These replace the corresponding base surface channels.
+Base lighting, emission, alpha and shadows still control the whole terrain;
+layer transparency and emission are not blended.
+
+Images and materials can be mixed: an image contributes color, a flat normal,
+and the base material's scalar roughness, metalness and specular. Three image
+paths retain the original color-only blend with base normal and ORM maps.
+
+Material-layer maps are cached in one atlas per layer. Maps within a layer are
+resampled with nearest sampling to a shared square power-of-two size (8–1024);
+larger file maps are reduced to 1024. Cell-aware wrapping and mip selection keep
+color, normal and ORM data separate, including at a distance. Anisotropic
+filtering uses up to the requested 4, 8 or 16 directional samples.
+
+Material and texture edits hot reload without rebuilding terrain geometry.
+Invalid replacements retain the previous loaded assets. An unavailable layer
+falls back to the base material with an asset diagnostic. Descriptor edits reload
+the blend settings with the terrain. Remove `blend` or set it to `{}` to disable it.
+
+## Grass, trees, rocks and other details
+
+Add a `details` list to scatter decorative objects directly from the terrain asset:
+
+```json
+"details": [
+  {"name":"Grass", "kind":"grass", "count":60000, "seed":42, "height":[0,23], "slope":[0,24], "scale":[0.9,1.6], "draw_distance":55},
+  {"name":"Pines", "kind":"tree", "count":420, "seed":71, "height":[2,23], "slope":[0,23], "draw_distance":280},
+  {"name":"Rocks", "kind":"rock", "count":650, "seed":183, "scale":[0.35,1.35], "draw_distance":150},
+  {"name":"Flowers", "kind":"model", "model":"assets/flower.glb", "material":"assets/flower.material.json", "count":500, "seed":12}
+]
+```
+
+The built-in grass tufts, pine trees and rocks use original low-poly geometry
+with vertex colors, so they require no downloaded assets. Custom static models
+use `kind:"model"` and a project-relative `model` path. Author them with +Y up
+and the pivot at ground level. The optional material JSON applies to every mesh
+in a prototype and can use procedural maps. Without it, the renderer uses white
+with mesh vertex colors; imported model material textures are not retained.
+
+`count` is the number of candidate cells spread across the terrain, not a
+guaranteed final object count. The seeded jitter pattern is repeatable; candidates
+outside inclusive `height` or `slope` ranges are omitted. Height and slope use
+terrain-local coordinates. Change seeds between detail types for independent
+placement patterns. `scale` sets the min/max uniform scale, with random yaw and
+subtle shade variation added automatically. Ground placement uses the exact
+terrain triangles. Detail positions follow terrain transforms and regenerate
+after successful heightmap or descriptor edits.
+
+Defaults are 1,000 candidates, seed 0, scale `[0.8,1.2]`, unrestricted height,
+and slope `[0,35]`. `align_to_normal` tilts objects onto the ground; it defaults
+to true for rocks and false for other kinds. `shadows` defaults to false for
+grass and true otherwise. Built-in tree height is approximately 5.2 units,
+rock height 1.13 units, and grass blade height 0.35–0.6 units, before scaling.
+
+Details use GPU instancing rather than individual scene entities. `draw_distance`
+is measured from the camera in world units (default 60 for grass, 250 otherwise).
+Grass shrinks smoothly through the last 20% of that distance; other details are
+culled at the limit. Terrain supports at most 32 detail definitions, 100,000
+candidates per definition, and 250,000 candidates total. Increase counts with
+care: instance selection still scans their positions each frame, and dense
+shadow-casting geometry has a rendering cost.
+
+These details are decorative: they do not create colliders, navigation obstacles,
+or individually interactable entities. Use regular scene/prefab entities for
+trees or rocks that need those behaviors. Scatter placement currently uses
+height/slope rules rather than painted density maps or terrain layer weights.
+
+Invalid descriptor edits retain the working terrain and detail buffers. Model
+and material assets use their existing hot-reload paths. Removing a terrain or
+replacing the scene releases its detail instance buffers.
 
 ## Geometry and collision
 
@@ -155,7 +291,7 @@ graphics context is still alive, as with other 3D examples.
 
 This version rebuilds the whole terrain on successful height/descriptor edits.
 Large edits can cause a frame stall. It does not yet provide distance LOD,
-streaming, brush tools, layer painting, foliage, holes, or caves/overhangs.
+streaming, brush tools, layer painting, holes, or caves/overhangs.
 Separate model entities can supply cave and cliff geometry later.
 
 ## Example and checks
@@ -170,7 +306,9 @@ in the repository select the appropriate extension automatically.
 
 `tools/terrain_validation` checks decoding, collision, character traversal,
 activation, hierarchy edits, reload recovery, and ownership. Its GPU checks also
-verify blend layer colors, transitions, noise continuity and shader cleanup. It runs as part of
+verify image/material layer colors, normal and ORM blending, point filtering,
+atlas mip isolation, eight material slots/control channels, reload retention,
+noise continuity and shader cleanup. It runs as part of
 `pwsh -NoProfile -File tools/validate.ps1 -AllExamples`.
 
 To run its GPU checks independently:

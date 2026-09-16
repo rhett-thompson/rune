@@ -26,6 +26,8 @@ their game-specific fields are not completed by the built-in schemas.
 
 ## Current capabilities
 
+- [Procedural materials](docs/procedural-materials.md): seamless noise-generated color, bump, and roughness maps with seed, scale, detail, and color controls. Try [Procedural Materials 3D](examples/procedural_material_3d/README.md).
+
 - [Skeletal animation events](docs/model-animation-events.md): reusable JSON marker tracks, reverse playback, silent seeks, and destination-clip events during blends. The skeletal example includes marker-driven sounds and effects.
 
 - [Sprite animation events](docs/animation-events.md): frame markers and a buffered Odin API for synchronized sounds, damage, and effects. Try [Animation Events 2D](examples/animation_events_2d/README.md).
@@ -396,6 +398,16 @@ obstacles. See the [example guide](examples/third_person_3d/README.md) for tunin
 
 ```powershell
 odin run examples/third_person_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin
+```
+
+[`planetary_3d`](examples/planetary_3d) takes the same built-in capsule motor
+around four sculpted icosahedron planetoids. Walk on their undersides, hold jump
+at golden launch markers to cross gravity wells, and push rolling Box3D props.
+It includes a gravity-following third-person camera, footsteps, and landing audio.
+See the [Pocket Planets guide](examples/planetary_3d/README.md).
+
+```powershell
+odin run examples/planetary_3d -collection:rune=rune -out:build/planetary_3d.exe
 ```
 
 ## Clay UI

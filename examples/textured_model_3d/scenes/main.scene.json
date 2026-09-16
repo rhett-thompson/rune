@@ -6,8 +6,15 @@
       "id": "camera",
       "name": "Camera",
       "components": {
-        "Transform": { "position": [4, 3, 6] },
-        "Camera3D": { "target": [0, 0.8, 0], "up": [0, 1, 0], "fovy": 45, "active": true },
+        "Transform": {
+          "position": [4, 3, 6]
+        },
+        "Camera3D": {
+          "target": [0, 0.8, 0],
+          "up": [0, 1, 0],
+          "fovy": 45,
+          "active": true
+        },
         "OrbitCamera3D": {
           "target": [0, 0.8, 0],
           "yaw": 52,
@@ -28,7 +35,10 @@
       "id": "scene_light",
       "name": "Scene Light",
       "components": {
-        "AmbientLight": { "color": [18, 18, 18, 255], "intensity": 1 },
+        "AmbientLight": {
+          "color": [18, 18, 18, 255],
+          "intensity": 1
+        },
         "DirectionalLight": {
           "direction": [-0.65, -1, -0.35],
           "color": [255, 228, 190, 255],
@@ -47,16 +57,29 @@
       "id": "warm_point_light",
       "name": "Warm Point Light",
       "components": {
-        "Transform": { "position": [3.2, 1.75, 1.25] },
-        "PointLight": { "color": [255, 158, 76, 255], "intensity": 2.5, "range": 5.5, "specular": 0.5 },
-        "SphereRenderer": { "radius": 0.12, "color": [255, 158, 76, 255], "shadows": false }
+        "Transform": {
+          "position": [3.2, 1.75, 1.25]
+        },
+        "PointLight": {
+          "color": [255, 158, 76, 255],
+          "intensity": 2.5,
+          "range": 5.5,
+          "specular": 0.5
+        },
+        "SphereRenderer": {
+          "radius": 0.12,
+          "color": [255, 158, 76, 255],
+          "shadows": false
+        }
       }
     },
     {
       "id": "crate_spot_light",
       "name": "Crate Spot Light",
       "components": {
-        "Transform": { "position": [0, 10, 5] },
+        "Transform": {
+          "position": [0, 10, 5]
+        },
         "SpotLight": {
           "direction": [0, -0.894427, -0.447214],
           "color": [255, 228, 190, 255],
@@ -71,17 +94,27 @@
           "shadow_depth_bias": 0,
           "shadow_slope_bias": 0
         },
-        "SphereRenderer": { "radius": 0.18, "color": [255, 228, 190, 255], "shadows": false }
+        "SphereRenderer": {
+          "radius": 0.18,
+          "color": [255, 228, 190, 255],
+          "shadows": false
+        }
       }
     },
     {
       "id": "crate",
       "name": "Textured Crate",
       "components": {
-        "Transform": { "position": [1.55, 1.25, 0], "scale": [1.1, 1.1, 1.1] },
+        "Transform": {
+          "position": [1.55, 1.25, 0],
+          "scale": [1.1, 1.1, 1.1]
+        },
         "ModelRenderer": {
           "model": "assets/models/crate.obj",
           "material": "assets/materials/crate.material.json"
+        },
+        "Rotator": {
+          "degrees_per_second": 8
         }
       }
     },
@@ -89,15 +122,24 @@
       "id": "shadow_blocker",
       "name": "Shadow Blocker",
       "components": {
-        "Transform": { "position": [-1.35, 0, 0], "scale": [1, 1, 1] },
-        "SphereRenderer": { "radius": 0.5, "color": [220, 145, 80, 255] }
+        "Transform": {
+          "position": [-1.35, 0, 0],
+          "scale": [1, 1, 1]
+        },
+        "SphereRenderer": {
+          "radius": 0.5,
+          "color": [220, 145, 80, 255]
+        }
       }
     },
     {
       "id": "shadow_floor",
       "name": "Shadow Floor",
       "components": {
-        "Transform": { "position": [0, -0.5, 0], "scale": [8, 1, 8] },
+        "Transform": {
+          "position": [0, -0.5, 0],
+          "scale": [8, 1, 8]
+        },
         "MeshRenderer": {
           "primitive": "plane",
           "color": [88, 94, 84, 255]

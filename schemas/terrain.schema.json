@@ -15,15 +15,52 @@
     "chunk_cells": {"enum": [8,16,32,64,128], "default": 64},
     "uv_scale": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "exclusiveMinimum": 0, "maximum": 4096}, "default": [16,16]},
     "material": {"type": "string", "description": "Project-relative material JSON; empty uses a green material. Terrain texture maps repeat."},
+    "details": {
+      "type": "array", "maxItems": 32,
+      "description": "Decorative GPU-instanced scatter rules. At most 250000 candidate placements per terrain; rejected height/slope candidates are omitted. No collision or navigation obstacles are generated.",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "properties": {
+          "name": {"type": "string"},
+          "kind": {"enum": ["grass","tree","rock","model"], "default": "grass"},
+          "model": {"type": "string", "description": "Required for kind=model; empty for built-in kinds. Project-relative static model with a ground-level pivot."},
+          "material": {"type": "string", "description": "Optional material JSON applied to all meshes; empty uses white, with built-in vertex colors."},
+          "count": {"type": "integer", "minimum": 0, "maximum": 100000, "default": 1000},
+          "seed": {"type": "integer", "minimum": 0, "maximum": 65535, "default": 0},
+          "scale": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "minimum": 0.01, "maximum": 100}, "default": [0.8,1.2], "description": "Increasing min/max uniform scales."},
+          "height": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "minimum": -100000, "maximum": 100000}, "default": [-100000,100000], "description": "Inclusive min/max terrain-local height."},
+          "slope": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "minimum": 0, "maximum": 90}, "default": [0,35], "description": "Inclusive min/max terrain-local slope in degrees."},
+          "draw_distance": {"type": "number", "minimum": 1, "maximum": 10000, "description": "World-space camera distance; defaults to 60 for grass, 250 otherwise. Grass shrinks over the last 20%."},
+          "align_to_normal": {"type": "boolean", "description": "Tilt to the terrain surface; defaults true for rocks and false otherwise."},
+          "shadows": {"type": "boolean", "description": "Cast shadows; defaults false for grass and true otherwise."}
+        }
+      }
+    },
+    "layers": {
+      "type": "array", "maxItems": 8,
+      "description": "Up to eight material layers. Use instead of an enabled legacy blend object. Weights are normalized; an empty weight sum selects layer 0.",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["material"],
+        "properties": {
+          "name": {"type": "string"},
+          "material": {"type": "string", "minLength": 1, "description": "Project-relative material JSON or color image."},
+          "tile_size": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "minimum": 0.001, "maximum": 100000}, "default": [4,4], "description": "Terrain-local units per texture repeat in X/Z."},
+          "weight": {"type": "number", "minimum": 0, "maximum": 1000, "default": 1},
+          "height": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "number", "minimum": -100001, "maximum": 100001}, "default": [-100001,-100000,100000,100001], "description": "Increasing fade-in start/end and fade-out start/end heights. Equal endpoints give a hard edge."},
+          "slope": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "number", "minimum": -91, "maximum": 91}, "default": [-1,0,90,91], "description": "Increasing fade-in start/end and fade-out start/end slope angles in degrees."}
+        }
+      }
+    },
+    "control_maps": {"type": "array", "maxItems": 2, "items": {"type": "string", "minLength": 1}, "description": "Optional RGBA weight maps: channels of map 0 select layers 0-3, map 1 selects 4-7. Supply one map per four layers. Replaces height/slope rules; layer weight still multiplies its mask."},
     "blend": {
       "type": "object",
       "additionalProperties": false,
       "dependentRequired": {"grass": ["dirt", "rock"], "dirt": ["grass", "rock"], "rock": ["grass", "dirt"]},
-      "description": "Optional automatic grass/dirt/rock albedo blending. Supply all three texture paths to enable. Heights and slopes are terrain-local; thresholds must be increasing. An empty object disables blending.",
+      "description": "Optional automatic grass/dirt/rock material blending. Supply all three image or material JSON paths to enable. Heights and slopes are terrain-local; thresholds must be increasing. An empty object disables blending.",
       "properties": {
-        "grass": {"type": "string", "description": "Project-relative grass color texture."},
-        "dirt": {"type": "string", "description": "Project-relative low-ground color texture."},
-        "rock": {"type": "string", "description": "Project-relative steep-slope color texture."},
+        "grass": {"type": "string", "description": "Project-relative grass image or material JSON (including procedural materials)."},
+        "dirt": {"type": "string", "description": "Project-relative low-ground image or material JSON."},
+        "rock": {"type": "string", "description": "Project-relative steep-slope image or material JSON."},
         "dirt_height": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "minimum": -100000, "maximum": 100000}, "default": [3,9], "description": "Full dirt below the first local height, fading to grass at the second."},
         "rock_slope": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "minimum": 0, "maximum": 90}, "default": [20,38], "description": "Rock starts at the first slope angle and covers the surface at the second, in degrees."},
         "noise_scale": {"type": "number", "exclusiveMinimum": 0, "maximum": 100, "default": 0.12, "description": "Transition noise frequency per local terrain unit."},

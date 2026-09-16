@@ -4,6 +4,7 @@ import "core:fmt"
 import example_text "../shared/text"
 import rune "rune:core"
 import "rune:ecs"
+import "rune:input"
 import "rune:console"
 import "rune:navigation"
 import rl "vendor:raylib"
@@ -54,22 +55,22 @@ controls :: proc(game:^rune.Engine,world:^ecs.World) {
 	cube_preview=false
 	if console.is_open(rune.developer_console(game)) || !rl.IsWindowFocused() {return}
 	update_course_camera(game,world)
-	if rl.IsKeyPressed(.C) {placing_cubes=!placing_cubes}
-	if rl.IsKeyPressed(.Z) {undo_cube(game,world)}
-	if rl.IsKeyPressed(.N) {rebake_course(game,world)}
+	if input.frame_action(rune.input_state(game),"place_mode").pressed {placing_cubes=!placing_cubes}
+	if input.frame_action(rune.input_state(game),"undo_cube").pressed {undo_cube(game,world)}
+	if input.frame_action(rune.input_state(game),"rebake").pressed {rebake_course(game,world)}
 	mesh_entity,found:=ecs.find_entity_by_id(world,"navigation")
 	if !found {return}
 	mesh,ready:=ecs.navigation_mesh_3d(world,mesh_entity)
 	if !ready {return}
 	agent,_:=ecs.find_entity_by_id(world,"agent")
-	if rl.IsKeyPressed(.P) {rune.set_paused(game,!rune.is_paused(game))}
-	if rl.IsKeyPressed(.M) {show_mesh=!show_mesh}
-	if rl.IsKeyPressed(.SPACE) {ecs.stop_navigation_3d(world,agent);has_destination=false}
-	if rl.IsKeyPressed(.B) {
+	if input.frame_action(rune.input_state(game),"pause").pressed {rune.set_paused(game,!rune.is_paused(game))}
+	if input.frame_action(rune.input_state(game),"mesh").pressed {show_mesh=!show_mesh}
+	if input.frame_action(rune.input_state(game),"stop").pressed {ecs.stop_navigation_3d(world,agent);has_destination=false}
+	if input.frame_action(rune.input_state(game),"ramp").pressed {
 		toggle_ramp(world)
 	}
 	if placing_cubes {cube_controls(game,world);return}
-	if rl.IsMouseButtonPressed(.LEFT) && !rl.IsMouseButtonDown(.RIGHT) && !rl.IsMouseButtonDown(.MIDDLE) {
+	if input.frame_action(rune.input_state(game),"select").pressed && !input.frame_action(rune.input_state(game),"orbit_camera").is_down && !input.frame_action(rune.input_state(game),"pan_camera").is_down {
 		ray:=rl.GetScreenToWorldRay(rl.GetMousePosition(),camera)
 		point,_,hit:=navigation.raycast_mesh_3d(&mesh,ray.position,ray.direction*100)
 		if hit {destination=point;has_destination=true;ecs.set_navigation_target_3d(world,agent,point)}

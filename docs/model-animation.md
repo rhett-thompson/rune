@@ -68,6 +68,11 @@ component registration and mutation path. Playback controls never save files.
 
 ## Assets and lifetime
 
+On Windows/Linux AMD64, Rune's bridge imports FBX files with pivot transforms
+folded into their skeleton joints, preserving animation channels that the
+upstream importer drops. File, memory, and reload paths use the same setting;
+see the [native importer patch](../third_party/r3d-importer/README.md).
+
 Entities share the imported model and animation library, but each has its own
 R3D animation player, pose buffers, and skin texture. Instances can play
 different clips or speeds without changing each other.
@@ -93,8 +98,27 @@ component drives a single-clip player.
 Rune plays embedded clips and supports pose blends through
 `ecs.transition_model_animation` and `ModelAnimator.blend_time`; see
 [animation transitions](animation-transitions.md) for interruption and pause behavior.
-Separate animation files, animation trees, and root-motion application are not
-exposed through Rune components; R3D remains available for those advanced uses.
+
+On Windows/Linux AMD64, register the first clip of a separate animation file
+against an existing model, using a unique alias:
+
+```odin
+r3d_bridge.register_model_animation_source(
+    &bridge, "../assets/Strut Walking.fbx", "punch", "../assets/Punching.fbx",
+)
+```
+
+Register after bridge initialization, before the first animation update. Then
+select `punch` with the normal playback/transition controls. Sources may omit
+meshes and skin; their joint names, rest pose, and units must match the model.
+This maps joint names, rather than retargeting an animation to a different rig.
+Extra unweighted joints are ignored. Registered aliases survive scene and model
+reloads; source files are watched, and invalid replacements retain the previous
+working animation library. Registration is idempotent for the same model,
+alias, and path. Tracks remain shared across instances of that model.
+
+Animation trees and root-motion application are not exposed through Rune
+components; R3D remains available for those advanced uses.
 
 ## Example and checks
 
@@ -105,7 +129,12 @@ odin build tools/model_animation_validation -collection:rune=rune -collection:r3
 ./build/model_animation_validation.exe --runtime
 ```
 
-The example shows three instances of an original two-joint glTF model. Press
+The example shows three instances of an original two-joint glTF model alongside
+a looping Strut Walking character loaded directly from the shared FBX asset.
+The character uses its embedded `mixamo.com` clip and a `0.01` scene scale.
+Space blends into a one-shot punch from the animation-only `Punching.fbx`,
+then returns to walking; another press restarts the punch.
+Press
 1/2 to switch the left instance's clip, P to pause it, and R to resume it.
 Its checked-in model can be regenerated with `generate_fixture.ps1`.
 S cycles playback speed, V reverses direction, and H silently seeks to one

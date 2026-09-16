@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../schemas/input.schema.json",
+  "actions": {
+    "stone": [{ "type": "keyboard", "key": "1" }],
+    "moss": [{ "type": "keyboard", "key": "2" }],
+    "metal": [{ "type": "keyboard", "key": "3" }],
+    "grass": [{ "type": "keyboard", "key": "4" }],
+    "granite": [{ "type": "keyboard", "key": "5" }],
+    "wood": [{ "type": "keyboard", "key": "6" }],
+    "sand": [{ "type": "keyboard", "key": "7" }],
+    "terracotta": [{ "type": "keyboard", "key": "8" }],
+    "snow": [{ "type": "keyboard", "key": "9" }],
+    "seed": [{ "type": "keyboard", "key": "N" }],
+    "scale_up": [{ "type": "keyboard", "key": "UP" }],
+    "scale_down": [{ "type": "keyboard", "key": "DOWN" }],
+    "detail": [{ "type": "keyboard", "key": "D" }],
+    "contrast_up": [{ "type": "keyboard", "key": "RIGHT" }],
+    "contrast_down": [{ "type": "keyboard", "key": "LEFT" }],
+    "bump": [{ "type": "keyboard", "key": "B" }],
+    "filter": [{ "type": "keyboard", "key": "F" }],
+    "resolution_down": [{ "type": "keyboard", "key": "Q" }],
+    "resolution_up": [{ "type": "keyboard", "key": "E" }],
+    "reset": [{ "type": "keyboard", "key": "R" }],
+    "orbit_camera": [{ "type": "mouse_button", "button": "LEFT" }]
+  },
+  "axes": {
+    "orbit_x": { "type": "mouse_delta", "axis": "x", "invert": true },
+    "orbit_y": { "type": "mouse_delta", "axis": "y" }
+  }
+}

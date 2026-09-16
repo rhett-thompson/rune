@@ -4,7 +4,7 @@ import "rune:ecs"
 import rl "vendor:raylib"
 
 spawn_asteroid :: proc(game: ^Game, position: rl.Vector2, tier: i32) {
-	if len(game.asteroids) >= MAX_ASTEROIDS { return }
+	if len(ecs.query(world, Asteroid_Component, include_disabled = true)) >= MAX_ASTEROIDS { return }
 	radius: f32 = 18
 	if tier == 2 { radius = 32 } else if tier >= 3 { radius = 54 }
 	angle := f32(rl.GetRandomValue(0, 6283)) / 1000
@@ -20,20 +20,13 @@ spawn_asteroid :: proc(game: ^Game, position: rl.Vector2, tier: i32) {
 	}
 
 	entity := ecs.create_entity(world)
-	if !ecs.add(world, rune_registry, entity, component) { return }
-	append(&game.asteroids, Asteroid_Instance{entity = entity, component = component})
-}
-
-remove_asteroid :: proc(game: ^Game, index: int) {
-	ecs.destroy_entity(world, game.asteroids[index].entity)
-	unordered_remove(&game.asteroids, index)
+	if !ecs.add(world, rune_registry, entity, component) {ecs.destroy_entity(world, entity)}
 }
 
 clear_asteroids :: proc(game: ^Game) {
-	for asteroid in game.asteroids {
-		ecs.destroy_entity(world, asteroid.entity)
+	for entity in ecs.query(world, Asteroid_Component, include_disabled = true) {
+		ecs.destroy_entity(world, entity)
 	}
-	clear(&game.asteroids)
 }
 
 spawn_wave :: proc(game: ^Game) {

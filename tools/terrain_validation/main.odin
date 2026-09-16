@@ -10,6 +10,7 @@ import "rune:assets"
 import "rune:ecs"
 import "rune:terrain"
 import "rune:scene"
+import "rune:validation"
 
 fixture_serial: i64
 
@@ -44,6 +45,9 @@ write_heightmap :: proc(offset: u16 = 0) {
 main :: proc() {
 	validate_png()
 	validate_blend()
+	validate_layer_references()
+	validate_layer_list()
+	validate_detail_scatter()
 	write_heightmap()
 	assert(write_fixture("build/terrain-test.terrain.json",`{"heightmap":"build/terrain-test.r16","resolution":[17,17],"size":[16,16],"height_scale":16,"chunk_cells":8}`)==nil)
 	data,_,error := terrain.load(".","build/terrain-test.terrain.json")
@@ -174,6 +178,23 @@ validate_blend :: proc() {
 	assert(error=="" && !terrain.blend_enabled(data.description.blend),"empty blend disables layers")
 	terrain.destroy(&data)
 	fmt.println("PASS terrain blend validation, defaults and owned layer paths")
+}
+
+validate_layer_references :: proc() {
+	assert(write_fixture("build/terrain-layer.scene.json",`{"name":"Layers","entities":[{"id":"terrain","components":{"Transform":{},"Terrain":{"asset":"build/terrain-layers.terrain.json"}}}]}`)==nil)
+	d := terrain.default_description()
+	d.heightmap="tools/terrain_validation/fixtures/precision.png"; d.resolution={2,2}
+	d.blend.grass="build/missing-terrain-material.json"
+	d.blend.dirt="build/missing-terrain-image.png"
+	d.blend.rock="examples/terrain_3d/assets/rock.material.json"
+	bytes,_ := json.marshal(d,allocator=context.temp_allocator)
+	assert(write_fixture("build/terrain-layers.terrain.json",bytes)==nil)
+	report := validation.init_report()
+	defer validation.destroy_report(&report)
+	validation.validate_scene_at(&report,"build/terrain-layer.scene.json",nil,".")
+	assert(len(report.diagnostics)==2,"validate both missing material and image layer references")
+	assert(report.diagnostics[0].path=="$.blend.grass" && report.diagnostics[1].path=="$.blend.dirt","diagnostics identify terrain layer fields")
+	fmt.println("PASS terrain material/image layer reference validation")
 }
 
 validate_png :: proc() {

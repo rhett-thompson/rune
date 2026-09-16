@@ -1,5 +1,12 @@
 # Third Person 3D
 
+The shared [controller course prefab](../shared/prefabs/controller_course.prefab.json)
+owns the ramps, stairs, crawl tunnel, moving platform, crate, and thin wall.
+Edit it to change both courses, or use `child_overrides` on the `course` instance.
+The platform is addressed as `course/moving_platform`. Checkpoint version 2
+migrates the old obstacle IDs and parenting so version 1 saves keep their
+moved props, removed obstacles, inventory, and door progress.
+
 A third-person version of the [first-person movement course](../first_person_3d/README.md),
 using the same fixed-step `CharacterController3D` capsule motor, warm lighting,
 shadows, ambient occlusion, and distance fog. Walk up blue ramps, climb orange stairs, crouch
@@ -29,9 +36,13 @@ only during fixed gameplay ticks. Health and remaining protection/death timers
 are saved together, so loading while injured or during death resumes that state.
 Respawn destinations should be clear of hazards and solid geometry.
 
-The scene's `post` entity enables linear fog from 12 to 45 world units from the
+Both controller examples use the shared
+[3D environment prefab](../shared/prefabs/environment_3d.prefab.json) for the
+solid blue skybox, ground and collider, sun, ambient fill, and SSAO.
+The scene's `environment` instance overrides its `post` child to enable linear fog from 12 to 45 world units from the
 camera, tinted to match the dark blue background. Nearby interactions stay clear
-while the far side of the course fades into haze. Tune `PostProcessing.fog` in
+while the far side of the course fades into haze. Tune `PostProcessing.fog` under
+`child_overrides.post.component_overrides` in
 [scenes/main.scene.json](scenes/main.scene.json); set `mode` to `disabled` to
 compare. See [fog settings](../../docs/post-processing.md#fog).
 
@@ -96,7 +107,8 @@ stationary does not trigger walking sounds. Keep the neighboring example in plac
 - [controller.odin](controller.odin): camera-relative input, orbit, obstruction checks, and visual facing.
 - [main.odin](main.odin): lifecycle, moving platform, rendering, and HUD.
 - [footsteps.odin](footsteps.odin): distance-based playback after physics.
-- [scenes/main.scene.json](scenes/main.scene.json): course, lighting, player settings, and avatar parts.
+- [scenes/main.scene.json](scenes/main.scene.json): course, environment overrides, player settings, and avatar parts.
+- [environment_3d.prefab.json](../shared/prefabs/environment_3d.prefab.json): shared skybox, ground, lighting, shadows, and SSAO.
 - [input/default.input.json](input/default.input.json): controls.
 
 Tune movement through `CharacterController3D`; see [the motor guide](../../docs/character-controller-3d.md).
@@ -116,7 +128,8 @@ The game-owned `ThirdPersonController` component controls the following:
 Scene edits hot reload. A runtime or value-only edit to `distance` updates the
 follow distance without resetting orbit yaw. Full reload resets the camera and
 reacquires player, avatar, camera, and platform handles. The course is authored
-locally so it can be edited independently of the first-person scene.
+locally so its obstacles can be edited independently of the first-person scene.
+The environment defaults are shared; use prefab child overrides for local changes.
 
 Run from the repository root with PowerShell 7, after installing the r3d dependency:
 

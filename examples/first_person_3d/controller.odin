@@ -4,6 +4,7 @@ import "core:math"
 import rune "rune:core"
 import "rune:ecs"
 import "rune:input"
+import "rune:tween"
 
 // Camera tuning stays game-owned; movement tuning is CharacterController3D.
 First_Person_Settings :: struct {
@@ -29,9 +30,12 @@ First_Person_Defaults :: First_Person_Settings {
 
 Camera_Height_Transition :: struct {
 	initialized: bool,
-	current, start, target, elapsed: f32,
+	current, start, target: f32,
+	motion: tween.Tween,
 }
 camera_height: Camera_Height_Transition
+
+smoothstep :: proc(t: f32) -> f32 {return t*t*(3-2*t)}
 
 update_camera_height :: proc(state: ^Camera_Height_Transition, target, duration, dt: f32) -> f32 {
 	if !state.initialized || duration <= 0 {
@@ -42,12 +46,11 @@ update_camera_height :: proc(state: ^Camera_Height_Transition, target, duration,
 		// Reverse from the current visible height if crouch is toggled mid-transition.
 		state.start = state.current
 		state.target = target
-		state.elapsed = 0
+		state.motion = tween.make(duration, smoothstep)
 	}
-	state.elapsed = min(state.elapsed+max(dt, 0), duration)
-	t := state.elapsed/duration
-	ease := t*t*(3-2*t)
-	state.current = state.start+(state.target-state.start)*ease
+	if state.motion.running {state.motion.duration = duration}
+	tween.update(&state.motion, dt)
+	state.current = tween.value_f32(&state.motion, state.start, state.target)
 	return state.current
 }
 

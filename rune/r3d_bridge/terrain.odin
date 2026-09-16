@@ -1,6 +1,7 @@
 package r3d_bridge
 
 import "core:math/linalg"
+import "core:mem"
 import "core:strings"
 import "rune:assets"
 import "rune:ecs"
@@ -12,12 +13,17 @@ Terrain_Cache :: struct {
 	revision: u64,
 	chunks: [dynamic]r3d.Mesh,
 	blend_shader: ^r3d.SurfaceShader,
+	layer_set: ^Terrain_Layer_Set,
+	details: [dynamic]Terrain_Detail_Batch,
 }
 
 release_terrain_cache :: proc(cache: ^Terrain_Cache) {
 	for mesh in cache.chunks {r3d.UnloadMesh(mesh)}
 	delete(cache.chunks)
+	for &batch in cache.details {release_detail_batch(&batch)}
+	delete(cache.details)
 	if cache.blend_shader != nil {r3d.UnloadSurfaceShader(cache.blend_shader)}
+	if cache.layer_set!=nil {release_terrain_layer_set(cache.layer_set); mem.free(cache.layer_set)}
 	cache^ = {}
 }
 
@@ -49,9 +55,14 @@ prepare_terrains :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.Asse
 		cache := Terrain_Cache{revision=revision,chunks=make([dynamic]r3d.Mesh)}
 		d := data.description
 		ok := true
-		if terrain.blend_enabled(d.blend) {
-			source :: #load("terrain_blend.glsl", string)
-			cache.blend_shader = r3d.LoadSurfaceShaderFromMemory(strings.clone_to_cstring(source,context.temp_allocator))
+		if terrain.blend_enabled(d.blend) || len(d.layers)>0 {
+			kind := 2 if len(d.layers)>0 else (1 if terrain.blend_uses_materials(d.blend) else 0)
+			if ctx.terrain_shaders[kind]==nil {
+				source := #load("terrain_layers.glsl",string) if kind==2 else (#load("terrain_blend_material.glsl",string) if kind==1 else #load("terrain_blend.glsl",string))
+				ctx.terrain_shaders[kind]=r3d.LoadSurfaceShaderFromMemory(strings.clone_to_cstring(source,context.temp_allocator))
+			}
+			if ctx.terrain_shaders[kind]!=nil {cache.blend_shader=r3d.LoadSurfaceShaderAlias(ctx.terrain_shaders[kind])}
+			if kind==2 {cache.layer_set=new(Terrain_Layer_Set)}
 			ok = cache.blend_shader != nil
 		}
 		for z := 0; z < d.resolution[1]-1 && ok; z += d.chunk_cells {
@@ -61,10 +72,11 @@ prepare_terrains :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.Asse
 				append(&cache.chunks,mesh)
 			}
 		}
+		if ok {ok=prepare_detail_batches(&cache,data)}
 		if !ok {
 			release_terrain_cache(&cache)
 			value,_ := ecs.get_terrain(world,entity)
-			assets.report_failure(manager,{kind=.Terrain,operation=.Load,source_path=value.asset,field="mesh",asset_path=value.asset,detail="could not create terrain meshes or blend shader; keeping previous GPU resources"})
+			assets.report_failure(manager,{kind=.Terrain,operation=.Load,source_path=value.asset,field="mesh",asset_path=value.asset,detail="could not create terrain meshes, blend shader or detail buffers; keeping previous GPU resources"})
 			continue
 		}
 		if old,exists := ctx.terrains[entity]; exists {release_terrain_cache(&old)}
@@ -103,20 +115,24 @@ draw_terrains :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.Asset_M
 		data,_,loaded := ecs.terrain_runtime(world,entity)
 		if !found || !valid || !loaded {continue}
 		material := material_from_path(ctx,manager,data.description.material,{113,139,77,255})
-		if cache.blend_shader != nil {
+		if cache.blend_shader != nil && len(data.description.layers)>0 {
+			if bind_terrain_layer_set(ctx,manager,cache.layer_set,cache.blend_shader,data.description,material,value.asset) {material.shader=cache.blend_shader}
+		} else if cache.blend_shader != nil {
 			b := data.description.blend
 			paths := [3]string{b.grass,b.dirt,b.rock}
 			names := [3]cstring{"u_grass","u_dirt","u_rock"}
 			fields := [3]string{"blend.grass","blend.dirt","blend.rock"}
 			ready := true
-			for path,i in paths {
+			if terrain.blend_uses_materials(b) {
+				ready = bind_terrain_material_layers(ctx, manager, cache.blend_shader, b, material, value.asset)
+			} else {for path,i in paths {
 				texture,ok := assets.material_texture(manager,path,"anisotropic_8x",true,value.asset,fields[i])
 				ready = ready && ok
 				if ok {
 					rl.SetTextureWrap(texture,.REPEAT)
 					r3d.SetSurfaceShaderSampler(cache.blend_shader,names[i],texture)
 				}
-			}
+			}}
 			if ready {
 				// Each terrain owns a shader: R3D resolves uniforms at End(), so
 				// sharing one would give every terrain the last entity's settings.

@@ -54,15 +54,14 @@ on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if !found { return }
 	transform.position = tween.value_vec3(&motion, Orb_Start, Orb_Target)
 	ecs.set_transform(world, orb, transform)
+	if shape, found := ecs.get(world, orb, ecs.ShapeRenderer2D); found {
+		color := tween.value_color(&motion, Color_Start, Color_Target)
+		shape.color = {u8(color.r * 255), u8(color.g * 255), u8(color.b * 255), u8(color.a * 255)}
+		ecs.set(world, orb, shape)
+	}
 }
 
 on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
-	transform, found := ecs.get_transform(world, orb)
-	if !found { return }
-
-	color := tween.value_color(&motion, Color_Start, Color_Target)
-	render_color := rl.Color{u8(color.r * 255), u8(color.g * 255), u8(color.b * 255), u8(color.a * 255)}
-	rl.DrawCircleV({transform.position[0], transform.position[1]}, 38, render_color)
 	example_text.draw("Tweening and easing", 32, 28, 30, rl.RAYWHITE)
 	example_text.draw("Left-click to change easing", 32, 68, 18, rl.LIGHTGRAY)
 	example_text.draw(easing_options[easing_index].name, 32, 100, 22, rl.SKYBLUE)

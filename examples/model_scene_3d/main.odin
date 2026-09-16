@@ -13,7 +13,6 @@ scene_view := r3d_bridge.Scene3D_Settings {
 	grid_spacing = 1,
 }
 bridge: r3d_bridge.Context
-pyramid: ecs.Entity
 
 initialize_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if !bridge.initialized {
@@ -21,7 +20,6 @@ initialize_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
 		bridge, bridge_ok = r3d_bridge.init("examples/model_scene_3d", rl.GetScreenWidth(), rl.GetScreenHeight())
 		if !bridge_ok { fmt.eprintln("Could not initialize r3d") }
 	}
-	pyramid, _ = ecs.find_entity_by_id(world, "pyramid")
 }
 
 shutdown_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
@@ -29,10 +27,7 @@ shutdown_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
 }
 
 on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
-	transform, found := ecs.get_transform(world, pyramid)
-	if !found { return }
-	transform.rotation[1] += 45 * game.delta_time
-	ecs.set_transform(world, pyramid, transform)
+	ecs.update_rotators(world, game.delta_time)
 }
 
 on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {

@@ -1,5 +1,7 @@
 {
   "examples": [
+    {"name": "Pocket Planets", "path": "planetary_3d", "description": "Third-person gravity hopping across faceted planetoids with Box3D terrain, rolling props, and footsteps.", "group": "3D"},
+    {"name": "Procedural Materials 3D", "path": "procedural_material_3d", "description": "Tweak seamless noise, colors, bump, and roughness on built-in PBR materials.", "collections": [{"name": "r3d", "path": "third_party/r3d-odin"}], "group": "3D"},
     {"name": "Animation Events 2D", "path": "animation_events_2d", "description": "Frame-timed footsteps, roll-strike damage, and impact particles at variable speeds.", "group": "2D"},
     {"name":"Navigation 3D","path":"navigation_3d","description":"Click-to-move agents, ramp traversal, triangle navmeshes, and blocked routes.","group":"3D"},
     {"name": "Checkpoint Saves", "path": "save_load_2d", "description": "Save and restore health, pickups, spawned objects, and progress across rooms.", "group": "2D"},

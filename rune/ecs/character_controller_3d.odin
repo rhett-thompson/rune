@@ -24,6 +24,9 @@ Character_Controller_State_3D :: struct {
 	support_local_point, support_world_point, support_velocity: [3]f32,
 	inherited_velocity: [3]f32,
 	move: [2]f32,
+	// Runtime gravity frame. Zero up retains the default world-Y controller.
+	up, world_move: [3]f32,
+	use_world_move: bool,
 	sprint_requested, crouch_requested: bool,
 	jump_requested, jump_release_requested, jump_cut_available, jump_buffer_released: bool,
 	coyote_remaining, jump_buffer_remaining: f32,
@@ -122,7 +125,28 @@ character_controller_3d_move :: proc(world: ^World, entity: Entity, direction: [
 	state := world.character_controller_states_3d[entity]
 	magnitude := math.sqrt(direction[0]*direction[0]+direction[1]*direction[1])
 	state.move = direction
+	state.use_world_move = false
+	state.up = {}
 	if magnitude > 1 {state.move /= magnitude}
+	state.sprint_requested = sprint
+	world.character_controller_states_3d[entity] = state
+	return true
+}
+// Set the capsule/gravity direction and a world-space tangent movement command.
+// Call before physics as the gravity field changes. Velocity stays in world space.
+// Like move(), commands persist; teleport/disable clears the gravity frame too.
+character_controller_3d_move_on_plane :: proc(world: ^World, entity: Entity, direction, up: [3]f32, sprint := false) -> bool {
+	if !has_component_data(world,entity,"CharacterController3D") || !is_enabled(world,entity) ||
+		!physics_query_vector_valid(direction) || !physics_query_vector_valid(up) {return false}
+	length := character_length_3d(up)
+	if length < 0.0001 || math.is_inf(length) {return false}
+	state := world.character_controller_states_3d[entity]
+	state.up = up/length
+	state.world_move = direction-state.up*character_dot_3d(direction,state.up)
+	magnitude := character_length_3d(state.world_move)
+	if math.is_inf(magnitude) || math.is_nan(magnitude) {return false}
+	if magnitude > 1 {state.world_move /= magnitude}
+	state.use_world_move = true
 	state.sprint_requested = sprint
 	world.character_controller_states_3d[entity] = state
 	return true

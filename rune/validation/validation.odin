@@ -7,6 +7,7 @@ import "core:os"
 import "core:path/filepath"
 import "core:strings"
 import "rune:jsonutil"
+import "rune:assets"
 import "rune:ecs"
 import "rune:prefab"
 import "rune:terrain"
@@ -461,6 +462,33 @@ validate_components :: proc(
 				data,watch,error := terrain.load(project_directory,settings.asset)
 				if error != "" {add(report,file,field_path(path,name),fmt.tprintf("%s (%s): %s",settings.asset,watch,error))} else {
 					if data.description.material != "" {validate_material(report,path_from(report,project_directory,data.description.material),project_directory)}
+					blend := data.description.blend
+					fields := [3]string{"grass","dirt","rock"}
+					for layer, i in ([3]string{blend.grass,blend.dirt,blend.rock}) {
+						if layer == "" {continue}
+						field := fmt.tprintf("$.blend.%s",fields[i])
+						descriptor := path_from(report,project_directory,settings.asset)
+						if terrain.blend_layer_is_material(layer) {
+							validate_material_reference(report,descriptor,field,json.String(layer),project_directory)
+						} else {validate_texture_reference(report,descriptor,field,layer,project_directory)}
+					}
+					for layer,i in data.description.layers {
+						descriptor:=path_from(report,project_directory,settings.asset)
+						field:=fmt.tprintf("$.layers[%d].material",i)
+						if terrain.blend_layer_is_material(layer.material) {
+							validate_material_reference(report,descriptor,field,json.String(layer.material),project_directory)
+						} else {validate_texture_reference(report,descriptor,field,layer.material,project_directory)}
+					}
+					for control,i in data.description.control_maps {
+						validate_texture_reference(report,path_from(report,project_directory,settings.asset),fmt.tprintf("$.control_maps[%d]",i),control,project_directory)
+					}
+					for detail,i in data.description.details {
+						descriptor:=path_from(report,project_directory,settings.asset)
+						if detail.material!="" {validate_material_reference(report,descriptor,fmt.tprintf("$.details[%d].material",i),json.String(detail.material),project_directory)}
+						if detail.model!="" && !file_exists(path_from(report,project_directory,detail.model)) {
+							add(report,descriptor,fmt.tprintf("$.details[%d].model",i),fmt.tprintf("referenced model does not exist: %s",detail.model))
+						}
+					}
 					terrain.destroy(&data)
 				}
 			}
@@ -636,6 +664,14 @@ validate_component_assets :: proc(
 validate_material :: proc(report: ^Report, material_path, project_directory: string) {
 	material, ok := read_json_object(material_path, report)
 	if !ok {return}
+	if value, found := material["procedural"]; found {
+		_, valid, field := assets.procedural_material_from_json(value)
+		if !valid {
+			path := "$.procedural"
+			if len(field) > 0 {path = field_path(path, field)}
+			add(report, material_path, path, "invalid procedural material setting; see material.schema.json for supported fields and ranges")
+		}
+	}
 	if color_value, found := material["base_color"]; found {
 		color, color_ok := color_value.(json.Array)
 		if !color_ok || len(color) != 4 {

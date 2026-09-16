@@ -5,6 +5,7 @@ import example_text "../shared/text"
 import "core:fmt"
 import rune "rune:core"
 import "rune:ecs"
+import "rune:input"
 import "rune:r3d_bridge"
 import rl "vendor:raylib"
 
@@ -44,14 +45,11 @@ shutdown_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
 }
 
 on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
-	if rl.IsKeyPressed(.TAB) {
+	if input.pressed(rune.input_state(game), "material_view") {
 		material_view = Material_View((i32(material_view) + 1) % Material_View_Count)
 		apply_material_view(world)
 	}
-	transform, found := ecs.get_transform(world, crate)
-	if !found { return }
-	transform.rotation[1] += 8 * game.delta_time
-	ecs.set_transform(world, crate, transform)
+	ecs.update_rotators(world, game.delta_time)
 }
 
 on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {

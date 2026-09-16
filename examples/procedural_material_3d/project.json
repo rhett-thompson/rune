@@ -1,0 +1,7 @@
+{
+  "$schema": "../../schemas/project.schema.json",
+  "name": "Procedural Materials 3D",
+  "startup_scene": "scenes/main.scene.json",
+  "window": { "width": 1280, "height": 720, "title": "Rune - Procedural Materials", "vsync": true },
+  "input": "input/default.input.json"
+}

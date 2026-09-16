@@ -38,12 +38,12 @@ Put these components on an unparented entity:
 ```
 
 Every controller field is optional; these are the defaults. `Transform.position`
-is the center of the feet, with positive Y pointing up. Radius and full capsule
+is the center of the feet, with positive Y pointing up by default. Radius and full capsule
 height are world units. The entity must use unit scale and have no parent,
 `RigidBody3D`, `BoxCollider`, `SphereCollider`, or legacy `CharacterController`.
 The motor stays inactive until this setup is complete. Check
 `ecs.character_controller_3d_ready` or the runtime state's `active` field.
-Transform rotation does not tilt the upright capsule.
+Transform rotation does not tilt the capsule; the runtime gravity frame does.
 
 The motor's capsule participates through native queries rather than a rigid
 body. It collides with enabled, non-sensor native shapes sharing layer bits.
@@ -85,6 +85,28 @@ its `FirstPersonController` settings. See the [example](../examples/first_person
 for defaults; no bob is applied to the motor or collider.
 
 ## Movement behavior
+
+### Planetary gravity
+
+Use `ecs.character_controller_3d_move_on_plane(world, player, direction, up, sprint)`
+for a world-space `[3]f32` movement direction and an arbitrary up vector. The
+function normalizes up, projects movement onto its perpendicular plane, and
+clamps movement magnitude to one. It rejects zero/nonfinite up or nonfinite
+movement. Call it before each fixed step as the local gravity direction changes.
+
+The capsule, ground probes, slope limits, steps, crouch clearance, jump/cut,
+fall-speed limit, pushing, trigger overlap, and debug capsule all use local up.
+Gravity magnitude still comes from `CharacterController3D.gravity`; acceleration
+points along negative up. Velocity stays in world space across gravity changes.
+The runtime state exposes `up`, `world_move`, and `use_world_move`. These commands
+persist until replaced and reset on teleport or disable. Calling the original
+`character_controller_3d_move` restores the default world-Y frame.
+
+The [Pocket Planets example](../examples/planetary_3d/README.md) shows radial
+gravity selection, faceted Box3D mesh terrain, a camera that follows the horizon,
+and jumps between gravity wells. Cameras and visuals remain game-owned.
+
+### Ground and air movement
 
 Ground movement approaches the requested speed using `acceleration`, or
 `braking` when the input is zero. `air_acceleration` controls adjustment in the

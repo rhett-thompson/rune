@@ -46,8 +46,12 @@ OrbitCamera3D :: struct {
 	yaw_axis:          string,
 	pitch_axis:        string,
 	zoom_axis:         string,
+	pan_action:        string,
+	pan_x_axis:        string,
+	pan_y_axis:        string,
 	orbit_sensitivity: f32,
 	zoom_sensitivity:  f32,
+	pan_sensitivity:   f32,
 }
 
 default_camera_2d :: proc() -> Camera2D {
@@ -70,8 +74,11 @@ default_orbit_camera_3d :: proc() -> OrbitCamera3D {
 		yaw_axis = "orbit_x",
 		pitch_axis = "orbit_y",
 		zoom_axis = "zoom",
+		pan_x_axis = "pan_x",
+		pan_y_axis = "pan_y",
 		orbit_sensitivity = 0.35,
 		zoom_sensitivity = 1,
+		pan_sensitivity = 0.0015,
 	}
 }
 
@@ -259,6 +266,10 @@ orbit_camera_3d_from_json :: proc(data: json.Value) -> (OrbitCamera3D, bool) {
 	   found {result.orbit_sensitivity, ok = read_number(value); if !ok || result.orbit_sensitivity <= 0 {return {}, false}}
 	if value, found := object["zoom_sensitivity"];
 	   found {result.zoom_sensitivity, ok = read_number(value); if !ok || result.zoom_sensitivity <= 0 {return {}, false}}
+	if value, found := object["pan_sensitivity"]; found {
+		result.pan_sensitivity, ok = read_number(value)
+		if !ok || result.pan_sensitivity <= 0 || math.is_nan(result.pan_sensitivity) || math.is_inf(result.pan_sensitivity) {return {}, false}
+	}
 	if value, found := object["manual_action"];
 	   found {result.manual_action, ok = value.(json.String); if !ok {return {}, false}}
 	if value, found := object["yaw_axis"];
@@ -267,6 +278,12 @@ orbit_camera_3d_from_json :: proc(data: json.Value) -> (OrbitCamera3D, bool) {
 	   found {result.pitch_axis, ok = value.(json.String); if !ok {return {}, false}}
 	if value, found := object["zoom_axis"];
 	   found {result.zoom_axis, ok = value.(json.String); if !ok {return {}, false}}
+	if value, found := object["pan_action"];
+	   found {result.pan_action, ok = value.(json.String); if !ok {return {}, false}}
+	if value, found := object["pan_x_axis"];
+	   found {result.pan_x_axis, ok = value.(json.String); if !ok {return {}, false}}
+	if value, found := object["pan_y_axis"];
+	   found {result.pan_y_axis, ok = value.(json.String); if !ok {return {}, false}}
 	if result.min_pitch > result.max_pitch ||
 	   result.min_distance > result.max_distance {return {}, false}
 	result.pitch = clamp(result.pitch, result.min_pitch, result.max_pitch)
@@ -280,14 +297,15 @@ update_orbit_camera_3d :: proc(
 	dt: f32,
 ) -> Transform {
 	manual := len(orbit.manual_action) > 0 && input.is_down(controls, orbit.manual_action)
-	if manual {
+	panning := len(orbit.pan_action) > 0 && input.is_down(controls, orbit.pan_action)
+	if manual && !panning {
 		if len(orbit.yaw_axis) > 0 {
 			orbit.yaw -= input.axis(controls, orbit.yaw_axis) * orbit.orbit_sensitivity
 		}
 		if len(orbit.pitch_axis) > 0 {
 			orbit.pitch += input.axis(controls, orbit.pitch_axis) * orbit.orbit_sensitivity
 		}
-	} else if orbit.auto_yaw_speed != 0 {
+	} else if !panning && orbit.auto_yaw_speed != 0 {
 		orbit.yaw += orbit.auto_yaw_speed * dt
 	}
 	if len(orbit.zoom_axis) > 0 {
@@ -300,6 +318,15 @@ update_orbit_camera_3d :: proc(
 
 	yaw := orbit.yaw * f32(math.PI / 180)
 	pitch := orbit.pitch * f32(math.PI / 180)
+	if panning {
+		// Drag the scene with the pointer in the camera's screen plane. Mouse
+		// deltas are already per-frame; distance scales pan speed with zoom.
+		dx := input.axis(controls, orbit.pan_x_axis)
+		dy := input.axis(controls, orbit.pan_y_axis)
+		right := [3]f32{math.sin(yaw), 0, -math.cos(yaw)}
+		up := [3]f32{-math.sin(pitch) * math.cos(yaw), math.cos(pitch), -math.sin(pitch) * math.sin(yaw)}
+		orbit.target += (up * dy - right * dx) * (orbit.distance * orbit.pan_sensitivity)
+	}
 	horizontal_distance := orbit.distance * f32(math.cos(f64(pitch)))
 	return Transform {
 		position = {

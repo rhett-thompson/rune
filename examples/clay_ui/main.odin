@@ -28,7 +28,7 @@ start :: proc(game: ^rune.Engine, world: ^ecs.World) {
 shutdown :: proc(game: ^rune.Engine, world: ^ecs.World) { ui.destroy(&interface) }
 
 ui_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
-	if rl.IsKeyPressed(.F11) { rune.toggle_borderless(game) }
+	if input.frame_action(rune.input_state(game), "fullscreen").pressed { rune.toggle_borderless(game) }
 	ui.set_font(&interface, example_text.font())
 	controls := ui.read_input(rune.input_state(game))
 	controls.blocked = console.is_open(rune.developer_console(game))
@@ -112,10 +112,6 @@ background :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	width, height := rl.GetScreenWidth(), rl.GetScreenHeight()
 	for x: i32 = 0; x < width; x += 48 { rl.DrawLine(x, 0, x, height, {26, 37, 53, 255}) }
 	for y: i32 = 0; y < height; y += 48 { rl.DrawLine(0, y, width, y, {26, 37, 53, 255}) }
-	entity, _ := ecs.find_entity_by_id(world, "orb")
-	transform, _ := ecs.get_transform(world, entity)
-	rl.DrawCircleV({transform.position[0], transform.position[1]}, 32, {93, 225, 189, 255})
-	rl.DrawCircleLines(i32(transform.position[0]), i32(transform.position[1]), 46, {57, 126, 121, 255})
 }
 
 draw :: proc(game: ^rune.Engine, world: ^ecs.World) {

@@ -1,10 +1,10 @@
 # Physics Platformer 2D
 
-Drive a platformer character with a rigid body and collision checks.
+Drive a capsule character with Rune's built-in `CharacterController2D`, backed by a rigid body. Platforms and circles use scene-authored `ShapeRenderer2D` components.
 
 **Controls:** A/D moves; Space jumps.
 
-**Try editing:** [main.odin](main.odin): movement, jumping, and grounding. [scenes/main.scene.json](scenes/main.scene.json): bodies, platforms, and colliders.
+**Try editing:** [main.odin](main.odin): submit mapped movement and jump requests. [scenes/main.scene.json](scenes/main.scene.json): motor tuning, bodies, shapes, and colliders. `jump_speed` is 600 for the previous 150-unit jump setting at gravity 1200; the capsule keeps the old collider bounds with rounded corners.
 
 Run from the repository root with PowerShell 7:
 

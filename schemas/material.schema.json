@@ -5,6 +5,25 @@
   "type": "object",
   "properties": {
     "$schema": { "type": "string" },
+    "procedural": {
+      "type": "object",
+      "description": "Generate seamless UV-space noise maps at load time. File textures override their corresponding generated maps. Save this file to regenerate through material hot reload.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "pattern": { "type": "string", "enum": ["noise", "wood"], "default": "noise", "description": "Layered noise or wood grain bands warped by seamless noise." },
+        "resolution": { "type": "integer", "enum": [8, 16, 32, 64, 128, 256, 512, 1024], "default": 256, "description": "Width and height of generated maps in pixels." },
+        "seed": { "type": "integer", "minimum": 0, "maximum": 65535, "default": 0, "description": "Repeatable noise seed." },
+        "scale": { "type": "integer", "minimum": 1, "maximum": 64, "default": 8, "description": "Noise cells per UV tile. Higher values give smaller features." },
+        "octaves": { "type": "integer", "minimum": 1, "maximum": 6, "default": 4, "description": "Noise detail layers. Layers finer than two pixels are omitted." },
+        "persistence": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.5, "description": "Contribution of each successive detail layer." },
+        "contrast": { "type": "number", "minimum": 0.1, "maximum": 8, "default": 1, "description": "Contrast of the shared noise field." },
+        "color_a": { "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 255 }, "minItems": 4, "maxItems": 4, "default": [65,70,76,255], "description": "RGBA color at noise value zero, multiplied by base_color." },
+        "color_b": { "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 255 }, "minItems": 4, "maxItems": 4, "default": [190,195,200,255], "description": "RGBA color at noise value one, multiplied by base_color." },
+        "bump_strength": { "type": "number", "minimum": 0, "maximum": 2, "default": 0.15, "description": "Height-to-normal strength. Zero disables generated normals; normal_scale also applies." },
+        "roughness_variation": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.3, "description": "Noise modulation of scalar roughness from roughness*(1-variation) to roughness. Zero disables the generated ORM map. Any file-based ORM channel overrides generated ORM." }
+      }
+    },
     "base_color": {
       "type": "array",
       "description": "RGBA color multiplied into the rendered model or primitive.",
@@ -95,7 +114,7 @@
     },
     "filter": {
       "type": "string",
-      "description": "Sampling filter for material textures.",
+      "description": "Sampling filter for material textures. Use point with mipmaps false for sharp, unsmoothed retro pixels.",
       "enum": ["point", "bilinear", "trilinear", "anisotropic_4x", "anisotropic_8x", "anisotropic_16x"],
       "default": "anisotropic_8x"
     },

@@ -335,7 +335,7 @@ update_tanks :: proc(game: ^Tanks_Game, engine: ^rune.Engine, scene_world: ^ecs.
 	if input.pressed(controls, "restart") { reset_match(game) }
 	if game.match.winner != 0 {
 		if game.match.game_over {
-			if rl.IsMouseButtonPressed(.LEFT) || input.pressed(controls, "right_fire") { reset_match(game) }
+			if input.pressed(controls, "left_fire") || input.pressed(controls, "right_fire") { reset_match(game) }
 			return
 		}
 		game.match.round_timer -= engine.delta_time
@@ -354,7 +354,7 @@ update_tanks :: proc(game: ^Tanks_Game, engine: ^rune.Engine, scene_world: ^ecs.
 	mouse := rl.GetMousePosition()
 	mouse_delta := mouse - game.left.position
 	game.left.turret_angle = f32(math.atan2(f64(mouse_delta.y), f64(mouse_delta.x))) * 180 / f32(math.PI)
-	if rl.IsMouseButtonPressed(.LEFT) && fire_shell(game, &game.left, 1) {
+	if input.pressed(controls, "left_fire") && fire_shell(game, &game.left, 1) {
 		rune.play_audio(engine, scene_world, game.audio_entity, "shoot")
 	}
 	if game.match.two_player {

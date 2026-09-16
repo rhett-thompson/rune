@@ -854,6 +854,10 @@
         "yaw_axis": { "type": "string", "default": "orbit_x" },
         "pitch_axis": { "type": "string", "default": "orbit_y" },
         "zoom_axis": { "type": "string", "default": "zoom" },
+        "pan_action": { "type": "string", "default": "", "description": "Held action enabling camera-plane panning. Empty disables panning; panning takes priority over orbit rotation." },
+        "pan_x_axis": { "type": "string", "default": "pan_x" },
+        "pan_y_axis": { "type": "string", "default": "pan_y" },
+        "pan_sensitivity": { "type": "number", "exclusiveMinimum": 0, "default": 0.0015, "description": "World units per input unit per unit of camera distance. Use raw mouse deltas for drag-to-pan." },
         "orbit_sensitivity": { "type": "number", "exclusiveMinimum": 0, "default": 0.35 },
         "zoom_sensitivity": { "type": "number", "exclusiveMinimum": 0, "default": 1 }
       },

@@ -80,19 +80,24 @@ load_model_animations :: proc(
 ) -> bool {
 	asset, found := ctx.models[path]
 	if !found {return false}
-	if asset.animations_attempted {return asset.animations_loaded}
+	source_revision := animation_source_revision(ctx, manager, path)
+	if asset.animations_attempted && asset.animation_sources_revision == source_revision {return asset.animations_loaded}
 	asset.animations_attempted = true
-	full_path := resolve_path(ctx, path)
-	library := r3d.LoadAnimationLib(fmt.ctprintf("%s", full_path))
+	asset.animation_sources_revision = source_revision
+	library := import_animation_set(ctx, manager, path, asset.model)
 	if !animation_library_valid(asset.model, library) {
 		r3d.UnloadAnimationLib(library)
 		ctx.models[path] = asset
 		report_animation_failure(
 			manager,
 			path,
-			"model has no compatible embedded skeletal animations",
+			"could not load a compatible animation library; keeping any previous animations",
 		)
-		return false
+		return asset.animations_loaded
+	}
+	if asset.animations_loaded {
+		invalidate_model_players(ctx, path)
+		r3d.UnloadAnimationLib(asset.animations)
 	}
 	asset.animations = library
 	asset.animations_loaded = true

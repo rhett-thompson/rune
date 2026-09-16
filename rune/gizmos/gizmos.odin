@@ -288,8 +288,10 @@ draw_physics_3d :: proc(world: ^ecs.World) {
 		if !found {continue}
 		state, _ := ecs.get_character_controller_3d_state(world, entity)
 		height := state.height if state.active else config.height
-		bottom := transform.position + [3]f32{0,config.radius,0}
-		top := transform.position + [3]f32{0,height-config.radius,0}
+		up := state.up
+		if up == ([3]f32{}) {up={0,1,0}}
+		bottom := transform.position + up*config.radius
+		top := transform.position + up*(height-config.radius)
 		rl.DrawCapsuleWires(bottom,top,config.radius,12,6,rl.ORANGE)
 		if state.grounded {rl.DrawLine3D(transform.position,transform.position+state.ground_normal,rl.GREEN)}
 	}

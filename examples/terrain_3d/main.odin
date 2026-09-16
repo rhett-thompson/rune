@@ -59,7 +59,7 @@ controls :: proc(game:^rune.Engine,world:^ecs.World) {
 		set_mouse_capture(!captured)
 		return // Ignore mouse warping on the capture frame.
 	}
-	if rl.IsKeyPressed(.N) {show_navigation=!show_navigation}
+	if input.frame_action(i,"navigation").pressed {show_navigation=!show_navigation}
 	if !captured && capture.pressed {
 		set_mouse_capture(true)
 		return
@@ -81,8 +81,7 @@ fixed_update :: proc(game:^rune.Engine,world:^ecs.World) {
 	ecs.character_controller_3d_move(world,player,direction,input.is_down(i,"sprint"))
 	pose,ok := ecs.get_transform(world,player)
 	if ok && (pose.position[1] < -40 || input.pressed(i,"reset")) {
-		pose.position = {0,45,55}
-		ecs.set_transform(world,player,pose)
+		ecs.character_controller_3d_teleport(world,player,{0,45,55})
 	}
 }
 

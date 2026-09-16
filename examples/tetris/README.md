@@ -1,5 +1,8 @@
 # Tetris
 
+Pause uses Rune's game pause state. Pause and restart are handled in `ui_update`
+so both remain available while simulation is stopped.
+
 Implement board collision, rotation, line clearing, scoring, and a ghost piece with plain Odin state.
 
 **Controls:** Left/Right or A/D moves; Down/S soft-drops; Space hard-drops; Up/X rotates clockwise; Z rotates counterclockwise; P pauses; R restarts.

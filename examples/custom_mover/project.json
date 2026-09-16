@@ -7,7 +7,8 @@
     "height": 450,
     "title": "Rune - Custom Component Mover",
     "fullscreen": false,
-    "vsync": true
+    "vsync": true,
+    "msaa_4x": true
   },
   "input": "input/default.input.json"
 }

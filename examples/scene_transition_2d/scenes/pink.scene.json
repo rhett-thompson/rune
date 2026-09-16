@@ -3,6 +3,15 @@
   "name": "Pink Scene",
   "entities": [
     {
+      "id": "camera",
+      "components": {
+        "Transform": {},
+        "Camera2D": {
+          "active": true
+        }
+      }
+    },
+    {
       "id": "scene_orb",
       "name": "Pink Orb",
       "components": {
@@ -10,6 +19,11 @@
           "position": [480, 270, 0],
           "rotation": [0, 0, 0],
           "scale": [1, 1, 1]
+        },
+        "ShapeRenderer2D": {
+          "shape": "circle",
+          "radius": 96,
+          "color": [255, 109, 194, 255]
         }
       }
     }

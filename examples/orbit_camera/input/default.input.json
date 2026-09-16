@@ -3,10 +3,16 @@
   "actions": {
     "orbit_camera": [
       { "type": "mouse_button", "button": "LEFT" }
+    ],
+    "pan_camera": [
+      { "type": "mouse_button", "button": "MIDDLE" }
     ]
   },
   "axes": {
     "orbit_x": { "type": "mouse_delta", "axis": "x", "invert":true },
-    "orbit_y": { "type": "mouse_delta", "axis": "y" }
+    "orbit_y": { "type": "mouse_delta", "axis": "y" },
+    "pan_x": { "type": "mouse_delta", "axis": "x" },
+    "pan_y": { "type": "mouse_delta", "axis": "y" },
+    "zoom": { "type": "mouse_wheel" }
   }
 }

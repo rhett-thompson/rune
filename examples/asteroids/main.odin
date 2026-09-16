@@ -31,7 +31,6 @@ start_asteroids :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 		"ship_explode_audio",
 	); config_ok = config_ok && entity_ok
 	if !config_ok { fmt.eprintln("Asteroids startup scene is missing required components or audio entities"); return }
-	game.asteroids = make([dynamic]Asteroid_Instance)
 	if !pool.init(&game.bullets, MAX_BULLETS, .Fixed) || !pool.init(&game.particles, 256, .Double) {
 		fmt.eprintln("Could not allocate Asteroids bullet/particle pools")
 		stop_asteroids(engine, scene_world)
@@ -42,10 +41,8 @@ start_asteroids :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 }
 
 stop_asteroids :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
-	delete(game.asteroids)
 	pool.destroy(&game.bullets)
 	pool.destroy(&game.particles)
-	game.asteroids = nil
 	asteroids_ready = false
 }
 
