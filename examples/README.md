@@ -59,8 +59,7 @@ the window to quit; the developer console is available with the backtick key.
 | [Pocket Planets](planetary_3d/README.md) | Third-person planetary gravity, sculpted icosahedrons, interplanetary jumps, and rolling Box3D props. |
 | [Navigation 3D](navigation_3d/README.md) | Triangle navmeshes, click-to-move agents, ramps, and blocked routes. |
 | [Hello 3D](hello_3d/README.md) | A rotating cube and a camera. |
-| [Model Scene 3D](model_scene_3d/README.md) | Load a model and orbit around it. |
-| [Textured Model 3D](textured_model_3d/README.md) | Inspect a model's material maps. |
+| [Textured Model 3D](textured_model_3d/README.md) | Load simple and textured OBJ models, orbit, and inspect material maps. |
 | [Procedural Materials 3D](procedural_material_3d/README.md) | Tweak noise, colors, bump, and roughness on built-in materials. |
 | [Skeletal Animation 3D](skeletal_animation_3d/README.md) | Independent animation playback. |
 | [Post Processing 3D](post_processing_3d/README.md) | Bloom, tone mapping, occlusion, and depth of field. |

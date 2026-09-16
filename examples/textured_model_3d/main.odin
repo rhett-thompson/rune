@@ -16,6 +16,7 @@ scene_view := r3d_bridge.Scene3D_Settings {
 }
 bridge: r3d_bridge.Context
 crate: ecs.Entity
+showing_crate: bool
 material_view: Material_View
 
 Material_View :: enum i32 {
@@ -36,7 +37,8 @@ initialize_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
 		bridge, bridge_ok = r3d_bridge.init("examples/textured_model_3d", rl.GetScreenWidth(), rl.GetScreenHeight())
 		if !bridge_ok { fmt.eprintln("Could not initialize r3d") }
 	}
-	crate, _ = ecs.find_entity_by_id(world, "crate")
+	crate, showing_crate = ecs.find_entity_by_id(world, "crate")
+	scene_view.grid_slices = 0 if showing_crate else 20
 	apply_material_view(world)
 }
 
@@ -45,7 +47,12 @@ shutdown_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
 }
 
 on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
-	if input.pressed(rune.input_state(game), "material_view") {
+	if input.pressed(rune.input_state(game), "change_scene") {
+		path := "scenes/simple.scene.json" if showing_crate else "scenes/main.scene.json"
+		if !rune.change_scene(game, path) { fmt.eprintln(rune.last_scene_error()) }
+		return
+	}
+	if showing_crate && input.pressed(rune.input_state(game), "material_view") {
 		material_view = Material_View((i32(material_view) + 1) % Material_View_Count)
 		apply_material_view(world)
 	}
@@ -58,13 +65,18 @@ on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 		return
 	}
 	example_text.draw("Rune Textured Model 3D", 24, 24, 28, rl.RAYWHITE)
-	example_text.draw("Left mouse: orbit camera   Mouse wheel: zoom   Tab: material view", 24, 60, 18, rl.LIGHTGRAY)
-	example_text.draw("Material view:", 24, 94, 18, rl.RAYWHITE)
-	example_text.draw(material_view_name(material_view), 150, 94, 18, rl.RAYWHITE)
+	example_text.draw("Left-drag: orbit   Wheel: zoom   Space: switch model scene", 24, 60, 18, rl.LIGHTGRAY)
+	if showing_crate {
+		example_text.draw("Tab: material view", 24, 94, 18, rl.RAYWHITE)
+		example_text.draw(material_view_name(material_view), 200, 94, 18, rl.RAYWHITE)
+	} else {
+		example_text.draw("Simple OBJ pyramid with a solid-color material", 24, 94, 18, rl.RAYWHITE)
+	}
 	rl.DrawFPS(24, 128)
 }
 
 apply_material_view :: proc(world: ^ecs.World) {
+	if !showing_crate { return }
 	renderer, found := ecs.get_model_renderer(world, crate)
 	if !found { return }
 	renderer.material = material_view_path(material_view)

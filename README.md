@@ -1194,14 +1194,9 @@ r3d material slots:
 }
 ```
 
-Run the self-contained OBJ example with:
-
-```powershell
-odin run examples/model_scene_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/model_scene_3d$exe"
-```
-
-The `textured_model_3d` example adds a UV-mapped cube model and a textured,
-lit material:
+The `textured_model_3d` example includes a simple OBJ pyramid and a UV-mapped
+crate with a textured, lit material. Press Space to switch scenes and Tab to
+inspect the crate's material maps:
 
 ```powershell
 odin run examples/textured_model_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/textured_model_3d$exe"

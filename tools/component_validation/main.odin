@@ -465,7 +465,7 @@ validate_sphere_collider :: proc() {
 validate_model_renderer :: proc() {
 	registry := ecs.init_registry()
 	assert(ecs.register_builtin_components(&registry))
-	world, loaded := scene.load("examples/model_scene_3d/scenes/main.scene.json", &registry)
+	world, loaded := scene.load("examples/textured_model_3d/scenes/simple.scene.json", &registry)
 	assert(loaded)
 	pyramid, found := ecs.find_entity_by_id(&world, "pyramid")
 	assert(found)

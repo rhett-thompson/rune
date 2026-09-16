@@ -50,7 +50,7 @@
     },
     {
       "name": "Example models and material textures",
-      "paths": ["examples/model_scene_3d/assets/*", "examples/textured_model_3d/assets/*"],
+      "paths": ["examples/textured_model_3d/assets/*"],
       "status": "source-needed",
       "notes": "Confirm authorship of the OBJ models and provenance/license of the crate material texture set."
     }

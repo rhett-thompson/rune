@@ -1,6 +1,7 @@
 {
   "$schema": "../../../schemas/input.schema.json",
   "actions": {
+    "change_scene": [{ "type": "keyboard", "key": "SPACE" }],
     "orbit_camera": [
       {
         "type": "mouse_button",
