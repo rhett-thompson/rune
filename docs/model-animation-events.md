@@ -1,8 +1,9 @@
 # Skeletal animation events
 
 `ModelAnimator.events` optionally references a reusable, project-relative
-`*.model-events.json` file. Tracks use the exact embedded model clip names and
-times in **clip seconds**, independent of playback speed or imported tick rate:
+`*.model-events.json` file. Tracks use exact, case-sensitive clip names: embedded
+model clip names or registered external-animation aliases. Times are in
+**clip seconds**, independent of playback speed or imported tick rate:
 
 ```json
 {
@@ -24,11 +25,19 @@ times in **clip seconds**, independent of playback speed or imported tick rate:
 ```
 
 List markers in nondecreasing time order. Times must be finite, nonnegative,
-and no greater than their embedded clip's duration. Each track may contain up
+and no greater than their clip's duration. Each track may contain up
 to 4,096 markers, and names must be nonempty. An empty track emits nothing;
 clips without a track also emit nothing. An empty `events` path disables markers.
 An empty `ModelAnimator.clip` uses the actual first imported clip name to select
 its track. Marker names carry no engine behavior: Odin decides what they mean.
+
+For an external animation registered with
+`r3d_bridge.register_model_animation_source`, use its alias as both the
+`ModelAnimator.clip` value and the key under `clips`. For example, a source
+registered as `"attack"` uses the `attack` track above, regardless of the clip's
+original name in the source file. Register the source after bridge initialization
+and before the first animation update; see [external animation sources](model-animation.md#assets-and-lifetime)
+for registration and rig compatibility requirements.
 
 ## Update and consumption
 
@@ -109,7 +118,7 @@ previous working tracks. Model reload preserves the existing playback state
 where possible and rechecks tracks against the replacement clip durations.
 
 The project validator checks file existence and marker JSON without graphics.
-The R3D bridge additionally diagnoses unknown embedded clip names and times past
+The R3D bridge additionally diagnoses unknown clip names and times past
 a clip's end. An invalid active track emits nothing while the model continues
 animating; valid tracks remain usable. This model-dependent check does not roll
 back an otherwise well-formed marker file. Runtime diagnostics identify the

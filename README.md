@@ -1418,8 +1418,8 @@ odin run examples/camera_switching -collection:rune=rune -collection:r3d=third_p
 
 `OrbitCamera3D` is a JSON-backed controller for an entity that also has
 `Transform` and `Camera3D`. It updates the camera position around a target,
-optionally auto-orbits when the manual action is not held, and can read input
-axes for yaw, pitch, and zoom:
+optionally auto-orbits when neither manual orbit nor panning is active, and can
+read input axes for yaw, pitch, zoom, and camera-plane panning:
 
 ```json
 "OrbitCamera3D": {
@@ -1430,14 +1430,27 @@ axes for yaw, pitch, and zoom:
   "manual_action": "orbit_camera",
   "yaw_axis": "orbit_x",
   "pitch_axis": "orbit_y",
-  "zoom_axis": "zoom"
+  "zoom_axis": "zoom",
+  "pan_action": "pan_camera",
+  "pan_x_axis": "pan_x",
+  "pan_y_axis": "pan_y",
+  "pan_sensitivity": 0.0015
 }
 ```
+
+`pan_action` is the held input action that enables panning; its default empty
+string disables panning. Map it to the middle mouse button and map `pan_x` and
+`pan_y` to the corresponding mouse-delta axes, as in the
+[orbit-camera input mappings](examples/orbit_camera/input/default.input.json).
+Panning moves the target in the camera's screen plane and takes priority over
+manual and automatic rotation. Its speed scales with target distance and
+`pan_sensitivity` (default `0.0015`); the default axis names are `pan_x` and `pan_y`.
 
 Projects using the scene-owning `rune.run` update orbit cameras automatically before
 registered systems run. Callback-based programs can call
 `rune.update_orbit_cameras_3d(game, &world)`. Hold the left mouse button and
-drag in the orbit-camera example to control the orbit:
+drag in the orbit-camera example to control the orbit, middle-drag to pan, and
+use the mouse wheel to zoom:
 
 ```powershell
 odin run examples/orbit_camera -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/orbit_camera$exe"

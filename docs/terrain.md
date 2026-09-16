@@ -248,9 +248,16 @@ performance guarantee.
 
 Terrain also feeds the [3D navigation baker](navigation-3d.md). It uses the same
 heightmap triangles and world transform as collision, filters slopes/headroom,
-and combines the landscape with static obstacles. Run
-`odin run tools/navmesh_baker -collection:rune=rune -- examples/terrain_3d/terrain.navbake.json`
-from the repository root; press **N** in Highland Walk to inspect the result.
+and combines the landscape with static obstacles. Run from the repository root
+with PowerShell 7 on Windows or Linux:
+
+```powershell
+New-Item -ItemType Directory -Force build | Out-Null
+$exe = if ($IsWindows) { '.exe' } else { '' }
+odin run tools/navmesh_baker -collection:rune=rune "-out:build/navmesh_baker$exe" -- examples/terrain_3d/terrain.navbake.json
+```
+
+Press **N** in Highland Walk to inspect the result.
 Re-run the bake after terrain edits. The output navmesh hot reloads separately
 from the terrain, and its cell size controls the approximation between samples.
 
