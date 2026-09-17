@@ -28,9 +28,29 @@ The sample level, filenames, controls, and values are illustrative.
   the inspector the right; the center extends down to a compact status bar.
 - **Save back to ordinary JSON files.** The editor is a view over project data,
   with no required editor-owned project database or separate runtime format.
+- **Use an HTML/CSS shell with native Rune viewports.** Cross-platform web UI
+  provides the editor chrome; Rune renders scenes and games. A small bridge
+  connects them without duplicating engine state. Selection, picking, gizmos,
+  and editor cameras belong to an editor-only overlay/runtime layer.
+- **Restore the editor workspace independently.** Open scene/prefab tabs and
+  the active document are editor state, separate from the game's startup scene.
+- **Make prefab source edits explicit.** Selecting an instance edits its
+  overrides. Edit Prefab Source opens a separate document. Overrides remain
+  visible and support apply/revert operations; other instances keep their own
+  overrides when the source changes.
+- **Discover components through Rune.** Add Component and the inspector use
+  the loaded project's live component registry and reflection metadata for both
+  built-in and custom components, without a hard-coded list or source scanning.
+- **Separate edit and play persistence.** Edit-mode component changes persist
+  to the appropriate document; play-mode changes affect the live entity without
+  saving back by default.
+- **Keep code editing external and JSON accessible.** Edit Source opens a
+  configurable external editor using source metadata. Enhanced JSON editing
+  can add controls for known values while retaining readable, editable text.
 
-These decisions refine the original editor sketches in the repository's
-AGENTS.md, particularly the earlier suggestion of an asset browser.
+See the [living design notes](rune-editor-design-notes.md) for the detailed
+architecture, nested prefab boundaries, override operations, and metadata goals.
+These are design decisions; the editor is not yet implemented.
 
 ## Interface concept
 
@@ -51,7 +71,8 @@ scene. The mockup illustrates two scene tabs and two prefab tabs.
 
 The visual direction is a compact dark interface with restrained teal accents,
 clear labels, and subtle panel boundaries. The 2D platformer is a layout example;
-it does not settle the editor's eventual 2D/3D scope or UI technology.
+it does not settle the editor's initial 2D/3D scope. The HTML/CSS shell and native
+Rune rendering direction comes from the living design notes.
 
 ## Proposed first editing workflow
 
@@ -68,20 +89,23 @@ and deleting entities, and undo/redo. These remain proposed implementation work.
 
 ## Questions to resolve before implementation
 
-- UI technology: native Odin/raylib UI or a local web interface; no choice has
-  been made. Windows and Linux should remain equal targets.
+- Shell implementation: choose the HTML/CSS host, native rendering integration,
+  and bridge protocol. Windows and Linux remain equal targets.
 - Document state: per-document selection, viewport state, undo history, save
   behavior, and handling an unsaved document when closing a tab.
 - External edits: reconciliation between unsaved editor changes and files
   modified by a text editor or other tool.
-- Prefab editing: preview context, instance overrides, and how saved prefab
-  changes appear in already-open scenes.
+- Prefab editing: preview context and how source changes refresh already-open
+  scenes while preserving instance overrides. Define the confirmed bulk action
+  that applies to the source and clears matching overrides across instances.
 - Play mode: which scene runs, whether it uses saved or unsaved data, and what
   the Game view and Play/Pause/Step controls mean for a prefab document.
-- Custom components: how the editor obtains game-specific registration and
-  field metadata without losing data it cannot interpret.
-- Open JSON: opening the user's external text editor versus an internal text
-  view; the mockup does not decide this.
+- Custom components: how the host loads the game's registry and transports
+  field metadata, editor hints, and source locations through the bridge.
+- Enhanced JSON: control behavior, synchronization with the inspector, and
+  whether Open JSON opens the internal document view or the external editor.
+- File associations: finalize semantic extensions (such as `.rscene` and
+  `.rprefab`) and containing-project discovery when opening a document.
 
 Keep authoring state distinct from running-game state. Rune's existing runtime
 console can inspect and edit live values, but those edits do not automatically
@@ -89,6 +113,7 @@ save source files; editor persistence needs an explicit design.
 
 ## References
 
+- [Living editor design notes](rune-editor-design-notes.md)
 - [Engine overview and current APIs](../README.md)
 - [Roadmap](../ROADMAP.md)
 - [Runtime console](../docs/runtime-console.md)

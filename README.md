@@ -24,6 +24,9 @@ The checked-in VS Code settings associate each Rune JSON filename pattern with
 its schema automatically. Custom Odin component blocks remain valid, although
 their game-specific fields are not completed by the built-in schemas.
 
+See the [built-in component reference](docs/components.md) for all 48 components,
+their JSON fields and defaults, dependencies, runtime behavior, and linked guides.
+
 ## Current capabilities
 
 - [Procedural materials](docs/procedural-materials.md): seamless noise-generated color, bump, and roughness maps with seed, scale, detail, and color controls. Try [Procedural Materials 3D](examples/procedural_material_3d/README.md).
@@ -720,8 +723,10 @@ fail validation. Scene loading also rejects unregistered component names, so a
 misspelling cannot silently create a new component. Deliberately untyped data
 uses the explicit `ecs.register_data_component` compatibility API.
 
-The typed built-ins are `Transform`, `SpriteRenderer`, `SpriteAnimator`, `MeshRenderer`,
-`SphereRenderer`, `Camera2D`, `Camera3D`, `AudioListener`, and `AudioPlayer`. Cameras use their entity's
+All built-ins have typed Odin data; see the
+[complete component reference](docs/components.md). Single-instance components
+support `ecs.get`, `ecs.set`, and `ecs.add`; `AudioPlayer` uses named instances
+with `ecs.get_audio_player` and `ecs.set_audio_player`. Cameras use their entity's
 `Transform` for their position; only one camera of a given kind should be
 active at a time. Custom-component systems can read and modify `Transform` by
 entity ID:
