@@ -23,6 +23,11 @@ validate_data :: proc(registry: ^ecs.Component_Registry) {
 	partial, valid := ecs.post_processing_from_json(parse(`{"bloom":{"mode":"additive"},"tonemap":{"exposure":2}}`))
 	assert(valid && partial.bloom.intensity == 0.05 && partial.bloom.levels == 0.5 && partial.tonemap.white == 1)
 	assert(partial.bloom.mode == .additive && partial.tonemap.exposure == 2)
+	height, height_ok := ecs.post_processing_from_json(parse(`{"height_fog":{"enabled":true,"base_height":-35,"density":0.008,"falloff":0}}`))
+	assert(height_ok && height.height_fog.enabled && height.height_fog.base_height == -35 && height.height_fog.falloff == 0)
+	height_json, height_serialized := ecs.post_processing_json(height)
+	height_copy, height_roundtrip := ecs.post_processing_from_json(height_json)
+	assert(height_serialized && height_roundtrip && height_copy == height)
 	for bad in ([]string{
 		`{"bloom":{"mode":"ADDITIVE"}}`, `{"bloom":{"mode":2}}`, `{"bloom":{"intensity":-1}}`,
 		`{"bloom":{"levels":1.01}}`, `{"bloom":{"typo":1}}`, `{"ssao":{"sample_count":0}}`,
@@ -31,6 +36,9 @@ validate_data :: proc(registry: ^ecs.Component_Registry) {
 		`{"fog":{"start":5,"end":4}}`, `{"fog":{"color":[256,0,0,255]}}`,
 		`{"fog":{"color":[0.5,0,0,255]}}`, `{"auto_exposure":{"min_ev":3,"max_ev":2}}`,
 		`{"anti_aliasing":"msaa"}`, `{"enabled":null}`, `{"bloom":null}`,
+		`{"height_fog":{"density":-1}}`, `{"height_fog":{"falloff":-1}}`,
+		`{"height_fog":{"base_height":null}}`, `{"height_fog":{"color":[0,0,0]}}`,
+		`{"height_fog":{"sky_distance":0}}`,
 		`{"tonemap":{"exposure":null}}`, `{"ssao":{"enabled":1}}`, `{"unknown":1}`,
 	}) {
 		_, accepted := ecs.post_processing_from_json(parse(bad))
@@ -50,6 +58,15 @@ validate_data :: proc(registry: ^ecs.Component_Registry) {
 	assert(!ecs.set_runtime_field(&w, registry, e, "PostProcessing", "tonemap.white", json.Integer(0)))
 	unchanged, _ := ecs.get(&w, e, ecs.PostProcessing)
 	assert(unchanged == current, "failed writes must preserve the runtime profile")
+	assert(ecs.set_runtime_field(&w, registry, e, "PostProcessing", "height_fog.base_height", json.Integer(-40)))
+	current, _ = ecs.get(&w, e, ecs.PostProcessing)
+	assert(current.height_fog.base_height == -40)
+	assert(!ecs.set_runtime_field(&w, registry, e, "PostProcessing", "height_fog.density", json.Integer(-1)))
+	unchanged, _ = ecs.get(&w, e, ecs.PostProcessing)
+	assert(unchanged == current)
+	current.height_fog.base_height = math.nan_f32()
+	assert(!ecs.set(&w, e, current))
+	current = partial
 	current.ssao.radius = math.nan_f32()
 	assert(!ecs.set(&w, e, current) && !ecs.add(&w, registry, e, current))
 	current = partial
@@ -194,6 +211,36 @@ validate_runtime :: proc(registry: ^ecs.Component_Registry) {
 	r3d.GetEnvironment().tonemap.exposure = 2.5
 	bridge.apply_post_processing(&ctx, &w, 0)
 	assert(r3d.GetEnvironment().tonemap.exposure == 2.5, "profile-free games retain direct r3d control")
+	// Render through the bridge to exercise the actual height-fog shader and
+	// stage cleanup. A black sky should fade to white below the horizon.
+	camera := ecs.create_entity(&w)
+	assert(ecs.add_component(&w, registry, camera, "Transform", parse(`{"position":[0,2,0]}`)))
+	assert(ecs.add_component(&w, registry, camera, "Camera3D", parse(`{"target":[0,2,-1],"fovy":60,"active":true}`)))
+	value = ecs.default_post_processing()
+	value.anti_aliasing = .disabled
+	value.height_fog.enabled = true
+	value.height_fog.density = 0.001
+	value.height_fog.falloff = 0.2
+	assert(ecs.add(&w, registry, e, value))
+	for pass in 0..<4 {
+		if pass == 1 {value.height_fog.enabled = false; assert(ecs.set(&w, e, value))}
+		if pass == 2 {value.height_fog.enabled = true; value.height_fog.falloff = 0; assert(ecs.set(&w, e, value))}
+		if pass == 3 {assert(ecs.remove_component(&w, e, "PostProcessing"))}
+		for _ in 0..<3 {
+			rl.BeginDrawing()
+			assert(bridge.draw_scene_ex(&ctx, &w, nil, {background_color = rl.BLACK}))
+			rl.EndDrawing()
+		}
+		assert(ctx.height_fog_shader != nil, "height fog shader must compile on the GPU")
+		image := rl.LoadImageFromScreen()
+		upper := rl.GetImageColor(image, 160, 20)
+		middle := rl.GetImageColor(image, 160, 120)
+		lower := rl.GetImageColor(image, 160, 220)
+		rl.UnloadImage(image)
+		if pass == 0 {assert(upper.r < 80 && lower.r > 240 && middle.r > upper.r, "height fog must thicken downward")}
+		if pass == 1 || pass == 3 {assert(upper.r == 0 && middle.r == 0 && lower.r == 0, "disabled or removed fog must leave no shader chain")}
+		if pass == 2 {assert(upper.r > 150 && middle.r > 150 && lower.r > 150, "zero falloff must give uniform distance fog")}
+	}
 }
 
 main :: proc() {

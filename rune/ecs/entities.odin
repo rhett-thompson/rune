@@ -41,6 +41,7 @@ destroy_entity :: proc(world: ^World, entity: Entity, recursive := true) -> bool
 
 @(private)
 destroy_entity_storage :: proc(world: ^World, entity: Entity) {
+	remove_static_mesh(world,entity)
 	component_names := make([dynamic]string, context.temp_allocator)
 	for name, components in world.component_data {
 		if _, found := components[entity]; found {append(&component_names, name)}

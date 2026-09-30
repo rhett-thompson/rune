@@ -1,0 +1,32 @@
+package r3d_bridge
+
+import "core:math"
+import "core:strings"
+import "rune:assets"
+import "rune:ecs"
+import r3d "r3d:r3d"
+
+prepare_height_fog :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.Asset_Manager, camera: ecs.Entity) -> bool {
+	profile, found := ecs.active_post_processing(world, camera)
+	if !found || !profile.height_fog.enabled || profile.height_fog.density <= 0 {return false}
+	if !ctx.height_fog_attempted {
+		ctx.height_fog_attempted = true
+		source :: #load("height_fog.glsl", string)
+		ctx.height_fog_shader = r3d.LoadScreenShaderFromMemory(strings.clone_to_cstring(source, context.temp_allocator))
+		if ctx.height_fog_shader == nil {
+			assets.report_failure(manager, {kind = .PostProcessing, field = "PostProcessing.height_fog",
+				detail = "could not load height fog shader"})
+		} else {assets.resolve_asset_failure(manager, "", "PostProcessing.height_fog", "")}
+	}
+	if ctx.height_fog_shader == nil {return false}
+	fog := profile.height_fog
+	// SCENE colors are linear; match r3d's sRGB fog color conversion.
+	color: [3]f32
+	for i in 0..<3 {color[i] = math.pow(f32(fog.color[i])/255, 2.2)}
+	r3d.SetScreenShaderUniform(ctx.height_fog_shader, "u_color", &color)
+	r3d.SetScreenShaderUniform(ctx.height_fog_shader, "u_base_height", &fog.base_height)
+	r3d.SetScreenShaderUniform(ctx.height_fog_shader, "u_density", &fog.density)
+	r3d.SetScreenShaderUniform(ctx.height_fog_shader, "u_falloff", &fog.falloff)
+	r3d.SetScreenShaderUniform(ctx.height_fog_shader, "u_sky_distance", &fog.sky_distance)
+	return true
+}

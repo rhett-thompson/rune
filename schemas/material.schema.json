@@ -181,6 +181,12 @@
       "enum": ["back", "front", "none"],
       "default": "back"
     },
+    "billboard": {
+      "type": "string",
+      "description": "Camera alignment. front faces the camera fully; y_axis preserves world up. Use MeshRenderer quad for an upright textured card.",
+      "enum": ["disabled", "front", "y_axis"],
+      "default": "disabled"
+    },
     "height_scale": {
       "type": "number",
       "description": "Height/parallax scale reserved for custom material shaders. The r3d default material does not consume this yet.",

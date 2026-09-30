@@ -340,6 +340,23 @@
       },
       "description": "end must be greater than start."
     },
+    "height_fog": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Exponential world-height fog integrated along view rays. Density is measured at base_height and decreases above it; zero falloff gives uniform density. Empty sky uses sky_distance world units independently of clipping planes.",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "color": {
+          "type": "array", "minItems": 4, "maxItems": 4,
+          "items": { "type": "integer", "minimum": 0, "maximum": 255 },
+          "default": [255, 255, 255, 255]
+        },
+        "base_height": { "type": "number", "default": 0 },
+        "density": { "type": "number", "default": 0.01, "minimum": 0 },
+        "falloff": { "type": "number", "default": 0.1, "minimum": 0 },
+        "sky_distance": { "type": "number", "default": 1000, "exclusiveMinimum": 0 }
+      }
+    },
     "dof": {
       "type": "object",
       "additionalProperties": false,

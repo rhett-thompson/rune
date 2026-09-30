@@ -52,6 +52,7 @@ Material_Data :: struct {
 	transparency:      string,
 	blend:             string,
 	cull:              string,
+	billboard:         string,
 	height_scale:      f32,
 }
 
@@ -734,6 +735,7 @@ material_data_signature :: proc(data: Material_Data) -> u64 {
 	result = hash_string(result, data.transparency)
 	result = hash_string(result, data.blend)
 	result = hash_string(result, data.cull)
+	result = hash_string(result, data.billboard)
 	result = hash_value(result, data.height_scale)
 	result = procedural_material_signature(result, data.procedural)
 	return result
@@ -905,6 +907,11 @@ load_material_data :: proc(full_path: string) -> (Material_Data, bool) {
 		if !ok || !is_cull_mode_name(result.cull) {return {}, false}
 	}
 	result.height_scale = 0.03
+	result.billboard = "disabled"
+	if value, found := object["billboard"]; found {
+		result.billboard, ok = value.(json.String)
+		if !ok || !is_billboard_mode_name(result.billboard) {return {}, false}
+	}
 	if value, found := object["roughness"]; found {
 		result.roughness, ok = jsonutil.number(value)
 		if !ok || result.roughness < 0 || result.roughness > 1 {return {}, false}
@@ -938,6 +945,7 @@ clone_material_data :: proc(data: Material_Data) -> Material_Data {
 	result.transparency = clone_asset_string(data.transparency)
 	result.blend = clone_asset_string(data.blend)
 	result.cull = clone_asset_string(data.cull)
+	result.billboard = clone_asset_string(data.billboard)
 	return result
 }
 
@@ -955,6 +963,7 @@ destroy_material_data :: proc(data: ^Material_Data) {
 	delete(data.transparency)
 	delete(data.blend)
 	delete(data.cull)
+	delete(data.billboard)
 	data^ = {}
 }
 
@@ -1028,6 +1037,10 @@ is_blend_mode_name :: proc(name: string) -> bool {
 
 is_cull_mode_name :: proc(name: string) -> bool {
 	return name == "back" || name == "front" || name == "none"
+}
+
+is_billboard_mode_name :: proc(name: string) -> bool {
+	return name == "disabled" || name == "front" || name == "y_axis"
 }
 
 modified_time :: proc(path: string) -> i64 {

@@ -40,6 +40,7 @@ their JSON fields and defaults, dependencies, runtime behavior, and linked guide
 - [Checkpoint saves](docs/save-load.md): opt-in components, game globals, spawned/deleted entities, per-scene progress, backups, and migrations. Try [Checkpoint Saves](examples/save_load_2d/README.md).
 
 - [Heightmap terrain](docs/terrain.md): chunked 3D landscapes, matching native collision, PNG/r16 heightmaps, and hot reload. Try [Highland Walk](examples/terrain_3d/README.md).
+- [Runtime static geometry](docs/static-geometry.md): finite voxel surface extraction, merged in-memory meshes, shared triangle collision, and automatic R3D resource ownership.
 
 - [Audio mixer buses](docs/audio-mixer.md): master/music/SFX/UI volume, mute, and fades.
 - [2D resolution policies](docs/display.md): fit, stretch, integer scaling, and canvas mouse mapping.
@@ -47,7 +48,7 @@ their JSON fields and defaults, dependencies, runtime behavior, and linked guide
 - [3D interactions](docs/interactions-3d.md): character reach, facing and visibility checks, press/hold actions, and prompts. The third-person course includes a door, pickup, and guide.
 - [3D trigger zones](docs/triggers-3d.md): box/sphere volumes, layer filtering, and enter/stay/exit events for characters and colliders. Try the third-person checkpoint and hazard.
 - [Animation transitions](docs/animation-transitions.md): queued sprite clips and skeletal pose blends.
-- [3D post processing](docs/post-processing.md): scene/camera profiles, bloom, tone mapping, occlusion, focus, and hot reload. Try [Post Processing 3D](examples/post_processing_3d/README.md).
+- [3D post processing](docs/post-processing.md): scene/camera profiles, distance and height fog, bloom, tone mapping, occlusion, focus, and hot reload. Try [Post Processing 3D](examples/post_processing_3d/README.md).
 
 - raylib-backed engine lifecycle and registered update/draw systems;
 - JSON projects, scenes, prefabs, materials, tilesets, sprite animations, input mappings, and schemas;

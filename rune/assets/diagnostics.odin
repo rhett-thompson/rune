@@ -13,6 +13,7 @@ Asset_Kind :: enum {
 	Tileset,
 	Skybox,
 	Terrain,
+	PostProcessing,
 }
 
 Asset_Operation :: enum {
@@ -186,6 +187,8 @@ asset_kind_name :: proc(kind: Asset_Kind) -> string {
 		return "terrain"
 	case .Skybox:
 		return "skybox"
+	case .PostProcessing:
+		return "post_processing"
 	case .Tileset:
 		return "tileset"
 	}

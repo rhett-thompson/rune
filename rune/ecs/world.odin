@@ -46,6 +46,8 @@ Default_Layer: u8 : 0
 Default_Layer_Mask: u64 : u64(1) << Default_Layer
 
 World :: struct {
+	static_meshes: map[Entity]Static_Mesh,
+	static_mesh_revision: u64,
 	triggers_3d: Trigger_Runtime_3D,
 	navigation_3d: Navigation_Runtime_3D,
 	character_controllers_3d: map[Entity]CharacterController3D,
@@ -157,6 +159,7 @@ init :: proc() -> World {
 	assert(scene_data_arena != nil)
 	mem.dynamic_arena_init(scene_data_arena)
 	return World {
+		static_meshes = make(map[Entity]Static_Mesh),
 		character_controllers_3d = make(map[Entity]CharacterController3D),
 		character_controller_states_3d = make(map[Entity]Character_Controller_State_3D),
 		character_controllers_2d = make(map[Entity]CharacterController2D),
@@ -253,6 +256,7 @@ destroy :: proc(world: ^World) {
 	physics_2d_shutdown(world)
 	physics_3d_shutdown(world)
 	destroy_terrains(world)
+	destroy_static_meshes(world)
 	for _, components in world.component_data {delete(components)}
 	for _, instances in world.component_instance_data {delete(instances)}
 	for _, components in world.typed_component_data {delete(components)}
@@ -387,6 +391,11 @@ add_component_owned :: proc(
 		return false
 	}
 	descriptor, _ := component_descriptor(registry, name)
+	if _,mesh := world.static_meshes[entity]; mesh {
+		for other in ([]string{"Terrain","RigidBody3D","BoxCollider","SphereCollider","CharacterController","CharacterController3D"}) {
+			if name==other {return false}
+		}
+	}
 	// Terrain owns a static body; mixing another 3D body/controller on the same
 	// entity would give two systems ownership of that body and its transform.
 	for other in ([]string{"RigidBody3D","BoxCollider","SphereCollider","CharacterController","CharacterController3D"}) {

@@ -833,6 +833,12 @@ validate_material :: proc(report: ^Report, material_path, project_directory: str
 			add(report, material_path, "$.cull", "must be one of back, front, none")
 		}
 	}
+	if billboard_value, found := material["billboard"]; found {
+		billboard, billboard_ok := billboard_value.(json.String)
+		if !billboard_ok || !assets.is_billboard_mode_name(billboard) {
+			add(report, material_path, "$.billboard", "must be one of disabled, front, y_axis")
+		}
+	}
 	if height_scale_value, found := material["height_scale"]; found {
 		height_scale, height_scale_ok := jsonutil.number(height_scale_value)
 		if !height_scale_ok || height_scale < 0 || height_scale > 0.2 {

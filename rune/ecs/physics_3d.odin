@@ -51,7 +51,7 @@ physics_3d_update :: proc(world: ^World, dt: f32) {
 	if dt <= 0 ||
 	   (len(world.rigid_bodies_3d) == 0 &&
 			   len(world.box_colliders) == 0 &&
-			   len(world.sphere_colliders) == 0 && len(world.character_controllers_3d) == 0 && len(world.terrains) == 0) {return}
+			   len(world.sphere_colliders) == 0 && len(world.character_controllers_3d) == 0 && len(world.terrains) == 0 && len(world.static_meshes) == 0) {return}
 	ensure_box3d_world(world)
 	world.physics_3d_accumulator += dt
 	steps := 0
@@ -161,6 +161,7 @@ physics_3d_body_edited :: proc(world: ^World, entity: Entity, previous, value: R
 sync_bodies_to_box3d :: proc(world: ^World) {
 	defer world.physics_3d.needs_sync = false
 	sync_terrain_bodies(world)
+	sync_static_mesh_bodies(world)
 	for entity, body in world.rigid_bodies_3d {
 		if !is_enabled(world, entity) {continue}
 		if _, found := world.box3d_bodies[entity]; found {continue}

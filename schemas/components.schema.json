@@ -665,7 +665,7 @@
     "meshRenderer": {
       "type": "object",
       "properties": {
-        "primitive": { "type": "string", "enum": ["cube", "plane"] },
+        "primitive": { "type": "string", "enum": ["cube", "plane", "quad"], "description": "Unit cube, horizontal XZ plane, or vertical XY quad facing local +Z." },
         "color": { "$ref": "#/$defs/color" },
         "material": { "type": "string", "minLength": 1 },
         "shadows": { "type": "boolean", "default": true }

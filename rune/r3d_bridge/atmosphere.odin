@@ -147,7 +147,5 @@ prepare_moon_disk :: proc(ctx: ^Context) -> bool {
 	r3d.SetScreenShaderUniform(cache.moon_shader, "u_energy", &energy)
 	r3d.SetScreenShaderUniform(cache.moon_shader, "u_rayleigh", &cache.requested.atmosphere.rayleigh)
 	r3d.SetScreenShaderUniform(cache.moon_shader, "u_mie", &cache.requested.atmosphere.mie)
-	chain := [1]^r3d.ScreenShader{cache.moon_shader}
-	r3d.SetScreenShaderChain(.SCENE, raw_data(chain[:]), 1)
 	return true
 }

@@ -58,6 +58,41 @@ fog banks or volumetric light scattering. Scene edits hot reload; for a running
 game, the console can also set `PostProcessing.fog.mode`, `.start`, `.end`,
 `.density`, and `.color` on the profile entity.
 
+### Height fog
+
+`height_fog` adds an independent layer whose density decreases exponentially
+with world Y. Use it to conceal lower terrain or structures in a deep haze:
+
+```json
+"height_fog": {
+  "enabled": true,
+  "color": [86, 102, 122, 255],
+  "base_height": -60,
+  "density": 0.008,
+  "falloff": 0.055,
+  "sky_distance": 1000
+}
+```
+
+`density` is extinction per world unit at `base_height`; `falloff` is inverse
+world units. Density follows `density * exp(-falloff * (y - base_height))`.
+Increasing falloff confines fog more sharply below the base. Zero falloff gives
+uniform density, and zero density has no effect. The layer is disabled by default.
+
+The bridge integrates density along each camera-to-surface ray using scene
+depth. Empty sky integrates over `sky_distance` world units so the lower
+background blends with submerged geometry without an abrupt horizon band or
+depending on the camera's far clip. Choose a sky distance beyond the structures
+you want to conceal. The upper sky and nearby surfaces remain visible according
+to the same density function. RGBA colors use the same sRGB convention as
+distance fog; alpha is ignored. Transparent geometry without depth writes uses
+the depth behind it. This layer provides extinction and color, not volumetric
+light scattering or bounded fog banks.
+
+The moon disk and height fog share the bridge's `SCENE` stage, with the moon
+drawn first. The bridge clears this chain after each render and releases its
+cached shader at shutdown. Custom screen effects should use the other stages.
+
 ## Profile selection and lifetime
 
 1. An enabled profile on the active Camera3D entity wins.
@@ -98,6 +133,7 @@ temporal history; use it on one continuous scene render path.
 | `ssgi` | Global illumination enable, slices, edge fade, distance falloff, normal rejection, intensity, denoising |
 | `ssr` | Reflections enable, ray/binary steps, step size, thickness, distance, edge fade |
 | `fog` | `disabled`, `linear`, `exp2`, `exp`; RGBA color, start/end, density, sky influence |
+| `height_fog` | Enable, RGBA color, world base height, density at base, exponential falloff, sky integration distance |
 | `dof` | Enable, focus distance/scale, near scale, maximum blur |
 | `auto_exposure` | Enable, minimum/maximum EV, EV compensation, bright/dark adaptation times |
 
@@ -138,8 +174,8 @@ Changes flow through normal component notifications and scene serialization.
 
 Console changes are runtime-only. Edit scene JSON to persist them.
 Custom fullscreen shader chains remain available through r3d's
-`LoadScreenShader` and stage-chain APIs; this component covers built-in effects
-and does not load custom screen shader assets.
+`LoadScreenShader` and stage-chain APIs. The bridge reserves `SCENE` while
+drawing its moon and height fog; this component does not load custom shader assets.
 
 ## Example and checks
 

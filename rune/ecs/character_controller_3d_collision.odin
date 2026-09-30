@@ -146,6 +146,21 @@ character_try_step_3d :: proc(query:^Character_Plane_Query_3D,start,translation,
 	raised := start+lift
 	advanced := character_slide_3d(query,raised,horizontal,config.radius,height)
 	_,landing,grounded := character_ground_3d(query.world,query.entity,advanced,config.radius,height,config.step_height+config.ground_snap_distance,min_up,query.up)
+	if !grounded {
+		// Triangle-mesh tread edges report the capsule's rounded contact normal.
+		// That can be steeper than the tread and reject a valid small step. Probe
+		// the leading footprint for a walkable surface, then land the raised
+		// capsule at that height without adding horizontal travel.
+		filter:=Default_Physics_Query_Filter
+		filter.ignore=query.entity; filter.include_sensors=false
+		filter.layers,_=entity_layer_mask(query.world,query.entity)
+		origin:=advanced+direction*config.radius+query.up*0.03
+		hit,found:=physics_3d_raycast(query.world,origin,-query.up*(config.step_height+config.ground_snap_distance+0.03),filter)
+		if found && character_dot_3d(hit.normal,query.up)>=min_up {
+			landing=advanced+query.up*(character_dot_3d(hit.point-advanced,query.up)+Character_Skin_3D)
+			grounded=true
+		}
+	}
 	rise := character_dot_3d(landing-start,query.up)
 	if !grounded || rise <= 0.01 || rise > config.step_height+0.01 ||
 		character_dot_3d(landing-start,direction) <= ordinary_progress+0.001 {return ordinary,false}

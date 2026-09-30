@@ -177,8 +177,9 @@ haze. This keeps small moons sharp without increasing the cost of atmospheric
 integration across the whole sky. The disk retains atmospheric extinction, sky
 energy, fog influence, bloom, and tonemapping. Scene depth masks foreground objects;
 transparent materials that do not write depth do not mask this pass.
-The bridge uses r3d's `SCENE` screen-shader stage for the disk during `draw_scene`
-and clears it afterward; custom screen effects should use the other stages.
+The bridge uses r3d's `SCENE` screen-shader stage for the disk during `draw_scene`,
+followed by optional height fog, and clears it afterward; custom screen effects
+should use the other stages.
 
 Set `moon` to `""` to remove it from the sky, or disable its light entity to remove
 both its sky contribution and scene lighting. An invalid optional moon reports a

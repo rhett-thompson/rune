@@ -34,6 +34,8 @@ R3D_Material_Asset :: struct {
 }
 
 Context :: struct {
+	static_meshes: map[ecs.Entity]Static_Mesh_Cache,
+	static_mesh_generation: u32,
 	detail_meshes: [3]r3d.Mesh,
 	terrain_shaders: [3]^r3d.SurfaceShader,
 	terrain_layers: map[string]Terrain_Layer_Asset,
@@ -45,6 +47,8 @@ Context :: struct {
 	post_processing_active:   bool,
 	post_processing_baseline: r3d.Environment,
 	post_processing_aa:       r3d.AntiAliasingMode,
+	height_fog_shader:        ^r3d.ScreenShader,
+	height_fog_attempted:     bool,
 	// Follow the window framebuffer by default; disable for a fixed internal resolution.
 	match_framebuffer: bool,
 	root:             string,
@@ -52,6 +56,8 @@ Context :: struct {
 	cube_no_shadow:   r3d.Mesh,
 	plane:            r3d.Mesh,
 	plane_no_shadow:  r3d.Mesh,
+	quad:             r3d.Mesh,
+	quad_no_shadow:   r3d.Mesh,
 	sphere:           r3d.Mesh,
 	sphere_no_shadow: r3d.Mesh,
 	models:           map[string]Model_Asset,
@@ -72,6 +78,7 @@ init :: proc(root: string, width, height: i32) -> (Context, bool) {
 	if !r3d.Init(width, height) {return {}, false}
 	r3d.SetAntiAliasingMode(.FXAA)
 	result := Context {
+		static_meshes = make(map[ecs.Entity]Static_Mesh_Cache),
 		terrain_layers = make(map[string]Terrain_Layer_Asset),
 		match_framebuffer = true,
 		terrains = make(map[ecs.Entity]Terrain_Cache),
@@ -79,6 +86,8 @@ init :: proc(root: string, width, height: i32) -> (Context, bool) {
 		cube_no_shadow   = r3d.GenMeshCube(1, 1, 1),
 		plane            = r3d.GenMeshPlane(1, 1, 1, 1),
 		plane_no_shadow  = r3d.GenMeshPlane(1, 1, 1, 1),
+		quad             = r3d.GenMeshQuad(1, 1, 1, 1, {0,0,1}),
+		quad_no_shadow   = r3d.GenMeshQuad(1, 1, 1, 1, {0,0,1}),
 		sphere           = r3d.GenMeshSphere(1, 24, 32),
 		sphere_no_shadow = r3d.GenMeshSphere(1, 24, 32),
 		models           = make(map[string]Model_Asset),
@@ -93,12 +102,16 @@ init :: proc(root: string, width, height: i32) -> (Context, bool) {
 	result.sphere.shadowCastMode = .ON_DOUBLE_SIDED
 	result.cube_no_shadow.shadowCastMode = .DISABLED
 	result.plane_no_shadow.shadowCastMode = .DISABLED
+	result.quad.shadowCastMode = .ON_DOUBLE_SIDED
+	result.quad_no_shadow.shadowCastMode = .DISABLED
 	result.sphere_no_shadow.shadowCastMode = .DISABLED
 	return result, true
 }
 
 shutdown :: proc(ctx: ^Context) {
 	if !ctx.initialized {return}
+	release_static_meshes(ctx)
+	delete(ctx.static_meshes)
 	release_terrains(ctx)
 	for mesh in ctx.detail_meshes {if r3d.IsMeshValid(mesh) {r3d.UnloadMesh(mesh)}}
 	for shader in ctx.terrain_shaders {if shader!=nil {r3d.UnloadSurfaceShader(shader)}}
@@ -106,6 +119,9 @@ shutdown :: proc(ctx: ^Context) {
 	delete(ctx.terrain_layers)
 	delete(ctx.terrains)
 	release_skybox(ctx)
+	if ctx.height_fog_shader != nil {r3d.UnloadScreenShader(ctx.height_fog_shader)}
+	ctx.height_fog_shader = nil
+	ctx.height_fog_attempted = false
 	destroy_scene_lights(ctx)
 	destroy_animation_players(ctx)
 	for _, asset in ctx.models {
@@ -119,6 +135,8 @@ shutdown :: proc(ctx: ^Context) {
 	if r3d.IsMeshValid(ctx.cube_no_shadow) {r3d.UnloadMesh(ctx.cube_no_shadow)}
 	if r3d.IsMeshValid(ctx.plane) {r3d.UnloadMesh(ctx.plane)}
 	if r3d.IsMeshValid(ctx.plane_no_shadow) {r3d.UnloadMesh(ctx.plane_no_shadow)}
+	if r3d.IsMeshValid(ctx.quad) {r3d.UnloadMesh(ctx.quad)}
+	if r3d.IsMeshValid(ctx.quad_no_shadow) {r3d.UnloadMesh(ctx.quad_no_shadow)}
 	if r3d.IsMeshValid(ctx.sphere) {r3d.UnloadMesh(ctx.sphere)}
 	if r3d.IsMeshValid(ctx.sphere_no_shadow) {r3d.UnloadMesh(ctx.sphere_no_shadow)}
 	delete(ctx.models)
@@ -155,6 +173,7 @@ draw_scene_ex :: proc(
 		}
 	}
 	prepare_terrains(ctx,world,asset_manager)
+	prepare_static_meshes(ctx,world)
 	prepare_animations(ctx, world, asset_manager, 0, false)
 	entity, camera_component, found := ecs.active_camera_3d(world)
 	apply_post_processing(ctx, world, entity)
@@ -179,6 +198,7 @@ draw_scene_ex :: proc(
 	create_scene_lights(ctx, world)
 
 	r3d.Begin(camera)
+	draw_static_meshes(ctx,world)
 	draw_terrains(ctx,world,asset_manager)
 	draw_terrain_details(ctx,world,asset_manager,camera.position)
 	for root in ecs.root_entities(world) {
@@ -187,9 +207,14 @@ draw_scene_ex :: proc(
 	for root in ecs.root_entities(world) {
 		draw_entity_tree(ctx, world, asset_manager, root, identity_transform(), .Non_Plane)
 	}
-	moon_disk := prepare_moon_disk(ctx)
+	// The bridge owns SCENE while rendering; moon radiance is fogged too.
+	chain: [2]^r3d.ScreenShader
+	count: i32
+	if prepare_moon_disk(ctx) {chain[count] = ctx.skybox.moon_shader; count += 1}
+	if prepare_height_fog(ctx, world, asset_manager, entity) {chain[count] = ctx.height_fog_shader; count += 1}
+	if count > 0 {r3d.SetScreenShaderChain(.SCENE, raw_data(chain[:]), count)}
 	r3d.End()
-	if moon_disk {r3d.SetScreenShaderChain(.SCENE, nil, 0)}
+	if count > 0 {r3d.SetScreenShaderChain(.SCENE, nil, 0)}
 	draw_debug_overlays(world, camera, settings)
 	return true
 }
@@ -261,6 +286,13 @@ draw_entity :: proc(
 				transform.scale,
 			)
 		}
+	}
+	if mesh, has_mesh := ecs.get_mesh_renderer(world, entity);
+	   has_mesh && mesh.primitive == "quad" {
+		if pass != .Non_Plane {return}
+		material := material_from_path(ctx, asset_manager, mesh.material, mesh.color)
+		quad := ctx.quad if mesh.shadows else ctx.quad_no_shadow
+		r3d.DrawMeshEx(quad, material, transform.position, rotation_quaternion(transform), transform.scale)
 	}
 	if sphere, has_sphere := ecs.get_sphere_renderer(world, entity); has_sphere {
 		if pass != .Non_Plane {return}
@@ -693,6 +725,7 @@ material_from_data :: proc(
 	material.transparencyMode = transparency_mode_from_name(data.transparency)
 	material.blendMode = blend_mode_from_name(data.blend)
 	material.cullMode = cull_mode_from_name(data.cull)
+	material.billboardMode = billboard_mode_from_name(data.billboard)
 	material.unlit = !data.lighting
 	asset.material = material
 	if len(path) > 0 {
@@ -806,6 +839,12 @@ cull_mode_from_name :: proc(name: string) -> r3d.CullMode {
 	if name == "front" {return .FRONT}
 	if name == "none" {return .NONE}
 	return .BACK
+}
+
+billboard_mode_from_name :: proc(name: string) -> r3d.BillboardMode {
+	if name == "front" {return .FRONT}
+	if name == "y_axis" {return .Y_AXIS}
+	return .DISABLED
 }
 
 draw_debug_overlays :: proc(world: ^ecs.World, camera: rl.Camera3D, settings: Scene3D_Settings) {

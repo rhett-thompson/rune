@@ -18,6 +18,7 @@ PostProcessing :: struct {
 	ssgi: Post_SSGI,
 	ssr: Post_SSR,
 	fog: Post_Fog,
+	height_fog: Post_Height_Fog,
 	dof: Post_DoF,
 	auto_exposure: Post_Auto_Exposure,
 }
@@ -96,6 +97,17 @@ Post_Fog :: struct {
 	end: f32,
 	density: f32,
 	sky_affect: f32,
+}
+
+// Density at world Y = base_height, decreasing exponentially above it.
+// Zero falloff is uniform fog; zero density disables extinction.
+Post_Height_Fog :: struct {
+	enabled: bool,
+	color: [4]u8,
+	base_height: f32,
+	density: f32,
+	falloff: f32,
+	sky_distance: f32,
 }
 
 Post_DoF :: struct {
@@ -181,6 +193,12 @@ default_post_processing :: proc() -> PostProcessing {
 			end = 50,
 			density = 0.05,
 			sky_affect = 0.5,
+		},
+		height_fog = {
+			color = {255,255,255,255},
+			density = 0.01,
+			falloff = 0.1,
+			sky_distance = 1000,
 		},
 		dof = {
 			enabled = false,
@@ -294,6 +312,10 @@ post_processing_valid :: proc(value: PostProcessing) -> bool {
 	if math.is_nan(value.fog.end) || math.is_inf(value.fog.end) || value.fog.end < 0 {return false}
 	if math.is_nan(value.fog.density) || math.is_inf(value.fog.density) || value.fog.density < 0 {return false}
 	if math.is_nan(value.fog.sky_affect) || math.is_inf(value.fog.sky_affect) || value.fog.sky_affect < 0 || value.fog.sky_affect > 1 {return false}
+	if math.is_nan(value.height_fog.base_height) || math.is_inf(value.height_fog.base_height) {return false}
+	if math.is_nan(value.height_fog.density) || math.is_inf(value.height_fog.density) || value.height_fog.density < 0 {return false}
+	if math.is_nan(value.height_fog.falloff) || math.is_inf(value.height_fog.falloff) || value.height_fog.falloff < 0 {return false}
+	if math.is_nan(value.height_fog.sky_distance) || math.is_inf(value.height_fog.sky_distance) || value.height_fog.sky_distance <= 0 {return false}
 	if math.is_nan(value.dof.focus_point) || math.is_inf(value.dof.focus_point) || value.dof.focus_point <= 0 {return false}
 	if math.is_nan(value.dof.focus_scale) || math.is_inf(value.dof.focus_scale) || value.dof.focus_scale <= 0 {return false}
 	if math.is_nan(value.dof.near_scale) || math.is_inf(value.dof.near_scale) || value.dof.near_scale < 0 {return false}

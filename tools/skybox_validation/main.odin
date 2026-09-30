@@ -380,6 +380,20 @@ validate_moon_disk :: proc(ctx: ^bridge.Context, w: ^ecs.World, manager: ^assets
 	defer rl.UnloadImage(blocked)
 	assert(rl.GetImageColor(blocked,160,90).r < 5, "foreground geometry occludes the moon")
 	assert(ecs.destroy_entity(w,blocker))
+	// Both SCENE effects must execute: height fog attenuates the moon, rather
+	// than replacing its shader chain or drawing the moon over the fog.
+	post := ecs.create_entity(w)
+	profile := ecs.default_post_processing()
+	profile.height_fog.enabled = true
+	profile.height_fog.color = {0,0,0,255}
+	profile.height_fog.density = 0.001
+	profile.height_fog.falloff = 0
+	assert(ecs.add(w,registry,post,profile))
+	fogged := moon_frame(ctx,w,manager)
+	defer rl.UnloadImage(fogged)
+	fogged_center := rl.GetImageColor(fogged,160,90)
+	assert(fogged_center.r > 10 && fogged_center.r < center.r, "height fog and moon must compose")
+	assert(ecs.destroy_entity(w,post))
 }
 
 main :: proc() {
