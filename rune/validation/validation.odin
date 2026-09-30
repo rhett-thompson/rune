@@ -414,6 +414,10 @@ validate_components :: proc(
 				add(report, file, field_path(path, name), "invalid post-processing profile: check effect fields, lowercase modes, finite ranges, fog end > start, and max_ev >= min_ev (see docs/post-processing.md)")
 			}
 		}
+		if name == "CloudVolume" {
+			if _,valid:=ecs.cloud_volume_from_json(value); !valid {add(report,file,field_path(path,name),"CloudVolume requires finite nonnegative density, positive noise_scale, coverage from 0 to 1, and 8 to 96 steps")}
+			if _,exists:=components["Transform"]; !exists {add(report,file,field_path(path,name),"CloudVolume requires Transform with positive XYZ dimensions")}
+		}
 		if name == "Trigger3D" {
 			if _,valid:=ecs.trigger_3d_from_json(value); !valid {add(report,file,field_path(path,name),"Trigger3D requires box/sphere shape, positive finite size/radius, and a finite offset")}
 			if _,exists:=components["Transform"]; !exists {add(report,file,field_path(path,name),"Trigger3D requires Transform")}

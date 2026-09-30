@@ -6,6 +6,20 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "light_shafts": {
+      "type": "object", "additionalProperties": false,
+      "description": "Screen-space radial scattering around a finite source entity. Opaque silhouettes shape shadow wedges; shafts can cross foreground surfaces. Missing, disabled, or behind-camera sources contribute nothing.",
+      "properties": {
+        "enabled": {"type": "boolean", "default": false},
+        "source": {"type": "string", "default": "", "description": "Stable scene entity ID with Transform. Required and nonempty when enabled; may be created at runtime."},
+        "color": {"type": "array", "items": {"type": "integer", "minimum": 0, "maximum": 255}, "minItems": 4, "maxItems": 4, "default": [255,240,202,255]},
+        "intensity": {"type": "number", "minimum": 0, "maximum": 10, "default": 0.5},
+        "radius": {"type": "number", "exclusiveMinimum": 0, "maximum": 2, "default": 0.7, "description": "Radial scattering extent in screen heights."},
+        "source_radius": {"type": "number", "exclusiveMinimum": 0, "default": 1, "description": "World radius enclosing the visible emitter; prevents self-occlusion."},
+        "samples": {"type": "integer", "minimum": 8, "maximum": 64, "default": 32}
+      },
+      "allOf": [{"if": {"properties": {"enabled": {"const": true}}, "required": ["enabled"]}, "then": {"required": ["source"], "properties": {"source": {"minLength": 1}}}}]
+    },
     "enabled": {
       "type": "boolean",
       "default": true

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cloud-volume.schema.json",
+  "title": "Rune CloudVolume",
+  "description": "Ellipsoidal participating medium. Requires Transform with positive full XYZ dimensions. Rendered by the r3d bridge without collision or cast shadows.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "color": {"$ref": "#/$defs/color", "default": [218,230,242,255]},
+    "shadow_color": {"$ref": "#/$defs/color", "default": [90,112,140,255]},
+    "density": {"type": "number", "minimum": 0, "maximum": 10, "default": 0.035, "description": "Extinction per world unit; zero hides the volume."},
+    "noise_scale": {"type": "number", "minimum": 0.01, "default": 90, "description": "World units per repeating 3D noise tile."},
+    "coverage": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.55},
+    "noise_offset": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "default": [0,0,0]},
+    "steps": {"type": "integer", "minimum": 8, "maximum": 96, "default": 32}
+  },
+  "$defs": {
+    "color": {"type": "array", "items": {"type": "integer", "minimum": 0, "maximum": 255}, "minItems": 4, "maxItems": 4, "description": "RGB tint; alpha is reserved. Opacity comes from density and path length."}
+  }
+}

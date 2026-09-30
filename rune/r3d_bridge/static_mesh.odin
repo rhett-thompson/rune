@@ -1,6 +1,7 @@
 package r3d_bridge
 
 import "rune:ecs"
+import "rune:assets"
 import r3d "r3d:r3d"
 import rl "vendor:raylib"
 
@@ -24,8 +25,8 @@ prepare_static_meshes :: proc(ctx: ^Context, world: ^ecs.World) {
 		vertices:=make([]r3d.Vertex,len(state.data.vertices))
 		for v,i in state.data.vertices {
 			n:=v.normal
-			t:=[3]f32{1,0,0} if n[0]==0 else [3]f32{0,0,1}
-			vertices[i]=r3d.MakeVertex(v.position,{v.position[0]*0.25,v.position[2]*0.25},n,{t[0],t[1],t[2],1},rl.Color{v.color[0],v.color[1],v.color[2],v.color[3]})
+			uv,tangent:=static_mesh_projection(v.position,n)
+			vertices[i]=r3d.MakeVertex(v.position,uv,n,tangent,rl.Color{v.color[0],v.color[1],v.color[2],v.color[3]})
 		}
 		mesh:=r3d.LoadMesh(.TRIANGLES,{vertices=raw_data(vertices),indices=raw_data(state.data.indices),vertexCount=i32(len(vertices)),indexCount=i32(len(state.data.indices)),vertexCapacity=i32(len(vertices)),indexCapacity=i32(len(state.data.indices))},nil)
 		delete(vertices)
@@ -36,11 +37,24 @@ prepare_static_meshes :: proc(ctx: ^Context, world: ^ecs.World) {
 	}
 }
 
-draw_static_meshes :: proc(ctx: ^Context, world: ^ecs.World) {
-	material:=r3d.GetDefaultMaterial()
+// Dominant-axis planar UVs keep wall detail from collapsing to a single row.
+// Tangent handedness follows the projected V axis on either side of a surface.
+static_mesh_projection :: proc(p,n:[3]f32) -> ([2]f32,[4]f32) {
+	if abs(n[0])>abs(n[1]) && abs(n[0])>=abs(n[2]) {return {p[2]*0.25,p[1]*0.25},{0,0,1,-1 if n[0]>0 else 1}}
+	if abs(n[2])>abs(n[1]) {return {p[0]*0.25,p[1]*0.25},{1,0,0,1 if n[2]>0 else -1}}
+	return {p[0]*0.25,p[2]*0.25},{1,0,0,-1 if n[1]>0 else 1}
+}
+
+draw_static_meshes :: proc(ctx: ^Context, world: ^ecs.World, manager:^assets.Asset_Manager) {
 	for entity,cache in ctx.static_meshes {
 		if !ecs.is_enabled(world,entity) {continue}
+		material:=r3d.GetDefaultMaterial()
+		mesh:=cache.mesh
+		if renderer,found:=ecs.get_mesh_renderer(world,entity); found && renderer.primitive=="static" {
+			material=material_from_path(ctx,manager,renderer.material,renderer.color)
+			mesh.shadowCastMode=.ON_DOUBLE_SIDED if renderer.shadows else .DISABLED
+		}
 		t,valid:=ecs.terrain_transform(world,entity)
-		if valid {r3d.DrawMeshEx(cache.mesh,material,t.position,rotation_quaternion(t),t.scale)}
+		if valid {r3d.DrawMeshEx(mesh,material,t.position,rotation_quaternion(t),t.scale)}
 	}
 }

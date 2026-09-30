@@ -32,6 +32,51 @@ All fields and defaults appear in
 Scene saves hot reload through the normal scene loader; prefab overrides and
 runtime console inspection use the same component format.
 
+## Light shafts
+
+`light_shafts` adds screen-space radial scattering around a finite light source.
+Add it to the existing profile:
+
+```json
+"light_shafts": {
+  "enabled": true,
+  "source": "emitter",
+  "color": [255,240,202,255],
+  "intensity": 0.5,
+  "radius": 0.7,
+  "source_radius": 1,
+  "samples": 32
+}
+```
+
+Source is a stable entity ID with a Transform; it may be created at runtime.
+The renderer resolves it each frame, including the bridge's additive parent
+positions, so reload and replacement do not retain stale handles. Missing or
+disabled sources contribute nothing. Radius is the effect extent in screen
+heights; source_radius is a world radius enclosing the luminous mesh. A radius
+that is too small lets the emitter occlude itself; a radius that is too large
+allows nearby surfaces to be treated as part of the emitter.
+
+The effect radially blurs a sky/emitter mask from opaque scene depth toward
+the projected source. Near-pixel samples carry more weight, giving silhouettes
+long radial shadow wedges. Architecture beyond the source also masks the sky;
+the emitter's own depth and footprint remain bright. Scattering crosses
+foreground surfaces to represent light in the air between them and the camera.
+A wall filling the viewport contributes no shafts. A partially hidden core
+can still produce beams through nearby openings. Fixed per-pixel sample jitter
+reduces repeated silhouette bands without animated noise.
+It turns off behind the camera and fades at the viewport edge. The SCENE shader
+runs before height fog and built-in bloom/tone mapping; HUD is unaffected.
+Samples from 8 to 64 trade smoothness for GPU cost. This approximates scattering
+in screen space; transparent clouds do not write occlusion depth and cannot
+cast shafts. It does not replace volumetric scattering or shadow maps.
+
+`build/light_shafts_validation --runtime` (add `.exe` on Windows) checks real
+GPU rendering, radial shadow contrast, foreground scattering, occluders beyond
+the source, full-view walls, camera direction, off-screen sources, and toggles.
+Headless validation checks defaults, strict ranges,
+serialization, and ownership of the source ID.
+
 ## Fog
 
 Fog is part of `PostProcessing`; add it to the scene's existing profile so the

@@ -49,6 +49,7 @@ their JSON fields and defaults, dependencies, runtime behavior, and linked guide
 - [3D trigger zones](docs/triggers-3d.md): box/sphere volumes, layer filtering, and enter/stay/exit events for characters and colliders. Try the third-person checkpoint and hazard.
 - [Animation transitions](docs/animation-transitions.md): queued sprite clips and skeletal pose blends.
 - [3D post processing](docs/post-processing.md): scene/camera profiles, distance and height fog, bloom, tone mapping, occlusion, focus, and hot reload. Try [Post Processing 3D](examples/post_processing_3d/README.md).
+- [Cloud volumes](docs/cloud-volumes.md): bounded 3D density, ray-marched opacity, directional shading, and opaque-depth occlusion.
 
 - raylib-backed engine lifecycle and registered update/draw systems;
 - JSON projects, scenes, prefabs, materials, tilesets, sprite animations, input mappings, and schemas;
@@ -905,8 +906,8 @@ it does not draw a `MeshRenderer`/`SphereRenderer` itself.
 r3d_bridge.draw_scene_ex(&bridge, &world, rune.asset_manager(game), scene_view)
 ```
 
-`MeshRenderer` currently draws the `cube` primitive and `SphereRenderer` draws
-a sphere through r3d. `SpriteRenderer` loads a project-relative texture path
+`MeshRenderer` draws `cube`, horizontal `plane`, and vertical `quad` primitives
+through r3d; `SphereRenderer` draws a sphere. `SpriteRenderer` loads a project-relative texture path
 through the asset cache and is drawn automatically through the active
 `Camera2D`. `SpriteRenderer`, `TilemapRenderer`, and `TextRenderer` accept an integer
 `draw_order`; lower values draw first, and equal values use deterministic
@@ -1181,10 +1182,21 @@ r3d owns the active light budget and shading path. `PointLight` and
 `SpotLight` positions come from the entity `Transform`; `SpotLight.direction`
 points from the light toward the center of its cone.
 
+Runtime geometry installed with `ecs.set_static_mesh` can use a `MeshRenderer`
+with `primitive: "static"` for materials, fallback color, and shadow control.
+See [runtime static geometry](docs/static-geometry.md) for ownership and UV projection.
+
 `MeshRenderer`, `SphereRenderer`, and `ModelRenderer` can reference materials
 with a `material` field. `hot_reload.models` controls modified-time model
 refresh, and `hot_reload.materials` controls material JSON refresh. The
 built-in `MeshRenderer` and `SphereRenderer` remain useful debug primitives.
+For textured camera-facing cards, use `MeshRenderer.primitive: "quad"` and set
+the material's `billboard` to `"front"` (full alignment) or `"y_axis"` (preserve
+world up). The unit quad lies in local XY, faces +Z, and uses Transform scale X/Y
+for width/height. `billboard: "disabled"` is the default for existing materials.
+Combine `transparency: "alpha"` with a PNG alpha channel for soft particles,
+distant clouds, foliage, or signs. Cards use normal scene occlusion, material
+hot reload, and the bridge's shared primitive cache; shadows remain opt-in.
 For imported models with multiple material slots, `ModelRenderer.material` acts
 as the fallback and `ModelRenderer.materials` can override individual zero-based
 r3d material slots:

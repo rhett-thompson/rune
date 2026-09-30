@@ -58,6 +58,7 @@ destroy_registry :: proc(registry: ^Component_Registry) {
 
 register_builtin_components :: proc(registry: ^Component_Registry) -> bool {
 	ok := true
+	ok = register_component_type(registry,"CloudVolume",CloudVolume,default_cloud_volume(),"Ellipsoidal 3D cloud density with depth-aware ray marching") && ok
 	ok = register_component_type(registry,"NavMesh3D",NavMesh3D,NavMesh3D{},"World-space triangle navigation surface") && ok
 	ok = register_component_type(registry,"Interactable3D",Interactable3D,Default_Interactable_3D,"Character interaction target") && ok
 	ok = register_component_type(registry,"Trigger3D",Trigger3D,Default_Trigger_3D,"Box or sphere overlap zone with enter/stay/exit events") && ok
@@ -215,6 +216,7 @@ typed_component_create_proc :: proc($T: typeid) -> Typed_Component_Create_Proc {
 			defaults, defaults_ok := default_value.(T)
 			if !defaults_ok || !json_shape_matches_type(data, T) {return nil, false}
 			when T == Trigger3D {if _,valid:=trigger_3d_from_json(data); !valid {return nil,false}}
+			when T == CloudVolume {if _,valid:=cloud_volume_from_json(data); !valid {return nil,false}}
 
 			value, allocation_error := mem.new(T, allocator)
 			if allocation_error != nil {return nil, false}
@@ -227,7 +229,7 @@ typed_component_create_proc :: proc($T: typeid) -> Typed_Component_Create_Proc {
 			if marshal_error != nil || json.unmarshal(bytes, value, allocator = allocator) != nil {
 				return nil, false
 			}
-			when T == NavMesh3D || T == NavAgent3D || T == Interactable3D || T == Interactor3D || T == Trigger3D {if !component_value_valid(value^) {return nil,false}}
+			when T == CloudVolume || T == NavMesh3D || T == NavAgent3D || T == Interactable3D || T == Interactor3D || T == Trigger3D {if !component_value_valid(value^) {return nil,false}}
 			return any{data = value, id = typeid_of(T)}, true
 		}
 }

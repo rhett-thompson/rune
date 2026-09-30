@@ -34,6 +34,7 @@ R3D_Material_Asset :: struct {
 }
 
 Context :: struct {
+	cloud_volumes: Cloud_Volume_Renderer,
 	static_meshes: map[ecs.Entity]Static_Mesh_Cache,
 	static_mesh_generation: u32,
 	detail_meshes: [3]r3d.Mesh,
@@ -49,6 +50,8 @@ Context :: struct {
 	post_processing_aa:       r3d.AntiAliasingMode,
 	height_fog_shader:        ^r3d.ScreenShader,
 	height_fog_attempted:     bool,
+	light_shafts_shader: ^r3d.ScreenShader,
+	light_shafts_attempted: bool,
 	// Follow the window framebuffer by default; disable for a fixed internal resolution.
 	match_framebuffer: bool,
 	root:             string,
@@ -119,9 +122,13 @@ shutdown :: proc(ctx: ^Context) {
 	delete(ctx.terrain_layers)
 	delete(ctx.terrains)
 	release_skybox(ctx)
+	release_cloud_volumes(ctx)
 	if ctx.height_fog_shader != nil {r3d.UnloadScreenShader(ctx.height_fog_shader)}
 	ctx.height_fog_shader = nil
 	ctx.height_fog_attempted = false
+	if ctx.light_shafts_shader!=nil {r3d.UnloadScreenShader(ctx.light_shafts_shader)}
+	ctx.light_shafts_shader=nil
+	ctx.light_shafts_attempted=false
 	destroy_scene_lights(ctx)
 	destroy_animation_players(ctx)
 	for _, asset in ctx.models {
@@ -198,7 +205,8 @@ draw_scene_ex :: proc(
 	create_scene_lights(ctx, world)
 
 	r3d.Begin(camera)
-	draw_static_meshes(ctx,world)
+	prepare_cloud_volumes(ctx,world,asset_manager,camera)
+	draw_static_meshes(ctx,world,asset_manager)
 	draw_terrains(ctx,world,asset_manager)
 	draw_terrain_details(ctx,world,asset_manager,camera.position)
 	for root in ecs.root_entities(world) {
@@ -208,9 +216,10 @@ draw_scene_ex :: proc(
 		draw_entity_tree(ctx, world, asset_manager, root, identity_transform(), .Non_Plane)
 	}
 	// The bridge owns SCENE while rendering; moon radiance is fogged too.
-	chain: [2]^r3d.ScreenShader
+	chain: [3]^r3d.ScreenShader
 	count: i32
 	if prepare_moon_disk(ctx) {chain[count] = ctx.skybox.moon_shader; count += 1}
+	if prepare_light_shafts(ctx,world,asset_manager,entity,camera) {chain[count]=ctx.light_shafts_shader; count+=1}
 	if prepare_height_fog(ctx, world, asset_manager, entity) {chain[count] = ctx.height_fog_shader; count += 1}
 	if count > 0 {r3d.SetScreenShaderChain(.SCENE, raw_data(chain[:]), count)}
 	r3d.End()
@@ -253,6 +262,7 @@ draw_entity :: proc(
 	transform: ecs.Transform,
 	pass: Render_Pass,
 ) {
+	if pass==.Non_Plane {draw_cloud_volume(ctx,world,entity,transform)}
 	if mesh, has_mesh := ecs.get_mesh_renderer(world, entity);
 	   has_mesh && mesh.primitive == "cube" {
 		if pass != .Non_Plane {return}

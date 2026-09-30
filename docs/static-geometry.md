@@ -22,6 +22,14 @@ copies keyed by entity and revision; deletion, replacement, World changes,
 and bridge shutdown release them. World/entity destruction releases CPU and
 Box3D mesh resources. `ecs.remove_static_mesh` releases just the runtime mesh.
 
+Add a `MeshRenderer` with `primitive: "static"` to style installed runtime
+geometry. Its `material`, RGBA fallback `color`, and `shadows` switch use the same
+material cache and hot reload as primitive meshes. Vertex colors multiply the
+material color. Without this component, runtime meshes retain the default
+material and cast shadows. The `static` primitive draws no extra geometry.
+The bridge supplies dominant-axis planar UVs (one repeat per four local units)
+and tangents, including vertical projection on walls for normal maps.
+
 These meshes are runtime data, not serialized scene components. Recreate them
 from game-owned data after scene reload. This API does not generate gameplay
 meaning, navigation graphs, or scene JSON.
@@ -31,6 +39,12 @@ Run the headless ownership/collision validator (also discovered by
 
 ```powershell
 odin run tools/static_mesh_validation -collection:rune=rune -out:build/static_mesh_validation.exe -keep-executable
+```
+
+For GPU material, fallback color, hot reload, collision coexistence, and cleanup checks:
+
+```powershell
+odin run tools/static_mesh_material_validation -collection:rune=rune -collection:r3d=third_party/r3d-odin -- --runtime
 ```
 
 Surface extraction rejects invalid dimensions, palettes, and spacing. It is

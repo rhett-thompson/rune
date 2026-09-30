@@ -5,6 +5,7 @@
   "type": "object",
   "description": "Components attached to an entity. Custom Odin components are allowed.",
   "properties": {
+    "CloudVolume": { "$ref": "cloud-volume.schema.json" },
     "Trigger3D": {
       "type": "object", "additionalProperties": false,
       "description": "Query-only box or sphere zone. Requires Transform; boxes remain world-axis aligned. Emits events after physics.",
@@ -665,7 +666,7 @@
     "meshRenderer": {
       "type": "object",
       "properties": {
-        "primitive": { "type": "string", "enum": ["cube", "plane", "quad"], "description": "Unit cube, horizontal XZ plane, or vertical XY quad facing local +Z." },
+        "primitive": { "type": "string", "enum": ["cube", "plane", "quad", "static"], "description": "Unit cube, horizontal XZ plane, vertical XY quad facing local +Z, or runtime geometry installed with ecs.set_static_mesh." },
         "color": { "$ref": "#/$defs/color" },
         "material": { "type": "string", "minLength": 1 },
         "shadows": { "type": "boolean", "default": true }

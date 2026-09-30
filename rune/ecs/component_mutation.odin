@@ -6,6 +6,7 @@ import "rune:particles"
 // These constraints are shared by JSON readers and typed setters. Keep checks
 // on hot gameplay paths scalar: no JSON serialization or scratch allocation.
 component_value_valid :: proc(value: $T) -> bool {
+	when T == CloudVolume {return cloud_volume_valid(value)}
 	when T == Trigger3D {return trigger_3d_valid(value)}
 	when T == Interactable3D || T == Interactor3D {return interaction_component_3d_valid(value)}
 	when T == NavMesh3D {return value.asset!=""}
@@ -95,6 +96,9 @@ commit_component_value :: proc(
 ) {
 	previous, existed := storage^[entity]
 	stored_value := value
+	when T == PostProcessing {
+		stored_value.light_shafts.source = retain_scene_string(world,value.light_shafts.source)
+	}
 	when T == Terrain {
 		stored_value.asset = retain_scene_string(world,value.asset)
 		if !existed || previous.collision != value.collision || previous.friction != value.friction {physics_3d_remove_entity(world,entity)}
