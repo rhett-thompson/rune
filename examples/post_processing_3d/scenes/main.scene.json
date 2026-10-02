@@ -17,6 +17,12 @@
             "mode": "aces",
             "exposure": 1
           },
+          "film_grain": {
+            "enabled": true,
+            "intensity": 0.02,
+            "size": 1,
+            "speed": 24
+          },
           "ssao": {
             "enabled": true,
             "radius": 1.5,

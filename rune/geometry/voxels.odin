@@ -39,36 +39,49 @@ fill_box :: proc(volume: Volume, low, high: [3]int, value: u8) {
 	}
 }
 
-surface :: proc(volume: Volume, colors: [] [4]u8) -> (Mesh, bool) {
-	if !(volume.spacing > 0 && volume.spacing <= 1e6) {return {},false}
+@(private="package")
+surface_bounds :: proc(volume: Volume, colors: [] [4]u8) -> (low,high: [3]int, ok: bool) {
+	if !(volume.spacing > 0 && volume.spacing <= 1e6) {return {},{},false}
 	count := 1
-	for n in volume.size {if n <= 0 || n > 1024 {return {},false}; count *= n}
-	if count > 134217728 || len(volume.cells) != count {return {},false}
-	low:=volume.size
-	high:=[3]int{}
+	for n in volume.size {if n <= 0 || n > 1024 {return {},{},false}; count *= n}
+	if count > 134217728 || len(volume.cells) != count {return {},{},false}
+	low=volume.size
 	strides:=[3]int{1,volume.size[0],volume.size[0]*volume.size[1]}
 	for value,index in volume.cells {
-		if int(value)>=len(colors) {return {},false}
+		if int(value)>=len(colors) {return {},{},false}
 		if value==0 {continue}
 		p:=[3]int{index%volume.size[0],(index/volume.size[0])%volume.size[1],index/strides[2]}
 		for axis in 0..<3 {low[axis]=min(low[axis],p[axis]); high[axis]=max(high[axis],p[axis]+1)}
 	}
-	if high[0]==0 {return {},false}
+	return low,high,high[0]!=0
+}
+
+surface :: proc(volume: Volume, colors: [] [4]u8) -> (Mesh, bool) {
+	low,high,ok:=surface_bounds(volume,colors)
+	if !ok {return {},false}
+	mesh:=surface_region_unchecked(volume,colors,low,high)
+	return mesh,len(mesh.indices)>0
+}
+
+// Emit only exposed faces owned by voxels in [low, high). Neighbor samples
+// use the entire volume, so a cut through solid cells never adds internal faces.
+@(private="package")
+surface_region_unchecked :: proc(volume: Volume, colors: [] [4]u8, low,high: [3]int) -> Mesh {
 	mesh: Mesh
+	strides:=[3]int{1,volume.size[0],volume.size[0]*volume.size[1]}
 	for axis in 0..<3 {
 		u,v := (axis+1)%3,(axis+2)%3
 		w,h := high[u]-low[u],high[v]-low[v]
 		mask := make([]i16,w*h)
 		for plane in low[axis]..=high[axis] {
-			// Direct strides avoid repeated 3D bounds/index work in the dense
-			// scan. The occupied bounds guarantee empty cells outside this box.
+			// Direct strides read the one-voxel neighbor across region boundaries.
 			for j in 0..<h {
 				index:=plane*strides[axis]+low[u]*strides[u]+(j+low[v])*strides[v]
 				for i in 0..<w {
 					a,b: u8
-					if plane>low[axis] {a=volume.cells[index-strides[axis]]}
-					if plane<high[axis] {b=volume.cells[index]}
-					mask[i+j*w] = i16(a) if a != 0 && b == 0 else (-i16(b) if b != 0 && a == 0 else 0)
+					if plane>0 {a=volume.cells[index-strides[axis]]}
+					if plane<volume.size[axis] {b=volume.cells[index]}
+					mask[i+j*w] = i16(a) if a != 0 && b == 0 && plane>low[axis] else (-i16(b) if b != 0 && a == 0 && plane<high[axis] else 0)
 					index+=strides[u]
 				}
 			}
@@ -102,7 +115,7 @@ surface :: proc(volume: Volume, colors: [] [4]u8) -> (Mesh, bool) {
 		}
 		delete(mask)
 	}
-	return mesh,len(mesh.indices)>0
+	return mesh
 }
 
 valid :: proc(mesh: Mesh) -> bool {

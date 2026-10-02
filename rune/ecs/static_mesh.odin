@@ -13,8 +13,12 @@ Static_Mesh :: struct {
 	body_layers: u64,
 }
 
-set_static_mesh :: proc(world: ^World, entity: Entity, data: geometry.Mesh) -> bool {
+// Optional collision geometry lets callers simplify physics independently of
+// visible detail. Both inputs remain caller-owned; invalid replacements are atomic.
+set_static_mesh :: proc(world: ^World, entity: Entity, data: geometry.Mesh, collision: ^geometry.Mesh = nil) -> bool {
 	if !is_alive(world,entity) || !geometry.valid(data) {return false}
+	shape_data:=data
+	if collision!=nil {if !geometry.valid(collision^) {return false}; shape_data=collision^}
 	if _,ok := terrain_transform(world,entity); !ok {return false}
 	for name in ([6]string{"Terrain","RigidBody3D","BoxCollider","SphereCollider","CharacterController3D","CharacterController"}) {
 		if has_component_data(world,entity,name) {return false}
@@ -23,12 +27,12 @@ set_static_mesh :: proc(world: ^World, entity: Entity, data: geometry.Mesh) -> b
 	// split render normals/colors. Box3D copies input buffers in CreateMesh.
 	vertices := make([dynamic]b3.Vec3)
 	defer delete(vertices)
-	indices := make([]i32,len(data.indices))
+	indices := make([]i32,len(shape_data.indices))
 	defer delete(indices)
 	lookup := make(map[[3]f32]i32)
 	defer delete(lookup)
-	for index,i in data.indices {
-		p := data.vertices[index].position
+	for index,i in shape_data.indices {
+		p := shape_data.vertices[index].position
 		id,found := lookup[p]
 		if !found {id=i32(len(vertices)); lookup[p]=id; append(&vertices,b3.Vec3{p[0],p[1],p[2]})}
 		indices[i]=id

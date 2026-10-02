@@ -50,6 +50,8 @@ Context :: struct {
 	post_processing_aa:       r3d.AntiAliasingMode,
 	height_fog_shader:        ^r3d.ScreenShader,
 	height_fog_attempted:     bool,
+	film_grain_shader: ^r3d.ScreenShader,
+	film_grain_attempted: bool,
 	light_shafts_shader: ^r3d.ScreenShader,
 	light_shafts_attempted: bool,
 	// Follow the window framebuffer by default; disable for a fixed internal resolution.
@@ -126,6 +128,9 @@ shutdown :: proc(ctx: ^Context) {
 	if ctx.height_fog_shader != nil {r3d.UnloadScreenShader(ctx.height_fog_shader)}
 	ctx.height_fog_shader = nil
 	ctx.height_fog_attempted = false
+	if ctx.film_grain_shader!=nil {r3d.UnloadScreenShader(ctx.film_grain_shader)}
+	ctx.film_grain_shader=nil
+	ctx.film_grain_attempted=false
 	if ctx.light_shafts_shader!=nil {r3d.UnloadScreenShader(ctx.light_shafts_shader)}
 	ctx.light_shafts_shader=nil
 	ctx.light_shafts_attempted=false
@@ -222,8 +227,11 @@ draw_scene_ex :: proc(
 	if prepare_light_shafts(ctx,world,asset_manager,entity,camera) {chain[count]=ctx.light_shafts_shader; count+=1}
 	if prepare_height_fog(ctx, world, asset_manager, entity) {chain[count] = ctx.height_fog_shader; count += 1}
 	if count > 0 {r3d.SetScreenShaderChain(.SCENE, raw_data(chain[:]), count)}
+	grain_enabled:=prepare_film_grain(ctx,world,asset_manager,entity)
+	if grain_enabled {r3d.SetScreenShaderChain(.FINAL, &ctx.film_grain_shader, 1)}
 	r3d.End()
 	if count > 0 {r3d.SetScreenShaderChain(.SCENE, nil, 0)}
+	if grain_enabled {r3d.SetScreenShaderChain(.FINAL, nil, 0)}
 	draw_debug_overlays(world, camera, settings)
 	return true
 }

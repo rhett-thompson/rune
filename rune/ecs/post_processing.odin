@@ -11,6 +11,7 @@ PostProcessing :: struct {
 	enabled: bool,
 	anti_aliasing: Post_Anti_Aliasing,
 	bloom: Post_Bloom,
+	film_grain: Post_Film_Grain,
 	tonemap: Post_Tonemap,
 	color: Post_Color,
 	ssao: Post_SSAO,
@@ -19,6 +20,7 @@ PostProcessing :: struct {
 	ssr: Post_SSR,
 	fog: Post_Fog,
 	height_fog: Post_Height_Fog,
+	upper_height_fog: Post_Height_Fog,
 	light_shafts: Post_Light_Shafts,
 	dof: Post_DoF,
 	auto_exposure: Post_Auto_Exposure,
@@ -36,6 +38,13 @@ Post_Bloom :: struct {
 	threshold: f32,
 	soft_threshold: f32,
 	filter_radius: f32,
+}
+
+// Monochrome display-space noise after tone mapping and anti-aliasing.
+// Size is in rendered pixels; speed is pattern changes/second (zero freezes it).
+Post_Film_Grain :: struct {
+	enabled: bool,
+	intensity, size, speed: f32,
 }
 
 Post_Tonemap :: struct {
@@ -100,7 +109,8 @@ Post_Fog :: struct {
 	sky_affect: f32,
 }
 
-// Density at world Y = base_height, decreasing exponentially above it.
+// Density at world Y = base_height. height_fog decreases above it;
+// upper_height_fog increases above it. Both use nonnegative falloff.
 // Zero falloff is uniform fog; zero density disables extinction.
 Post_Height_Fog :: struct {
 	enabled: bool,
@@ -155,6 +165,7 @@ default_post_processing :: proc() -> PostProcessing {
 			exposure = 1,
 			white = 1,
 		},
+		film_grain = {intensity=0.02,size=1,speed=24},
 		color = {
 			brightness = 1,
 			contrast = 1,
@@ -206,6 +217,12 @@ default_post_processing :: proc() -> PostProcessing {
 			sky_affect = 0.5,
 		},
 		height_fog = {
+			color = {255,255,255,255},
+			density = 0.01,
+			falloff = 0.1,
+			sky_distance = 1000,
+		},
+		upper_height_fog = {
 			color = {255,255,255,255},
 			density = 0.01,
 			falloff = 0.1,
@@ -324,11 +341,16 @@ post_processing_valid :: proc(value: PostProcessing) -> bool {
 	if math.is_nan(value.fog.end) || math.is_inf(value.fog.end) || value.fog.end < 0 {return false}
 	if math.is_nan(value.fog.density) || math.is_inf(value.fog.density) || value.fog.density < 0 {return false}
 	if math.is_nan(value.fog.sky_affect) || math.is_inf(value.fog.sky_affect) || value.fog.sky_affect < 0 || value.fog.sky_affect > 1 {return false}
-	if math.is_nan(value.height_fog.base_height) || math.is_inf(value.height_fog.base_height) {return false}
-	if math.is_nan(value.height_fog.density) || math.is_inf(value.height_fog.density) || value.height_fog.density < 0 {return false}
-	if math.is_nan(value.height_fog.falloff) || math.is_inf(value.height_fog.falloff) || value.height_fog.falloff < 0 {return false}
-	if math.is_nan(value.height_fog.sky_distance) || math.is_inf(value.height_fog.sky_distance) || value.height_fog.sky_distance <= 0 {return false}
+	for fog in ([2]Post_Height_Fog{value.height_fog,value.upper_height_fog}) {
+		if math.is_nan(fog.base_height) || math.is_inf(fog.base_height) {return false}
+		if !finite_nonnegative(fog.density) || !finite_nonnegative(fog.falloff) {return false}
+		if math.is_nan(fog.sky_distance) || math.is_inf(fog.sky_distance) || fog.sky_distance <= 0 {return false}
+	}
 	shafts:=value.light_shafts
+	grain:=value.film_grain
+	if !finite_nonnegative(grain.intensity) || grain.intensity>1 {return false}
+	if !finite_nonnegative(grain.size) || grain.size<1 || grain.size>8 {return false}
+	if !finite_nonnegative(grain.speed) || grain.speed>60 {return false}
 	if shafts.enabled && shafts.source=="" {return false}
 	if !finite_nonnegative(shafts.intensity) || shafts.intensity>10 {return false}
 	if !finite_nonnegative(shafts.radius) || shafts.radius<=0 || shafts.radius>2 {return false}

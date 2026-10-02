@@ -16,6 +16,7 @@ Add a profile to a dedicated entity; no Transform is required:
     "PostProcessing": {
       "anti_aliasing": "fxaa",
       "bloom": { "mode": "additive", "intensity": 0.12, "threshold": 1 },
+      "film_grain": { "enabled": true, "intensity": 0.02 },
       "tonemap": { "mode": "aces", "exposure": 1 },
       "ssao": { "enabled": true, "radius": 1.5 },
       "color": { "saturation": 1.1 }
@@ -31,6 +32,29 @@ All fields and defaults appear in
 [`post-processing.schema.json`](../schemas/post-processing.schema.json).
 Scene saves hot reload through the normal scene loader; prefab overrides and
 runtime console inspection use the same component format.
+
+## Bloom and film grain
+
+Bloom spreads HDR highlights before tone mapping. Emissive materials feed it;
+`threshold` selects bright pixels, `soft_threshold` softens the cutoff, and
+`filter_radius` controls the blur width. Raise `intensity` for a stronger glow.
+
+`film_grain` adds fine monochrome noise after tone mapping and anti-aliasing:
+
+```json
+"film_grain": { "enabled": true, "intensity": 0.02, "size": 1, "speed": 24 }
+```
+
+It is disabled by default. Intensity is a normalized strength from 0 to 1;
+0.01–0.03 is subtle. Size is 1–8 rendered pixels. Speed is 0–60 pattern changes
+per second; zero freezes the pattern. Animation uses render time, including when
+simulation is paused. Zero intensity skips the pass. Symmetric triangular noise
+preserves neutral colors and reduces strength near black/white to retain contrast.
+
+The bridge owns the `FINAL` shader stage while grain is active, then clears it
+after the draw. Its cached shader is released at shutdown. The HUD and debug
+overlays drawn afterward are unaffected. Custom chains can use `POST` or `OUTPUT`;
+`FINAL` remains available when film grain is inactive.
 
 ## Light shafts
 
@@ -134,7 +158,32 @@ distance fog; alpha is ignored. Transparent geometry without depth writes uses
 the depth behind it. This layer provides extinction and color, not volumetric
 light scattering or bounded fog banks.
 
-The moon disk and height fog share the bridge's `SCENE` stage, with the moon
+For a second layer that thickens upward, add `upper_height_fog` to the same
+profile. It has the same fields and defaults as `height_fog`, is disabled by
+default, and can operate independently or alongside the lower layer:
+
+```json
+"upper_height_fog": {
+  "enabled": true,
+  "color": [160,188,215,255],
+  "base_height": 210,
+  "density": 0.012,
+  "falloff": 0.03,
+  "sky_distance": 1000
+}
+```
+
+Upper density follows `density * exp(falloff * (y - base_height))`.
+Keep `falloff` nonnegative; zero gives uniform fog for either layer. Base height
+is the altitude where density equals the authored value, not a hard cutoff.
+Raise it to expose more of tall structures; lower it to hide more. Each layer
+uses its own sky distance. Both integrate analytic optical depth in log space,
+avoiding overflow in dense upper/lower regions, and compose in one screen pass
+(lower first, upper second). Zero-density and disabled layers contribute nothing.
+If both are disabled or zero-density, the bridge adds no height-fog shader to
+the chain. Existing profiles keep their original lower-fog behavior.
+
+The moon disk and both height-fog layers share the bridge's `SCENE` stage, with the moon
 drawn first. The bridge clears this chain after each render and releases its
 cached shader at shutdown. Custom screen effects should use the other stages.
 
@@ -172,6 +221,7 @@ temporal history; use it on one continuous scene render path.
 | `anti_aliasing` | `disabled`, `fxaa`, `smaa` |
 | `bloom` | `disabled`, `mix`, `additive`, `screen`; intensity, threshold, soft threshold, levels, filter radius |
 | `tonemap` | `linear`, `reinhard`, `filmic`, `aces`, `agx`; exposure multiplier and white point |
+| `film_grain` | Enable, intensity 0–1, cell size 1–8 rendered pixels, animation speed 0–60 patterns/second |
 | `color` | Brightness, contrast, saturation |
 | `ssao` | Occlusion enable, sample count, intensity, power, radius, maximum screen radius, bias |
 | `ssil` | Indirect light and occlusion strengths, sampling, radius, bias |
@@ -179,6 +229,7 @@ temporal history; use it on one continuous scene render path.
 | `ssr` | Reflections enable, ray/binary steps, step size, thickness, distance, edge fade |
 | `fog` | `disabled`, `linear`, `exp2`, `exp`; RGBA color, start/end, density, sky influence |
 | `height_fog` | Enable, RGBA color, world base height, density at base, exponential falloff, sky integration distance |
+| `upper_height_fog` | Same controls as `height_fog`, with density increasing above the base height; disabled by default |
 | `dof` | Enable, focus distance/scale, near scale, maximum blur |
 | `auto_exposure` | Enable, minimum/maximum EV, EV compensation, bright/dark adaptation times |
 
@@ -220,7 +271,8 @@ Changes flow through normal component notifications and scene serialization.
 Console changes are runtime-only. Edit scene JSON to persist them.
 Custom fullscreen shader chains remain available through r3d's
 `LoadScreenShader` and stage-chain APIs. The bridge reserves `SCENE` while
-drawing its moon and height fog; this component does not load custom shader assets.
+drawing its moon and height fog, and `FINAL` while film grain is active; this
+component does not load custom shader assets.
 
 ## Example and checks
 
@@ -241,5 +293,7 @@ Left-drag orbits the camera. Edit
 Glowing material JSON files demonstrate emission feeding bloom.
 
 `pwsh -NoProfile -File tools/validate.ps1 -AllExamples` includes headless
-post-processing validation. Adding `-Runtime` exercises r3d effect rendering
-and baseline restoration. Linux runtime validation requires a desktop or Xvfb.
+post-processing validation. Adding `-Runtime` exercises r3d effect rendering,
+baseline restoration, and grain's monochrome pixel variation, animation, frozen
+pattern, pixel size after AA, and cleanup on toggles/removal. Linux runtime
+validation requires a desktop or Xvfb.
