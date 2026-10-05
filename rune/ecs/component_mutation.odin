@@ -2,10 +2,14 @@ package ecs
 
 import "core:math"
 import "rune:particles"
+import "rune:shadows"
 
 // These constraints are shared by JSON readers and typed setters. Keep checks
 // on hot gameplay paths scalar: no JSON serialization or scratch allocation.
 component_value_valid :: proc(value: $T) -> bool {
+	when T == DirectionalLight || T == PointLight || T == SpotLight {
+		return shadows.overrides_valid(value.shadow_overrides)
+	}
 	when T == CloudVolume {return cloud_volume_valid(value)}
 	when T == Trigger3D {return trigger_3d_valid(value)}
 	when T == Interactable3D || T == Interactor3D {return interaction_component_3d_valid(value)}
@@ -96,6 +100,12 @@ commit_component_value :: proc(
 ) {
 	previous, existed := storage^[entity]
 	stored_value := value
+	when T == DirectionalLight || T == PointLight || T == SpotLight {
+		stored_value.shadow_profile = retain_scene_string(world,value.shadow_profile)
+		if mode,ok:=value.shadow_overrides.update_mode.(string); ok {
+			stored_value.shadow_overrides.update_mode=retain_scene_string(world,mode)
+		}
+	}
 	when T == PostProcessing {
 		stored_value.light_shafts.source = retain_scene_string(world,value.light_shafts.source)
 	}

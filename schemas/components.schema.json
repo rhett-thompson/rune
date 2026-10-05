@@ -721,7 +721,10 @@
         "shadow_softness": { "type": "number", "minimum": 0, "default": 0 },
         "shadow_opacity": { "type": "number", "minimum": 0, "default": 1 },
         "shadow_depth_bias": { "type": "number", "minimum": 0, "default": 0 },
-        "shadow_slope_bias": { "type": "number", "minimum": 0, "default": 0 }
+        "shadow_slope_bias": { "type": "number", "minimum": 0, "default": 0 },
+        "shadow_profile": { "type": "string", "default": "", "description": "Project-relative shadow profile path; overrides legacy flat shadow fields when nonempty." },
+        "shadow_overrides": { "$ref": "shadow-profile.schema.json#/$defs/overrides" },
+        "shadows_disabled": { "type": "boolean", "default": false, "description": "Disable switch that preserves the profile and its overrides." }
       },
       "additionalProperties": false
     },
@@ -736,7 +739,10 @@
         "shadow_softness": { "type": "number", "minimum": 0, "default": 0 },
         "shadow_opacity": { "type": "number", "minimum": 0, "default": 1 },
         "shadow_depth_bias": { "type": "number", "minimum": 0, "default": 0 },
-        "shadow_slope_bias": { "type": "number", "minimum": 0, "default": 0 }
+        "shadow_slope_bias": { "type": "number", "minimum": 0, "default": 0 },
+        "shadow_profile": { "type": "string", "default": "", "description": "Project-relative shadow profile path; overrides legacy flat shadow fields when nonempty." },
+        "shadow_overrides": { "$ref": "shadow-profile.schema.json#/$defs/overrides" },
+        "shadows_disabled": { "type": "boolean", "default": false, "description": "Disable switch that preserves the profile and its overrides." }
       },
       "additionalProperties": false
     },
@@ -754,7 +760,10 @@
         "shadow_softness": { "type": "number", "minimum": 0, "default": 0 },
         "shadow_opacity": { "type": "number", "minimum": 0, "default": 1 },
         "shadow_depth_bias": { "type": "number", "minimum": 0, "default": 0 },
-        "shadow_slope_bias": { "type": "number", "minimum": 0, "default": 0 }
+        "shadow_slope_bias": { "type": "number", "minimum": 0, "default": 0 },
+        "shadow_profile": { "type": "string", "default": "", "description": "Project-relative shadow profile path; overrides legacy flat shadow fields when nonempty." },
+        "shadow_overrides": { "$ref": "shadow-profile.schema.json#/$defs/overrides" },
+        "shadows_disabled": { "type": "boolean", "default": false, "description": "Disable switch that preserves the profile and its overrides." }
       },
       "additionalProperties": false
     },

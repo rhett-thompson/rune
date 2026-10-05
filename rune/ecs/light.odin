@@ -1,6 +1,7 @@
 package ecs
 
 import "core:encoding/json"
+import "rune:shadows"
 
 AmbientLight :: struct {
 	color:     Color,
@@ -8,6 +9,9 @@ AmbientLight :: struct {
 }
 
 DirectionalLight :: struct {
+	shadows_disabled: bool,
+	shadow_profile: string,
+	shadow_overrides: shadows.Overrides,
 	direction:         [3]f32,
 	color:             Color,
 	intensity:         f32,
@@ -21,6 +25,9 @@ DirectionalLight :: struct {
 }
 
 PointLight :: struct {
+	shadows_disabled: bool,
+	shadow_profile: string,
+	shadow_overrides: shadows.Overrides,
 	color:             Color,
 	intensity:         f32,
 	range:             f32,
@@ -33,6 +40,9 @@ PointLight :: struct {
 }
 
 SpotLight :: struct {
+	shadows_disabled: bool,
+	shadow_profile: string,
+	shadow_overrides: shadows.Overrides,
 	direction:         [3]f32,
 	color:             Color,
 	intensity:         f32,
@@ -97,6 +107,8 @@ directional_light_from_json :: proc(data: json.Value) -> (DirectionalLight, bool
 	) {
 		return {}, false
 	}
+	if !read_shadow_profile(object,&result.shadow_profile,&result.shadow_overrides) {return {},false}
+	if !read_shadow_gate(object,&result.shadows_disabled) {return {},false}
 	return result, true
 }
 
@@ -131,6 +143,8 @@ point_light_from_json :: proc(data: json.Value) -> (PointLight, bool) {
 	) {
 		return {}, false
 	}
+	if !read_shadow_profile(object,&result.shadow_profile,&result.shadow_overrides) {return {},false}
+	if !read_shadow_gate(object,&result.shadows_disabled) {return {},false}
 	return result, true
 }
 
@@ -179,7 +193,26 @@ spot_light_from_json :: proc(data: json.Value) -> (SpotLight, bool) {
 	) {
 		return {}, false
 	}
+	if !read_shadow_profile(object,&result.shadow_profile,&result.shadow_overrides) {return {},false}
+	if !read_shadow_gate(object,&result.shadows_disabled) {return {},false}
 	return result, true
+}
+
+read_shadow_gate :: proc(object: json.Object, disabled: ^bool) -> bool {
+	if value,found:=object["shadows_disabled"]; found {
+		b,ok:=value.(json.Boolean); if !ok {return false}; disabled^=b
+	}
+	return true
+}
+
+read_shadow_profile :: proc(object: json.Object, path: ^string, overrides: ^shadows.Overrides) -> bool {
+	if value,found:=object["shadow_profile"]; found {
+		p,ok:=value.(json.String); if !ok {return false}; path^=p
+	}
+	if value,found:=object["shadow_overrides"]; found {
+		o,ok:=shadows.overrides_from_json(value); if !ok {return false}; overrides^=o
+	}
+	return true
 }
 
 read_light_rendering_settings :: proc(

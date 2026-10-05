@@ -295,7 +295,7 @@ Sets scene ambient color and intensity for lit 3D materials. No position is need
 
 ### DirectionalLight
 
-Provides a directional 3D light. Direction is an explicit vector, independent of entity position. `range` sets the camera-centered directional shadow radius. Shadow controls apply through r3d; enable shadows on both relevant lights and shadow-casting geometry.
+Provides a directional 3D light. Direction is an explicit vector, independent of entity position. `range` sets the camera-centered directional shadow radius. Shadow controls apply through r3d; enable shadows on both relevant lights and shadow-casting geometry. All three light types accept `shadow_profile`, `shadow_overrides`, and `shadows_disabled`; see [shadow profiles](shadows.md) for precedence, update policies, and hot reload.
 
 [Guide / example](../README.md#asset-backed-3d-models) · [Implementation](../rune/ecs/light.odin)
 
@@ -311,6 +311,9 @@ Provides a directional 3D light. Direction is an explicit vector, independent of
 | `shadow_opacity` | number; ≥ 0 | `1` | Shadow opacity multiplier. |
 | `shadow_depth_bias` | number; ≥ 0 | `0` | Shadow depth bias. |
 | `shadow_slope_bias` | number; ≥ 0 | `0` | Shadow slope bias. |
+| `shadow_profile` | string | `""` | Project-relative reusable shadow profile; replaces legacy flat shadow settings when nonempty. |
+| `shadow_overrides` | object | `{}` | Optional profile settings; null inherits, false and zero override. See [shadow profiles](shadows.md). |
+| `shadows_disabled` | boolean | `false` | Independent disable switch that preserves profile and overrides. |
 
 ### PointLight
 
@@ -329,6 +332,9 @@ Provides a local omnidirectional light at the entity transform position. Range i
 | `shadow_opacity` | number; ≥ 0 | `1` | Shadow opacity multiplier. |
 | `shadow_depth_bias` | number; ≥ 0 | `0` | Shadow depth bias. |
 | `shadow_slope_bias` | number; ≥ 0 | `0` | Shadow slope bias. |
+| `shadow_profile` | string | `""` | Project-relative reusable shadow profile; replaces legacy flat shadow settings when nonempty. |
+| `shadow_overrides` | object | `{}` | Optional profile settings; null inherits, false and zero override. See [shadow profiles](shadows.md). |
+| `shadows_disabled` | boolean | `false` | Independent disable switch that preserves profile and overrides. |
 
 ### SpotLight
 
@@ -350,6 +356,9 @@ Provides a cone light at the entity transform position with an explicit directio
 | `shadow_opacity` | number; ≥ 0 | `1` | Shadow opacity multiplier. |
 | `shadow_depth_bias` | number; ≥ 0 | `0` | Shadow depth bias. |
 | `shadow_slope_bias` | number; ≥ 0 | `0` | Shadow slope bias. |
+| `shadow_profile` | string | `""` | Project-relative reusable shadow profile; replaces legacy flat shadow settings when nonempty. |
+| `shadow_overrides` | object | `{}` | Optional profile settings; null inherits, false and zero override. See [shadow profiles](shadows.md). |
+| `shadows_disabled` | boolean | `false` | Independent disable switch that preserves profile and overrides. |
 
 ### Skybox
 

@@ -63,6 +63,7 @@ Material_Asset :: struct {
 
 // Asset paths are the first asset identifiers. Stable IDs can be layered on later.
 Asset_Manager :: struct {
+	shadow_profiles: map[string]Shadow_Profile_Asset,
 	navmeshes:                map[string]NavMesh_Asset,
 	root:                     string,
 	textures:                 map[string]Texture_Asset,
@@ -1083,6 +1084,7 @@ shutdown :: proc(manager: ^Asset_Manager) {
 	delete(manager.models)
 	shutdown_terrains(manager)
 	shutdown_navmeshes(manager)
+	delete(manager.shadow_profiles)
 	delete(manager.skyboxes)
 	delete(manager.fonts)
 	delete(manager.materials)

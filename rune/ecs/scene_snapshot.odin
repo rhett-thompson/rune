@@ -691,6 +691,11 @@ rehome_builtin_strings :: proc(world, snapshot: ^World) {
 }
 
 json_values_equal :: proc(left, right: json.Value) -> bool {
+	// JSON null is a distinct variant, while an empty Value union is also nil.
+	// Optional component settings can round-trip through either representation.
+	if json_value_is_nil(left) || json_value_is_nil(right) {
+		return json_value_is_nil(left) && json_value_is_nil(right)
+	}
 	#partial switch left_value in left {
 	case nil:
 		return json_value_is_nil(right)
@@ -728,9 +733,11 @@ json_values_equal :: proc(left, right: json.Value) -> bool {
 }
 
 json_value_is_nil :: proc(value: json.Value) -> bool {
-	#partial switch _ in value {
+	#partial switch v in value {
 	case nil:
 		return true
+	case json.Null:
+		return v==nil
 	}
 	return false
 }

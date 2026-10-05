@@ -5,6 +5,7 @@ import "core:strings"
 import r3d "r3d:r3d"
 import "rune:assets"
 import "rune:ecs"
+import "rune:shadows"
 import rl "vendor:raylib"
 
 Scene3D_Settings :: struct {
@@ -34,6 +35,10 @@ R3D_Material_Asset :: struct {
 }
 
 Context :: struct {
+	// Master switch; does not mutate any authored light or profile settings.
+	shadows_disabled: bool,
+	scene_shadow_defaults: map[ecs.Entity]shadows.Settings,
+	scene_shadow_settings: map[ecs.Entity]shadows.Settings,
 	cloud_volumes: Cloud_Volume_Renderer,
 	static_meshes: map[ecs.Entity]Static_Mesh_Cache,
 	static_mesh_generation: u32,
@@ -83,6 +88,8 @@ init :: proc(root: string, width, height: i32) -> (Context, bool) {
 	if !r3d.Init(width, height) {return {}, false}
 	r3d.SetAntiAliasingMode(.FXAA)
 	result := Context {
+		scene_shadow_defaults = make(map[ecs.Entity]shadows.Settings),
+		scene_shadow_settings = make(map[ecs.Entity]shadows.Settings),
 		static_meshes = make(map[ecs.Entity]Static_Mesh_Cache),
 		terrain_layers = make(map[string]Terrain_Layer_Asset),
 		match_framebuffer = true,
@@ -156,6 +163,8 @@ shutdown :: proc(ctx: ^Context) {
 	delete(ctx.animation_sources)
 	delete(ctx.r3d_materials)
 	delete(ctx.scene_lights)
+	delete(ctx.scene_shadow_defaults)
+	delete(ctx.scene_shadow_settings)
 	destroy_retained_paths(ctx)
 	r3d.Close()
 	ctx^ = {}
@@ -207,7 +216,7 @@ draw_scene_ex :: proc(
 	apply_background(settings)
 	apply_skybox(ctx, world, asset_manager, entity)
 	apply_ambient(world)
-	create_scene_lights(ctx, world)
+	create_scene_lights(ctx, world, asset_manager)
 
 	r3d.Begin(camera)
 	prepare_cloud_volumes(ctx,world,asset_manager,camera)
@@ -370,7 +379,7 @@ apply_ambient :: proc(world: ^ecs.World) {
 	env.ambient.energy = energy
 }
 
-create_scene_lights :: proc(ctx: ^Context, world: ^ecs.World) {
+create_scene_lights :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.Asset_Manager = nil) {
 	for entity, light in ctx.scene_lights {
 		if !ecs.is_alive(world, entity) ||
 		   (!ecs.has_component_data(world, entity, "DirectionalLight") &&
@@ -378,6 +387,8 @@ create_scene_lights :: proc(ctx: ^Context, world: ^ecs.World) {
 		    !ecs.has_component_data(world, entity, "SpotLight")) {
 			if r3d.IsLightExist(light) {r3d.DestroyLight(light)}
 			delete_key(&ctx.scene_lights, entity)
+			delete_key(&ctx.scene_shadow_defaults, entity)
+			delete_key(&ctx.scene_shadow_settings, entity)
 			continue
 		}
 		r3d.SetLightActive(light, false)
@@ -393,14 +404,7 @@ create_scene_lights :: proc(ctx: ^Context, world: ^ecs.World) {
 		r3d.SetLightRange(id, light.range)
 		r3d.SetLightSpecular(id, light.specular)
 		r3d.SetLightActive(id, true)
-		apply_shadow_settings(
-			id,
-			light.shadows,
-			light.shadow_softness,
-			light.shadow_opacity,
-			light.shadow_depth_bias,
-			light.shadow_slope_bias,
-		)
+		sync_light_shadows(ctx,manager,entity,id,light)
 	}
 	for entity in ecs.entities_with_component(world, "PointLight") {
 		light, has_light := ecs.get_point_light(world, entity)
@@ -414,14 +418,7 @@ create_scene_lights :: proc(ctx: ^Context, world: ^ecs.World) {
 		r3d.SetLightRange(id, light.range)
 		r3d.SetLightSpecular(id, light.specular)
 		r3d.SetLightActive(id, true)
-		apply_shadow_settings(
-			id,
-			light.shadows,
-			light.shadow_softness,
-			light.shadow_opacity,
-			light.shadow_depth_bias,
-			light.shadow_slope_bias,
-		)
+		sync_light_shadows(ctx,manager,entity,id,light)
 	}
 	for entity in ecs.entities_with_component(world, "SpotLight") {
 		light, has_light := ecs.get_spot_light(world, entity)
@@ -435,14 +432,7 @@ create_scene_lights :: proc(ctx: ^Context, world: ^ecs.World) {
 		r3d.SetLightRange(id, light.range)
 		r3d.SetLightSpecular(id, light.specular)
 		r3d.SetLightActive(id, true)
-		apply_shadow_settings(
-			id,
-			light.shadows,
-			light.shadow_softness,
-			light.shadow_opacity,
-			light.shadow_depth_bias,
-			light.shadow_slope_bias,
-		)
+		sync_light_shadows(ctx,manager,entity,id,light)
 	}
 }
 
@@ -456,27 +446,10 @@ scene_light :: proc(ctx: ^Context, entity: ecs.Entity, light_type: r3d.LightType
 		}
 	}
 	id := r3d.CreateLight(light_type)
+	delete_key(&ctx.scene_shadow_settings, entity)
+	ctx.scene_shadow_defaults[entity] = native_shadow_defaults(id)
 	ctx.scene_lights[entity] = id
 	return id
-}
-
-apply_shadow_settings :: proc(
-	id: r3d.Light,
-	enabled: bool,
-	softness, opacity, depth_bias, slope_bias: f32,
-) {
-	if !enabled {return}
-	r3d.EnableShadow(id)
-	r3d.SetShadowOpacity(id, opacity)
-	if softness > 0 {
-		r3d.SetShadowSoftness(id, softness)
-	}
-	if depth_bias > 0 {
-		r3d.SetShadowDepthBias(id, depth_bias)
-	}
-	if slope_bias > 0 {
-		r3d.SetShadowSlopeBias(id, slope_bias)
-	}
 }
 
 destroy_scene_lights :: proc(ctx: ^Context) {
@@ -485,6 +458,8 @@ destroy_scene_lights :: proc(ctx: ^Context) {
 			r3d.DestroyLight(light)
 		}
 		delete_key(&ctx.scene_lights, entity)
+		delete_key(&ctx.scene_shadow_defaults, entity)
+		delete_key(&ctx.scene_shadow_settings, entity)
 	}
 }
 

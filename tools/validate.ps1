@@ -15,6 +15,7 @@ $executableSuffix = if ($IsWindows) { '.exe' } else { '' }
 $runtimeValidators = @(
 	'static_mesh_material_validation',
 	'light_shafts_validation',
+	'light_shadow_validation',
 	'cloud_volume_validation',
 	'billboard_validation',
 	'procedural_material_validation',
@@ -57,7 +58,7 @@ try {
 
     Get-ChildItem "tools" -Directory | Sort-Object Name | ForEach-Object {
         $collections = @()
-        if ($_.Name -in @("static_mesh_material_validation", "light_shafts_validation", "cloud_volume_validation", "billboard_validation", "procedural_material_validation", "terrain_validation", "skybox_validation", "post_processing_validation", "r3d_cache_validation", "model_animation_validation")) {
+        if ($_.Name -in @("static_mesh_material_validation", "light_shafts_validation", "light_shadow_validation", "cloud_volume_validation", "billboard_validation", "procedural_material_validation", "terrain_validation", "skybox_validation", "post_processing_validation", "r3d_cache_validation", "model_animation_validation")) {
             $collections += "-collection:r3d=third_party/r3d-odin"
         }
         Invoke-OdinBuild -Name $_.Name -Package $_.FullName -Collections $collections | Out-Null

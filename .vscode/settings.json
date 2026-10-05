@@ -1,5 +1,6 @@
 {
   "json.schemas": [
+    { "fileMatch": ["**/*.shadow.json"], "url": "./schemas/shadow-profile.schema.json" },
     {"fileMatch":["**/*.model-events.json"],"url":"./schemas/model-events.schema.json"},
     {"fileMatch":["**/*.navbake.json"],"url":"./schemas/navbake.schema.json"},
     {"fileMatch":["**/*.navmesh.json"],"url":"./schemas/navmesh.schema.json"},

@@ -12,6 +12,7 @@ import "rune:ecs"
 import "rune:prefab"
 import "rune:terrain"
 import "rune:navigation"
+import "rune:shadows"
 
 // Diagnostic describes one authoring problem. `path` is a JSON-style field
 // path, so the same report can later be shown by command-line tools or an
@@ -409,6 +410,20 @@ validate_components :: proc(
 	for name, value in components {
 		component, ok := value.(json.Object)
 		if !ok {add(report, file, field_path(path, name), "component data must be an object"); continue}
+		if name=="DirectionalLight" || name=="PointLight" || name=="SpotLight" {
+			valid:bool
+			switch name {
+			case "DirectionalLight": _,valid=ecs.directional_light_from_json(value)
+			case "PointLight": _,valid=ecs.point_light_from_json(value)
+			case "SpotLight": _,valid=ecs.spot_light_from_json(value)
+			}
+			if !valid {add(report,file,field_path(path,name),"invalid light or shadow overrides (see docs/shadows.md)")}
+			if profile,found:=component["shadow_profile"].(json.String); found && profile!="" && project_directory!="" {
+				profile_path:=path_from(report,project_directory,profile)
+				data,read:=read_json_object(profile_path,report)
+				if read {if _,valid:=shadows.from_json(data); !valid {add(report,profile_path,"$","invalid shadow profile (see docs/shadows.md)")}}
+			}
+		}
 		if name == "PostProcessing" {
 			if _, valid := ecs.post_processing_from_json(value); !valid {
 				add(report, file, field_path(path, name), "invalid post-processing profile: check effect fields, lowercase modes, finite ranges, fog end > start, and max_ev >= min_ev (see docs/post-processing.md)")

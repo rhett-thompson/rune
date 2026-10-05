@@ -191,7 +191,7 @@ set_directional_light :: proc(
 	entity: Entity,
 	value: DirectionalLight,
 ) -> bool {
-	if !has_component_data(world, entity, "DirectionalLight") {return false}
+	if !has_component_data(world, entity, "DirectionalLight") || !component_value_valid(value) {return false}
 	commit_component_value(world, entity, "DirectionalLight", &world.directional_lights, value)
 	return true
 }
@@ -204,7 +204,7 @@ set_point_light :: proc(
 	entity: Entity,
 	value: PointLight,
 ) -> bool {
-	if !has_component_data(world, entity, "PointLight") {return false}
+	if !has_component_data(world, entity, "PointLight") || !component_value_valid(value) {return false}
 	commit_component_value(world, entity, "PointLight", &world.point_lights, value)
 	return true
 }
@@ -217,7 +217,7 @@ set_spot_light :: proc(
 	entity: Entity,
 	value: SpotLight,
 ) -> bool {
-	if !has_component_data(world, entity, "SpotLight") {return false}
+	if !has_component_data(world, entity, "SpotLight") || !component_value_valid(value) {return false}
 	commit_component_value(world, entity, "SpotLight", &world.spot_lights, value)
 	return true
 }

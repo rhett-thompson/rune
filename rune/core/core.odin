@@ -34,6 +34,7 @@ Window_Settings :: struct {
 }
 
 Hot_Reload_Settings :: struct {
+	shadow_profiles: bool,
 	navmeshes:        bool,
 	enabled:          bool,
 	poll_interval_ms: i32,
@@ -49,6 +50,7 @@ Hot_Reload_Settings :: struct {
 
 default_hot_reload_settings :: proc() -> Hot_Reload_Settings {
 	return Hot_Reload_Settings {
+		shadow_profiles = true,
 		navmeshes = true,
 		enabled = true,
 		poll_interval_ms = 250,
@@ -797,6 +799,9 @@ begin_frame :: proc(engine: ^Engine) {
 	}
 	engine.frame_delta_time = engine.delta_time
 	engine.hot_reload_due = hot_reload_poll_due(engine)
+	if engine.hot_reload_due && engine.project.hot_reload.enabled && engine.project.hot_reload.shadow_profiles {
+		assets.refresh_shadow_profiles(&engine.assets)
+	}
 	if engine.hot_reload_due &&
 	   engine.project.hot_reload.enabled &&
 	   engine.project.hot_reload.textures {

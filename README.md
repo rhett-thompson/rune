@@ -29,6 +29,8 @@ their JSON fields and defaults, dependencies, runtime behavior, and linked guide
 
 ## Current capabilities
 
+- [Shadow profiles](docs/shadows.md): reusable per-light shadow settings, overrides, update policies, hot reload, and global disabling.
+
 - [Procedural materials](docs/procedural-materials.md): seamless noise-generated color, bump, and roughness maps with seed, scale, detail, and color controls. Try [Procedural Materials 3D](examples/procedural_material_3d/README.md).
 
 - [Skeletal animation events](docs/model-animation-events.md): reusable JSON marker tracks, reverse playback, silent seeks, and destination-clip events during blends. The skeletal example includes marker-driven sounds and effects.

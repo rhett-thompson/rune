@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Rune shadow profile",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string" },
+    "enabled": { "type": "boolean", "default": true },
+    "softness": { "type": "number", "minimum": 0, "default": 1 },
+    "opacity": { "type": "number", "minimum": 0, "maximum": 1, "default": 1 },
+    "depth_bias": { "type": "number", "minimum": 0, "default": 0.005 },
+    "slope_bias": { "type": "number", "minimum": 0, "default": 0.01 },
+    "update_mode": { "type": "string", "enum": ["continuous", "interval", "manual"], "default": "continuous" },
+    "interval_ms": { "type": "integer", "minimum": 1, "maximum": 2147483647, "default": 250 }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "overrides": {
+      "type": "object",
+      "description": "Absent or null values inherit the profile (or legacy light settings); false and zero explicitly override it.",
+      "properties": {
+        "enabled": { "type": ["boolean", "null"] },
+        "softness": { "type": ["number", "null"], "minimum": 0 },
+        "opacity": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "depth_bias": { "type": ["number", "null"], "minimum": 0 },
+        "slope_bias": { "type": ["number", "null"], "minimum": 0 },
+        "update_mode": { "enum": ["continuous", "interval", "manual", null] },
+        "interval_ms": { "type": ["integer", "null"], "minimum": 1, "maximum": 2147483647 }
+      },
+      "additionalProperties": false
+    }
+  }
+}

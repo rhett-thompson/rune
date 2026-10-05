@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:strings"
 
 Asset_Kind :: enum {
+	ShadowProfile,
 	NavMesh,
 	Texture,
 	Font,
@@ -172,6 +173,7 @@ diagnostic_key :: proc(source_path, field, asset_path: string) -> string {
 
 asset_kind_name :: proc(kind: Asset_Kind) -> string {
 	switch kind {
+	case .ShadowProfile: return "shadow_profile"
 	case .NavMesh: return "navmesh"
 	case .Texture:
 		return "texture"
