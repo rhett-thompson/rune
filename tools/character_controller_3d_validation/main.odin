@@ -263,5 +263,6 @@ main :: proc() {
 	validate_lifecycle(&r)
 	validate_push(&r)
 	validate_gravity_frames(&r)
+	validate_free_motion(&r)
 	fmt.println("CharacterController3D validation passed")
 }

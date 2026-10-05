@@ -56,6 +56,17 @@ main :: proc() {
 	hit,found=ecs.physics_3d_raycast(&world,{0,4,0},{0,-5,0}); assert(found && math.abs(hit.point[1]-3)<0.001,"native collision owns a copy")
 	assert(!ecs.set_static_mesh(&world,entity,mesh,&bad),"invalid collision replacement rejected")
 	hit,found=ecs.physics_3d_raycast(&world,{0,4,0},{0,-5,0}); assert(found && math.abs(hit.point[1]-3)<0.001,"failed collision replacement retains old body")
+	// Surface dressing uses the same render resource ownership without physics.
+	assert(ecs.set_static_mesh(&world,entity,mesh,collidable=false))
+	assert(world.static_meshes[entity].mesh==nil && len(world.static_meshes[entity].data.indices)>0)
+	_,found=ecs.physics_3d_raycast(&world,{0,4,0},{0,-5,0},{layers=~u64(0),ignore=actor}); assert(!found,"render-only replacement removes previous collision")
+	assert(!ecs.set_static_mesh(&world,entity,bad,collidable=false),"invalid render-only replacement rejected")
+	assert(!ecs.set_static_mesh(&world,entity,mesh,&collision,collidable=false),"conflicting collision options rejected")
+	assert(ecs.set_enabled(&world,entity,false) && ecs.set_enabled(&world,entity,true))
+	_,found=ecs.physics_3d_raycast(&world,{0,4,0},{0,-5,0},{layers=~u64(0),ignore=actor}); assert(!found,"activation does not create a render-only body")
+	assert(ecs.set_static_mesh(&world,entity,mesh))
+	hit,found=ecs.physics_3d_raycast(&world,{0,4,0},{0,-5,0},{layers=~u64(0),ignore=actor}); assert(found && math.abs(hit.point[1]-2)<0.001,"collision can be restored")
+	assert(ecs.set_static_mesh(&world,entity,mesh,collidable=false))
 	// CPU data is copied; later caller edits never alter the installed mesh.
 	mesh.vertices[0].position[0]=99
 	assert(world.static_meshes[entity].data.vertices[0].position[0]!=99)

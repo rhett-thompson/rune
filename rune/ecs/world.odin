@@ -84,6 +84,7 @@ World :: struct {
 	children_by_parent:          map[Entity][dynamic]Entity,
 	hierarchy_dirty:             bool,
 	scene_json:                  json.Value,
+	scene_source:                Scene_Source,
 	component_data:              map[string]map[Entity]json.Value,
 	component_instance_data:     map[string]map[Component_Instance]json.Value,
 	typed_component_data:        map[string]map[Entity]any,
@@ -248,6 +249,7 @@ init :: proc() -> World {
 // straightforward.
 destroy :: proc(world: ^World) {
 	if world == nil {return}
+	destroy_scene_source(&world.scene_source)
 	destroy_navigation_3d(world)
 	destroy_triggers_3d(world)
 	for _, &state in world.particle_states_2d {particles.destroy(&state)}

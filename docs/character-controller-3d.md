@@ -86,6 +86,19 @@ for defaults; no bob is applied to the motor or collider.
 
 ## Movement behavior
 
+### Free motion
+
+`ecs.character_controller_3d_set_free_motion(world, player, true, velocity)`
+switches to unrestricted world-space velocity in units per second. Fixed steps
+move the feet without collision, gravity, ground snapping, or support carry.
+Pass zero velocity to hover; games own flight input and speed. Camera interpolation
+still uses `previous_position`. Walking configuration is retained unchanged.
+
+Pass `false` to resume the normal motor. Mode changes clear momentum, support,
+posture, and jump buffers. The runtime `free_motion` flag and velocity persist
+until replaced, and reset on teleport, disable, component removal, or shutdown.
+The entity remains enabled for rendering, audio, interactions, and triggers.
+
 ### Planetary gravity
 
 Use `ecs.character_controller_3d_move_on_plane(world, player, direction, up, sprint)`

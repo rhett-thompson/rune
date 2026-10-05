@@ -596,8 +596,12 @@ dependent; raylib falls back when the requested framebuffer cannot be created.
 
 Each project must point `input` at an input mapping JSON file. The engine loads
 and validates it during `rune.init`, then samples its bindings before every
-`on_update` callback. Actions support one or more keyboard or gamepad-button
-bindings; axes combine two named actions into a signed value.
+`on_update` callback. Actions support one or more keyboard, mouse-button, or
+gamepad-button bindings; axes combine two named actions into a signed value
+or sample mouse movement and gamepad axes. Action edges follow the combined
+held state, so releasing a button on one device while another still holds
+the action does not release it. Disconnecting a held controller releases its
+actions when no other binding remains held.
 
 ```json
 {
@@ -658,6 +662,23 @@ Mouse motion can be exposed as an axis using `"type": "mouse_delta"` and
 current frame; optional `scale` and `invert` fields may be provided. For
 example, `{ "type": "mouse_delta", "axis": "y", "invert": true }`
 reverses vertical mouse movement.
+
+Analog gamepad axes use `"type": "gamepad_axis"`, an axis name (`LEFT_X`,
+`LEFT_Y`, `RIGHT_X`, `RIGHT_Y`, `LEFT_TRIGGER`, or `RIGHT_TRIGGER`), and an
+optional `gamepad` slot (default 0). For example:
+
+```json
+"pad_move_z": { "type": "gamepad_axis", "axis": "LEFT_Y", "invert": true, "deadzone": 0.18 }
+```
+
+Values are signed and bounded to `[-1, 1]` before optional `scale` and `invert`.
+`deadzone` defaults to 0 and must be in `[0, 1)`; values inside it become zero
+and the remaining range is rescaled to retain full deflection. Trigger axes
+retain the platform's signed range. Unavailable devices return zero and are
+checked every frame, allowing reconnects. `input.capture` gates these axes
+along with ordinary actions. Use separate mouse and stick look axes: mouse
+values are frame displacements, while stick look should be multiplied by
+degrees per second and frame time in game code.
 
 Mouse-wheel input is available as `{ "type": "mouse_wheel" }`; it returns
 the wheel movement sampled for the current frame and also supports `scale` and
@@ -906,6 +927,14 @@ it does not draw a `MeshRenderer`/`SphereRenderer` itself.
 r3d_bridge.draw_scene_ex(&bridge, &world, rune.asset_manager(game), scene_view)
 ```
 
+For inspection tools, `r3d_bridge.scene_raycast(&world, origin, translation,
+ignore_entity, &bridge)` returns the closest rendered entity, world hit point,
+and distance along a bounded ray segment. It supports cube, plane, quad, and
+sphere primitives plus runtime static meshes, including render-only decals.
+The optional bridge supplies cached mesh bounds; the query also works without
+GPU initialization. It follows the rendered hierarchy and enabled state.
+Model assets, terrain, shader transparency, and volumes are outside this query.
+
 `MeshRenderer` draws `cube`, horizontal `plane`, and vertical `quad` primitives
 through r3d; `SphereRenderer` draws a sphere. `SpriteRenderer` loads a project-relative texture path
 through the asset cache and is drawn automatically through the active
@@ -1052,8 +1081,12 @@ The normal engine-owned `rune.run(&game)`
 workflow watches the active scene automatically. Component-value-only edits
 are applied to the existing World; structural edits rebuild it and invoke each
 system's `on_scene_reloaded` callback so cached entity handles can be
-reacquired. Preserving handles requires the same non-empty entity IDs, parent
-relationships, and component memberships in the running World and loaded scene.
+reacquired. Scene-loaded Worlds track the authored entity IDs, parent relationships,
+and component memberships separately from runtime additions. Value-only edits
+preserve generated entities, components added by game code, and runtime values
+whose authoring data has not changed. Authored entities need non-empty IDs and
+must still exist with their authored parents and components. Manually constructed
+Worlds without a captured scene baseline use the strict whole-World comparison.
 
 Layer-only edits also preserve entity handles while rebuilding affected native
 physics bodies, so the next 2D or 3D query uses the new collision filters.

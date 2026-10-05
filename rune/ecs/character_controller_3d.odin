@@ -17,6 +17,8 @@ CharacterController3D :: struct {
 
 Character_Controller_State_3D :: struct {
 	active, grounded, crouched, stand_blocked, stepped: bool,
+	// Runtime movement override; configuration remains the normal walking motor.
+	free_motion: bool,
 	velocity, ground_normal: [3]f32,
 	previous_position: [3]f32,
 	height: f32,
@@ -99,6 +101,21 @@ get_character_controller_3d_state :: proc(world: ^World, entity: Entity) -> (Cha
 	if !has_component_data(world,entity,"CharacterController3D") {return {},false}
 	return world.character_controller_states_3d[entity],true
 }
+// Enable unrestricted world-space velocity, bypassing gravity and collision.
+// Switching modes clears support, posture, jump buffers, and prior momentum.
+// Velocity persists until replaced; send zero to hover or block input.
+character_controller_3d_set_free_motion :: proc(world: ^World, entity: Entity, enabled: bool, velocity: [3]f32 = {}) -> bool {
+	if !character_controller_3d_ready(world,entity) || !physics_query_vector_valid(velocity) {return false}
+	state:=world.character_controller_states_3d[entity]
+	if state.free_motion!=enabled {
+		state={previous_position=world.transforms[entity].position,height=world.character_controllers_3d[entity].height}
+	}
+	state.free_motion=enabled
+	if enabled {state.velocity=velocity}
+	world.character_controller_states_3d[entity]=state
+	return true
+}
+
 character_controller_3d_ready :: proc(world: ^World, entity: Entity) -> bool {
 	pose, found := world.transforms[entity]
 	if !found || !has_component_data(world,entity,"CharacterController3D") || !is_enabled(world,entity) ||

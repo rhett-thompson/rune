@@ -132,8 +132,8 @@ validate_input_and_pause :: proc() {
 }
 
 validate_rendering :: proc() {
-	rl.SetConfigFlags({.WINDOW_HIDDEN})
-	rl.InitWindow(400,300,"Clay validation")
+	rl.SetConfigFlags({.WINDOW_HIDDEN,.MSAA_4X_HINT})
+	rl.InitWindow(1024,300,"Clay validation")
 	defer rl.CloseWindow()
 	ctx:ui.Context
 	assert(ui.init(&ctx))
@@ -176,6 +176,43 @@ validate_rendering :: proc() {
 	assert(rl.GetImageColor(clipped,150,50)==rl.BLACK,"outer clip remains active")
 	assert(rl.GetImageColor(clipped,80,50)==rl.Color{255,0,0,255},"outer clip is restored after inner ends")
 	assert(rl.GetImageColor(clipped,30,30)==rl.Color{0,255,0,255},"inner content draws inside clip")
+	validate_panel_fill(&ctx)
+}
+
+validate_panel_fill :: proc(ctx: ^ui.Context) {
+	// Exercise the same multisampled framebuffer as games, including fractional
+	// layout coordinates and a filtered shapes atlas.
+	shapes := rl.GetShapesTexture()
+	rl.SetTextureFilter(shapes,.BILINEAR)
+	defer rl.SetTextureFilter(shapes,.POINT)
+	for appearance in ([]ui.Element{{cornerRadius=ui.corners(4)},{}, {cornerRadius={topLeft=2.5,topRight=4.25,bottomLeft=7.75,bottomRight=12}}}) {
+		assert(ui.begin(ctx,{1024,240},{},0))
+		ui.panel(ctx,"fill_root",{layout={sizing={width=ui.grow({}),height=ui.grow({})}}})
+		ui.panel(ctx,"fill",{
+			layout={sizing={width=ui.fixed(900),height=ui.fixed(60)}},
+			floating={attachTo=.Root,offset={31.25,25.5}},
+			backgroundColor={14,22,28,235},cornerRadius=appearance.cornerRadius,
+		})
+		ui.end_panel(ctx); ui.end_panel(ctx)
+		assert(ui.finish(ctx),ui.last_error(ctx))
+		box, found := ui.bounds(ctx,"fill")
+		assert(found)
+		for _ in 0 ..< 3 {
+			rl.BeginDrawing()
+			rl.ClearBackground(rl.WHITE)
+			assert(ui.draw(ctx))
+			rl.EndDrawing()
+		}
+		image := rl.LoadImageFromScreen()
+		reference := rl.GetImageColor(image,i32(box.x+box.width/2),i32(box.y+20))
+		for y in i32(box.y+14) ..< i32(box.y+box.height-14) {
+			for x in i32(box.x+14) ..< i32(box.x+box.width-14) {
+				pixel := rl.GetImageColor(image,x,y)
+				assert(pixel==reference,"translucent panel interior must have uniform opacity without diagonal seams")
+			}
+		}
+		rl.UnloadImage(image)
+	}
 }
 
 main :: proc() {

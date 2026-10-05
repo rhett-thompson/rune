@@ -36,6 +36,14 @@ destroy either input after installation. Rays, overlaps, and character movement
 use the supplied collision surface, while the bridge draws the original mesh.
 Omitting this argument preserves the shared render/collision behavior.
 
+Use `ecs.set_static_mesh(world, entity, mesh, collidable=false)` for render-only
+surfaces. This copies and uploads the same mesh data but creates no Box3D mesh
+or body, so rays, overlaps, and character movement ignore it. Replacing a
+collidable mesh with render-only data removes the previous body; replacing it
+again with the default options restores collision. A collision mesh cannot be
+supplied together with `collidable=false`. Transform and component ownership
+restrictions still apply.
+
 The R3D bridge uploads meshes automatically when drawing a World. It owns GPU
 copies keyed by entity and revision; deletion, replacement, World changes,
 and bridge shutdown release them. World/entity destruction releases CPU and

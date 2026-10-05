@@ -58,6 +58,12 @@ character_controllers_3d_step :: proc(world:^World,dt:f32) {
 		state := world.character_controller_states_3d[entity]
 		pose := world.transforms[entity]
 		position := pose.position
+		if state.free_motion {
+			state={active=true,free_motion=true,velocity=state.velocity,previous_position=position,height=config.height}
+			pose.position+=state.velocity*dt
+			if set_transform(world,entity,pose) {world.character_controller_states_3d[entity]=state}
+			continue
+		}
 		up := state.up
 		if character_length_3d(up) < 0.0001 {up={0,1,0}}
 		query.up=up

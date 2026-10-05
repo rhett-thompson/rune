@@ -5,6 +5,7 @@ import "core:mem"
 import "core:strings"
 import clay "../../third_party/clay/clay-odin"
 import rl "vendor:raylib"
+import rlgl "vendor:raylib/rlgl"
 
 Custom_Draw_Proc :: #type proc(command: clay.RenderCommand)
 
@@ -59,8 +60,9 @@ color_to_raylib :: proc(color: Color) -> rl.Color {
 		u8(clamp(color[2], 0, 255)), u8(clamp(color[3], 0, 255))}
 }
 
-// Clay supports independent corner radii. A triangle fan preserves them without
-// relying on raylib's single-radius rounded rectangle helper.
+// Clay supports independent corner radii. Emit explicit triangles to avoid the
+// translucent MSAA seams from the fan helper's quad batching. Use the white
+// texture rather than atlas UVs.
 @(private)
 draw_box :: proc(rect: rl.Rectangle, corners: clay.CornerRadius, color: rl.Color) {
 	if rect.width <= 0 || rect.height <= 0 || color.a == 0 {return}
@@ -84,7 +86,18 @@ draw_box :: proc(rect: rl.Rectangle, corners: clay.CornerRadius, color: rl.Color
 		}
 	}
 	vertices[count] = vertices[1]
-	rl.DrawTriangleFan(raw_data(vertices[:]), i32(count+1), color)
+	rlgl.CheckRenderBatchLimit(i32((count-1)*3))
+	rlgl.SetTexture(rlgl.GetTextureIdDefault())
+	rlgl.Begin(rlgl.TRIANGLES)
+	rlgl.Color4ub(color.r, color.g, color.b, color.a)
+	rlgl.TexCoord2f(0.5,0.5)
+	for i in 1 ..< count {
+		for vertex in ([3]rl.Vector2{vertices[0],vertices[i],vertices[i+1]}) {
+			rlgl.Vertex2f(vertex.x,vertex.y)
+		}
+	}
+	rlgl.End()
+	rlgl.SetTexture(0)
 }
 
 @(private)

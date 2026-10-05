@@ -1,14 +1,15 @@
 package input
 
 import "core:encoding/json"
+import "core:math"
 import "core:mem"
 import "core:os"
 import "core:strings"
 import rl "vendor:raylib"
 
 // Action_State is sampled once per frame. An action is active when any of its
-// bindings are down; pressed and released are true if any binding transitions
-// during that frame.
+// bindings are down; edges describe the combined action, so releasing one
+// device while another holds the action does not release it.
 Action_State :: struct {
 	is_down:  bool,
 	pressed:  bool,
@@ -29,6 +30,8 @@ Axis :: struct {
 	positive: string `json:"positive,omitempty"`,
 	scale:    f32 `json:"scale,omitempty"`,
 	invert:   bool `json:"invert,omitempty"`,
+	gamepad:  i32 `json:"gamepad,omitempty"`,
+	deadzone: f32 `json:"deadzone,omitempty"`,
 }
 Mappings :: struct {
 	actions: map[string][]Binding,
@@ -133,6 +136,12 @@ validate_mappings :: proc(mappings: Mappings) -> bool {
 		}
 	}
 	for _, axis_data in mappings.axes {
+		if axis_data.type == "gamepad_axis" {
+			if !gamepad_axis_from_name(axis_data.axis).valid || axis_data.gamepad < 0 ||
+			   math.is_nan(axis_data.deadzone) || math.is_inf(axis_data.deadzone) || axis_data.deadzone < 0 || axis_data.deadzone >= 1 ||
+			   math.is_nan(axis_data.scale) || math.is_inf(axis_data.scale) {return false}
+			continue
+		}
 		if axis_data.type == "mouse_delta" {
 			if axis_data.axis != "x" && axis_data.axis != "y" {return false}
 			continue
@@ -161,7 +170,7 @@ update :: proc(input: ^Input) {
 			state.released ||= was_released
 			if down {state.strength = 1}
 		}
-		input.actions[action_name] = state
+		input.actions[action_name] = resolve_action_edges(state, input.actions[action_name])
 	}
 	mouse_delta := rl.GetMouseDelta()
 	mouse_wheel := rl.GetMouseWheelMove()
@@ -180,12 +189,56 @@ update :: proc(input: ^Input) {
 			value *= scale
 			if axis_data.invert {value = -value}
 			input.axes[axis_name] = value
+		} else if axis_data.type == "gamepad_axis" {
+			value: f32
+			if rl.IsGamepadAvailable(axis_data.gamepad) {
+				value = rl.GetGamepadAxisMovement(axis_data.gamepad, gamepad_axis_from_name(axis_data.axis).axis)
+			}
+			input.axes[axis_name] = gamepad_axis_value(value, axis_data)
 		} else {
 			value := strength(input, axis_data.positive) - strength(input, axis_data.negative)
 			if axis_data.invert {value = -value}
 			input.axes[axis_name] = value
 		}
 	}
+}
+
+resolve_action_edges :: proc(sample, previous: Action_State) -> Action_State {
+	result := sample
+	result.pressed = !previous.is_down && (sample.is_down || sample.pressed)
+	// A controller unplugged while held must release the action even if the
+	// platform does not report a button-release event.
+	result.released = !sample.is_down && (previous.is_down || sample.released)
+	return result
+}
+
+// Rescale outside the deadzone so a stick starts at zero and still reaches
+// full strength. Disconnected devices are sampled as zero each frame.
+gamepad_axis_value :: proc(raw: f32, config: Axis) -> f32 {
+	if math.is_nan(raw) || math.is_inf(raw) {return 0}
+	value := clamp(raw, -1, 1)
+	if abs(value) <= config.deadzone {return 0}
+	value = (abs(value)-config.deadzone)/(1-config.deadzone) * (-1 if value < 0 else 1)
+	if config.invert {value = -value}
+	return value * (config.scale if config.scale != 0 else 1)
+}
+
+Gamepad_Axis_Result :: struct {
+	axis: rl.GamepadAxis,
+	valid: bool,
+}
+
+gamepad_axis_from_name :: proc(name: string) -> Gamepad_Axis_Result {
+	buffer: [32]u8
+	switch uppercase_binding_name(name, buffer[:]) {
+	case "LEFT_X": return {.LEFT_X, true}
+	case "LEFT_Y": return {.LEFT_Y, true}
+	case "RIGHT_X": return {.RIGHT_X, true}
+	case "RIGHT_Y": return {.RIGHT_Y, true}
+	case "LEFT_TRIGGER": return {.LEFT_TRIGGER, true}
+	case "RIGHT_TRIGGER": return {.RIGHT_TRIGGER, true}
+	}
+	return {}
 }
 
 action :: proc(input: ^Input, name: string) -> Action_State {
@@ -259,6 +312,7 @@ binding_state :: proc(binding: Binding) -> (bool, bool, bool) {
 		), rl.IsMouseButtonPressed(button), rl.IsMouseButtonReleased(button)
 	}
 	button := button_from_name(binding.button).button
+	if !rl.IsGamepadAvailable(binding.gamepad) {return false, false, false}
 	return rl.IsGamepadButtonDown(
 		binding.gamepad,
 		button,

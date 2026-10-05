@@ -4,6 +4,82 @@ import "core:encoding/json"
 import "core:mem"
 import "core:strings"
 
+// The authored baseline is independent of entities/components added by game
+// code. JSON values also distinguish disk edits from runtime component edits.
+Scene_Source :: struct {
+	captured: bool,
+	entity_ids: map[Entity]string,
+	metadata: map[Entity]Scene_Entity_Metadata,
+	parents: map[Entity]Entity,
+	components: map[string]map[Entity]json.Value,
+	instances: map[string]map[Component_Instance]json.Value,
+}
+
+Scene_Entity_Metadata :: struct {
+	name, tag: string,
+	layer_mask: u64,
+	enabled: bool,
+}
+
+// Called after scene loading, before game code adds runtime content. Programs
+// that construct their own authoring baseline can capture it explicitly.
+capture_scene_source :: proc(world: ^World) {
+	destroy_scene_source(&world.scene_source)
+	world.scene_source = copy_scene_source(world, world, nil)
+}
+
+copy_scene_source :: proc(source, storage: ^World, translation: map[Entity]Entity) -> Scene_Source {
+	result := Scene_Source{
+		captured = true,
+		entity_ids = make(map[Entity]string), parents = make(map[Entity]Entity),
+		metadata = make(map[Entity]Scene_Entity_Metadata),
+		components = make(map[string]map[Entity]json.Value),
+		instances = make(map[string]map[Component_Instance]json.Value),
+	}
+	for entity, id in source.entity_ids {
+		target := translation[entity] if translation != nil else entity
+		result.entity_ids[target] = retain_scene_string(storage, id)
+		result.metadata[target] = {
+			name = retain_scene_string(storage, source.entity_names[entity]),
+			tag = retain_scene_string(storage, source.entity_tags[entity]),
+			layer_mask = source.layer_masks[entity],
+			enabled = is_locally_enabled(source, entity),
+		}
+		if parent, found := source.parents[entity]; found {
+			result.parents[target] = translation[parent] if translation != nil else parent
+		}
+	}
+	for name, values in source.component_data {
+		components := make(map[Entity]json.Value)
+		for entity, value in values {
+			target := translation[entity] if translation != nil else entity
+			components[target] = json.clone_value(value, scene_data_allocator(storage))
+		}
+		result.components[retain_scene_string(storage, name)] = components
+	}
+	for name, values in source.component_instance_data {
+		instances := make(map[Component_Instance]json.Value)
+		for key, value in values {
+			target := translation[key.entity] if translation != nil else key.entity
+			instances[{entity = target, name = retain_scene_string(storage, key.name)}] =
+				json.clone_value(value, scene_data_allocator(storage))
+		}
+		result.instances[retain_scene_string(storage, name)] = instances
+	}
+	return result
+}
+
+destroy_scene_source :: proc(source: ^Scene_Source) {
+	for _, values in source.components {delete(values)}
+	for _, values in source.instances {delete(values)}
+	delete(source.components)
+	delete(source.instances)
+	delete(source.entity_ids)
+	delete(source.metadata)
+	delete(source.parents)
+	source^ = {}
+}
+
 // set_scene_json stores the full root scene JSON document on the World. Scene
 // loading calls this so game code can access scene-owned global settings.
 set_scene_json :: proc(world: ^World, value: json.Value) {
@@ -25,33 +101,65 @@ retain_scene_string :: proc(world: ^World, value: string) -> string {
 // apply_value_snapshot updates metadata and component values from a freshly
 // loaded scene while preserving this World's generation and Entity handles.
 // It only accepts non-structural edits: the same non-empty scene IDs, parent
-// relationships, and component memberships must be present in both Worlds.
+// relationships, and component memberships must be present in the authored
+// baseline and new scene. Runtime additions are preserved. Manually built
+// Worlds without a captured baseline retain the strict whole-World comparison.
 apply_value_snapshot :: proc(world: ^World, snapshot: ^World) -> bool {
 	entity_translation := make(map[Entity]Entity, context.temp_allocator)
 	if !build_snapshot_entity_translation(world, snapshot, &entity_translation) {
 		return false
 	}
+	components := world.component_data
+	instances := world.component_instance_data
+	if world.scene_source.captured {
+		components = world.scene_source.components
+		instances = world.scene_source.instances
+	}
 	if !same_parent_shape(world, snapshot, entity_translation) ||
-	   !same_component_shape(world.component_data, snapshot.component_data, entity_translation) ||
+	   !same_component_shape(components, snapshot.component_data, entity_translation) ||
 	   !same_component_instance_shape(
-			   world.component_instance_data,
+			   instances,
 			   snapshot.component_instance_data,
 			   entity_translation,
 		   ) {
 		return false
 	}
+	// An authored component removed by game code cannot safely be patched.
+	for name, values in snapshot.component_data {
+		for entity in values {
+			if !has_component_data(world, entity_translation[entity], name) {return false}
+		}
+	}
+	for name, values in snapshot.component_instance_data {
+		for key in values {
+			if _, found := world.component_instance_data[name][{entity = entity_translation[key.entity], name = key.name}]; !found {return false}
+		}
+	}
 
 	for snapshot_entity, target_entity in entity_translation {
-		world.entity_names[target_entity] = snapshot.entity_names[snapshot_entity]
-		world.entity_tags[target_entity] = snapshot.entity_tags[snapshot_entity]
-		set_entity_layer_mask(world, target_entity, snapshot.layer_masks[snapshot_entity])
-		set_enabled(world, target_entity, is_locally_enabled(snapshot, snapshot_entity))
+		previous := world.scene_source.metadata[target_entity]
+		if !world.scene_source.captured || previous.name != snapshot.entity_names[snapshot_entity] {
+			world.entity_names[target_entity] = snapshot.entity_names[snapshot_entity]
+		}
+		if !world.scene_source.captured || previous.tag != snapshot.entity_tags[snapshot_entity] {
+			world.entity_tags[target_entity] = snapshot.entity_tags[snapshot_entity]
+		}
+		if !world.scene_source.captured || previous.layer_mask != snapshot.layer_masks[snapshot_entity] {
+			set_entity_layer_mask(world, target_entity, snapshot.layer_masks[snapshot_entity])
+		}
+		if !world.scene_source.captured || previous.enabled != is_locally_enabled(snapshot, snapshot_entity) {
+			set_enabled(world, target_entity, is_locally_enabled(snapshot, snapshot_entity))
+		}
 	}
 
 	apply_changed_component_values(world, snapshot, entity_translation)
 	apply_changed_component_instance_values(world, snapshot, entity_translation)
 	world.scene_json = snapshot.scene_json
-	adopt_snapshot_storage(world, snapshot, entity_translation)
+	if world.scene_source.captured {
+		destroy_scene_source(&world.scene_source)
+		world.scene_source = copy_scene_source(snapshot, snapshot, entity_translation)
+	}
+	adopt_snapshot_storage(world, snapshot)
 	return true
 }
 
@@ -60,17 +168,20 @@ build_snapshot_entity_translation :: proc(
 	snapshot: ^World,
 	result: ^map[Entity]Entity,
 ) -> bool {
-	if world.entity_count != snapshot.entity_count ||
-	   len(world.entity_ids) != len(snapshot.entity_ids) {
+	ids := world.entity_ids
+	if world.scene_source.captured {ids = world.scene_source.entity_ids}
+	if (!world.scene_source.captured && world.entity_count != snapshot.entity_count) ||
+	   len(ids) != len(snapshot.entity_ids) {
 		return false
 	}
 	for snapshot_entity, id in snapshot.entity_ids {
 		if id == "" {return false}
 		target_entity, found := world.entities_by_id[id]
 		if !found {return false}
+		if expected_id, authored := ids[target_entity]; !authored || expected_id != id {return false}
 		result^[snapshot_entity] = target_entity
 	}
-	for _, id in world.entity_ids {
+	for _, id in ids {
 		if id == "" {return false}
 		if _, found := snapshot.entities_by_id[id]; !found {return false}
 	}
@@ -89,6 +200,10 @@ same_parent_shape :: proc(
 		if snapshot_has_parent {
 			translated_parent, parent_found := entity_translation[snapshot_parent]
 			if !parent_found || translated_parent != target_parent {return false}
+		}
+		if world.scene_source.captured {
+			parent, had_parent := world.scene_source.parents[target_entity]
+			if had_parent != target_has_parent || (had_parent && parent != target_parent) {return false}
 		}
 	}
 	return true
@@ -142,7 +257,9 @@ apply_changed_component_values :: proc(
 		world_components := world.component_data[name]
 		for snapshot_entity, snapshot_value in snapshot_components {
 			target_entity := entity_translation[snapshot_entity]
-			if json_values_equal(world_components[target_entity], snapshot_value) {continue}
+			previous := world_components[target_entity]
+			if world.scene_source.captured {previous = world.scene_source.components[name][target_entity]}
+			if json_values_equal(previous, snapshot_value) {continue}
 			world_components[target_entity] = snapshot_value
 			apply_snapshot_component_value(world, snapshot, target_entity, snapshot_entity, name)
 		}
@@ -162,7 +279,9 @@ apply_changed_component_instance_values :: proc(
 				entity = entity_translation[snapshot_key.entity],
 				name   = snapshot_key.name,
 			}
-			if json_values_equal(world_instances[target_key], snapshot_value) {continue}
+			previous := world_instances[target_key]
+			if world.scene_source.captured {previous = world.scene_source.instances[name][target_key]}
+			if json_values_equal(previous, snapshot_value) {continue}
 			world_instances[target_key] = snapshot_value
 			if name == "AudioPlayer" {
 				world.audio_players[target_key] = snapshot.audio_players[snapshot_key]
@@ -346,10 +465,10 @@ destroy_tilemap_collider_storage :: proc(value: TilemapCollider) {
 	if value.solid_tiles != nil {delete(value.solid_tiles)}
 }
 
-adopt_snapshot_storage :: proc(world, snapshot: ^World, entity_translation: map[Entity]Entity) {
-	rehome_entity_metadata(world, snapshot, entity_translation)
-	rehome_component_json(world, snapshot, entity_translation)
-	rehome_component_instance_json(world, snapshot, entity_translation)
+adopt_snapshot_storage :: proc(world, snapshot: ^World) {
+	rehome_entity_metadata(world, snapshot)
+	rehome_component_json(world, snapshot)
+	rehome_component_instance_json(world, snapshot)
 	rehome_component_map_names(world, snapshot)
 	rehome_builtin_strings(world, snapshot)
 
@@ -365,15 +484,15 @@ adopt_snapshot_storage :: proc(world, snapshot: ^World, entity_translation: map[
 	}
 }
 
-rehome_entity_metadata :: proc(world, snapshot: ^World, entity_translation: map[Entity]Entity) {
+rehome_entity_metadata :: proc(world, snapshot: ^World) {
 	entity_ids := make(map[Entity]string)
 	entities_by_id := make(map[string]Entity)
 	entity_names := make(map[Entity]string)
 	entity_tags := make(map[Entity]string)
-	for snapshot_entity, target_entity in entity_translation {
-		id := retain_scene_string(snapshot, snapshot.entity_ids[snapshot_entity])
-		name := retain_scene_string(snapshot, snapshot.entity_names[snapshot_entity])
-		tag := retain_scene_string(snapshot, snapshot.entity_tags[snapshot_entity])
+	for target_entity, current_id in world.entity_ids {
+		id := retain_scene_string(snapshot, current_id)
+		name := retain_scene_string(snapshot, world.entity_names[target_entity])
+		tag := retain_scene_string(snapshot, world.entity_tags[target_entity])
 		entity_ids[target_entity] = id
 		entity_names[target_entity] = name
 		entity_tags[target_entity] = tag
@@ -389,13 +508,13 @@ rehome_entity_metadata :: proc(world, snapshot: ^World, entity_translation: map[
 	world.entity_tags = entity_tags
 }
 
-rehome_component_json :: proc(world, snapshot: ^World, entity_translation: map[Entity]Entity) {
+rehome_component_json :: proc(world, snapshot: ^World) {
 	component_data := make(map[string]map[Entity]json.Value)
-	for name, snapshot_components in snapshot.component_data {
+	for name, current_components in world.component_data {
 		owned_name := retain_scene_string(snapshot, name)
 		components := make(map[Entity]json.Value)
-		for snapshot_entity, value in snapshot_components {
-			components[entity_translation[snapshot_entity]] = value
+		for entity, value in current_components {
+			components[entity] = json.clone_value(value, scene_data_allocator(snapshot))
 		}
 		component_data[owned_name] = components
 	}
@@ -404,20 +523,17 @@ rehome_component_json :: proc(world, snapshot: ^World, entity_translation: map[E
 	world.component_data = component_data
 }
 
-rehome_component_instance_json :: proc(
-	world, snapshot: ^World,
-	entity_translation: map[Entity]Entity,
-) {
+rehome_component_instance_json :: proc(world, snapshot: ^World) {
 	instance_data := make(map[string]map[Component_Instance]json.Value)
-	for name, snapshot_instances in snapshot.component_instance_data {
+	for name, current_instances in world.component_instance_data {
 		owned_name := retain_scene_string(snapshot, name)
 		instances := make(map[Component_Instance]json.Value)
-		for snapshot_key, value in snapshot_instances {
+		for current_key, value in current_instances {
 			key := Component_Instance {
-				entity = entity_translation[snapshot_key.entity],
-				name   = retain_scene_string(snapshot, snapshot_key.name),
+				entity = current_key.entity,
+				name   = retain_scene_string(snapshot, current_key.name),
 			}
-			instances[key] = value
+			instances[key] = json.clone_value(value, scene_data_allocator(snapshot))
 		}
 		instance_data[owned_name] = instances
 	}
@@ -459,6 +575,11 @@ rehome_component_map_names :: proc(world, snapshot: ^World) {
 }
 
 rehome_builtin_strings :: proc(world, snapshot: ^World) {
+	for entity, value in world.post_processing {
+		owned := value
+		owned.light_shafts.source = retain_scene_string(snapshot, value.light_shafts.source)
+		world.post_processing[entity] = owned
+	}
 	for entity,value in world.terrains {
 		owned := value
 		owned.asset = retain_scene_string(snapshot,value.asset)

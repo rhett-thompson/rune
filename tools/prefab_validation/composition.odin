@@ -87,6 +87,7 @@ validate_composition :: proc(registry: ^ecs.Component_Registry) {
 	validate_override_order(registry)
 	validate_bad_composition(registry)
 	validate_prefab_reload(registry)
+	validate_runtime_prefab_reload(registry)
 	fmt.println("Prefab composition validation passed")
 }
 

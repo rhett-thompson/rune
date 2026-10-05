@@ -97,6 +97,20 @@
           "additionalProperties": false
         },
         {
+          "title": "Gamepad axis",
+          "type": "object",
+          "required": ["type", "axis"],
+          "properties": {
+            "type": { "const": "gamepad_axis" },
+            "axis": { "type": "string", "enum": ["LEFT_X", "LEFT_Y", "RIGHT_X", "RIGHT_Y", "LEFT_TRIGGER", "RIGHT_TRIGGER"] },
+            "gamepad": { "type": "integer", "minimum": 0, "default": 0 },
+            "deadzone": { "type": "number", "minimum": 0, "exclusiveMaximum": 1, "default": 0 },
+            "scale": { "type": "number", "default": 1 },
+            "invert": { "type": "boolean", "default": false }
+          },
+          "additionalProperties": false
+        },
+        {
           "title": "Mouse wheel axis",
           "type": "object",
           "required": ["type"],

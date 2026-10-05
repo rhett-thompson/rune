@@ -12,6 +12,7 @@ restore_file :: proc(path: string, data: []byte) {
 
 main :: proc() {
 	validate_binding_names()
+	validate_gamepad_roundtrip()
 	invalid_input_path := "build/input_validation_invalid.input.json"
 	defer os.remove(invalid_input_path)
 	missing_axes_json: string = `{"actions":{}}`
@@ -79,6 +80,20 @@ main :: proc() {
 	}
 
 	fmt.println("Input mapping validation passed")
+}
+
+validate_gamepad_roundtrip :: proc() {
+	path := "build/input_validation_gamepad.input.json"
+	defer os.remove(path)
+	document := `{"actions":{"jump":[{"type":"keyboard","key":"SPACE"},{"type":"gamepad_button","button":"A"}]},"axes":{"stick":{"type":"gamepad_axis","axis":"RIGHT_Y","gamepad":1,"deadzone":0.18,"scale":2,"invert":true}}}`
+	assert(os.write_entire_file(path,document)==nil)
+	controls,loaded:=input.load(path); assert(loaded)
+	defer input.destroy(&controls)
+	assert(input.save(&controls))
+	copy,reloaded:=input.load(path); assert(reloaded)
+	defer input.destroy(&copy)
+	assert(copy.mappings.axes["stick"]==controls.mappings.axes["stick"])
+	assert(len(copy.mappings.actions["jump"])==2,"keyboard and controller bindings survive saving")
 }
 
 validate_binding_names :: proc() {

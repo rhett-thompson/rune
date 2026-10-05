@@ -14,31 +14,36 @@ Static_Mesh :: struct {
 }
 
 // Optional collision geometry lets callers simplify physics independently of
-// visible detail. Both inputs remain caller-owned; invalid replacements are atomic.
-set_static_mesh :: proc(world: ^World, entity: Entity, data: geometry.Mesh, collision: ^geometry.Mesh = nil) -> bool {
+// visible detail. collidable=false installs only render data (e.g. surface paint).
+// Both inputs remain caller-owned; invalid replacements are atomic.
+set_static_mesh :: proc(world: ^World, entity: Entity, data: geometry.Mesh, collision: ^geometry.Mesh = nil, collidable := true) -> bool {
 	if !is_alive(world,entity) || !geometry.valid(data) {return false}
+	if !collidable && collision!=nil {return false}
 	shape_data:=data
 	if collision!=nil {if !geometry.valid(collision^) {return false}; shape_data=collision^}
 	if _,ok := terrain_transform(world,entity); !ok {return false}
 	for name in ([6]string{"Terrain","RigidBody3D","BoxCollider","SphereCollider","CharacterController3D","CharacterController"}) {
 		if has_component_data(world,entity,name) {return false}
 	}
-	// Weld positions before identifying collision edges, independently of the
-	// split render normals/colors. Box3D copies input buffers in CreateMesh.
-	vertices := make([dynamic]b3.Vec3)
-	defer delete(vertices)
-	indices := make([]i32,len(shape_data.indices))
-	defer delete(indices)
-	lookup := make(map[[3]f32]i32)
-	defer delete(lookup)
-	for index,i in shape_data.indices {
-		p := shape_data.vertices[index].position
-		id,found := lookup[p]
-		if !found {id=i32(len(vertices)); lookup[p]=id; append(&vertices,b3.Vec3{p[0],p[1],p[2]})}
-		indices[i]=id
+	mesh: ^b3.MeshData
+	if collidable {
+		// Weld positions before identifying collision edges, independently of the
+		// split render normals/colors. Box3D copies input buffers in CreateMesh.
+		vertices := make([dynamic]b3.Vec3)
+		defer delete(vertices)
+		indices := make([]i32,len(shape_data.indices))
+		defer delete(indices)
+		lookup := make(map[[3]f32]i32)
+		defer delete(lookup)
+		for index,i in shape_data.indices {
+			p := shape_data.vertices[index].position
+			id,found := lookup[p]
+			if !found {id=i32(len(vertices)); lookup[p]=id; append(&vertices,b3.Vec3{p[0],p[1],p[2]})}
+			indices[i]=id
+		}
+		mesh = b3.CreateMesh({vertices=raw_data(vertices),indices=raw_data(indices),vertexCount=i32(len(vertices)),triangleCount=i32(len(indices)/3),identifyEdges=true,useMedianSplit=true},nil,0)
+		if mesh==nil {return false}
 	}
-	mesh := b3.CreateMesh({vertices=raw_data(vertices),indices=raw_data(indices),vertexCount=i32(len(vertices)),triangleCount=i32(len(indices)/3),identifyEdges=true,useMedianSplit=true},nil,0)
-	if mesh==nil {return false}
 	copy_data: geometry.Mesh
 	append(&copy_data.vertices,..data.vertices[:]); append(&copy_data.indices,..data.indices[:])
 	remove_static_mesh(world,entity)
@@ -52,7 +57,7 @@ remove_static_mesh :: proc(world: ^World, entity: Entity) {
 	state,found := world.static_meshes[entity]
 	if !found {return}
 	physics_3d_remove_entity(world,entity)
-	b3.DestroyMesh(state.mesh)
+	if state.mesh!=nil {b3.DestroyMesh(state.mesh)}
 	geometry.destroy_mesh(&state.data)
 	delete_key(&world.static_meshes,entity)
 }
@@ -64,6 +69,7 @@ destroy_static_meshes :: proc(world: ^World) {
 
 sync_static_mesh_bodies :: proc(world: ^World) {
 	for entity,&state in world.static_meshes {
+		if state.mesh==nil {continue}
 		t,valid := terrain_transform(world,entity)
 		if !is_enabled(world,entity) || !valid {physics_3d_remove_entity(world,entity); continue}
 		layers,_ := entity_layer_mask(world,entity)

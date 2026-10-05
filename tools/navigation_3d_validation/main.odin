@@ -148,6 +148,9 @@ validate_agents :: proc() {
 	snapshot,snapshot_ok:=scene.load("examples/navigation_3d/scenes/main.scene.json",&r)
 	assert(snapshot_ok);defer ecs.destroy(&snapshot)
 	assert(ecs.apply_value_snapshot(&w,&snapshot)==false,"component removal makes this a structural change")
+	// The invalid-motor probes changed the authored shape. Capture that new
+	// baseline before testing a value edit against the matching fixture below.
+	ecs.capture_scene_source(&w)
 	assert(ecs.remove_component(&snapshot,entity(&snapshot,"agent"),"CharacterController3D"))
 	// Match the component-type history from the earlier invalid-motor probe.
 	assert(ecs.add_component(&snapshot,&r,entity(&snapshot,"agent"),"SphereCollider",parse(`{"radius":0.5}`)))

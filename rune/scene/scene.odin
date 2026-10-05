@@ -132,6 +132,7 @@ load_with_layers :: proc(
 		ecs.destroy(&world)
 		return {}, false
 	}
+	ecs.capture_scene_source(&world)
 	return world, true
 }
 
