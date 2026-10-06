@@ -125,19 +125,33 @@ validate_selection :: proc(registry: ^ecs.Component_Registry) {
 	}
 	value, found := ecs.active_post_processing(&w, 0)
 	assert(found && value.tonemap.exposure == 1, "global ties use lowest handle")
+	owner, selected := ecs.active_post_processing_entity(&w, 0)
+	assert(selected && owner == global_a)
 	value, found = ecs.active_post_processing(&w, camera_b)
 	assert(found && value.tonemap.exposure == 4, "active camera overrides scene")
+	owner, selected = ecs.active_post_processing_entity(&w, camera_b)
+	assert(selected && owner == camera_b)
+	value.ssgi.enabled = true
+	assert(ecs.set_post_processing(&w, owner, value))
+	updated, _ := ecs.active_post_processing(&w, camera_b)
+	assert(updated == value, "editing the selected owner updates the rendered profile")
 	assert(ecs.set_enabled(&w, camera_b, false))
 	value, found = ecs.active_post_processing(&w, camera_b)
 	assert(found && value.tonemap.exposure == 1, "inactive camera A must not become global")
+	owner, selected = ecs.active_post_processing_entity(&w, camera_b)
+	assert(selected && owner == global_a)
 	assert(ecs.set_parent(&w, global_a, parent))
 	assert(ecs.set_enabled(&w, parent, false))
 	value, found = ecs.active_post_processing(&w, 0)
 	assert(found && value.tonemap.exposure == 2)
+	owner, selected = ecs.active_post_processing_entity(&w, 0)
+	assert(selected && owner == global_b)
 	value.enabled = false
 	assert(ecs.set(&w, global_b, value))
 	_, found = ecs.active_post_processing(&w, 0)
 	assert(!found)
+	owner, selected = ecs.active_post_processing_entity(&w, 0)
+	assert(!selected && owner == 0)
 }
 
 validate_reload :: proc(registry: ^ecs.Component_Registry) {

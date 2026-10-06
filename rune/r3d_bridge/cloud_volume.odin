@@ -61,6 +61,7 @@ load_cloud_noise :: proc() -> rl.Texture2D {
 }
 
 prepare_cloud_volumes :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.Asset_Manager, camera: rl.Camera3D) {
+	if ctx.cloud_volumes_disabled {return}
 	c:=&ctx.cloud_volumes
 	if c.generation!=world.generation {
 		for _,alias in c.aliases {r3d.UnloadSurfaceShader(alias)}
@@ -94,15 +95,16 @@ prepare_cloud_volumes :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets
 	for entity in entities {if _,found:=c.aliases[entity]; !found {c.aliases[entity]=r3d.LoadSurfaceShaderAlias(c.shader)}}
 }
 
-draw_cloud_volume :: proc(ctx: ^Context, world: ^ecs.World, entity: ecs.Entity, transform: ecs.Transform) {
+draw_cloud_volume :: proc(ctx: ^Context, world: ^ecs.World, entity: ecs.Entity, transform: ecs.Transform,render_matrix:^rl.Matrix=nil) {
+	if ctx.cloud_volumes_disabled {return}
 	c:=&ctx.cloud_volumes
 	shader,found:=c.aliases[entity]
 	if !found || shader==nil {return}
 	v,ok:=ecs.get(world,entity,ecs.CloudVolume)
 	if !ok || v.density<=0 || !ecs.cloud_volume_valid(v) {return}
 	for s in transform.scale {if s<=0 {return}}
-	rotation:=rotation_quaternion(transform)
-	model:=rl.MatrixTranslate(transform.position[0],transform.position[1],transform.position[2])*rl.QuaternionToMatrix(rotation)*rl.MatrixScale(transform.scale[0],transform.scale[1],transform.scale[2])
+	model:rl.Matrix
+	if render_matrix!=nil {model=render_matrix^} else {model=detail_transform(transform)}
 	// Surface uniform matrices use GLSL column-major storage, whereas raylib's
 	// Matrix is row-major. Convert storage without changing the transform.
 	inverse:=cast(matrix[4,4]f32)rl.MatrixInvert(model)
@@ -127,5 +129,6 @@ draw_cloud_volume :: proc(ctx: ^Context, world: ^ecs.World, entity: ecs.Entity, 
 	material.cullMode=.FRONT
 	material.alphaCutoff=0.001
 	material.unlit=true
-	r3d.DrawMeshEx(ctx.cube_no_shadow,material,transform.position,rotation,transform.scale)
+	if render_matrix!=nil {r3d.DrawMeshPro(ctx.cube_no_shadow,material,model)}
+	else {r3d.DrawMeshEx(ctx.cube_no_shadow,material,transform.position,rotation_quaternion(transform),transform.scale)}
 }

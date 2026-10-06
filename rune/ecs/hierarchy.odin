@@ -66,4 +66,5 @@ ensure_hierarchy_indexes :: proc(world: ^World) {
 		world.children_by_parent[parent] = children
 	}
 	world.hierarchy_dirty = false
+	world.hierarchy_version += 1
 }

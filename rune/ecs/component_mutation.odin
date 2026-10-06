@@ -101,10 +101,7 @@ commit_component_value :: proc(
 	previous, existed := storage^[entity]
 	stored_value := value
 	when T == DirectionalLight || T == PointLight || T == SpotLight {
-		stored_value.shadow_profile = retain_scene_string(world,value.shadow_profile)
-		if mode,ok:=value.shadow_overrides.update_mode.(string); ok {
-			stored_value.shadow_overrides.update_mode=retain_scene_string(world,mode)
-		}
+		stored_value = retain_light_strings(world, value)
 	}
 	when T == PostProcessing {
 		stored_value.light_shafts.source = retain_scene_string(world,value.light_shafts.source)

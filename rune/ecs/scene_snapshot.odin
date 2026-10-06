@@ -575,6 +575,17 @@ rehome_component_map_names :: proc(world, snapshot: ^World) {
 }
 
 rehome_builtin_strings :: proc(world, snapshot: ^World) {
+	// Lights survive unrelated scene edits too. Their profile paths and mode
+	// overrides must move before the outgoing scene arena is destroyed.
+	for entity, value in world.directional_lights {
+		world.directional_lights[entity] = retain_light_strings(snapshot, value)
+	}
+	for entity, value in world.point_lights {
+		world.point_lights[entity] = retain_light_strings(snapshot, value)
+	}
+	for entity, value in world.spot_lights {
+		world.spot_lights[entity] = retain_light_strings(snapshot, value)
+	}
 	for entity, value in world.post_processing {
 		owned := value
 		owned.light_shafts.source = retain_scene_string(snapshot, value.light_shafts.source)

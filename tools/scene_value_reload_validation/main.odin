@@ -12,6 +12,7 @@ main :: proc() {
 	validate_repeated_value_reload()
 	validate_collision_layer_reload()
 	validate_queued_animation_reload()
+	validate_light_string_reload()
 	fmt.println("Scene value reload validation passed")
 }
 
@@ -69,7 +70,8 @@ validate_hello_world_value_reload :: proc() {
 	)
 	assert(structural_loaded)
 	defer ecs.destroy(&structural_snapshot)
-	_ = ecs.create_entity(&structural_snapshot)
+	added := ecs.create_entity(&structural_snapshot)
+	assert(ecs.set_entity_metadata(&structural_snapshot, added, "added", "Added", "", 1))
 	assert(!ecs.apply_value_snapshot(&world, &structural_snapshot))
 }
 

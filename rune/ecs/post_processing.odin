@@ -387,15 +387,21 @@ set_post_processing :: proc(world: ^World, entity: Entity, value: PostProcessing
 	return true
 }
 
-active_post_processing :: proc(world: ^World, camera: Entity) -> (PostProcessing, bool) {
+// Return the selected owner so tools can edit the same profile the renderer uses.
+active_post_processing_entity :: proc(world: ^World, camera: Entity) -> (Entity, bool) {
 	if value, found := get_post_processing(world, camera); found && is_enabled(world, camera) && value.enabled {
-		return value, true
+		return camera, true
 	}
 	selected: Entity
-	result: PostProcessing
 	for entity, value in world.post_processing {
 		if !value.enabled || !is_enabled(world, entity) || has_component_data(world, entity, "Camera3D") {continue}
-		if selected == 0 || entity < selected {selected, result = entity, value}
+		if selected == 0 || entity < selected {selected = entity}
 	}
-	return result, selected != 0
+	return selected, selected != 0
+}
+
+active_post_processing :: proc(world: ^World, camera: Entity) -> (PostProcessing, bool) {
+	entity, found := active_post_processing_entity(world, camera)
+	if !found {return {}, false}
+	return get_post_processing(world, entity)
 }

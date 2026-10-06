@@ -261,6 +261,9 @@ if found {
 
 Named helpers `get_post_processing` and `set_post_processing` are also available.
 Changes flow through normal component notifications and scene serialization.
+`active_post_processing_entity(world, camera)` returns the selected profile's
+owner and a success flag, using the same camera override/global fallback rules
+as `active_post_processing`. Tools can use it to edit the rendered profile.
 
 ```powershell
 ./tools/console.ps1 -Directory build/console/post -Command 'inspect post PostProcessing' -Json

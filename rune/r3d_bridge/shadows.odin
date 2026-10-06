@@ -31,6 +31,12 @@ sync_light_shadows :: proc(ctx: ^Context, manager: ^assets.Asset_Manager, entity
 		if !loaded {s=shadows.Defaults}
 	}
 	s=shadows.resolve(s,light.shadow_overrides)
+	// Cached settings outlive scene arenas; keep the mode as a static literal.
+	switch s.update_mode {
+	case "continuous": s.update_mode="continuous"
+	case "interval": s.update_mode="interval"
+	case "manual": s.update_mode="manual"
+	}
 	s.enabled=s.enabled && loaded && !light.shadows_disabled && !ctx.shadows_disabled
 	previous,existed:=ctx.scene_shadow_settings[entity]
 	if existed && previous==s {return}

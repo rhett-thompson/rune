@@ -57,6 +57,15 @@ SpotLight :: struct {
 	shadow_slope_bias: f32,
 }
 
+retain_light_strings :: proc(world: ^World, value: $T) -> T {
+	result := value
+	result.shadow_profile = retain_scene_string(world, value.shadow_profile)
+	if mode, ok := value.shadow_overrides.update_mode.(string); ok {
+		result.shadow_overrides.update_mode = retain_scene_string(world, mode)
+	}
+	return result
+}
+
 ambient_light_from_json :: proc(data: json.Value) -> (AmbientLight, bool) {
 	object, ok := data.(json.Object)
 	if !ok {return {}, false}

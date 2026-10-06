@@ -83,6 +83,7 @@ World :: struct {
 	roots:                       [dynamic]Entity,
 	children_by_parent:          map[Entity][dynamic]Entity,
 	hierarchy_dirty:             bool,
+	hierarchy_version:           u64,
 	scene_json:                  json.Value,
 	scene_source:                Scene_Source,
 	component_data:              map[string]map[Entity]json.Value,

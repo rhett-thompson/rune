@@ -80,6 +80,122 @@ These meshes are runtime data, not serialized scene components. Recreate them
 from game-owned data after scene reload. This API does not generate gameplay
 meaning, navigation graphs, or scene JSON.
 
+The bridge caches world transforms, draw matrices, and transformed bounds.
+Shared ancestors are checked once per draw; transform, parenting, activation,
+mesh replacement, and World changes update the cache automatically. Static
+meshes sharing an immediate parent form a render cluster, so a game can group
+material meshes under one chunk entity. Unparented meshes form individual
+clusters. Bounds include only enabled meshes with valid positive scales.
+
+R3D tests cluster bounds against both the camera and shadow frustums. The bridge
+also skips camera-hidden clusters before submission when they cannot cast
+shadows (or `Context.shadows_disabled` is set). Off-camera casters remain
+submitted to preserve shadows on visible surfaces. This is frustum culling;
+walls hiding an in-frustum object do not suppress it unless occlusion is enabled.
+
+Set `Context.occlusion_enabled=true` to enable conservative CPU occlusion for
+runtime static meshes. Actual opaque mesh triangles and exactly adjacent convex
+planar triangle pairs provide the blockers. Their filled bounding boxes never
+act as blockers, so doors and gaps remain open. Up to 32 large faces per mesh
+and 128 large projected blockers bound the work. A mesh is hidden only when its
+entire projected bounds fit strictly inside one blocker and its nearest depth
+is behind the blocker's farthest depth, with extra depth and pixel margins.
+This intentionally retains meshes when several surfaces jointly hide them.
+
+Transparent/alpha-textured surfaces, billboards, and custom surface shaders do
+not supply blockers. Billboards and custom shaders also remain in the scene.
+Near-plane intersections and uncertain coverage fail open. Hidden shadow
+casters use R3D's shadow-only mode; hidden non-casters skip submission.
+Occlusion affects rendering, not activation, collision, or gameplay queries.
+Cache decisions are refreshed when the view, resolution, transforms, hierarchy,
+activation, mesh geometry, or material eligibility changes. Rune leaves this
+feature off by default. Games performing independent probe captures should
+disable camera-specific occlusion during those captures.
+
+The same switch occlusion-culls point and spot lights only when their entire
+range sphere's bounding box is hidden. Hiding the source alone never disables
+lighting: it may still illuminate a visible surface. Spotlights conservatively
+use the full range sphere rather than their narrower cone. Directional lights
+remain active. Rejected local lights skip R3D lighting and shadow-map work for
+that view; manual/interval shadow maps refresh when the light returns.
+Positions and ranges are tested every draw, even when static visibility is
+cached. R3D also independently frustum-culls local light influence volumes.
+
+`Context.frame_stats` reports the last draw's CPU wall timings, static uploads,
+matrix/bounds rebuilds, cluster tests, skipped meshes, and submitted meshes and
+triangles. Submission counts precede R3D's per-camera/per-shadow culling; they
+are not actual GPU draw counts. `scene_cpu_ms` includes all bridge scene work,
+`static_cpu_ms` covers static grouping/submission, and `backend_cpu_ms` covers
+`R3D_End`. These timings do not measure GPU execution or presentation.
+Set `Context.static_optimizations_disabled=true` to compare against per-mesh
+hierarchy resolution and submission without clusters or early rejection.
+Occlusion adds `occlusion_cpu_ms`, `occlusion_tests`, `occlusion_occluders`,
+`occlusion_cache_reused`, `static_meshes_occluded`, `static_shadow_only`, and
+`static_scene_triangles_avoided`. Shadow-only triangles remain included in the
+submitted triangle count; the avoided counter describes main-scene work.
+`local_lights` counts synchronized active local lights before backend frustum
+culling. `local_lights_occluded` and `local_shadow_lights_occluded` report
+rejected lights and the subset with enabled shadow maps. `light_occlusion_tests`
+and `light_occlusion_cpu_ms` report the light-volume test work.
+
+The bridge also caches primitive/model render lists in hierarchy order, keeping
+planes before other objects. Only renderable entities and their ancestors need
+transform snapshots on stable frames; unchanged matrices are reused. Renderer
+membership/primitive edits, activation, reparenting, and world replacement are
+observed automatically. Authored materials use the asset manager's revision to
+reuse resolved R3D materials without hashing the full settings on every draw;
+inline material data still receives a signature check. Material and texture hot
+reloads invalidate the shortcut.
+
+Light properties are sent to R3D only when their authored values change.
+Stationary lights retain activation, allowing manual and interval shadow modes
+to work as configured. Continuous maps still update each frame. Games using
+manual shadows must request a refresh after moving a light or its casters.
+
+`Context.render_optimizations_disabled=true` restores the original two hierarchy
+walks, per-draw material signatures, and light synchronization/activation for
+profiling. It is independent of the static mesh/occlusion switches. Additional
+counters report `render_entities`, `render_list_rebuilds`,
+`render_transform_nodes`, `render_matrices_rebuilt`, `material_requests`,
+`material_hashes`, `material_cache_hits`, and `light_properties_updated`.
+The light property count excludes activation and shadow-profile synchronization.
+
+Set `Context.instancing_enabled=true` to batch compatible repeated primitives
+and static models. Batches share the native mesh, resolved material, scale,
+render pass, and a 32-meter spatial cell. Each batch supplies a world bounds
+cluster for camera and shadow frustum culling, including off-camera casters.
+Common scale remains in the mesh transform so nonuniform normal transforms
+retain their lighting behavior. Position/rotation streams upload only when a
+batch changes. Stable frames also reuse resolved batch membership; authored
+renderer edits, poses, activation, model/material revisions, and manager or
+world replacement invalidate it. Transparent materials, billboards, custom
+shaders, animated or skinned models, nonstandard depth/stencil settings, invalid/negative scales,
+and oversized meshes retain individual submissions. Singleton batches also
+draw individually. `render_optimizations_disabled` bypasses instancing.
+
+Instance buffers are pooled across membership/material changes and scene
+replacement, grown in place, and released at bridge shutdown. This also avoids
+R3D's stale cached VAO bindings when OpenGL reuses a deleted buffer ID. Pool
+storage retains its high-water mark. CPU batch arrays are released when no
+longer used. Counters include `prop_draws`, `instanced_batches`,
+`prop_instances`, `prop_draws_avoided`, and `instance_uploads` (changed batches,
+each uploading position and rotation). These count bridge mesh submissions,
+including model submeshes, before backend culling and passes.
+`prop_batches_reused` reports reuse of resolved membership on that frame.
+
+Set `Context.gpu_timing_enabled=true` to collect asynchronous OpenGL timestamp
+queries around `R3D_End`. `gpu_backend_ms` measures the whole queued 3D pipeline:
+shadows, scene rendering, volumetric clouds, postprocessing, and final blit.
+It excludes game UI and presentation and does not separate individual passes.
+Compare feature toggles at the same camera to estimate their contribution.
+The eight-slot query ring never reads unavailable results or waits for the GPU;
+it skips samples when full. `gpu_supported` reports query availability,
+`gpu_ready` reports whether a result has arrived, and `gpu_sample_frame`,
+`gpu_sample_age_frames`, and `gpu_samples` describe the delayed result. Query
+objects are released at bridge shutdown. Both instancing and GPU timing are
+opt-in in Rune. `Context.cloud_volumes_disabled` skips cloud preparation and
+drawing without removing entities, for rendering comparisons.
+
 Run the headless ownership/collision validator (also discovered by
 `tools/validate.ps1`) from the Rune root:
 
