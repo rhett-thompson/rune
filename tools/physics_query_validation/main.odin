@@ -96,13 +96,14 @@ overlap :: proc(
 	radius: f32,
 	filter := ecs.Default_Physics_Query_Filter,
 	box := false,
+	allocator := context.temp_allocator,
 ) -> []ecs.Entity {
 	if d == 2 {
-		if box {return ecs.physics_2d_overlap_box(world, {center[0], center[1]}, {radius, radius}, filter)}
-		return ecs.physics_2d_overlap_circle(world, {center[0], center[1]}, radius, filter)
+		if box {return ecs.physics_2d_overlap_box(world, {center[0], center[1]}, {radius, radius}, filter, allocator)}
+		return ecs.physics_2d_overlap_circle(world, {center[0], center[1]}, radius, filter, allocator)
 	}
-	if box {return ecs.physics_3d_overlap_box(world, center, {radius, radius, radius}, filter)}
-	return ecs.physics_3d_overlap_sphere(world, center, radius, filter)
+	if box {return ecs.physics_3d_overlap_box(world, center, {radius, radius, radius}, filter, allocator)}
+	return ecs.physics_3d_overlap_sphere(world, center, radius, filter, allocator)
 }
 
 move :: proc(world: ^ecs.World, entity: ecs.Entity, x: f32) {
@@ -358,6 +359,7 @@ main :: proc() {
 	assert(ecs.register_builtin_components(&registry))
 	for d in 2 ..= 3 {
 		validate_queries(&registry, d)
+		validate_overlap_allocations(&registry, d)
 		validate_events(&registry, d, true)
 		validate_events(&registry, d, false)
 		validate_rebuild(&registry, d)

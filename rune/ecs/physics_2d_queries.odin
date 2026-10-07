@@ -17,8 +17,7 @@ Physics_Query_2D :: struct {
 	filter:         Physics_Query_Filter,
 	hit:            Raycast_Hit_2D,
 	found:          bool,
-	entities:       []Entity,
-	count:          int,
+	entities:       [dynamic]Entity,
 	respect_one_way: bool,
 }
 
@@ -88,10 +87,7 @@ physics_2d_overlap_result :: proc "c" (shape: b2.ShapeId, ctx: rawptr) -> bool {
 	if !found ||
 	   owner.entity == query.filter.ignore ||
 	   (!query.filter.include_sensors && b2.Shape_IsSensor(shape)) {return true}
-	if query.count < len(query.entities) {
-		query.entities[query.count] = owner.entity
-		query.count += 1
-	}
+	append(&query.entities, owner.entity)
 	return true
 }
 
@@ -143,7 +139,8 @@ physics_2d_overlap_proxy :: proc(
 		caller_context = context,
 		world          = world,
 		filter         = filter,
-		entities       = make([]Entity, len(world.physics_2d.shapes), allocator),
+		// Allocate only when accepted hits arrive, independently of world size.
+		entities       = make([dynamic]Entity, allocator),
 	}
 	_ = b2.World_OverlapShape(
 		world.box2d_world,
@@ -152,5 +149,5 @@ physics_2d_overlap_proxy :: proc(
 		physics_2d_overlap_result,
 		&query,
 	)
-	return physics_query_entities(query.entities[:query.count])
+	return physics_query_entities(query.entities[:])
 }

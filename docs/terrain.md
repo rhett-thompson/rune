@@ -216,8 +216,14 @@ is measured from the camera in world units (default 60 for grass, 250 otherwise)
 Grass shrinks smoothly through the last 20% of that distance; other details are
 culled at the limit. Terrain supports at most 32 detail definitions, 100,000
 candidates per definition, and 250,000 candidates total. Increase counts with
-care: instance selection still scans their positions each frame, and dense
-shadow-casting geometry has a rendering cost.
+care: moving the camera or terrain scans the detail positions again, and dense
+shadow-casting geometry has a rendering cost. Unchanged camera positions and
+terrain transforms reuse visibility and GPU instance streams. Camera rotation
+alone does not change this distance-based selection. CPU staging arrays are
+retained with each batch and included in the renderer's cache memory estimate.
+`Context.frame_stats.terrain_detail_rebuilds` counts batches whose visibility
+was rebuilt; `terrain_detail_uploads` counts nonempty batches whose four instance
+streams were uploaded that frame.
 
 These details are decorative: they do not create colliders, navigation obstacles,
 or individually interactable entities. Use regular scene/prefab entities for
@@ -324,6 +330,9 @@ To run its GPU checks independently:
 odin build tools/terrain_validation -collection:rune=rune -collection:r3d=third_party/r3d-odin -out:build/terrain_validation.exe
 ./build/terrain_validation.exe --runtime
 ```
+
+Use `--runtime-details` instead to run only the detail GPU checks, including
+visibility caching, staging allocation reuse, reload, and transformed placement.
 
 The optional `--runtime` validation suite includes those checks. Linux GPU checks
 need a desktop or Xvfb. PNG decoding uses Odin's `vendor:stb/image`; the toolchain

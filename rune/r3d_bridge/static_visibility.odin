@@ -23,6 +23,7 @@ Render_Stats :: struct {
 	light_properties_updated: int,
 	prop_draws, instanced_batches, prop_instances, prop_draws_avoided, instance_uploads: int,
 	prop_batches_reused: bool,
+	terrain_detail_rebuilds, terrain_detail_uploads: int,
 	gpu_supported,gpu_ready: bool,
 	gpu_backend_ms: f64,
 	gpu_sample_frame,gpu_sample_age_frames,gpu_samples: u64,

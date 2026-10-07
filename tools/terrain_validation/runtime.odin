@@ -19,7 +19,7 @@ render_frame :: proc(ctx:^bridge.Context,w:^ecs.World,manager:^assets.Asset_Mana
 	rl.EndDrawing()
 }
 
-validate_runtime :: proc() {
+validate_runtime :: proc(details_only:=false) {
 	rl.SetConfigFlags({.WINDOW_HIDDEN})
 	rl.InitWindow(640,360,"Terrain GPU validation")
 	defer rl.CloseWindow()
@@ -30,6 +30,7 @@ validate_runtime :: proc() {
 	r3d.SetAntiAliasingMode(.NONE)
 	r := ecs.init_registry(); defer ecs.destroy_registry(&r)
 	assert(ecs.register_builtin_components(&r))
+	if details_only {validate_detail_rendering(&ctx,&manager,&r); return}
 	w := ecs.init(); defer ecs.destroy(&w)
 	camera := ecs.create_entity(&w)
 	assert(add_transform(&w,&r,camera,{position={20,16,24},scale={1,1,1}}))

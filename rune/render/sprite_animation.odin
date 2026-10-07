@@ -76,14 +76,19 @@ update_sprite_animators :: proc(
 			}
 			if frames_valid {
 				frame := clip.frames[state.frame]
-				sprite.texture = animation.texture
-				sprite.source = {
+				source := [4]f32{
 					f32(clip.origin[0] + frame % columns * animation.frame_size[0]),
 					f32(clip.origin[1] + frame / columns * animation.frame_size[1]),
 					f32(animation.frame_size[0]),
 					f32(animation.frame_size[1]),
 				}
-				ecs.set_sprite_renderer(world, entity, sprite)
+				// Playback and markers still advance every tick; notify consumers
+				// only when the displayed sprite changes, including external edits.
+				if sprite.texture != animation.texture || sprite.source != source {
+					sprite.texture = animation.texture
+					sprite.source = source
+					ecs.set_sprite_renderer(world, entity, sprite)
+				}
 				assets.resolve_asset_failure(
 					asset_manager,
 					animator.animation,

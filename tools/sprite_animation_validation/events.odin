@@ -205,15 +205,41 @@ validate_runtime_markers :: proc() {
 	assert(ecs.add_component(&world, &registry, entity, "SpriteAnimator", animator_json))
 	render.update_sprite_animators(&world, &manager, 0.01)
 	expect_events(&world, {"footstep"})
+	version := ecs.change_version(&world)
+	previous_state, _ := ecs.get_sprite_animation_state(&world, entity)
 	assert(ecs.play_sprite_animation(&world, entity, "run", restart = false))
 	render.update_sprite_animators(&world, &manager, 0.01)
 	expect_events(&world, {})
+	state, _ := ecs.get_sprite_animation_state(&world, entity)
+	assert(state.elapsed > previous_state.elapsed && state.frame == previous_state.frame,
+		"playback advances within a displayed frame")
+	assert(len(ecs.changes_since(&world, ecs.SpriteRenderer, version)) == 0,
+		"unchanged animation frames do not notify sprite consumers")
 	assert(ecs.pause_sprite_animation(&world, entity))
 	render.update_sprite_animators(&world, &manager, 2)
 	expect_events(&world, {})
+	assert(len(ecs.changes_since(&world, ecs.SpriteRenderer, version)) == 0,
+		"paused playback does not rewrite the displayed sprite")
 	assert(ecs.resume_sprite_animation(&world, entity))
 	render.update_sprite_animators(&world, &manager, 0.5)
 	expect_events(&world, {"footstep"})
+	assert(len(ecs.changes_since(&world, ecs.SpriteRenderer, version)) == 1,
+		"advancing the displayed frame still notifies sprite consumers")
+	// Compare actual sprite fields, not just playback frame indexes: another
+	// system can edit the texture/source while the animation frame stays put.
+	displayed, _ := ecs.get_sprite_renderer(&world, entity)
+	for texture_edit in ([2]bool{true, false}) {
+		edited := displayed
+		if texture_edit {edited.texture = ""} else {edited.source[0] += 1}
+		edited.tint = {20, 40, 60, 255}
+		assert(ecs.set_sprite_renderer(&world, entity, edited))
+		version = ecs.change_version(&world)
+		render.update_sprite_animators(&world, &manager, 0)
+		restored, _ := ecs.get_sprite_renderer(&world, entity)
+		assert(restored.texture == displayed.texture && restored.source == displayed.source && restored.tint == edited.tint,
+			"animation restores externally edited frame fields and preserves appearance")
+		assert(len(ecs.changes_since(&world, ecs.SpriteRenderer, version)) == 1)
+	}
 	assert(ecs.stop_sprite_animation(&world, entity))
 	render.update_sprite_animators(&world, &manager, 2)
 	expect_events(&world, {})
