@@ -58,15 +58,16 @@ The build script verifies their SHA-256 hashes and exports the pinned Git
 revisions without changing either checkout. It performs no explicit downloads;
 a partial Git clone may fetch missing objects when exporting.
 
-From the repository root:
+From the repository root on Windows:
 
 ```powershell
-./tools/build_r3d_importer.ps1 -R3DSource path/to/r3d -AssimpSource path/to/assimp -RaylibHeaders path/to/headers -Zig path/to/zig -Target All
+.\tools\build_r3d_importer.bat --r3d-source path/to/r3d --assimp-source path/to/assimp --raylib-headers path/to/headers --zig path/to/zig --target All
 ```
 
-`-Target All` builds both archives on Windows, using installed MSVC headers
+`--target All` builds both archives on Windows, using installed MSVC headers
 and the Windows SDK for the Windows target and Zig's headers for Linux.
-On Linux use `-Target Linux`. Build products and compiler caches stay under
+On Linux use `sh tools/build_r3d_importer.sh` with the same source/header options
+and `--target Linux`. Build products and compiler caches stay under
 `build/`; only completed archives are copied here. Zig is a build tool and is
 not shipped with Rune.
 

@@ -69,6 +69,24 @@ draw_box :: proc(rect: rl.Rectangle, corners: clay.CornerRadius, color: rl.Color
 	limit := min(rect.width, rect.height) * 0.5
 	radii := [4]f32{clamp(corners.topLeft, 0, limit), clamp(corners.bottomLeft, 0, limit),
 		clamp(corners.bottomRight, 0, limit), clamp(corners.topRight, 0, limit)}
+	if radii == ([4]f32{}) {
+		// Square panels need only two triangles, with the same texture and
+		// winding as the rounded path so translucent edges stay seamless.
+		rlgl.CheckRenderBatchLimit(6)
+		rlgl.SetTexture(rlgl.GetTextureIdDefault())
+		rlgl.Begin(rlgl.TRIANGLES)
+		rlgl.Color4ub(color.r, color.g, color.b, color.a)
+		rlgl.TexCoord2f(0.5,0.5)
+		rlgl.Vertex2f(rect.x,rect.y)
+		rlgl.Vertex2f(rect.x,rect.y+rect.height)
+		rlgl.Vertex2f(rect.x+rect.width,rect.y+rect.height)
+		rlgl.Vertex2f(rect.x,rect.y)
+		rlgl.Vertex2f(rect.x+rect.width,rect.y+rect.height)
+		rlgl.Vertex2f(rect.x+rect.width,rect.y)
+		rlgl.End()
+		rlgl.SetTexture(0)
+		return
+	}
 	centers := [4]rl.Vector2{
 		{rect.x+radii[0], rect.y+radii[0]},
 		{rect.x+radii[1], rect.y+rect.height-radii[1]},

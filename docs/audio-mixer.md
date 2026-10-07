@@ -43,9 +43,9 @@ out over two seconds, R restores volume, and left-click plays the bell. The Clay
 example's volume slider controls the master bus.
 
 ```powershell
-# PowerShell 7 on Windows or Linux
+# Windows PowerShell; on Linux omit .exe and run binaries with ./build/...
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin build tools/mixer_validation -collection:rune=rune "-out:build/mixer_validation$exe"
 & "./build/mixer_validation$exe"
 & "./build/mixer_validation$exe" --runtime

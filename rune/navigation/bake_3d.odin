@@ -20,8 +20,9 @@ Bake_Solid_3D :: struct {first,last: int, low,high: [3]f32}
 Bake_Settings_3D :: struct {
 	cell_size: f32,
 	agent_radius, agent_height, max_slope: f32,
+	simplify: bool, // Default settings enable planar merging; false skips it.
 }
-Default_Bake_Settings_3D :: Bake_Settings_3D{0.5,0.4,2,45}
+Default_Bake_Settings_3D :: Bake_Settings_3D{cell_size=0.5,agent_radius=0.4,agent_height=2,max_slope=45,simplify=true}
 Bake_Stats_3D :: struct {input_triangles, cells, spans, walkable_cells, output_triangles: int}
 destroy_bake_geometry_3d :: proc(g: ^Bake_Geometry_3D) {delete(g.vertices); delete(g.triangles); delete(g.obstacle_triangles); delete(g.solids); g^={}}
 bake_settings_valid_3d :: proc(s: Bake_Settings_3D) -> bool {
@@ -122,7 +123,7 @@ bake_height_3d :: proc(cell: ^Bake_Cell_3D, span: Bake_Span_3D, p: [3]f32, lowes
 }
 
 // A conservative layered heightfield bake. No graphics/physics context needed.
-// Output uses sampled world heights, with four triangles per surviving cell.
+// Output preserves sampled heights; planar cells are merged by default.
 // Temporary storage is released on every return; successful meshes are owned.
 bake_mesh_3d :: proc(g: Bake_Geometry_3D, s:=Default_Bake_Settings_3D) -> (mesh: Mesh_3D, stats: Bake_Stats_3D, error: string) {
 	if !bake_settings_valid_3d(s) {return {},{},"invalid bake settings (radius must be at most 32 cells)"}
@@ -241,9 +242,11 @@ bake_mesh_3d :: proc(g: Bake_Geometry_3D, s:=Default_Bake_Settings_3D) -> (mesh:
 		for &cell in cells {for &span in cell.spans {span.valid=span.keep}}
 	}
 	vertices:=make([dynamic][3]f32,0,1024,a);triangles:=make([dynamic][3]i32,0,1024,a)
+	output_cells: [dynamic]Bake_Output_Cell_3D
+	if s.simplify {output_cells=make([dynamic]Bake_Output_Cell_3D,0,1024,a)}
 	// Search neighboring height buckets to weld roundoff at sample seams.
 	weld:=make(map[[3]i64]i32,a)
-	for cell in cells {for span in cell.spans {
+	for cell,cell_index in cells {for span in cell.spans {
 		if !span.valid {continue};stats.walkable_cells+=1
 		indices:[5]i32
 		for p,i in span.points {
@@ -259,9 +262,18 @@ bake_mesh_3d :: proc(g: Bake_Geometry_3D, s:=Default_Bake_Settings_3D) -> (mesh:
 			}
 			indices[i]=index
 		}
-		for j in 0..<4 {append(&triangles,[3]i32{indices[j],indices[4],indices[(j+1)%4]})}
-		if len(triangles)>65536 {return {},stats,"baked mesh exceeds 65536 triangles; increase cell_size or split the level"}
+		if s.simplify {
+			append(&output_cells,Bake_Output_Cell_3D{cell_index=cell_index,points=indices})
+			if len(output_cells)>1048576 {return {},stats,"bake exceeds 1048576 intermediate walkable cells; increase cell_size or split the level"}
+		} else {
+			for j in 0..<4 {append(&triangles,[3]i32{indices[j],indices[4],indices[(j+1)%4]})}
+			if len(triangles)>65536 {return {},stats,"baked mesh exceeds 65536 triangles; increase cell_size or split the level"}
+		}
 	}}
+	if s.simplify && len(output_cells)>0 {
+		triangles,error=bake_simplify_3d(&vertices,output_cells[:],w,h,a)
+		if error!="" {return {},stats,error}
+	}
 	stats.output_triangles=len(triangles)
 	if len(triangles)==0 {return {},stats,"no walkable surface remains after slope, headroom and radius filtering"}
 	mesh,error=build_mesh_3d({version=1,agent_radius=s.agent_radius,agent_height=s.agent_height,vertices=vertices[:],triangles=triangles[:]})

@@ -32,7 +32,9 @@ write_slot :: proc(manager: ^Manager, slot: string) -> bool {
 	if manager.checkpoint.document.active_scene == "" {return fail(manager, "No checkpoint to write")}
 	bytes, err := json.marshal(manager.checkpoint.document, allocator = context.temp_allocator)
 	if err != nil {return fail(manager, "Could not encode save slot '%s'", slot)}
-	if os.make_directory_all(manager.options.directory) != nil {return fail(manager, "Could not create save directory '%s'", manager.options.directory)}
+	if err := os.make_directory_all(manager.options.directory); err != nil && !os.is_directory(manager.options.directory) {
+		return fail(manager, "Could not create save directory '%s'", manager.options.directory)
+	}
 	temporary := fmt.tprintf("%s.tmp", path)
 	defer os.remove(temporary)
 	if !write_synced(temporary, bytes) {return fail(manager, "Could not write temporary save '%s'", temporary)}

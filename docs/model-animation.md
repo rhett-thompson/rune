@@ -123,9 +123,9 @@ components; R3D remains available for those advanced uses.
 ## Example and checks
 
 ```powershell
-# PowerShell 7 on Windows or Linux
+# Windows PowerShell; on Linux omit .exe and run binaries with ./build/...
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin build examples/skeletal_animation_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/skeletal_animation_3d$exe"
 & "./build/skeletal_animation_3d$exe"
 odin build tools/model_animation_validation -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/model_animation_validation$exe"
@@ -139,7 +139,9 @@ Space blends into a one-shot punch from the animation-only `Punching.fbx`,
 then returns to walking; another press restarts the punch.
 Press
 1/2 to switch the left instance's clip, P to pause it, and R to resume it.
-Its checked-in model can be regenerated with `generate_fixture.ps1`.
+Its checked-in model can be regenerated from the repository root with
+`.\examples\skeletal_animation_3d\generate_fixture.bat` on Windows or
+`sh examples/skeletal_animation_3d/generate_fixture.sh` on Linux.
 S cycles playback speed, V reverses direction, and H silently seeks to one
 second. The left rig's JSON marker tracks trigger sounds and visible effects;
 `clip_events` in the runtime console returns their counters.

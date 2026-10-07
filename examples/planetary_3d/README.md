@@ -10,7 +10,7 @@ From the repository root (no additional collections or downloaded assets):
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin run examples/planetary_3d -collection:rune=rune "-out:build/planetary_3d$exe"
 ```
 

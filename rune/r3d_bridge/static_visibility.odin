@@ -23,6 +23,7 @@ Render_Stats :: struct {
 	light_properties_updated: int,
 	prop_draws, instanced_batches, prop_instances, prop_draws_avoided, instance_uploads: int,
 	prop_batches_reused: bool,
+	terrain_detail_rebuilds, terrain_detail_uploads: int,
 	gpu_supported,gpu_ready: bool,
 	gpu_backend_ms: f64,
 	gpu_sample_frame,gpu_sample_age_frames,gpu_samples: u64,
@@ -61,9 +62,7 @@ cached_transform_node :: proc(nodes:^map[ecs.Entity]Static_Transform_Node,frame:
 		node.local=local; node.has_transform=has_transform; node.locally_enabled=locally_enabled
 		node.pose=ancestor.pose
 		if has_transform {
-			node.pose.position+=local.position
-			node.pose.rotation+=local.rotation
-			node.pose.scale*=local.scale
+			node.pose=ecs.compose_transform_3d(ancestor.pose,local)
 		}
 		node.enabled=ancestor.enabled && locally_enabled
 		node.version+=1

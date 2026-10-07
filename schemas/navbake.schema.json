@@ -15,7 +15,8 @@
         "cell_size": {"type": "number", "minimum": 0.01, "maximum": 1000, "default": 0.5},
         "agent_radius": {"type": "number", "minimum": 0, "default": 0.4, "description": "At most 32 times cell_size. Clearance rounds up to whole cells."},
         "agent_height": {"type": "number", "exclusiveMinimum": 0, "maximum": 10000, "default": 2},
-        "max_slope": {"type": "number", "minimum": 0, "exclusiveMaximum": 89, "default": 45}
+        "max_slope": {"type": "number", "minimum": 0, "exclusiveMaximum": 89, "default": 45},
+        "simplify": {"type": "boolean", "default": true, "description": "Merge coplanar cells while retaining shared boundaries and sampled terrain detail. Set false to skip merging and emit four triangles per cell."}
       }
     }
   }

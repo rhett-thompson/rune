@@ -71,7 +71,7 @@ See [ROADMAP.md](ROADMAP.md) for current priorities.
 
 ## Setup
 
-Windows AMD64 and Linux AMD64 are equal development targets. Install Git, PowerShell 7, and the
+Windows AMD64 and Linux AMD64 are equal development targets. Install Git and the
 Odin toolchain recorded in [toolchain.json](toolchain.json): `dev-2026-09`, tested
 with `dev-2026-09-nightly:a2fb372`. Keep Odin's `base`, `core`, and `vendor`
 directories with the compiler, and put its directory on `PATH`.
@@ -80,9 +80,12 @@ On Windows, Odin also requires MSVC and the Windows SDK from Visual Studio's
 Desktop development with C++ workload. See the
 [official Odin installation guide](https://odin-lang.org/docs/install/) for setup.
 For Linux dependencies, Bash commands, and runtime testing, see
-[Linux development](docs/linux.md). PowerShell 7 runs on both platforms; no
-Windows installation is needed to use the scripts. Linux verification is pending
-the first successful Linux run; macOS is not yet a release target.
+[Linux development](docs/linux.md). Development helpers use `.bat` files on Windows
+and `.sh` files on Linux; no additional scripting runtime is required. Windows
+JSON/process helpers use the built-in `cscript.exe` host. Native Linux tooling has
+been exercised under WSL; full Linux validation and desktop verification remain
+pending. See the [Linux verification status](docs/linux.md#verification-status).
+macOS is not yet a release target.
 
 Use the official GitHub repository's clone URL with `git clone --recurse-submodules`.
 
@@ -104,18 +107,21 @@ Then check the compiler:
 odin version
 ```
 
-Run the complete headless validation suite and representative builds with:
+Run the complete headless validation suite and representative builds on Windows with:
 
 ```powershell
-pwsh -NoProfile -File tools/validate.ps1 -AllExamples
+.\tools\validate.bat --all-examples
 ```
 
+On Linux, use `sh tools/validate.sh --all-examples`. The helpers have matching
+arguments and propagate failures to the calling shell.
+
 This compiles all registered examples and the launcher, runs the validators, and checks
-the project files. Omit `-AllExamples` for representative builds only. The
+the project files. Omit `--all-examples` for representative builds only. The
 compiler's vendor packages supply raylib, Box2D, and Box3D; the recursive submodule
 supplies the pinned r3d binding and native libraries for the advanced 3D examples.
 
-Add `-Runtime` to also exercise rendering, animation, window handling, UI,
+Add `--runtime` to also exercise rendering, animation, window handling, UI,
 particles, and audio using the existing runtime validators. This requires a
 desktop session with working graphics and audio, or a virtual display on Linux.
 Validation is run locally; pushing to GitHub does not run automated checks.
@@ -137,11 +143,11 @@ Both scripts find the checkout from their own location and put the launcher in
 `build/`. The Linux launcher needs Odin on `PATH` and a desktop session; it does
 not require PowerShell. See [Linux development](docs/linux.md) for dependencies.
 
-To invoke Odin directly from the checkout with PowerShell 7 on either platform:
+To invoke Odin directly from the checkout with Windows' built-in PowerShell:
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin run examples/launcher -collection:rune=rune "-out:build/launcher$exe"
 ```
 
@@ -161,25 +167,28 @@ example. From the engine checkout:
 
 ```powershell
 $runeRoot = (Get-Location).Path
-./tools/new_project.ps1 -Path ../MyGame -Name 'My Game'
+.\tools\new_project.bat --path ../MyGame --name 'My Game'
 Push-Location ../MyGame
-./build.ps1 -RuneRoot $runeRoot -Run
+.\build.bat --rune-root $runeRoot --run
 Pop-Location
 ```
 
-The new folder contains code, scene/input JSON, local schemas, and a build script.
+On Linux, use `sh tools/new_project.sh --path ../MyGame --name 'My Game'`, then
+`sh build.sh --rune-root /path/to/rune --run` from the new game directory.
+
+The new folder contains code, scene/input JSON, local schemas, and both build scripts.
 The initial scene is empty. The script builds into the game's `build/` directory
 and runs from the correct working directory. Engine paths containing spaces work.
 The project-creation helper refuses to overwrite an existing directory.
 
-Pass `-Release` to the generated `build.ps1` for an optimized `-o:speed` build.
+Pass `--release` to the generated `build.bat` or `build.sh` for an optimized `-o:speed` build.
 Use optimized builds when profiling; Odin's default build uses minimal optimization.
 Runtime checks remain enabled, and hot reload still follows `project.json`.
 
 To run the template directly from the engine checkout:
 
 ```powershell
-./templates/blank_project/build.ps1 -RuneRoot . -Run
+.\templates\blank_project\build.bat --rune-root . --run
 ```
 
 ## Runtime lifecycle
@@ -287,11 +296,11 @@ For local tools or coding agents, enable a command inbox when launching a game:
 From another terminal, send any registered command through the same dispatcher:
 
 ```powershell
-./tools/console.ps1 -Directory build/console/tilemap -Command 'help'
-./tools/console.ps1 -Directory build/console/tilemap -Command 'capture build/captures/tilemap.png'
+.\tools\console.bat --directory build/console/tilemap --command 'help'
+.\tools\console.bat --directory build/console/tilemap --command 'capture build/captures/tilemap.png'
 ```
 
-Add `-Json` for structured replies with `ok`, `lines`, and `data`. Commands can
+Add `--json` for structured replies with `ok`, `lines`, and `data`. Commands can
 inspect current component values, pause and step simulation, inject input,
 validate runtime edits, reload a scene, read logs, and profile CPU timings.
 Runtime edits do not save source files.
@@ -348,6 +357,14 @@ tilemap solid cells, audio listener/player ranges, and light positions,
 directions, ranges, and spot cones. It renders after
 registered draw systems and before the developer console.
 
+Use `navmesh on` in the console to show baked 3D navigation surfaces and triangle
+edges, or `navmesh on navigation` to select a stable `NavMesh3D` scene entity ID.
+Walkable triangles are cyan and blocked triangles are red. `navmesh off` hides
+them; `navmesh` reports the current setting. Navigation display is disabled by
+default and independent of F3, so it can be shown without other gizmos. Disabled
+entities and unavailable meshes are skipped; asset reloads and runtime blocking
+are reflected each frame. The scene loop uses the active `Camera3D`.
+
 Projects can set the startup defaults in `project.json`:
 
 ```json
@@ -360,6 +377,8 @@ Projects can set the startup defaults in `project.json`:
   "tilemaps": true,
   "audio": true,
   "lights": true,
+  "navmeshes": false,
+  "navmesh_entity": "",
   "transform_size": 24
 }
 ```
@@ -369,6 +388,10 @@ Callback-based examples can draw the same overlay explicitly:
 ```odin
 rune.draw_gizmos(game, &world)
 ```
+
+With a custom camera, call `gizmos.draw_navmeshes_3d(&world,
+game.gizmos.navmesh_entity)` inside that camera's `BeginMode3D`/`EndMode3D` block
+when `game.gizmos.navmeshes` is true. Import `rune:gizmos` for this helper.
 
 ## Tweening and easing
 
@@ -552,7 +575,7 @@ the asteroid entities continue to use the existing ECS lifecycle.
 
 The headless validator checks allocation-free reuse, exhaustion, stale and
 foreign handles, growth, release during iteration, cleanup, and allocation
-failure. It is also discovered automatically by `tools/validate.ps1`:
+failure. It is also discovered automatically by `.\tools\validate.bat`:
 
 ```powershell
 odin build tools/pool_validation -collection:rune=rune -out:build/pool_validation.exe
@@ -1531,7 +1554,7 @@ movement requests, runtime state, and local validation.
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin run examples/first_person_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/first_person_3d$exe"
 ```
 

@@ -114,6 +114,25 @@ as a teleport. If an endpoint is within `max_projection`, the reported arrival
 position is its projected surface point, not necessarily the originally requested
 coordinate. Set a smaller distance when destinations must already lie on the mesh.
 
+## Debug visualization
+
+Inspect a loaded mesh with the engine console command `navmesh on`, or
+`navmesh on navigation` to select the `NavMesh3D` scene entity named `navigation`.
+The overlay draws translucent cyan walkable surfaces, triangle edges, and red
+blocked triangles. `navmesh off` hides it; `navmesh` reports its state. This display
+is independent of F3 and included in console captures:
+
+```powershell
+.\tools\console.bat --directory build/console/navigation --command 'navmesh on' --json
+.\tools\console.bat --directory build/console/navigation --command 'capture build/captures/navmesh.png' --json
+```
+
+Scene loops draw it through the active `Camera3D`. Games with custom camera
+rendering, including the Navigation 3D demo, can call
+`gizmos.draw_navmeshes_3d(world, game.gizmos.navmesh_entity)` inside their 3D camera
+mode when `game.gizmos.navmeshes` is true. The helper borrows current meshes and
+does not require a transform on the navigation entity.
+
 ## Baking a navmesh from a scene
 
 Run the CPU-only baker from the repository root:
@@ -134,7 +153,8 @@ A `*.navbake.json` file selects the scene, output asset and agent settings:
     "cell_size": 0.5,
     "agent_radius": 0.4,
     "agent_height": 2,
-    "max_slope": 45
+    "max_slope": 45,
+    "simplify": true
   }
 }
 ```
@@ -163,12 +183,23 @@ The baker clips source triangles into an X/Z grid and builds separate vertical
 surface layers in each cell. It rejects steep slopes, partial support, low headroom
 and surfaces buried inside closed solids. It then removes cells near walls, holes,
 ledges and rejected areas for the agent radius, and connects the surviving cells.
-Four triangles per cell preserve sampled corner and center heights. Shared vertices
-connect ramps and adjoining terrain cells; stacked floors remain separate. It does
-not invent step, jump or ladder links across discontinuities.
+By default, `simplify: true` merges connected coplanar cells into rectangles before
+triangulation. Shared boundaries retain neighboring rectangle and terrain vertices,
+so holes, ramp seams and stacked floors keep their original connectivity. Cells
+with nonplanar corner/center samples retain their four triangles. Plane matching
+uses a fixed seed and a 0.0001-unit vertical tolerance, rather than accumulating
+error across cells. This is a conservative planar merge, not arbitrary terrain
+decimation or contour smoothing. It does not invent step, jump or ladder links.
+
+Set `"simplify": false` to skip the merge stage and retain the original
+four triangles per surviving cell. Both modes use identical slope, headroom and
+radius filtering. Simplification reduces the navigation graph and asset size;
+the demo course drops from 6,520 to 55 triangles at the same 0.25-unit resolution.
+Meshes still use the same triangle asset format and runtime APIs.
 
 `cell_size` controls accuracy and cost. Smaller cells preserve narrower passages
-and more terrain detail, but generate more triangles. Radius clearance rounds up to
+and more terrain detail. Planar regions simplify even at fine resolution; rough
+terrain still generates more triangles with smaller cells. Radius clearance rounds up to
 whole cells and uses square rings, so corners and narrow passages are deliberately
 conservative. The default is 0.5 units; the terrain example uses 3 units to keep a
 256-unit landscape within the output limit. Terrain samples come from the same
@@ -179,7 +210,9 @@ Near a slope threshold or tight ceiling, conservative filtering can disconnect a
 route that a human player could traverse.
 
 Bakes allow at most 2,000,000 input triangles, 6,000,000 input vertices, 1,048,576
-grid cells, 4,000,000 raster patches and 65,536 output triangles. A cell accepts at
+grid cells, 4,000,000 raster patches, 1,048,576 intermediate walkable cell layers,
+and 65,536 final output triangles. Simplification runs before the final mesh limits
+are checked. A cell accepts at
 most 4,096 patches; unusually complex overlapping coverage fails closed. Radius
 must be at most 32 cells. Increase cell size or split the geometry when a limit is
 reached. This is an offline whole-mesh baker, without streaming tiles or incremental
@@ -202,6 +235,12 @@ call `bake_mesh_3d`. Each helper accepts position, Euler rotation and positive s
 `append_bake_terrain_3d` accepts CPU `terrain.Data`, so PNG and R16 heightmaps use
 the same path. `collect_navigation_geometry_3d` also exposes the scene snapshot
 when additional model triangles need appending before baking.
+
+For custom settings in Odin, start from `navigation.Default_Bake_Settings_3D`
+(which enables simplification), then change the desired fields. For example,
+`settings.simplify = false` selects the original per-cell output. Named Odin struct
+literals use zero values for omitted fields, so a literal omitting `simplify`
+disables it. Bake JSON retains the defaults when fields are omitted.
 
 Triangle winding matters for baking: upward-facing triangles may be floors;
 downward and steep faces obstruct clearance. Use `solid=true` for closed,
@@ -230,7 +269,7 @@ by the advertised `agent_radius`, and check that `agent_height` of headroom exis
 throughout it. These fields declare clearance already accounted for by the author
 or exporter; loading an already-authored navmesh does not run the baker. Queries
 reject agents larger than that clearance. The example includes
-`generate_mesh.ps1` as a small original geometry-authoring example.
+`generate_mesh.bat` / `generate_mesh.sh` as a small original geometry-authoring example.
 
 Indices are zero-based. Adjacent triangles must share the same two vertex indices
 at their edge; coincident coordinates with different indices are disconnected.
@@ -322,4 +361,4 @@ activation, removal, value reload, independent blocked flags, asset recovery, an
 project validation. Hidden-window checks exercise startup asset loading, pause,
 and the real fixed-step loop. Bake checks cover terrain sampling/transforms,
 radius erosion, obstacle volumes, thin walls, low ceilings, deterministic output,
-serialization and failure handling. All validators are integrated into `tools/validate.ps1`.
+serialization and failure handling. All validators are integrated into `.\tools\validate.bat`.

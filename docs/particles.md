@@ -176,9 +176,9 @@ checks. The existing 2D validator below checks the shared random sequence too.
 ## Example and validation
 
 ```powershell
-# PowerShell 7 on Windows or Linux
+# Windows PowerShell; on Linux omit .exe and run binaries with ./build/...
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin build examples/particles_2d -collection:rune=rune "-out:build/particles_2d$exe"
 & "./build/particles_2d$exe"
 odin build tools/particle_validation -collection:rune=rune "-out:build/particle_validation$exe"
@@ -195,4 +195,4 @@ The headless validator checks bounded allocation reuse, overflow, lifetime,
 gravity, fades, emission timing, seed replay, hierarchy, JSON rejection and
 round trips, typed/console edits, reload, and cleanup. `--runtime` adds hidden
 window rendering checks. The validator and example are included in
-`tools/validate.ps1 -AllExamples`.
+`.\tools\validate.bat --all-examples`.

@@ -197,6 +197,6 @@ odin run tools/save_validation -collection:rune=rune -out:build/save_validation.
 ```
 
 Use an extensionless output path on Linux. The normal validation suite discovers
-the headless tests; `tools/validate.ps1 -Runtime` includes the hidden-window tests.
+the headless tests; `.\tools\validate.bat --runtime` includes the hidden-window tests.
 Checks cover scene round trips, hierarchy, component removal, owned strings,
 globals, adapters, backups, failed loads, migrations, and paused frame scheduling.

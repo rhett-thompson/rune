@@ -1,6 +1,7 @@
 package ecs
 
 import "core:encoding/json"
+import "core:math/linalg"
 import "rune:jsonutil"
 
 // Transform is the typed built-in spatial component. JSON scenes use the same
@@ -13,6 +14,36 @@ Transform :: struct {
 
 default_transform :: proc() -> Transform {
 	return Transform{scale = {1, 1, 1}}
+}
+
+// Child offsets inherit parent scale and then rotation. Euler angles retain
+// additive composition, which is exact for rotations about a shared axis;
+// arbitrary mixed-axis rotations and shear are not represented by Transform.
+compose_transform_3d :: proc(parent, local: Transform) -> Transform {
+	offset := local.position * parent.scale
+	if parent.rotation != ([3]f32{}) {
+		rotation := parent.rotation * Radians_Per_Degree
+		orientation := linalg.quaternion_from_pitch_yaw_roll(rotation[0], rotation[1], rotation[2])
+		offset = linalg.quaternion_mul_vector3(orientation, offset)
+	}
+	return Transform{
+		position = parent.position + offset,
+		rotation = parent.rotation + local.rotation,
+		scale = parent.scale * local.scale,
+	}
+}
+
+// Resolve from the root so rendering, picking and terrain/static collision
+// use the same composition, including ancestors without a Transform.
+world_transform_3d :: proc(world: ^World, entity: Entity) -> Transform {
+	parent := default_transform()
+	if ancestor := world.parents[entity]; ancestor != 0 {
+		parent = world_transform_3d(world, ancestor)
+	}
+	if local, found := world.transforms[entity]; found {
+		return compose_transform_3d(parent, local)
+	}
+	return parent
 }
 
 transform_from_json :: proc(data: json.Value) -> (Transform, bool) {

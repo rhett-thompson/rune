@@ -17,7 +17,7 @@ The player's transform is at its feet, while its capsule has an offset of
 `[0, -32]`. Its visible body consists of simple child shapes. This makes it easy
 to see what moves when editing only collision geometry.
 
-Open the console with backtick, or use `tools/console.ps1` with an opt-in inbox:
+Open the console with backtick, or use `.\tools\console.bat` with an opt-in inbox:
 
 ```text
 pause

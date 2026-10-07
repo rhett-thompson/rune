@@ -1,8 +1,10 @@
 package r3d_bridge
 
 import "core:testing"
+import "core:mem"
 import "rune:ecs"
 import r3d "r3d:r3d"
+import rl "vendor:raylib"
 
 @(test)
 memory_stats_count_mesh_capacity_and_active_and_pooled_instances :: proc(t: ^testing.T) {
@@ -21,4 +23,25 @@ memory_stats_count_mesh_capacity_and_active_and_pooled_instances :: proc(t: ^tes
 	testing.expect(t,stats.instance_gpu_bytes_estimate == 2*16*7*size_of(f32))
 	testing.expect(t,stats.cache_map_bytes > 0 && stats.cache_array_bytes >= size_of(r3d.InstanceBuffer))
 	testing.expect(t,memory_stats(nil).mesh_gpu_bytes_estimate == 0)
+}
+
+@(test)
+terrain_detail_staging_is_counted_and_released :: proc(t: ^testing.T) {
+	tracker: mem.Tracking_Allocator
+	mem.tracking_allocator_init(&tracker,context.allocator)
+	defer mem.tracking_allocator_destroy(&tracker)
+	context.allocator=mem.tracking_allocator(&tracker)
+	ctx:=Context{terrains=make(map[ecs.Entity]Terrain_Cache)}
+	cache:Terrain_Cache
+	append(&cache.details,Terrain_Detail_Batch{
+		positions=make([]rl.Vector3,10),rotations=make([]rl.Quaternion,10),
+		scales=make([]rl.Vector3,10),colors=make([]rl.Color,10),
+	})
+	ctx.terrains[ecs.Entity(1)]=cache
+	expected:=u64(cap(cache.details)*size_of(Terrain_Detail_Batch)+10*(2*size_of(rl.Vector3)+size_of(rl.Quaternion)+size_of(rl.Color)))
+	testing.expect(t,memory_stats(&ctx).cache_array_bytes==expected)
+	release_terrains(&ctx)
+	testing.expect(t,memory_stats(&ctx).cache_array_bytes==0)
+	delete(ctx.terrains)
+	testing.expect(t,tracker.current_memory_allocated==0,"terrain cache teardown releases every staging allocation")
 }

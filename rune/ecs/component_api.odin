@@ -367,11 +367,21 @@ query2 :: proc(world: ^World, $A: typeid, $B: typeid, include_disabled := false)
 	name_a, found_a := world.component_names_by_type[typeid_of(A)]
 	name_b, found_b := world.component_names_by_type[typeid_of(B)]
 	if !found_a || !found_b {return nil}
-	result := make([dynamic]Entity, context.temp_allocator)
-	for entity in entities_with_component(world, name_a, include_disabled) {
-		if has_component_data(world, entity, name_b) {append(&result, entity)}
+	components_a := world.component_data[name_a]
+	components_b := world.component_data[name_b]
+	if len(components_b) < len(components_a) {components_a, components_b = components_b, components_a}
+	if len(components_a) == 0 {return nil}
+	// The intersection cannot exceed the smallest component set. Keep a single
+	// result buffer instead of materializing an intermediate single-type query.
+	result := make([]Entity, len(components_a), context.temp_allocator)
+	count := 0
+	for entity in components_a {
+		if _, found := components_b[entity]; !found {continue}
+		if !include_disabled && !is_enabled(world, entity) {continue}
+		result[count] = entity
+		count += 1
 	}
-	return result[:]
+	return result[:count]
 }
 
 query3 :: proc(world: ^World, $A: typeid, $B: typeid, $C: typeid, include_disabled := false) -> []Entity {
@@ -379,13 +389,22 @@ query3 :: proc(world: ^World, $A: typeid, $B: typeid, $C: typeid, include_disabl
 	name_b, found_b := world.component_names_by_type[typeid_of(B)]
 	name_c, found_c := world.component_names_by_type[typeid_of(C)]
 	if !found_a || !found_b || !found_c {return nil}
-	result := make([dynamic]Entity, context.temp_allocator)
-	for entity in entities_with_component(world, name_a, include_disabled) {
-		if has_component_data(world, entity, name_b) && has_component_data(world, entity, name_c) {
-			append(&result, entity)
-		}
+	components_a := world.component_data[name_a]
+	components_b := world.component_data[name_b]
+	components_c := world.component_data[name_c]
+	if len(components_b) < len(components_a) {components_a, components_b = components_b, components_a}
+	if len(components_c) < len(components_a) {components_a, components_c = components_c, components_a}
+	if len(components_a) == 0 {return nil}
+	result := make([]Entity, len(components_a), context.temp_allocator)
+	count := 0
+	for entity in components_a {
+		if _, found := components_b[entity]; !found {continue}
+		if _, found := components_c[entity]; !found {continue}
+		if !include_disabled && !is_enabled(world, entity) {continue}
+		result[count] = entity
+		count += 1
 	}
-	return result[:]
+	return result[:count]
 }
 
 change_version :: proc(world: ^World) -> u64 {return world.component_change_version}

@@ -61,9 +61,9 @@ The Skeletal Animation example blends between keys 1 and 2 over 0.35 seconds.
 Its P/R pause/resume controls also demonstrate freezing and resuming a blend.
 
 ```powershell
-# PowerShell 7 on Windows or Linux
+# Windows PowerShell; on Linux omit .exe and run binaries with ./build/...
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin build tools/model_animation_validation -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/model_animation_validation$exe"
 & "./build/model_animation_validation$exe" --runtime
 odin build tools/sprite_animation_validation -collection:rune=rune "-out:build/sprite_animation_validation$exe"

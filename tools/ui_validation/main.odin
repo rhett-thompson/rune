@@ -185,13 +185,20 @@ validate_panel_fill :: proc(ctx: ^ui.Context) {
 	shapes := rl.GetShapesTexture()
 	rl.SetTextureFilter(shapes,.BILINEAR)
 	defer rl.SetTextureFilter(shapes,.POINT)
-	for appearance in ([]ui.Element{{cornerRadius=ui.corners(4)},{}, {cornerRadius={topLeft=2.5,topRight=4.25,bottomLeft=7.75,bottomRight=12}}}) {
+	for appearance in ([]ui.Element{
+		{cornerRadius=ui.corners(4),backgroundColor={14,22,28,235}},
+		{backgroundColor={14,22,28,235}},
+		{backgroundColor={14,22,28,128}},
+		{backgroundColor={14,22,28,255}},
+		{backgroundColor={14,22,28,0}},
+		{cornerRadius={topLeft=2.5,topRight=4.25,bottomLeft=7.75,bottomRight=12},backgroundColor={14,22,28,235}},
+	}) {
 		assert(ui.begin(ctx,{1024,240},{},0))
 		ui.panel(ctx,"fill_root",{layout={sizing={width=ui.grow({}),height=ui.grow({})}}})
 		ui.panel(ctx,"fill",{
 			layout={sizing={width=ui.fixed(900),height=ui.fixed(60)}},
 			floating={attachTo=.Root,offset={31.25,25.5}},
-			backgroundColor={14,22,28,235},cornerRadius=appearance.cornerRadius,
+			backgroundColor=appearance.backgroundColor,cornerRadius=appearance.cornerRadius,
 		})
 		ui.end_panel(ctx); ui.end_panel(ctx)
 		assert(ui.finish(ctx),ui.last_error(ctx))
@@ -205,11 +212,32 @@ validate_panel_fill :: proc(ctx: ^ui.Context) {
 		}
 		image := rl.LoadImageFromScreen()
 		reference := rl.GetImageColor(image,i32(box.x+box.width/2),i32(box.y+20))
+		// Uniformly blank output must not pass the seam check. Allow one byte
+		// of rounding between framebuffer blending implementations.
+		for channel, i in ([3]u8{reference.r,reference.g,reference.b}) {
+			expected := 255+(appearance.backgroundColor[i]-255)*appearance.backgroundColor[3]/255
+			assert(abs(f32(channel)-expected)<=1,"panel uses its authored color and opacity")
+		}
 		for y in i32(box.y+14) ..< i32(box.y+box.height-14) {
 			for x in i32(box.x+14) ..< i32(box.x+box.width-14) {
 				pixel := rl.GetImageColor(image,x,y)
 				assert(pixel==reference,"translucent panel interior must have uniform opacity without diagonal seams")
 			}
+		}
+		if appearance.cornerRadius == ui.corners(0) {
+			left, right := i32(math.ceil(box.x))+1, i32(box.x+box.width)-2
+			top, bottom := i32(math.ceil(box.y))+1, i32(box.y+box.height)-2
+			for point in ([4][2]i32{{left,top},{right,top},{left,bottom},{right,bottom}}) {
+				assert(rl.GetImageColor(image,point[0],point[1])==reference,"square panels fill all four corners")
+			}
+		}
+		for point in ([4][2]i32{
+			{i32(box.x)-2,i32(box.y+box.height/2)},
+			{i32(box.x+box.width)+2,i32(box.y+box.height/2)},
+			{i32(box.x+box.width/2),i32(box.y)-2},
+			{i32(box.x+box.width/2),i32(box.y+box.height)+2},
+		}) {
+			assert(rl.GetImageColor(image,point[0],point[1])==rl.WHITE,"panel fill stays inside its bounds")
 		}
 		rl.UnloadImage(image)
 	}

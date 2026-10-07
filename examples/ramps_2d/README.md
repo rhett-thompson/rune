@@ -31,7 +31,7 @@ steep to climb, `set ramp PolygonCollider2D.vertices.1.1 -160`, or
 edit `scenes/main.scene.json` to persist changes and see them hot reload.
 
 For repeatable automation, launch with `--console-dir=build/console/ramps`, then
-use `tools/console.ps1` with `pause`, `input move_right press`, `step 200`,
+use `.\tools\console.bat` with `pause`, `input move_right press`, `step 200`,
 `input move_right release`, `step 1`, and `capture`.
 
 The floor and walls are separate zero-thickness segments. The ramp has four

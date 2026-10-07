@@ -10,11 +10,11 @@ For randomized playback, replace `sound` with a `clips` array; each play selects
 one entry. See [random clip players](../../docs/audio-mixer.md#random-clip-players)
 and the [first-person footsteps](../first_person_3d/README.md).
 
-Run from the repository root with PowerShell 7:
+Run from the repository root on Windows:
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin run examples/audio_components -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/audio_components$exe"
 ```
 

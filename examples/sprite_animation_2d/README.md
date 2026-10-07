@@ -6,11 +6,11 @@ Play sprite-sheet clips and queue a return to idle after short animations.
 
 **Try editing:** [animations/knight.animation.json](animations/knight.animation.json): frame sequences and timing. [animations/coin.animation.json](animations/coin.animation.json): coin playback. [main.odin](main.odin): clip switching.
 
-Run from the repository root with PowerShell 7:
+Run from the repository root on Windows:
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin run examples/sprite_animation_2d -collection:rune=rune "-out:build/sprite_animation_2d$exe"
 ```
 

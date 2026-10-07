@@ -184,18 +184,18 @@ example displays grounded, crouched, and blocked-standing state.
 
 ## Local validation
 
-From the repository root in PowerShell 7:
+From the repository root on Windows:
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin run tools/character_controller_3d_validation -collection:rune=rune "-out:build/character_controller_3d_validation$exe"
 ```
 
 This opens no window and exercises the real Box3D backend: grounding, walls,
 sliding, jumps, ramps, stairs, crouch clearance, moving platforms, dynamic-body
 pushing, filtering, fast casts, fixed-step timing, configuration, scene reloads,
-and lifecycle resets. It is also discovered by `tools/validate.ps1`.
+and lifecycle resets. It is also discovered by `.\tools\validate.bat`.
 
 The older `CharacterController` / `ecs.move_character` remains available for
 existing projects. Both the first- and third-person examples use the new motor;

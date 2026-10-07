@@ -30,7 +30,10 @@ runtime_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	frame := rl.LoadImageFromScreen()
 	defer rl.UnloadImage(frame)
 	// Restored entities must still render through the scene's camera.
-	color := rl.GetImageColor(frame,200,280)
+	// Screenshots use physical pixels; the scene uses logical window units.
+	x := i32(200 * f32(frame.width) / f32(rl.GetScreenWidth()))
+	y := i32(280 * f32(frame.height) / f32(rl.GetScreenHeight()))
+	color := rl.GetImageColor(frame,x,y)
 	assert(color.b > 200 && color.r < 150)
 }
 runtime_ui :: proc(game: ^rune.Engine, world: ^ecs.World) {

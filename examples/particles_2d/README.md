@@ -6,11 +6,11 @@ Compare continuous emitters with a burst triggered from Odin.
 
 **Try editing:** [scenes/main.scene.json](scenes/main.scene.json): rates, lifetime, velocity, colors, and blending. [assets/soft.png](assets/soft.png): smoke texture. [main.odin](main.odin): burst and toggle controls.
 
-Run from the repository root with PowerShell 7:
+Run from the repository root on Windows:
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin run examples/particles_2d -collection:rune=rune "-out:build/particles_2d$exe"
 ```
 

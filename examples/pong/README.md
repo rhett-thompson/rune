@@ -6,11 +6,11 @@ Follow a small game split into component definitions, scene configuration, and g
 
 **Try editing:** [pong_game.odin](pong_game.odin): game rules and drawing. [scenes/main.scene.json](scenes/main.scene.json): arena, paddle, ball, and match settings.
 
-Run from the repository root with PowerShell 7:
+Run from the repository root on Windows:
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin run examples/pong -collection:rune=rune "-out:build/pong$exe"
 ```
 

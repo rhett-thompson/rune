@@ -142,7 +142,10 @@ main :: proc() {
 	_,_,found = ecs.terrain_runtime(&w,e); assert(!found)
 	fmt.println("PASS terrain removal and resource lifetime")
 	validate_snapshot(&r,&manager)
-	for arg in os.args[1:] {if arg=="--runtime" {validate_runtime()}}
+	for arg in os.args[1:] {
+		if arg=="--runtime" {validate_runtime()}
+		if arg=="--runtime-details" {validate_runtime(details_only=true)}
+	}
 }
 
 validate_blend :: proc() {

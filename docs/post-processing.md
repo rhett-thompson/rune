@@ -266,9 +266,9 @@ owner and a success flag, using the same camera override/global fallback rules
 as `active_post_processing`. Tools can use it to edit the rendered profile.
 
 ```powershell
-./tools/console.ps1 -Directory build/console/post -Command 'inspect post PostProcessing' -Json
-./tools/console.ps1 -Directory build/console/post -Command 'set post PostProcessing.bloom.intensity 0.2' -Json
-./tools/console.ps1 -Directory build/console/post -Command 'set post PostProcessing.enabled false' -Json
+.\tools\console.bat --directory build/console/post --command 'inspect post PostProcessing' --json
+.\tools\console.bat --directory build/console/post --command 'set post PostProcessing.bloom.intensity 0.2' --json
+.\tools\console.bat --directory build/console/post --command 'set post PostProcessing.enabled false' --json
 ```
 
 Console changes are runtime-only. Edit scene JSON to persist them.
@@ -295,8 +295,8 @@ Left-drag orbits the camera. Edit
 `examples/post_processing_3d/scenes/main.scene.json` while running to reload.
 Glowing material JSON files demonstrate emission feeding bloom.
 
-`pwsh -NoProfile -File tools/validate.ps1 -AllExamples` includes headless
-post-processing validation. Adding `-Runtime` exercises r3d effect rendering,
+`.\tools\validate.bat --all-examples` includes headless
+post-processing validation. Adding `--runtime` exercises r3d effect rendering,
 baseline restoration, and grain's monochrome pixel variation, animation, frozen
 pattern, pixel size after AA, and cleanup on toggles/removal. Linux runtime
 validation requires a desktop or Xvfb.

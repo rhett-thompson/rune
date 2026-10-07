@@ -11,11 +11,28 @@ Terrain_Detail_Batch :: struct {
 	instances: [dynamic]terrain.Detail_Instance,
 	buffer: r3d.InstanceBuffer,
 	visible_count:i32,
+	positions: []rl.Vector3,
+	rotations: []rl.Quaternion,
+	scales: []rl.Vector3,
+	colors: []rl.Color,
+	view: Terrain_Detail_View,
+	view_ready: bool,
+	cached_visible_count: i32,
+}
+
+// Only values affecting instance streams belong in this key. Descriptor edits
+// rebuild the batch; retaining borrowed descriptor strings here is unnecessary.
+Terrain_Detail_View :: struct {
+	transform: ecs.Transform,
+	camera: [3]f32,
+	draw_distance: f32,
+	grass, align_to_normal: bool,
 }
 
 release_detail_batch :: proc(batch:^Terrain_Detail_Batch) {
 	if batch.buffer.capacity>0 {r3d.UnloadInstanceBuffer(batch.buffer)}
 	delete(batch.instances)
+	delete(batch.positions); delete(batch.rotations); delete(batch.scales); delete(batch.colors)
 	batch^={}
 }
 
@@ -28,6 +45,10 @@ prepare_detail_batches :: proc(cache:^Terrain_Cache,data:terrain.Data) -> bool {
 			if batch.buffer.capacity!=i32(len(batch.instances)) || batch.buffer.buffers[0]==0 {
 				release_detail_batch(&batch); return false
 			}
+			batch.positions=make([]rl.Vector3,len(batch.instances))
+			batch.rotations=make([]rl.Quaternion,len(batch.instances))
+			batch.scales=make([]rl.Vector3,len(batch.instances))
+			batch.colors=make([]rl.Color,len(batch.instances))
 		}
 		append(&cache.details,batch)
 	}
@@ -39,15 +60,21 @@ detail_transform :: proc(t:ecs.Transform) -> rl.Matrix {
 		rl.QuaternionToMatrix(rotation_quaternion(t))*rl.MatrixScale(t.scale[0],t.scale[1],t.scale[2])
 }
 
-upload_visible_details :: proc(batch:^Terrain_Detail_Batch,detail:terrain.Detail,t:ecs.Transform,camera:[3]f32) {
+// Returns true only when visibility/streams were rebuilt. A stationary view can
+// submit the existing GPU buffer, including after disabling/re-enabling terrain.
+upload_visible_details :: proc(batch:^Terrain_Detail_Batch,detail:terrain.Detail,t:ecs.Transform,camera:[3]f32) -> bool {
+	view:=Terrain_Detail_View{transform=t,camera=camera,draw_distance=detail.draw_distance,
+		grass=detail.kind=="grass",align_to_normal=detail.align_to_normal}
+	if batch.view_ready && batch.view==view {
+		batch.visible_count=batch.cached_visible_count
+		return false
+	}
+	batch.view=view; batch.view_ready=true
 	batch.visible_count=0
-	if len(batch.instances)==0 {return}
+	batch.cached_visible_count=0
+	if len(batch.instances)==0 {return true}
 	transform:=detail_transform(t)
 	terrain_rotation:=rotation_quaternion(t)
-	positions:=make([]rl.Vector3,len(batch.instances),context.temp_allocator)
-	rotations:=make([]rl.Quaternion,len(batch.instances),context.temp_allocator)
-	scales:=make([]rl.Vector3,len(batch.instances),context.temp_allocator)
-	colors:=make([]rl.Color,len(batch.instances),context.temp_allocator)
 	for instance in batch.instances {
 		world:=rl.Vector3Transform(instance.position,transform)
 		delta:=world-camera
@@ -57,30 +84,32 @@ upload_visible_details :: proc(batch:^Terrain_Detail_Batch,detail:terrain.Detail
 		// R3D applies its mesh transform BEFORE the instance rotation/scale.
 		// Upload world-space roots and draw with an identity mesh transform so
 		// random rotation and distance fading can never move a root off terrain.
-		positions[i]=world
+		batch.positions[i]=world
 		rotation:=rl.QuaternionFromAxisAngle({0,1,0},instance.yaw)
 		if detail.align_to_normal {
 			// Inverse scale keeps the surface normal correct on stretched terrain.
 			normal:=linalg.normalize(instance.normal/t.scale)
 			rotation=rl.QuaternionFromVector3ToVector3({0,1,0},normal)*rotation
 		}
-		rotations[i]=terrain_rotation*rotation
+		batch.rotations[i]=terrain_rotation*rotation
 		scale:=instance.scale
 		if detail.kind=="grass" {
 			// Reduce distant tufts smoothly while keeping their base on the surface.
 			fade:=clamp((detail.draw_distance-rl.Vector3Length(delta))/(detail.draw_distance*0.2),0,1)
 			scale*=fade
 		}
-		scales[i]=t.scale*scale
+		batch.scales[i]=t.scale*scale
 		shade:=u8(instance.shade*255)
-		colors[i]={shade,shade,shade,255}
+		batch.colors[i]={shade,shade,shade,255}
 		batch.visible_count+=1
 	}
-	if batch.visible_count==0 {return}
-	r3d.UploadInstances(batch.buffer,{.POSITION},0,batch.visible_count,raw_data(positions),true)
-	r3d.UploadInstances(batch.buffer,{.ROTATION},0,batch.visible_count,raw_data(rotations),true)
-	r3d.UploadInstances(batch.buffer,{.SCALE},0,batch.visible_count,raw_data(scales),true)
-	r3d.UploadInstances(batch.buffer,{.COLOR},0,batch.visible_count,raw_data(colors),true)
+	batch.cached_visible_count=batch.visible_count
+	if batch.visible_count==0 {return true}
+	r3d.UploadInstances(batch.buffer,{.POSITION},0,batch.visible_count,raw_data(batch.positions),true)
+	r3d.UploadInstances(batch.buffer,{.ROTATION},0,batch.visible_count,raw_data(batch.rotations),true)
+	r3d.UploadInstances(batch.buffer,{.SCALE},0,batch.visible_count,raw_data(batch.scales),true)
+	r3d.UploadInstances(batch.buffer,{.COLOR},0,batch.visible_count,raw_data(batch.colors),true)
+	return true
 }
 
 draw_terrain_details :: proc(ctx:^Context,world:^ecs.World,manager:^assets.Asset_Manager,camera:[3]f32) {
@@ -92,7 +121,10 @@ draw_terrain_details :: proc(ctx:^Context,world:^ecs.World,manager:^assets.Asset
 		for &batch,i in cache.details {
 			if i>=len(data.description.details) {continue}
 			detail:=data.description.details[i]
-			upload_visible_details(&batch,detail,t,camera)
+			if upload_visible_details(&batch,detail,t,camera) {
+				ctx.frame_stats.terrain_detail_rebuilds+=1
+				if batch.visible_count>0 {ctx.frame_stats.terrain_detail_uploads+=1}
+			}
 			if batch.visible_count==0 {continue}
 			material:=material_from_path(ctx,manager,detail.material,{255,255,255,255})
 			if detail.material=="" {material.orm.roughness=0.9}

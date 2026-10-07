@@ -7,20 +7,34 @@ targets; the bundled native dependencies need separate verification.
 
 ## Verification status
 
-Validation is run locally on each platform. Linux execution has not yet been
-verified from this Windows checkout. Shell-launcher checks using Git's shell on
-Windows do not establish Linux compiler or runtime support. Keep `toolchain.json`'s
-`tested_platforms` limited to platforms with actual passing runs; `target_platforms`
-records intended support separately. Record the Linux run and compiler revision
-after completing validation on a Linux machine.
+The native helpers were exercised on Ubuntu 26.04.1 LTS AMD64 under WSL2 with Odin
+`dev-2026-09-nightly:a2fb372` on 2026-10-07. Compiler installation, project creation
+and builds, fixture generation, and console requests, replies, and timeout cleanup
+passed. Release-helper fixtures also covered exports, reports, and process cleanup.
+
+The headless engine run used commit `ea6839be31d53ac0e0a72321778671a332dd4211`
+with the new helpers and the recorded r3d submodule on a case-sensitive Linux
+filesystem. All 96 build steps passed, including 53 tool packages, the blank project,
+39 games, and the launcher; all 40 project-file validations passed. Of 51 headless
+validators, 49 passed. Prefab path resolution and save-directory validation failed
+when invoked directly as well as through the helper. Six of seven unit-test packages
+passed; the third-person package reported a failure and stalled, so its process was
+stopped. A complete headless pass and Linux desktop verification remain pending;
+this run does not validate the independently changing engine code in the working
+checkout.
+
+Shell checks using Git's shell on Windows do not establish Linux support. Keep
+`toolchain.json`'s `tested_platforms` limited to platforms with passing validation;
+`target_platforms` records intended support separately. Record the tested revision
+and distinguish headless checks from graphics, audio, and real desktop checks.
 
 ## Install dependencies
 
-Install Git, PowerShell 7, and the compiler release recorded in
-[`toolchain.json`](../toolchain.json). PowerShell runs on Linux and is only needed
-for the helper scripts. Games themselves do not depend on it.
+Install Git and the compiler release recorded in
+[`toolchain.json`](../toolchain.json). Helpers use the native shell and standard
+utilities (`awk`, `curl`, `tar`, `sha256sum`, and `timeout`); no additional scripting
+runtime is required.
 
-- [PowerShell installation for Linux](https://learn.microsoft.com/en-us/powershell/scripting/install/linux-overview)
 - [Odin installation](https://odin-lang.org/docs/install/)
 
 On Ubuntu 24.04:
@@ -41,7 +55,7 @@ dependency automatically. It is safe to repeat if r3d is already installed.
 
 ```bash
 git submodule update --init --recursive
-pwsh -NoProfile -File tools/install_odin.ps1 -Destination "$PWD/build/odin-toolchain"
+sh tools/install_odin.sh --destination "$PWD/build/odin-toolchain"
 ```
 
 The installer downloads the platform's pinned Odin release, verifies its SHA-256,
@@ -56,7 +70,7 @@ run `bash /path/to/odin/vendor/box2d/build_box2d.sh` once before building Rune.
 
 ```bash
 odin version
-pwsh -NoProfile -File tools/validate.ps1 -AllExamples
+sh tools/validate.sh --all-examples
 odin build examples/hello_world -collection:rune=rune -out:build/hello_world
 ./build/hello_world
 ```
@@ -79,29 +93,28 @@ You can also invoke it from another directory with
 `sh /path/to/rune/launcher.sh` (quote paths containing spaces). It builds and runs
 the launcher with the checkout as its working directory and writes the executable
 to `build/launcher`. Compiler or launcher failures propagate to the calling shell.
-The launcher requires a desktop session and Odin on `PATH`; PowerShell is not
-needed for launching or running games. Windows has the matching `launcher.bat`.
+The launcher requires a desktop session and Odin on `PATH`.
+Windows has the matching `launcher.bat`.
 
-## Shared tooling
+## Native tooling
 
-Rune uses PowerShell **7** (`pwsh`) for its shared development tools on both
-platforms. Windows PowerShell (`powershell.exe`) is not the required runtime.
-Keep the build, validation, and release logic shared so fixes reach both platforms.
+Rune supplies `.sh` helpers for Linux and matching `.bat` helpers for Windows.
+Their command-line options and behavior match. Keep both implementations aligned
+when changing build, validation, or release behavior.
 
 | Task | Linux command |
 | --- | --- |
-| Install the pinned compiler | `pwsh -NoProfile -File tools/install_odin.ps1 -Destination build/odin-toolchain` |
-| Validate and build all examples | `pwsh -NoProfile -File tools/validate.ps1 -AllExamples` |
-| Check an isolated release export | `pwsh -NoProfile -File tools/release_check.ps1 -WorkingTree` |
-| Create a project | `pwsh -NoProfile -File tools/new_project.ps1 -Path ../MyGame -Name 'My Game'` |
-| Build a generated project | `pwsh -NoProfile -File /path/to/MyGame/build.ps1 -RuneRoot /path/to/rune` |
-| Send a console command | `pwsh -NoProfile -File tools/console.ps1 -Directory build/console -Command status -Json` |
+| Install the pinned compiler | `sh tools/install_odin.sh --destination build/odin-toolchain` |
+| Validate and build all examples | `sh tools/validate.sh --all-examples` |
+| Check an isolated release export | `sh tools/release_check.sh --working-tree` |
+| Create a project | `sh tools/new_project.sh --path ../MyGame --name 'My Game'` |
+| Build a generated project | `sh /path/to/MyGame/build.sh --rune-root /path/to/rune` |
+| Send a console command | `sh tools/console.sh --directory build/console --command status --json` |
 
-The build and validation helpers select executable names for the host platform.
-Window-specific process options are guarded by `$IsWindows`. The importer rebuild
-helper supports `-Target Linux`; its Windows target requires MSVC headers and the
-Windows SDK on a Windows host. The example mesh and animation fixture generators
-use PowerShell/.NET file and JSON APIs and can also be invoked through `pwsh`.
+The Linux build helpers produce extensionless executables; Windows helpers use
+`.exe`. The importer rebuild helper supports `--target Linux`; its Windows target
+requires MSVC headers and the Windows SDK on a Windows host. The example mesh and
+animation fixture generators also have `.sh` and `.bat` versions.
 
 These portability choices still require actual Linux validation; the verification
 status above distinguishes intended support from completed platform testing.
@@ -112,12 +125,12 @@ From the engine checkout, in Bash:
 
 ```bash
 rune_root="$PWD"
-pwsh -NoProfile -File tools/new_project.ps1 -Path ../MyGame -Name 'My Game'
+sh tools/new_project.sh --path ../MyGame --name 'My Game'
 cd ../MyGame
-pwsh -NoProfile -File build.ps1 -RuneRoot "$rune_root" -Run
+sh build.sh --rune-root "$rune_root" --run
 ```
 
-Use `-Release` for optimized builds. The game is written to `build/game`; the
+Use `--release` for optimized builds. The game is written to `build/game`; the
 build helper runs it from the game directory, including when paths contain spaces.
 To launch it with the console inbox, run this from the game directory:
 
@@ -128,10 +141,10 @@ To launch it with the console inbox, run this from the game directory:
 While it runs, use a second terminal in the game directory:
 
 ```bash
-pwsh -NoProfile -File /path/to/Rune/tools/console.ps1 \
-  -Directory build/console -Command status -Json
-pwsh -NoProfile -File /path/to/Rune/tools/console.ps1 \
-  -Directory build/console -Command 'capture build/capture.png' -Json
+sh /path/to/Rune/tools/console.sh \
+  --directory build/console --command status --json
+sh /path/to/Rune/tools/console.sh \
+  --directory build/console --command 'capture build/capture.png' --json
 ```
 
 Use a separate inbox for each game. The same pause, step, input, inspection,
@@ -142,12 +155,12 @@ reload, and capture commands work through files on both operating systems.
 In a desktop session, run from the engine checkout:
 
 ```bash
-pwsh -NoProfile -File tools/validate.ps1 -AllExamples -Runtime
-pwsh -NoProfile -File tools/release_check.ps1 -WorkingTree -Runtime
+sh tools/validate.sh --all-examples --runtime
+sh tools/release_check.sh --working-tree --runtime
 ```
 
 The release check includes validation, so normally choose one command rather than
-running both. Omit `-WorkingTree` to test the committed source and recorded submodule
+running both. Omit `--working-tree` to test the committed source and recorded submodule
 revision. The check creates an isolated export and a new game under `build/`,
 builds default and optimized configurations, exercises console status/pause/step,
 and captures a frame. It stops only the game process it started.
@@ -157,14 +170,14 @@ For a Linux machine without a desktop, install the virtual-display packages:
 ```bash
 sudo apt-get install -y xvfb xauth libgl1-mesa-dri
 LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s '-screen 0 1280x720x24' \
-  pwsh -NoProfile -File tools/release_check.ps1 -WorkingTree -Runtime
+  sh tools/release_check.sh --working-tree --runtime
 ```
 
 Xvfb supplies the display; audio runtime checks still require a working playback
-device. Omit `-Runtime` to run checks without graphics or audio initialization.
+device. Omit `--runtime` to run checks without graphics or audio initialization.
 Runtime validator processes have a 90-second timeout. Their stdout/stderr logs
 are saved beside the binaries; release reports also record the OS, architecture,
-PowerShell version, compiler, and display environment.
+shell, compiler, and display environment.
 
 ## Real desktop release checks
 

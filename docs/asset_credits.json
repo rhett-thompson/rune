@@ -1,8 +1,8 @@
 {
   "groups": [
     {
-      "name": "Shared Inter example font",
-      "paths": ["examples/assets/fonts/*"],
+      "name": "Shared Inter example and console font",
+      "paths": ["examples/assets/fonts/*", "rune/console/fonts/*"],
       "status": "documented",
       "license": "SIL Open Font License 1.1",
       "evidence": "examples/assets/fonts/OFL.txt",
@@ -13,7 +13,7 @@
       "paths": ["examples/skeletal_animation_3d/assets/*"],
       "status": "documented",
       "license": "Rune's own project licensing decision applies; no third-party source assets.",
-      "evidence": "examples/skeletal_animation_3d/generate_fixture.ps1",
+      "evidence": "examples/skeletal_animation_3d/generate_fixture.bat",
       "notes": "Original procedural two-joint geometry and animation clips generated for this example."
     },
     {

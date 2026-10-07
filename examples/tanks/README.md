@@ -6,11 +6,11 @@ Combine custom components, wall ricochets, and an opponent that aims bank shots.
 
 **Try editing:** [tanks_game.odin](tanks_game.odin): movement, shots, and opponent logic. [scenes/main.scene.json](scenes/main.scene.json): arena and match settings.
 
-Run from the repository root with PowerShell 7:
+Run from the repository root on Windows:
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin run examples/tanks -collection:rune=rune "-out:build/tanks$exe"
 ```
 

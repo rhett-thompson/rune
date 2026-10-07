@@ -7,17 +7,20 @@ Release checks and publication prerequisites are below.
 
 ## Engineering check
 
-Use the toolchain recorded in `toolchain.json`. From a Rune checkout:
+Use the toolchain recorded in `toolchain.json`. From a Rune checkout on Windows:
 
 ```powershell
-./tools/release_check.ps1 -WorkingTree -Runtime
+.\tools\release_check.bat --working-tree --runtime
 ```
+
+On Linux, run `sh tools/release_check.sh --working-tree --runtime`. Both helpers
+use native OS tooling and require no additional scripting runtime.
 
 This tests current files, including uncommitted additions, in an isolated export
 under `build/`. It exports the initialized r3d dependency, builds all examples and
 validators, creates a game beside the exported engine, checks its local schema
 references, and builds both default and optimized configurations with paths
-containing spaces. On Windows and Linux, `-Runtime` also runs the optional runtime
+containing spaces. On Windows and Linux, `--runtime` also runs the optional runtime
 validators, starts that game, checks its console status, pauses and steps it,
 and captures a frame.
 Open the saved PNG to verify the result. The empty starter scene is expected to
@@ -31,14 +34,14 @@ not delete or modify your source files, commit changes, or publish anything.
 After the intended files have been committed, run the publication check:
 
 ```powershell
-./tools/release_check.ps1 -Runtime
+.\tools\release_check.bat --runtime
 ```
 
-Without `-WorkingTree`, only `HEAD` and its recorded submodule revision are
+Without `--working-tree`, only `HEAD` and its recorded submodule revision are
 exported. This catches files that exist locally but were never committed. Both
 modes require initialized local submodules and do not download dependencies.
-Omit `-Runtime` for checks without graphics or audio initialization. On headless Linux,
-use `xvfb-run -a pwsh -NoProfile -File tools/release_check.ps1 -Runtime` after
+Omit `--runtime` for checks without graphics or audio initialization. On headless Linux,
+use `xvfb-run -a sh tools/release_check.sh --runtime` after
 installing the dependencies in [Linux development](linux.md).
 
 Run these checks locally on Windows AMD64 and Linux AMD64 using the toolchain
@@ -54,9 +57,10 @@ frame remain in the generated `build/release check */` directory.
 - Confirm the GitHub clone URL and run Windows and Linux validation locally on
   the release commit. Record the results separately for each platform.
 - State the tested platform and compiler revision in the release notes.
-  Windows AMD64 is locally tested; Linux verification is pending an actual Linux
-  run. Complete the Linux desktop checks in [linux.md](linux.md) before claiming
-  desktop coverage. macOS remains unverified.
+  Windows AMD64 is locally tested. Native Linux tooling checks have run, but a full
+  headless pass and desktop verification remain pending; see the recorded results
+  in [linux.md](linux.md). Complete the Linux desktop checks before claiming desktop
+  coverage. macOS remains unverified.
 - Have two or three developers complete [the alpha trial](alpha-trial.md), then
   fix the onboarding failures before tagging the alpha.
 - Run the committed-snapshot check on the exact commit intended for the release.

@@ -3,6 +3,7 @@ package main
 import "core:encoding/json"
 import "core:fmt"
 import "core:math"
+import "core:mem"
 import "rune:assets"
 import "rune:ecs"
 import "rune:terrain"
@@ -72,23 +73,83 @@ validate_detail_rendering :: proc(ctx:^bridge.Context,manager:^assets.Asset_Mana
 	for batch in ctx.terrains[e].details {
 		assert(len(batch.instances)==32 && batch.visible_count==32 && batch.buffer.capacity==32,"GPU instances draw each detail type")
 	}
+	assert(ctx.frame_stats.terrain_detail_rebuilds==4 && ctx.frame_stats.terrain_detail_uploads==4,"first view uploads all detail streams")
+	render_frame(ctx,&w,manager)
+	assert(ctx.frame_stats.terrain_detail_rebuilds==0 && ctx.frame_stats.terrain_detail_uploads==0,"stationary view reuses visible instances and GPU streams")
+	cache:=ctx.terrains[e]
+	terrain_pose,_:=ecs.get_transform(&w,e)
+	camera_pose,_:=ecs.get_transform(&w,camera)
+	validate_detail_staging(&cache.details[0],rules[0],terrain_pose,camera_pose.position)
+	view,_:=ecs.get_camera_3d(&w,camera)
+	turned_view:=view; turned_view.target[0]+=1
+	assert(ecs.set_camera_3d(&w,camera,turned_view)); render_frame(ctx,&w,manager)
+	assert(ctx.frame_stats.terrain_detail_rebuilds==0,"camera orientation does not change distance-based detail selection")
+	assert(ecs.set_camera_3d(&w,camera,view))
+	assert(ecs.set_enabled(&w,e,false)); render_frame(ctx,&w,manager)
+	for batch in ctx.terrains[e].details {assert(batch.visible_count==0,"disabled terrain has no visible details")}
+	assert(ecs.set_enabled(&w,e,true)); render_frame(ctx,&w,manager)
+	for batch in ctx.terrains[e].details {assert(batch.visible_count==32,"re-enabling restores cached visibility")}
+	assert(ctx.frame_stats.terrain_detail_rebuilds==0 && ctx.frame_stats.terrain_detail_uploads==0,"re-enabling reuses unchanged GPU streams")
 	for mesh in ctx.detail_meshes {assert(mesh.vertexCount>0,"built-in detail mesh uploads")}
 	assert(ctx.models[rules[3].model].model.meshCount>0,"custom detail model loads and instances")
 	validate_detail_world_registration(ctx,&w,manager,e,camera)
 	pose,_:=ecs.get_transform(&w,camera); pose.position={1000,1000,1000}; assert(ecs.set_transform(&w,camera,pose))
 	render_frame(ctx,&w,manager)
 	for batch in ctx.terrains[e].details {assert(batch.visible_count==0,"distant details are culled")}
+	assert(ctx.frame_stats.terrain_detail_rebuilds==4 && ctx.frame_stats.terrain_detail_uploads==0,"camera translation rebuilds visibility without uploading empty streams")
+	render_frame(ctx,&w,manager)
+	assert(ctx.frame_stats.terrain_detail_rebuilds==0,"all-culled visibility is cached too")
 	old:=ctx.terrains[e].details[0].buffer.buffers[0]
 	assert(write_fixture(path,"invalid")==nil); assets.refresh_terrains(manager); ecs.sync_terrains(&w,manager)
 	render_frame(ctx,&w,manager)
 	assert(ctx.terrains[e].details[0].buffer.buffers[0]==old,"invalid reload retains detail buffers")
-	rules[0].count=12
+	assert(ctx.frame_stats.terrain_detail_rebuilds==0,"invalid reload retains the visibility cache")
+	assert(ecs.set_transform(&w,camera,camera_pose))
+	rules[0].count=12; rules[1].count=0
 	bytes,_=json.marshal(d,allocator=context.temp_allocator); assert(write_fixture(path,bytes)==nil)
 	assets.refresh_terrains(manager); ecs.sync_terrains(&w,manager); render_frame(ctx,&w,manager)
 	assert(len(ctx.terrains[e].details[0].instances)==12 && ctx.terrains[e].details[0].buffer.buffers[0]!=old,"valid detail edits regenerate GPU instances")
+	assert(ctx.frame_stats.terrain_detail_rebuilds==4 && ctx.frame_stats.terrain_detail_uploads==3,"reload invalidates cached streams and supports an empty detail definition")
+	assert(ctx.terrains[e].details[0].visible_count==12 && ctx.terrains[e].details[1].visible_count==0)
+	render_frame(ctx,&w,manager)
+	assert(ctx.frame_stats.terrain_detail_rebuilds==0,"empty detail batches reuse their cache")
 	assert(ecs.destroy_entity(&w,e)); render_frame(ctx,&w,manager)
 	assert(len(ctx.terrains)==0,"terrain removal releases detail batches")
-	fmt.println("PASS instanced grass/trees/rocks/custom models, distance culling, detail reload retention and cleanup")
+	// Replacement must release populated staging arrays as well as GPU buffers.
+	e=ecs.create_entity(&w); assert(add_transform(&w,r,e,terrain_pose))
+	assert(ecs.add(&w,r,e,t)); ecs.sync_terrains(&w,manager); render_frame(ctx,&w,manager)
+	other:=ecs.init(); defer ecs.destroy(&other)
+	rl.BeginDrawing(); bridge.draw_scene(ctx,&other,manager); rl.EndDrawing()
+	assert(len(ctx.terrains)==0,"world replacement releases detail caches")
+	fmt.println("PASS instanced details, unchanged-view reuse, allocation-free staging, activation, distance culling, reload and cleanup")
+}
+
+// Track both Odin allocators around just the detail preparation path: renderer
+// bookkeeping outside this function can legitimately use frame scratch.
+validate_detail_staging :: proc(batch:^bridge.Terrain_Detail_Batch,detail:terrain.Detail,t:ecs.Transform,camera:[3]f32) {
+	tracker:mem.Tracking_Allocator
+	mem.tracking_allocator_init(&tracker,context.allocator)
+	defer mem.tracking_allocator_destroy(&tracker)
+	context.allocator=mem.tracking_allocator(&tracker)
+	context.temp_allocator=context.allocator
+	positions:=raw_data(batch.positions)
+	rotations:=raw_data(batch.rotations)
+	scales:=raw_data(batch.scales)
+	colors:=raw_data(batch.colors)
+	for _ in 0..<8 {assert(!bridge.upload_visible_details(batch,detail,t,camera),"unchanged detail inputs skip all rebuilding/uploading")}
+	assert(bridge.upload_visible_details(batch,detail,t,camera+[3]f32{1,0,0}),"moving the camera invalidates the view")
+	moved:=t; moved.position[1]+=2
+	assert(bridge.upload_visible_details(batch,detail,moved,camera),"moving terrain invalidates the streams")
+	assert(batch.positions[0][1]==t.position[1]+2,"reused staging contains the new world position")
+	clipped:=detail; clipped.draw_distance=1
+	assert(bridge.upload_visible_details(batch,clipped,t,camera) && batch.visible_count==0,"draw distance changes invalidate visibility")
+	assert(!bridge.upload_visible_details(batch,clipped,t,camera),"all-culled batches reuse their empty result")
+	aligned:=detail; aligned.align_to_normal=!detail.align_to_normal
+	assert(bridge.upload_visible_details(batch,aligned,t,camera),"alignment changes invalidate rotations")
+	assert(bridge.upload_visible_details(batch,detail,t,camera),"restore the original streams")
+	assert(batch.visible_count==32)
+	assert(raw_data(batch.positions)==positions && raw_data(batch.rotations)==rotations && raw_data(batch.scales)==scales && raw_data(batch.colors)==colors,"changed views reuse staging storage")
+	assert(tracker.total_allocation_count==0,"stable and moving detail views use no per-frame heap or scratch allocations")
 }
 
 // Translating the terrain and camera together must leave the rendered image

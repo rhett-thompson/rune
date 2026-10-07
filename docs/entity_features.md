@@ -152,7 +152,7 @@ update. The scene-owning loop calls it automatically.
 inheritance, reparenting, query filtering, JSON roundtrips and rejection, lifetime
 reset/expiry/reload, and 2D/3D physics cleanup. `--runtime` adds GPU pixel checks and
 silent native sound/music suspension checks. The tool is included in
-`tools/validate.ps1`, including its optional `-Runtime` pass.
+`.\tools\validate.bat`, including its optional `--runtime` pass.
 
 ## Typed component creation
 

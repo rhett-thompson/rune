@@ -171,6 +171,7 @@ main :: proc() {
 	r := ecs.init_registry()
 	defer ecs.destroy_registry(&r)
 	assert(ecs.register_builtin_components(&r))
+	validate_queries(&r)
 	validate_activation(&r)
 	validate_components(&r)
 	validate_physics(&r, 2)

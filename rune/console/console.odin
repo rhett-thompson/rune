@@ -8,6 +8,7 @@ import rl "vendor:raylib"
 // state: games register commands whose handlers perform game-specific work.
 Max_Log_Lines :: 64
 Max_Line_Length :: 192
+Max_Line_Highlights :: 64
 Max_Input_Length :: 256
 Max_History :: 16
 Max_Commands :: 64
@@ -24,6 +25,9 @@ Log_Line :: struct {
 	level: Log_Level,
 	text:  [Max_Line_Length]u8,
 	len:   int,
+	spans: [Max_Line_Highlights]Log_Span,
+	span_count: int,
+	continues_previous: bool,
 }
 
 Command_Proc :: #type proc(console: ^Console, arguments: string)
@@ -43,9 +47,22 @@ Console :: struct {
 	line_count:    int,
 	input:         [Max_Input_Length]u8,
 	input_len:     int,
-	history:       [Max_History]Log_Line,
+	input_caret:   int,
+	input_anchor:  int,
+	selection_target: Selection_Target,
+	edit_revision: u64,
+	renderer:      Renderer,
+	// Wrapped rows above the newest output. Zero follows incoming messages.
+	scroll_offset: int,
+	scroll_anchor_sequence: u64,
+	scroll_anchor_byte: int,
+	output_selection: Output_Selection,
+	history:       [Max_History]History_Line,
 	history_count: int,
 	history_index: int,
+	history_draft: [Max_Input_Length]u8,
+	history_draft_len: int,
+	history_draft_caret: int,
 	commands:      [Max_Commands]Command,
 	command_count: int,
 	log_sequence:  u64,
@@ -104,9 +121,10 @@ log :: proc(console: ^Console, level: Log_Level, message: string) {
 		console.line_count += 1
 	}
 	line := &console.lines[index]
+	line^ = {}
 	line.sequence = console.log_sequence
 	line.level = level
-	line.len = min(len(message), Max_Line_Length)
+	line.len = result_chunk_end(message, 0)
 	copy(line.text[:line.len], message[:line.len])
 }
 
@@ -115,9 +133,10 @@ log_parts :: proc(console: ^Console, level: Log_Level, parts: []string) {
 	length := 0
 	for part in parts {
 		if length >= Max_Line_Length {break}
-		count := min(len(part), Max_Line_Length - length)
+		count := result_chunk_end(part, 0, Max_Line_Length - length)
 		copy(buffer[length:length + count], part[:count])
 		length += count
+		if count < len(part) {break}
 	}
 	log(console, level, string(buffer[:length]))
 }
@@ -130,9 +149,12 @@ error :: proc(console: ^Console, message: string) {log(console, .Error, message)
 // systems that need exclusive input can query is_open and skip their controls.
 update :: proc(console: ^Console) {
 	poll_remote(console, rl.GetTime())
-	if console.remote.result_len > 0 || console.defer_reply {return}
 	if rl.IsKeyPressed(.GRAVE) {
 		console.is_open = !console.is_open
+		console.edit_revision += 1
+		console.renderer.dragging_scrollbar = false
+		console.renderer.dragging_text = false
+		console.renderer.wheel_remainder = 0
 		discard_characters()
 		return
 	}
@@ -140,33 +162,47 @@ update :: proc(console: ^Console) {
 
 	if rl.IsKeyPressed(.ESCAPE) {
 		console.is_open = false
+		console.renderer.dragging_scrollbar = false
+		console.renderer.dragging_text = false
 		return
 	}
-	if rl.IsKeyPressedRepeat(.BACKSPACE) && console.input_len > 0 {
-		console.input_len -= 1
-	}
-	if rl.IsKeyPressed(.ENTER) {
-		submit(console)
-		return
-	}
-	if rl.IsKeyPressedRepeat(.UP) {previous_history(console)}
-	if rl.IsKeyPressedRepeat(.DOWN) {next_history(console)}
+	update_view(console)
+	by_word := rl.IsKeyDown(.LEFT_CONTROL) || rl.IsKeyDown(.RIGHT_CONTROL)
+	extend := rl.IsKeyDown(.LEFT_SHIFT) || rl.IsKeyDown(.RIGHT_SHIFT)
+	if by_word && rl.IsKeyPressed(.A) {select_all(console)}
+	if by_word && rl.IsKeyPressed(.C) {copy_selection(console)}
+	if by_word && rl.IsKeyPressed(.X) {cut_selection(console)}
+	if by_word && rl.IsKeyPressed(.V) {paste_clipboard(console)}
+	if key_pressed_or_repeated(.BACKSPACE) {edit(console, .Backspace, by_word)}
+	if key_pressed_or_repeated(.DELETE) {edit(console, .Delete, by_word)}
+	if key_pressed_or_repeated(.LEFT) {edit(console, .Left, by_word, extend)}
+	if key_pressed_or_repeated(.RIGHT) {edit(console, .Right, by_word, extend)}
+	if rl.IsKeyPressed(.HOME) {edit(console, .Home, false, extend)}
+	if rl.IsKeyPressed(.END) {edit(console, .End, false, extend)}
+	if key_pressed_or_repeated(.UP) {edit(console, .Previous_History)}
+	if key_pressed_or_repeated(.DOWN) {edit(console, .Next_History)}
 
 	for character := rl.GetCharPressed(); character > 0; character = rl.GetCharPressed() {
-		if character >= 32 && character <= 126 && console.input_len < Max_Input_Length {
-			console.input[console.input_len] = u8(character)
-			console.input_len += 1
-		}
+		if !by_word {insert_character(console, rune(character))}
 	}
+	if rl.IsKeyPressed(.ENTER) {submit(console)}
 }
 
 // submit executes the current input line. It is public so headless validation
-// tools can exercise registered commands without a raylib window.
+// tools can exercise registered commands without a raylib window. Pending
+// commands keep the draft intact; navigation and editing remain available.
 submit :: proc(console: ^Console) {
+	if console.remote.result_len > 0 || console.defer_reply {return}
 	buffer := console.input
 	line := string(buffer[:console.input_len])
 	console.input_len = 0
+	console.input_caret = 0
+	console.input_anchor = 0
+	console.selection_target = .Input
+	console.edit_revision += 1
 	console.history_index = -1
+	console.history_draft_len = 0
+	console.history_draft_caret = 0
 	execute(console, line)
 }
 
@@ -209,40 +245,7 @@ execute :: proc(console: ^Console, command_line: string) -> bool {
 }
 
 draw :: proc(console: ^Console) {
-	if !console.is_open {return}
-	width := int(rl.GetScreenWidth())
-	height := min(360, int(rl.GetScreenHeight()))
-	padding := 12
-	font_size := 18
-	line_height := 23
-	rl.DrawRectangle(0, 0, i32(width), i32(height), rl.Color{12, 15, 20, 232})
-	draw_text("Rune Console  |  ` toggle  |  Esc close", padding, padding, font_size, rl.LIGHTGRAY)
-
-	available_lines := (height - padding * 3 - line_height * 2) / line_height
-	first := max(0, console.line_count - available_lines)
-	for display_index in first ..< console.line_count {
-		line := console.lines[(console.line_start + display_index) % Max_Log_Lines]
-		y := padding * 2 + line_height + (display_index - first) * line_height
-		draw_text(string(line.text[:line.len]), padding, y, font_size, color_for_level(line.level))
-	}
-
-	input_y := height - padding - line_height
-	rl.DrawRectangle(
-		i32(padding - 4),
-		i32(input_y - 3),
-		i32(width - padding * 2 + 8),
-		i32(line_height + 6),
-		rl.Color{31, 38, 48, 255},
-	)
-	draw_text("> ", padding, input_y, font_size, rl.RAYWHITE)
-	draw_text(
-		string(console.input[:console.input_len]),
-		padding + 20,
-		input_y,
-		font_size,
-		rl.RAYWHITE,
-	)
-	draw_text("_", padding + 20 + console.input_len * 10, input_y, font_size, rl.RAYWHITE)
+	draw_view(console)
 }
 
 is_open :: proc(console: ^Console) -> bool {return console.is_open}
@@ -250,6 +253,9 @@ is_open :: proc(console: ^Console) -> bool {return console.is_open}
 clear_command :: proc(console: ^Console, arguments: string) {
 	console.line_start = 0
 	console.line_count = 0
+	console.scroll_offset = 0
+	console.scroll_anchor_sequence = 0
+	console.output_selection = {}
 }
 
 help_command :: proc(console: ^Console, arguments: string) {
@@ -261,42 +267,72 @@ help_command :: proc(console: ^Console, arguments: string) {
 
 add_history :: proc(console: ^Console, line: string) {
 	if console.history_count < Max_History {
-		console.history[console.history_count] = make_line(.Info, line)
+		console.history[console.history_count] = make_history_line(line)
 		console.history_count += 1
 		return
 	}
 	copy(console.history[:Max_History - 1], console.history[1:])
-	console.history[Max_History - 1] = make_line(.Info, line)
+	console.history[Max_History - 1] = make_history_line(line)
+	// Remote commands add history without disturbing the recalled input. Keep
+	// its index attached to the same entry while the oldest command is evicted.
+	if console.history_index > 0 {
+		console.history_index -= 1
+	} else if console.history_index == 0 {
+		console.history_index = History_Evicted_Index
+	}
 }
 
 previous_history :: proc(console: ^Console) {
 	if console.history_count == 0 {return}
-	if console.history_index <
-	   0 {console.history_index = console.history_count - 1} else if console.history_index > 0 {console.history_index -= 1}
+	if console.history_index == History_Evicted_Index {return}
+	if console.history_index < 0 {
+		console.history_draft = console.input
+		console.history_draft_len = console.input_len
+		console.history_draft_caret = console.input_caret
+		console.history_index = console.history_count - 1
+	} else if console.history_index > 0 {
+		console.history_index -= 1
+	} else {
+		return
+	}
 	copy_input(console, &console.history[console.history_index])
 }
 
 next_history :: proc(console: ^Console) {
+	if console.history_index == History_Evicted_Index {
+		console.history_index = 0
+		copy_input(console, &console.history[0])
+		return
+	}
 	if console.history_index < 0 {return}
 	if console.history_index >= console.history_count - 1 {
 		console.history_index = -1
-		console.input_len = 0
+		console.input = console.history_draft
+		console.input_len = console.history_draft_len
+		console.input_caret = console.history_draft_caret
+		console.input_anchor = console.input_caret
+		console.selection_target = .Input
+		console.edit_revision += 1
 		return
 	}
 	console.history_index += 1
 	copy_input(console, &console.history[console.history_index])
 }
 
-copy_input :: proc(console: ^Console, line: ^Log_Line) {
+copy_input :: proc(console: ^Console, line: ^History_Line) {
 	console.input_len = line.len
+	console.input_caret = line.len
+	console.input_anchor = line.len
+	console.selection_target = .Input
 	copy(console.input[:console.input_len], line.text[:line.len])
+	console.edit_revision += 1
 }
 
 make_line :: proc(level: Log_Level, message: string) -> Log_Line {
 	result := Log_Line {
 		level = level,
 	}
-	result.len = min(len(message), Max_Line_Length)
+	result.len = result_chunk_end(message, 0)
 	copy(result.text[:result.len], message[:result.len])
 	return result
 }
@@ -309,18 +345,13 @@ command_description :: proc(command: ^Command) -> string {return string(
 color_for_level :: proc(level: Log_Level) -> rl.Color {
 	switch level {
 	case .Info:
-		return rl.RAYWHITE
+		return Text_Color
 	case .Warning:
-		return rl.YELLOW
+		return {245, 197, 106, 255}
 	case .Error:
-		return rl.MAROON
+		return {255, 134, 145, 255}
 	}
-	return rl.RAYWHITE
-}
-
-draw_text :: proc(text: string, x, y, font_size: int, color: rl.Color) {
-	c_text, _ := strings.clone_to_cstring(text, context.temp_allocator)
-	rl.DrawText(c_text, i32(x), i32(y), i32(font_size), color)
+	return Text_Color
 }
 
 discard_characters :: proc() {

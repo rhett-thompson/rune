@@ -66,6 +66,8 @@
         "tilemaps": { "type": "boolean", "default": true },
         "audio": { "type": "boolean", "default": true },
         "lights": { "type": "boolean", "default": true },
+        "navmeshes": { "type": "boolean", "default": false, "description": "Show baked navigation independently of the enabled/F3 overlay switch." },
+        "navmesh_entity": { "type": "string", "default": "", "description": "Stable NavMesh3D scene entity ID; empty displays all enabled surfaces." },
         "transform_size": { "type": "number", "exclusiveMinimum": 0, "default": 24 }
       },
       "additionalProperties": false
