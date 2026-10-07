@@ -192,8 +192,8 @@ The engine-owned scene loop handles scheduling. Low-level tools can use
 `commit` directly, managing world lifetimes and safe simulation boundaries.
 
 ```powershell
-odin run tools/save_validation -collection:rune=rune -out:build/save_validation.exe
-odin run tools/save_validation -collection:rune=rune -out:build/save_validation.exe -- --runtime
+odin run tools/save_validation -linker:msvc -collection:rune=rune -out:build/save_validation.exe
+odin run tools/save_validation -linker:msvc -collection:rune=rune -out:build/save_validation.exe -- --runtime
 ```
 
 Use an extensionless output path on Linux. The normal validation suite discovers

@@ -209,7 +209,7 @@ checks, cycle/error checks, and nested reload tests:
 
 ```powershell
 $exe = '.exe'
-odin run tools/prefab_validation -collection:rune=rune "-out:build/prefab_validation$exe"
+odin run tools/prefab_validation -linker:msvc -collection:rune=rune "-out:build/prefab_validation$exe"
 ```
 
 The fixtures live under [tools/prefab_validation/fixtures](../tools/prefab_validation/fixtures).

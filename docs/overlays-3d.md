@@ -41,7 +41,7 @@ R3D world bloom settings. Shader and texture ownership remain with the layer.
 GPU checks (run from the Rune root):
 
 ```powershell
-odin run tools/overlay_3d_validation -collection:rune=rune -out:build/overlay_3d_validation.exe -- --runtime
+odin run tools/overlay_3d_validation -linker:msvc -collection:rune=rune -out:build/overlay_3d_validation.exe -- --runtime
 ```
 
 The hidden-window check verifies world depth isolation, self-occlusion, clear and

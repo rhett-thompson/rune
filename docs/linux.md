@@ -7,6 +7,11 @@ targets; the bundled native dependencies need separate verification.
 
 ## Verification status
 
+The current pinned compiler is `dev-2026-10-nightly:84bc3fc`, validated on
+Windows AMD64. October Odin and the current checkout have not been validated
+on Linux; `toolchain.json` retains only Windows in `tested_platforms`.
+The September results below are historical and do not establish October support.
+
 The native helpers were exercised on Ubuntu 26.04.1 LTS AMD64 under WSL2 with Odin
 `dev-2026-09-nightly:a2fb372` on 2026-10-07. Compiler installation, project creation
 and builds, fixture generation, and console requests, replies, and timeout cleanup

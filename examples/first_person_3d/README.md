@@ -96,7 +96,7 @@ Run from the repository root on Windows:
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin run examples/first_person_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/first_person_3d$exe"
+odin run examples/first_person_3d -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin "-out:build/first_person_3d$exe"
 ```
 
 [All examples](../README.md)

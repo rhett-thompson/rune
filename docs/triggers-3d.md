@@ -84,5 +84,5 @@ same trigger events for different rules.
 Regression checks:
 
 ```powershell
-odin test examples/third_person_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin -out:build/interaction_tests.exe
+odin test examples/third_person_3d -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin -out:build/interaction_tests.exe
 ```

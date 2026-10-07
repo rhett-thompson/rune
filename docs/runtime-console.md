@@ -49,7 +49,7 @@ On Windows, build the example, then launch it with an opt-in inbox:
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
-odin build examples/tilemap_2d -collection:rune=rune -out:build/tilemap_2d.exe
+odin build examples/tilemap_2d -linker:msvc -collection:rune=rune -out:build/tilemap_2d.exe
 Start-Process -FilePath ./build/tilemap_2d.exe -ArgumentList '--console-dir=build/console/tilemap' -WorkingDirectory (Get-Location).Path -WindowStyle Hidden
 ```
 

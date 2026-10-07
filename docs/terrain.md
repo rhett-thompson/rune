@@ -260,7 +260,7 @@ with Windows PowerShell:
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin run tools/navmesh_baker -collection:rune=rune "-out:build/navmesh_baker$exe" -- examples/terrain_3d/terrain.navbake.json
+odin run tools/navmesh_baker -linker:msvc -collection:rune=rune "-out:build/navmesh_baker$exe" -- examples/terrain_3d/terrain.navbake.json
 ```
 
 Press **N** in Highland Walk to inspect the result.
@@ -310,7 +310,7 @@ Separate model entities can supply cave and cliff geometry later.
 ## Example and checks
 
 ```powershell
-odin build examples/terrain_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin -out:build/terrain_3d.exe
+odin build examples/terrain_3d -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin -out:build/terrain_3d.exe
 ./build/terrain_3d.exe --console-dir=build/console/terrain
 ```
 
@@ -327,7 +327,7 @@ noise continuity and shader cleanup. It runs as part of
 To run its GPU checks independently:
 
 ```powershell
-odin build tools/terrain_validation -collection:rune=rune -collection:r3d=third_party/r3d-odin -out:build/terrain_validation.exe
+odin build tools/terrain_validation -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin -out:build/terrain_validation.exe
 ./build/terrain_validation.exe --runtime
 ```
 

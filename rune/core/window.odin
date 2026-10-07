@@ -11,6 +11,8 @@ Window_State :: struct {
 	position: rl.Vector2,
 	maximized: bool,
 	saved: bool,
+	// Runtime frame cap; project.window retains the startup settings.
+	target_fps: i32,
 }
 
 Window_Metrics :: struct {
@@ -20,6 +22,7 @@ Window_Metrics :: struct {
 	dpi: [2]f32,
 	high_dpi: bool,
 	resizable: bool,
+	vsync: bool,
 }
 
 parse_window_mode :: proc(name: string) -> (Window_Mode, bool) {
@@ -52,6 +55,7 @@ set_window_mode :: proc(engine: ^Engine, mode: Window_Mode) -> bool {
 	if engine == nil || !rl.IsWindowReady() || window_mode_name(mode) == "" {return false}
 	previous := window_mode()
 	if previous == mode {return true}
+	vsync := rl.IsWindowState({.VSYNC_HINT})
 	if previous == .Windowed {
 		engine.window.maximized = rl.IsWindowMaximized()
 		if engine.window.maximized {rl.RestoreWindow()}
@@ -77,7 +81,34 @@ set_window_mode :: proc(engine: ^Engine, mode: Window_Mode) -> bool {
 	case .Borderless: rl.ToggleBorderlessWindowed()
 	case .Fullscreen: rl.ToggleFullscreen()
 	}
+	// GLFW monitor changes can reset the swap interval, including borderless
+	// transitions where raylib does not restore it. Force the requested state.
+	apply_vsync(vsync)
 	return window_mode() == mode
+}
+
+@(private)
+apply_vsync :: proc(enabled: bool) {
+	// SetWindowState skips already-set hints, so clear before reapplying.
+	rl.ClearWindowState({.VSYNC_HINT})
+	if enabled {rl.SetWindowState({.VSYNC_HINT})}
+}
+
+// Call during update or between frames. This requests display synchronization;
+// the graphics driver or compositor may override the swap interval.
+set_vsync :: proc(engine: ^Engine, enabled: bool) -> bool {
+	if engine == nil || !rl.IsWindowReady() {return false}
+	apply_vsync(enabled)
+	return rl.IsWindowState({.VSYNC_HINT}) == enabled
+}
+
+// Independent of V-Sync. Zero disables the software cap; negatives are invalid.
+// Runtime setters leave the loaded project settings unchanged.
+set_target_fps :: proc(engine: ^Engine, fps: i32) -> bool {
+	if engine == nil || !rl.IsWindowReady() || fps < 0 {return false}
+	rl.SetTargetFPS(fps)
+	engine.window.target_fps = fps
+	return true
 }
 
 toggle_borderless :: proc(engine: ^Engine) -> bool {
@@ -91,7 +122,8 @@ window_metrics :: proc() -> Window_Metrics {
 	return {window_mode_name(window_mode()),
 		{rl.GetScreenWidth(), rl.GetScreenHeight()},
 		{rl.GetRenderWidth(), rl.GetRenderHeight()}, rl.GetWindowScaleDPI(),
-		rl.IsWindowState({.WINDOW_HIGHDPI}), rl.IsWindowState({.WINDOW_RESIZABLE})}
+		rl.IsWindowState({.WINDOW_HIGHDPI}), rl.IsWindowState({.WINDOW_RESIZABLE}),
+		rl.IsWindowState({.VSYNC_HINT})}
 }
 
 @(private)

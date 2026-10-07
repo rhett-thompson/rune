@@ -240,6 +240,12 @@ validate_window :: proc(report: ^Report, file: string, project: json.Object) {
 			if _, ok := value.(json.Boolean); !ok {add(report, file, field_path("$.window", field), "must be a boolean")}
 		}
 	}
+	if value, found := settings["target_fps"]; found {
+		fps, ok := value.(json.Integer)
+		if !ok || fps < 0 || fps > 2147483647 {
+			add(report, file, "$.window.target_fps", "must be an integer from 0 through 2147483647 (0 disables the frame cap)")
+		}
+	}
 	if value, found := settings["mode"]; found {
 		mode, ok := value.(json.String)
 		if !ok || (mode != "windowed" && mode != "borderless" && mode != "fullscreen") {

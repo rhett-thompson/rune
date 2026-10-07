@@ -137,7 +137,7 @@ Run from the repository root on Windows, after installing the r3d dependency:
 git submodule update --init --recursive
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin run examples/third_person_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/third_person_3d$exe"
+odin run examples/third_person_3d -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin "-out:build/third_person_3d$exe"
 ```
 
 [All examples](../README.md)

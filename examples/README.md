@@ -14,12 +14,13 @@ The launcher supplies any extra collections. To invoke Odin directly:
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin run examples/launcher -collection:rune=rune "-out:build/launcher$exe"
+odin run examples/launcher -linker:msvc -collection:rune=rune "-out:build/launcher$exe"
 ```
 
-These direct commands use Windows' built-in PowerShell. On Linux, use `sh launcher.sh`
-or omit the `.exe` suffix in the direct Odin commands. Each guide below also has a
-direct run command. For R3D setup and Linux display requirements, see
+These direct commands use Windows' built-in PowerShell. On Linux, use
+`sh launcher.sh` or omit the `.exe` suffix and `-linker:msvc` in the direct Odin
+commands. Each guide below also has a direct run command. For R3D setup and Linux
+display requirements, see
 [Linux development](../docs/linux.md) and the [repository README](../README.md).
 
 Scene examples hot reload JSON when saved. Odin changes require a rebuild. Close

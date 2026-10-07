@@ -176,12 +176,12 @@ checks. The existing 2D validator below checks the shared random sequence too.
 ## Example and validation
 
 ```powershell
-# Windows PowerShell; on Linux omit .exe and run binaries with ./build/...
+# Windows PowerShell; on Linux omit .exe and -linker:msvc, and use ./build/...
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin build examples/particles_2d -collection:rune=rune "-out:build/particles_2d$exe"
+odin build examples/particles_2d -linker:msvc -collection:rune=rune "-out:build/particles_2d$exe"
 & "./build/particles_2d$exe"
-odin build tools/particle_validation -collection:rune=rune "-out:build/particle_validation$exe"
+odin build tools/particle_validation -linker:msvc -collection:rune=rune "-out:build/particle_validation$exe"
 & "./build/particle_validation$exe"
 & "./build/particle_validation$exe" --runtime
 ```

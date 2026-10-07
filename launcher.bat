@@ -15,7 +15,8 @@ if not exist "build\" (
     exit /b 1
 )
 
-odin run examples/launcher -collection:rune=rune -out:build/launcher.exe
+rem R3D/Assimp uses bundled /GL zlib; MSVC supports its LTCG objects.
+odin run examples/launcher -collection:rune=rune -linker:msvc -out:build/launcher.exe
 set "launcher_exit=%errorlevel%"
 if not "%launcher_exit%"=="0" (
     echo Launcher failed with exit code %launcher_exit%.

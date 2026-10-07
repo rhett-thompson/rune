@@ -14,7 +14,7 @@ the fill). Disable the moon light entity to also remove its scene lighting.
 From the repository root:
 
 ```powershell
-odin build examples/skybox_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin -out:build/skybox_3d.exe
+odin build examples/skybox_3d -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin -out:build/skybox_3d.exe
 ./build/skybox_3d.exe
 ```
 

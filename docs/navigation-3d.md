@@ -138,8 +138,8 @@ does not require a transform on the navigation entity.
 Run the CPU-only baker from the repository root:
 
 ```powershell
-odin run tools/navmesh_baker -collection:rune=rune -- examples/navigation_3d/course.navbake.json
-odin run tools/navmesh_baker -collection:rune=rune -- examples/terrain_3d/terrain.navbake.json
+odin run tools/navmesh_baker -linker:msvc -collection:rune=rune -- examples/navigation_3d/course.navbake.json
+odin run tools/navmesh_baker -linker:msvc -collection:rune=rune -- examples/terrain_3d/terrain.navbake.json
 ```
 
 A `*.navbake.json` file selects the scene, output asset and agent settings:
@@ -349,9 +349,9 @@ its planned route is complete.
 ## Validation
 
 ```powershell
-odin run tools/navigation_3d_validation -collection:rune=rune -out:build/navigation_3d_validation.exe
-odin run tools/navigation_3d_validation -collection:rune=rune -out:build/navigation_3d_validation.exe -- --runtime
-odin run tools/navigation_bake_validation -collection:rune=rune -out:build/navigation_bake_validation.exe
+odin run tools/navigation_3d_validation -linker:msvc -collection:rune=rune -out:build/navigation_3d_validation.exe
+odin run tools/navigation_3d_validation -linker:msvc -collection:rune=rune -out:build/navigation_3d_validation.exe -- --runtime
+odin run tools/navigation_bake_validation -linker:msvc -collection:rune=rune -out:build/navigation_bake_validation.exe
 ```
 
 Use an extensionless output on Linux. Headless checks cover geometry/topology,

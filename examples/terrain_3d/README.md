@@ -16,11 +16,12 @@ Details are decorative; terrain collision and the baked navmesh describe the gro
 From the repository root:
 
 ```powershell
-odin build examples/terrain_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin -out:build/terrain_3d.exe
+odin build examples/terrain_3d -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin -out:build/terrain_3d.exe
 ./build/terrain_3d.exe
 ```
 
-On Linux, omit `.exe`. The example is also available in the launcher.
+On Linux, omit `.exe` and `-linker:msvc`. The example is also available in the
+launcher.
 
 WASD moves, Shift sprints, Space jumps, Escape captures/releases the mouse,
 and R resets the player. **N** toggles the baked navigation wireframe. Mouse look starts active. After releasing the cursor,
@@ -44,7 +45,7 @@ The example includes a navmesh baked directly from the transformed terrain's
 heightmap triangles. After changing the heightmap or its placement, rebuild it:
 
 ```powershell
-odin run tools/navmesh_baker -collection:rune=rune -- examples/terrain_3d/terrain.navbake.json
+odin run tools/navmesh_baker -linker:msvc -collection:rune=rune -- examples/terrain_3d/terrain.navbake.json
 ```
 
 The running example hot reloads the result. `terrain.navbake.json` uses 3-unit

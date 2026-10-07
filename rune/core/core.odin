@@ -29,6 +29,8 @@ Window_Settings :: struct {
 	high_dpi:   bool,
 	resizable:  bool,
 	vsync:      bool,
+	// Independent software frame cap. Zero disables frame limiting.
+	target_fps: i32,
 	msaa_4x:    bool,
 	show_fps:   bool,
 }
@@ -254,12 +256,15 @@ init :: proc(project_path: string) -> (Engine, bool) {
 	if project.window.msaa_4x {flags += {.MSAA_4X_HINT}}
 	if project.window.high_dpi {flags += {.WINDOW_HIGHDPI}}
 	if project.window.resizable {flags += {.WINDOW_RESIZABLE}}
+	if project.window.vsync {flags += {.VSYNC_HINT}}
 	rl.SetConfigFlags(flags)
 	rl.InitWindow(project.window.width, project.window.height, title)
 	fit_window_to_monitor()
-	if project.window.vsync {
-		rl.SetTargetFPS(60)
-	}
+	// SetConfigFlags ORs flags retained after CloseWindow. Apply both states so
+	// a later engine with V-Sync off cannot inherit prior synchronization.
+	apply_vsync(project.window.vsync)
+	// Reset raylib's global target even for uncapped projects or reinitialization.
+	rl.SetTargetFPS(project.window.target_fps)
 
 	asset_manager := assets.init(project_directory)
 	audio_system := audio.init(project_directory)
@@ -276,6 +281,7 @@ init :: proc(project_path: string) -> (Engine, bool) {
 	engine := Engine {
 			project = project,
 			project_directory = project_directory,
+			window = Window_State{target_fps = project.window.target_fps},
 			registry = registry,
 			assets = asset_manager,
 			audio = audio_system,

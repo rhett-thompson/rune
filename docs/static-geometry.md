@@ -207,8 +207,8 @@ Run the headless ownership/collision validator (also discovered by
 `.\tools\validate.bat`) from the Rune root:
 
 ```powershell
-odin run tools/static_mesh_validation -collection:rune=rune -out:build/static_mesh_validation.exe -keep-executable
-odin test rune/geometry -out:build/geometry-tests.exe
+odin run tools/static_mesh_validation -linker:msvc -collection:rune=rune -out:build/static_mesh_validation.exe -keep-executable
+odin test rune/geometry -linker:msvc -out:build/geometry-tests.exe
 ```
 
 The geometry tests compare exposed unit faces across chunks, check winding,
@@ -218,7 +218,7 @@ validator also walks a capsule in both directions over independent chunk seams.
 For GPU material, fallback color, hot reload, collision coexistence, and cleanup checks:
 
 ```powershell
-odin run tools/static_mesh_material_validation -collection:rune=rune -collection:r3d=third_party/r3d-odin -out:build/static_mesh_material_validation.exe -keep-executable -- --runtime
+odin run tools/static_mesh_material_validation -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin -out:build/static_mesh_material_validation.exe -keep-executable -- --runtime
 ```
 
 Surface extraction rejects invalid dimensions, palettes, and spacing. It is

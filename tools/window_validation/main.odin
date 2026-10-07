@@ -18,6 +18,7 @@ validate_settings :: proc() {
 	write_project(`{}`)
 	project, ok := rune.load_project(fixture)
 	assert(ok && project.window.high_dpi && !project.window.resizable)
+	assert(!project.window.vsync && project.window.target_fps == 0,"frame pacing defaults to V-Sync off and no software cap")
 	rune.destroy_project(&project)
 	for settings in ([]string{
 		`{"mode":"windowed","fullscreen":true,"high_dpi":false,"resizable":true}`,
@@ -28,12 +29,90 @@ validate_settings :: proc() {
 		assert(ok)
 		rune.destroy_project(&project)
 	}
+	for fps in ([]i32{0, 1, 60, 144, 2147483647}) {
+		for vsync in ([]bool{false, true}) {
+			write_project(fmt.tprint(`{"vsync":`,vsync,`,"target_fps":`,fps,`}`))
+			project, ok = rune.load_project(fixture)
+			assert(ok && project.window.vsync == vsync && project.window.target_fps == fps,"V-Sync and software cap decode independently")
+			rune.destroy_project(&project)
+		}
+	}
 	for settings in ([]string{`{"mode":"invalid"}`,`{"mode":false}`,`{"mode":""}`,
-		`{"high_dpi":"true"}`,`{"resizable":1}`,`{"fullscreen":null}`}) {
+		`{"high_dpi":"true"}`,`{"resizable":1}`,`{"fullscreen":null}`,
+		`{"vsync":1}`,`{"vsync":"true"}`,`{"vsync":null}`,
+		`{"target_fps":-1}`,`{"target_fps":1.5}`,`{"target_fps":2147483648}`,
+		`{"target_fps":true}`,`{"target_fps":"144"}`,`{"target_fps":null}`}) {
 		write_project(settings)
 		project, ok = rune.load_project(fixture)
 		assert(!ok,"invalid window settings rejected before initialization")
 	}
+	uninitialized: rune.Engine
+	assert(!rune.set_vsync(nil,true) && !rune.set_target_fps(nil,144),"nil engine rejected")
+	assert(!rune.set_vsync(&uninitialized,true) && !rune.set_target_fps(&uninitialized,144),"frame pacing requires a ready window")
+}
+
+frame_pacing_sample :: proc(label: string) -> f64 {
+	// Hidden windows and compositor/driver policy can affect swap timing;
+	// measurements do not require a particular refresh rate or maximum delay.
+	for _ in 0..<3 {
+		rl.BeginDrawing()
+		rl.ClearBackground(rl.BLACK)
+		rl.EndDrawing()
+	}
+	frames :: 12
+	started := rl.GetTime()
+	for _ in 0..<frames {
+		rl.BeginDrawing()
+		rl.ClearBackground(rl.BLACK)
+		rl.EndDrawing()
+	}
+	elapsed := rl.GetTime()-started
+	if elapsed > 0 {fmt.println(label,"average frame ms:",1000*elapsed/f64(frames),"observed FPS:",f64(frames)/elapsed)}
+	return elapsed/f64(frames)
+}
+
+validate_frame_pacing_startup :: proc(vsync: bool, target_fps: i32) {
+	write_project(fmt.tprint(`{"width":320,"height":240,"high_dpi":false,"vsync":`,vsync,`,"target_fps":`,target_fps,`}`))
+	game, ok := rune.init(fixture)
+	assert(ok)
+	defer rune.shutdown(&game)
+	rl.SetWindowState({.WINDOW_HIDDEN})
+	// raylib retains flags after CloseWindow; leave later mode tests visible.
+	defer rl.ClearWindowState({.WINDOW_HIDDEN})
+	assert(rune.window_metrics().vsync == vsync && rl.IsWindowState({.VSYNC_HINT}) == vsync,"startup applies the V-Sync hint")
+	assert(game.window.target_fps == target_fps,"startup software cap is independent of V-Sync")
+	frame_pacing_sample(fmt.tprint("Startup V-Sync:",vsync,"target FPS:",target_fps))
+	assert(!rune.set_vsync(nil,!vsync) && !rune.set_target_fps(nil,72),"nil engine rejected while a window is ready")
+	assert(rune.set_vsync(&game,!vsync))
+	assert(rune.window_metrics().vsync == !vsync && game.window.target_fps == target_fps,"V-Sync toggle keeps the software cap")
+	assert(rune.set_vsync(&game,!vsync),"V-Sync setter is idempotent")
+	assert(rune.set_target_fps(&game,72))
+	assert(game.window.target_fps == 72 && rune.window_metrics().vsync == !vsync,"software cap setter keeps V-Sync")
+	assert(!rune.set_target_fps(&game,-1) && game.window.target_fps == 72,"negative cap rejected without changing the active cap")
+	assert(rune.set_vsync(&game,false))
+	// Check native pacing as well as the engine's recorded cap. Warmup frames
+	// above discard the previous setting's timing. Allow scheduler overshoot
+	// without an upper bound, and a broad margin below the nominal interval.
+	average := frame_pacing_sample("Runtime V-Sync: false target FPS: 72")
+	assert(average >= 0.9/72.0,"software cap delays EndDrawing independently of V-Sync")
+	assert(rune.set_target_fps(&game,0) && game.window.target_fps == 0,"zero removes the software cap")
+	assert(rune.set_vsync(&game,true) && rune.window_metrics().vsync && game.window.target_fps == 0,"V-Sync does not install a 60 FPS cap")
+	assert(rune.set_vsync(&game,false) && !rune.window_metrics().vsync && game.window.target_fps == 0,"disabling V-Sync leaves the software cap clear")
+	frame_pacing_sample("Runtime V-Sync: false target FPS: 0")
+	assert(game.project.window.vsync == vsync && game.project.window.target_fps == target_fps,"runtime setters preserve project startup settings")
+	// Leave the native settings populated at shutdown to exercise resetting
+	// stale pacing state when the next engine starts in the same process.
+	assert(rune.set_vsync(&game,vsync) && rune.set_target_fps(&game,target_fps))
+}
+
+validate_frame_pacing_runtime :: proc() {
+	// The first reinitialization changes both enabled/capped settings to
+	// disabled/uncapped settings, then covers the other independent pairs.
+	validate_frame_pacing_startup(true,144)
+	validate_frame_pacing_startup(false,0)
+	validate_frame_pacing_startup(true,0)
+	validate_frame_pacing_startup(false,144)
+	fmt.println("Frame pacing runtime: V-Sync flags, independent caps, runtime setters and startup settings passed")
 }
 
 layout :: proc(ctx: ^ui.Context, controls: ui.Inputs) -> bool {
@@ -59,11 +138,15 @@ present :: proc(ctx: ^ui.Context) {
 }
 
 validate_runtime :: proc() {
-	write_project(`{"width":640,"height":480,"resizable":true,"mode":"windowed","fullscreen":true}`)
+	write_project(`{"width":640,"height":480,"resizable":true,"mode":"windowed","fullscreen":true,"vsync":true,"target_fps":144}`)
 	game, ok := rune.init(fixture)
 	assert(ok)
 	defer rune.shutdown(&game)
 	assert(rune.window_mode()==.Windowed,"explicit mode overrides legacy fullscreen")
+	assert(rune.window_metrics().vsync && game.window.target_fps == 144,"startup frame pacing applied")
+	assert(rune.set_vsync(&game,false) && rune.set_target_fps(&game,90))
+	active_vsync := false
+	active_target_fps: i32 = 90
 	ctx: ui.Context
 	assert(ui.init(&ctx))
 	defer ui.destroy(&ctx)
@@ -71,13 +154,25 @@ validate_runtime :: proc() {
 	present(&ctx)
 	original := rune.window_metrics()
 	position := rl.GetWindowPosition()
-	for mode in ([]rune.Window_Mode{.Borderless,.Borderless,.Windowed,.Borderless,.Fullscreen,.Windowed,.Fullscreen,.Borderless,.Windowed}) {
+	for mode, i in ([]rune.Window_Mode{.Borderless,.Borderless,.Windowed,.Borderless,.Fullscreen,.Windowed,.Fullscreen,.Borderless,.Windowed}) {
+		if i == 3 {
+			active_vsync = true
+			active_target_fps = 0
+			assert(rune.set_vsync(&game,active_vsync) && rune.set_target_fps(&game,active_target_fps))
+		}
+		if i == 6 {
+			active_vsync = false
+			active_target_fps = 90
+			assert(rune.set_vsync(&game,active_vsync) && rune.set_target_fps(&game,active_target_fps))
+		}
 		fmt.println("Checking window mode:", mode)
 		assert(rune.set_window_mode(&game,mode))
 		layout(&ctx,{})
 		present(&ctx)
 		metrics := rune.window_metrics()
 		assert(rune.window_mode()==mode)
+		assert(metrics.vsync == active_vsync && game.window.target_fps == active_target_fps,"window mode changes preserve active frame pacing")
+		assert(game.project.window.vsync && game.project.window.target_fps == 144,"window mode changes preserve project startup settings")
 		assert(metrics.framebuffer[0]>0 && metrics.framebuffer[1]>0)
 		if mode != .Windowed {
 			monitor := rl.GetCurrentMonitor()
@@ -125,7 +220,10 @@ main :: proc() {
 	validate_settings()
 	for arg in os.args[1:] {
 		switch arg {
-		case "--runtime": validate_runtime()
+		case "--runtime":
+			validate_frame_pacing_runtime()
+			validate_runtime()
+		case "--frame-pacing-runtime": validate_frame_pacing_runtime()
 		case "--startup-windowed": validate_startup_mode(.Windowed)
 		case "--startup-borderless": validate_startup_mode(.Borderless)
 		case "--startup-fullscreen": validate_startup_mode(.Fullscreen)

@@ -15,7 +15,7 @@ Run from the repository root on Windows:
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin run examples/audio_components -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/audio_components$exe"
+odin run examples/audio_components -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin "-out:build/audio_components$exe"
 ```
 
 [All examples](../README.md)

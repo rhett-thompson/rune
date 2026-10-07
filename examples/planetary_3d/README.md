@@ -11,7 +11,7 @@ From the repository root (no additional collections or downloaded assets):
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin run examples/planetary_3d -collection:rune=rune "-out:build/planetary_3d$exe"
+odin run examples/planetary_3d -linker:msvc -collection:rune=rune "-out:build/planetary_3d$exe"
 ```
 
 Or select **Pocket Planets** in the example launcher.
@@ -104,8 +104,8 @@ unreachable gaps or non-walkable launch markers after terrain/layout changes.
 ## Validation
 
 ```powershell
-odin test examples/planetary_3d -collection:rune=rune "-out:build/planetary_3d_test$exe"
-odin run tools/character_controller_3d_validation -collection:rune=rune "-out:build/character_controller_3d_validation$exe"
+odin test examples/planetary_3d -linker:msvc -collection:rune=rune "-out:build/planetary_3d_test$exe"
+odin run tools/character_controller_3d_validation -linker:msvc -collection:rune=rune "-out:build/character_controller_3d_validation$exe"
 ```
 
 The example test checks welded mesh topology, outward winding, all four jump

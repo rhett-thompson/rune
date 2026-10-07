@@ -11,7 +11,7 @@ Run from the repository root on Windows:
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin run examples/custom_mover -collection:rune=rune "-out:build/custom_mover$exe"
+odin run examples/custom_mover -linker:msvc -collection:rune=rune "-out:build/custom_mover$exe"
 ```
 
 [All examples](../README.md)

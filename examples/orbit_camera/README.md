@@ -13,7 +13,7 @@ Run from the repository root on Windows:
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin run examples/orbit_camera -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/orbit_camera$exe"
+odin run examples/orbit_camera -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin "-out:build/orbit_camera$exe"
 ```
 
 [All examples](../README.md)

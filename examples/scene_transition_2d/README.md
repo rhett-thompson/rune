@@ -11,7 +11,7 @@ Run from the repository root on Windows:
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin run examples/scene_transition_2d -collection:rune=rune "-out:build/scene_transition_2d$exe"
+odin run examples/scene_transition_2d -linker:msvc -collection:rune=rune "-out:build/scene_transition_2d$exe"
 ```
 
 [All examples](../README.md)

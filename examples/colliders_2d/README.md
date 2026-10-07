@@ -5,11 +5,12 @@ a capsule sensor, and independently offset box/circle colliders. Green outlines
 show collision geometry; white crosses mark entity origins.
 
 ```powershell
-odin build examples/colliders_2d -collection:rune=rune -out:build/colliders_2d.exe
+odin build examples/colliders_2d -linker:msvc -collection:rune=rune -out:build/colliders_2d.exe
 ./build/colliders_2d.exe
 ```
 
-On Linux, omit `.exe` from both paths. Move with **A/D** and jump with **Space**.
+On Linux, omit `.exe` from both paths and `-linker:msvc` from the build command.
+Move with **A/D** and jump with **Space**.
 The orange ray checks solid colliders; entering the gold sensor increments the
 counter. Gameplay is ordinary Odin code in `main.odin`.
 

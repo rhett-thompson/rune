@@ -189,7 +189,7 @@ From the repository root on Windows:
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin run tools/character_controller_3d_validation -collection:rune=rune "-out:build/character_controller_3d_validation$exe"
+odin run tools/character_controller_3d_validation -linker:msvc -collection:rune=rune "-out:build/character_controller_3d_validation$exe"
 ```
 
 This opens no window and exercises the real Box3D backend: grounding, walls,

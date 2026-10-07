@@ -139,6 +139,8 @@ run_example :: proc(example: Example) -> (int, string) {
 	output_suffix := ""
 	when ODIN_OS == .Windows {
 		output_suffix = ".exe"
+		// R3D/Assimp uses bundled /GL zlib; MSVC supports its LTCG objects.
+		append(&command, "-linker:msvc")
 	}
 	if error := os.make_directory_all("build"); error != nil {
 		fmt.eprintln("Could not create build directory: ", error)

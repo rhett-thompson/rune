@@ -43,10 +43,10 @@ out over two seconds, R restores volume, and left-click plays the bell. The Clay
 example's volume slider controls the master bus.
 
 ```powershell
-# Windows PowerShell; on Linux omit .exe and run binaries with ./build/...
+# Windows PowerShell; on Linux omit .exe and -linker:msvc, and use ./build/...
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin build tools/mixer_validation -collection:rune=rune "-out:build/mixer_validation$exe"
+odin build tools/mixer_validation -linker:msvc -collection:rune=rune "-out:build/mixer_validation$exe"
 & "./build/mixer_validation$exe"
 & "./build/mixer_validation$exe" --runtime
 ```

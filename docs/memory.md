@@ -93,6 +93,6 @@ separate future changes; this maintenance API does not unload cached assets.
 Run the headless lifetime/memory regression checks with:
 
 ```powershell
-odin run tools/memory_validation -collection:rune=rune -out:build/memory_validation.exe
-odin test rune/r3d_bridge -collection:rune=rune -collection:r3d=third_party/r3d-odin -out:build/r3d_bridge_test.exe
+odin run tools/memory_validation -linker:msvc -collection:rune=rune -out:build/memory_validation.exe
+odin test rune/r3d_bridge -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin -out:build/r3d_bridge_test.exe
 ```

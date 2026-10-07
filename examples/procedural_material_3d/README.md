@@ -6,7 +6,7 @@ nine presets, then tweak the surface while it renders.
 From the repository root:
 
 ```powershell
-odin run examples/procedural_material_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin
+odin run examples/procedural_material_3d -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin
 ```
 
 The example also appears under **3D** in the launcher.

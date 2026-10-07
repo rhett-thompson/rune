@@ -51,7 +51,8 @@ if not exist build mkdir build
 if not exist build (popd & exit /b 1)
 set "optimization="
 if "%release%"=="1" set "optimization=-o:speed"
-odin build . "-collection:rune=%engineRoot%\rune" -out:build/game.exe %optimization%
+rem R3D/Assimp uses bundled /GL zlib; MSVC supports its LTCG objects.
+odin build . "-collection:rune=%engineRoot%\rune" -linker:msvc -out:build/game.exe %optimization%
 set "result=%errorlevel%"
 if not "%result%"=="0" (
     echo Game build failed ^(exit %result%^). 1>&2

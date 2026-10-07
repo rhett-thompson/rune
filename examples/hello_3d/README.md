@@ -11,7 +11,7 @@ Run from the repository root on Windows:
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin run examples/hello_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/hello_3d$exe"
+odin run examples/hello_3d -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin "-out:build/hello_3d$exe"
 ```
 
 [All examples](../README.md)

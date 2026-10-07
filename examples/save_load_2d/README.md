@@ -4,7 +4,7 @@ A two-room demo of [Rune checkpoint saves](../../docs/save-load.md). Save your
 position, health, opened chests, dropped coins, and progress in both rooms.
 
 ```powershell
-odin run examples/save_load_2d -collection:rune=rune
+odin run examples/save_load_2d -linker:msvc -collection:rune=rune
 ```
 
 | Control | Action |

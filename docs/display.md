@@ -12,7 +12,9 @@ An explicit `high_dpi: false` opts out. This applies to game rendering as well a
   "height": 720,
   "mode": "windowed",
   "high_dpi": true,
-  "resizable": true
+  "resizable": true,
+  "vsync": true,
+  "target_fps": 0
 }
 ```
 
@@ -28,9 +30,16 @@ the game starts windowed. An explicit `mode` takes precedence. The legacy flag
 is still supported and now actually takes effect. `resizable` defaults to false
 for compatibility with games that assume a fixed window size.
 
-The current `vsync: true` implementation calls raylib's `SetTargetFPS(60)`. It
-sets a 60 FPS target; it does not request a swap-interval synchronization hint.
-With `vsync: false`, Rune does not set that frame limit.
+`vsync` defaults to false. Setting it to true requests display-synchronized
+buffer swaps through raylib's `VSYNC_HINT`; it does not impose a 60 FPS cap.
+The graphics driver or desktop compositor can override synchronization behavior.
+
+`target_fps` sets an independent software frame-rate cap. It accepts integers
+from 0 to 2147483647 and defaults to 0, which disables the cap. For example,
+`"vsync": true, "target_fps": 0` requests synchronization with no software cap;
+`"vsync": false, "target_fps": 120` caps rendering at 120 FPS. A cap alone does
+not prevent tearing. With V-Sync enabled, a cap below the display refresh rate
+can repeat displayed frames.
 
 The initial window is centered and fitted to the available desktop. Windows
 uses the monitor work area, accounting for taskbars and window decorations.
@@ -47,12 +56,20 @@ rune.set_window_mode(&game, .Borderless)
 rune.set_window_mode(&game, .Fullscreen)
 rune.set_window_mode(&game, .Windowed)
 rune.toggle_borderless(&game)
+rune.set_vsync(&game, true)
+rune.set_target_fps(&game, 120)
 display := rune.window_metrics()
 ```
 
 Setters return success, and setting the current mode does nothing. Use the Rune
 setters consistently so the engine can retain the normal window geometry.
 These calls do not rewrite `project.json`.
+
+`rune.set_vsync(&game, enabled: bool) -> bool` and
+`rune.set_target_fps(&game, fps: i32) -> bool` also return success. Call them
+during update or between frames, before drawing. They change the active window's
+timing settings and leave the loaded startup settings intact. Pass 0 to
+`set_target_fps` to remove the software cap; V-Sync remains independent.
 
 The developer console and opt-in inbox expose:
 
@@ -62,8 +79,9 @@ The developer console and opt-in inbox expose:
 .\tools\console.bat --directory build/console/demo --command 'window windowed' --json
 ```
 
-The response contains `mode`, `screen`, `framebuffer`, `dpi`, `high_dpi`, and
-`resizable`. The Clay example maps F11 to borderless/windowed switching.
+The response contains `mode`, `screen`, `framebuffer`, `dpi`, `high_dpi`,
+`resizable`, and the requested `vsync` state. The Clay example maps F11 to
+borderless/windowed switching.
 
 ## Drawing coordinates and resolution
 
@@ -106,10 +124,10 @@ Set `render_2d.policy` in its `project.json` before launching to try another
 policy. The runtime validator below checks fit, stretch, and integer scaling.
 
 ```powershell
-# Windows PowerShell; on Linux omit .exe and run binaries with ./build/...
+# Windows PowerShell; on Linux omit .exe and -linker:msvc, and use ./build/...
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin build tools/resolution_validation -collection:rune=rune "-out:build/resolution_validation$exe"
+odin build tools/resolution_validation -linker:msvc -collection:rune=rune "-out:build/resolution_validation$exe"
 & "./build/resolution_validation$exe" --runtime
 ```
 
@@ -138,17 +156,22 @@ Runtime checks are validated on Windows at 200% DPI. Multi-monitor DPI moves,
 macOS, and Linux require testing on those configurations.
 
 ```powershell
-# Windows PowerShell; on Linux omit .exe and run binaries with ./build/...
+# Windows PowerShell; on Linux omit .exe and -linker:msvc, and use ./build/...
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin build tools/window_validation -collection:rune=rune "-out:build/window_validation$exe"
+odin build tools/window_validation -linker:msvc -collection:rune=rune "-out:build/window_validation$exe"
 & "./build/window_validation$exe"
+& "./build/window_validation$exe" --frame-pacing-runtime
 & "./build/window_validation$exe" --runtime
 & "./build/window_validation$exe" --startup-windowed
 & "./build/window_validation$exe" --startup-borderless
 & "./build/window_validation$exe" --startup-fullscreen
 ```
 
-The runtime check exercises mode transitions, restoration, drawing/scissor
-pixels, and raylib mouse coordinates against Clay bounds. It briefly opens a
-window and switches display modes.
+`--frame-pacing-runtime` hides windows after startup, checks independent V-Sync
+and cap settings, measures the native software limiter, and exercises engine
+reinitialization. Reported swap timing depends on the driver and compositor.
+`--runtime` includes those checks plus mode transitions, restoration,
+drawing/scissor pixels, and raylib mouse coordinates against Clay bounds. It
+briefly opens windows and switches display modes. Verify visible frame pacing
+and tearing separately on 60 Hz and high-refresh-rate displays.

@@ -5,7 +5,7 @@ a disconnected island. The blue capsule follows a NavAgent3D route through
 CharacterController3D. The gold line shows the current triangle corridor.
 
 ```powershell
-odin run examples/navigation_3d -collection:rune=rune
+odin run examples/navigation_3d -linker:msvc -collection:rune=rune
 ```
 
 | Control | Action |
@@ -61,7 +61,7 @@ current world, and writes the asset referenced by its `navigation` entity. The
 standalone tool remains optional:
 
 ```powershell
-odin run tools/navmesh_baker -collection:rune=rune -- examples/navigation_3d/course.navbake.json
+odin run tools/navmesh_baker -linker:msvc -collection:rune=rune -- examples/navigation_3d/course.navbake.json
 ```
 
 `course.navbake.json` uses 0.25-unit cells, 0.4 units of radius clearance and

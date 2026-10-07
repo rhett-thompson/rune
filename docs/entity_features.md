@@ -3,7 +3,7 @@
 These features work through scene/prefab JSON and Odin APIs. Run the example:
 
 ```powershell
-odin build examples/shapes_2d -collection:rune=rune -out:build/shapes_2d.exe
+odin build examples/shapes_2d -linker:msvc -collection:rune=rune -out:build/shapes_2d.exe
 ./build/shapes_2d.exe
 ```
 

@@ -12,7 +12,7 @@ are required. Movement and drawing are Odin systems; all collision data is JSON.
 From the repository root:
 
 ```powershell
-odin build examples/ramps_2d -collection:rune=rune -out:build/ramps_2d.exe
+odin build examples/ramps_2d -linker:msvc -collection:rune=rune -out:build/ramps_2d.exe
 ./build/ramps_2d.exe
 ```
 

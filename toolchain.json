@@ -1,16 +1,16 @@
 {
-  "odin_release": "dev-2026-09",
-  "tested_odin_version": "dev-2026-09-nightly:a2fb372",
+  "odin_release": "dev-2026-10",
+  "tested_odin_version": "dev-2026-10-nightly:84bc3fc",
   "tested_platforms": ["windows-amd64"],
   "target_platforms": ["windows-amd64", "linux-amd64"],
   "archives": {
     "windows-amd64": {
-      "name": "odin-windows-amd64-dev-2026-09.zip",
-      "sha256": "8ed8abd95b82e0af1eb7e86cb75f380fd8bde104947721817b35929f5fc19388"
+      "name": "odin-windows-amd64-dev-2026-10.zip",
+      "sha256": "b6b2e426a8b6f147b74ec7e18bef8df27cf40fe16193159df7ca09a0cc0c2011"
     },
     "linux-amd64": {
-      "name": "odin-linux-amd64-dev-2026-09.tar.gz",
-      "sha256": "167c3e1d7056419dad2e04bb3bd98715b7ff286d4c125f3c5a5ee337c6254283"
+      "name": "odin-linux-amd64-dev-2026-10.tar.gz",
+      "sha256": "c3c8b095621fd0c75f7f73e3a0829f1b4d45324225f20ba11ed8dc4da310a8ab"
     }
   }
 }
