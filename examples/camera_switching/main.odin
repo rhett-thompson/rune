@@ -48,7 +48,7 @@ on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 		return
 	}
 	example_text.draw("Multiple Camera Switching", 24, 24, 28, rl.DARKGRAY)
-	example_text.draw("[1] Wide  [2] Front  [3] Side", 24, 60, 20, rl.GRAY)
+	example_text.draw("[1] Wide  [2] Front  [3] Side (orthographic)", 24, 60, 20, rl.GRAY)
 	example_text.draw("The selected Camera3D component is active.", 24, 88, 18, rl.DARKGRAY)
 	rl.DrawFPS(24, 118)
 }

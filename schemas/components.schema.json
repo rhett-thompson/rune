@@ -843,7 +843,8 @@
       "properties": {
         "target": { "$ref": "#/$defs/vec3" },
         "up": { "$ref": "#/$defs/vec3", "default": [0, 1, 0] },
-        "fovy": { "type": "number", "exclusiveMinimum": 0, "default": 45 },
+        "fovy": { "type": "number", "exclusiveMinimum": 0, "default": 45, "description": "Vertical field of view in degrees for perspective; visible height in world units for orthographic." },
+        "projection": { "type": "string", "enum": ["perspective", "orthographic"], "default": "perspective" },
         "active": { "type": "boolean", "default": false }
       },
       "additionalProperties": false

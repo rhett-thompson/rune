@@ -87,6 +87,9 @@ World :: struct {
 	scene_json:                  json.Value,
 	scene_source:                Scene_Source,
 	component_data:              map[string]map[Entity]json.Value,
+	// JSON added through the public API owns reclaimable heap storage. Scene
+	// snapshots may instead borrow scene_data_arena until explicit compaction.
+	owned_component_json:        map[Component_Change_Key]Owned_Component_JSON,
 	component_instance_data:     map[string]map[Component_Instance]json.Value,
 	typed_component_data:        map[string]map[Entity]any,
 	// A nil arena denotes a compact allocation for a value with no references.
@@ -95,6 +98,7 @@ World :: struct {
 	component_names_by_type:     map[typeid]string,
 	component_change_version:    u64,
 	component_changes:           map[Component_Change_Key]Component_Change,
+	component_history_floor:     u64,
 	resources:                   map[typeid]any,
 	typed_component_arena:       ^mem.Dynamic_Arena,
 	scene_data_arena:            ^mem.Dynamic_Arena,
@@ -188,6 +192,7 @@ init :: proc() -> World {
 		children_by_parent = make(map[Entity][dynamic]Entity),
 		hierarchy_dirty = true,
 		component_data = make(map[string]map[Entity]json.Value),
+		owned_component_json = make(map[Component_Change_Key]Owned_Component_JSON),
 		component_instance_data = make(map[string]map[Component_Instance]json.Value),
 		typed_component_data = make(map[string]map[Entity]any),
 		typed_value_arenas = make(map[rawptr]^mem.Dynamic_Arena),
@@ -351,6 +356,7 @@ destroy :: proc(world: ^World) {
 	world.component_names_by_type = nil
 	world.component_changes = nil
 	world.resources = nil
+	destroy_owned_component_json(world)
 	if world.typed_component_arena != nil {
 		mem.dynamic_arena_destroy(world.typed_component_arena)
 		mem.free(world.typed_component_arena)
@@ -374,13 +380,19 @@ add_component :: proc(
 	data: json.Value,
 ) -> bool {
 	if !is_alive(world, entity) || !has_component(registry, name) {return false}
-	return add_component_owned(
+	// Build the replacement first: data may borrow the previous component.
+	owned := json.clone_value(data)
+	owned_name := retain_scene_string(world, name)
+	if !add_component_owned(
 		world,
 		registry,
 		entity,
-		retain_scene_string(world, name),
-		json.clone_value(data, scene_data_allocator(world)),
-	)
+		owned_name,
+		owned,
+	) {json.destroy_value(owned); return false}
+	release_component_json(world, entity, owned_name)
+	world.owned_component_json[{entity = entity, name = owned_name}] = {owned, context.allocator}
+	return true
 }
 
 add_component_owned :: proc(
@@ -857,5 +869,6 @@ remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
 	}
 	if name == "NavGrid2D" {delete_key(&world.nav_grids_2d, entity)}
 	if name == "NavAgent2D" {delete_key(&world.nav_agents_2d, entity)}
+	release_component_json(world, entity, name)
 	return true
 }

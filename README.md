@@ -43,6 +43,7 @@ their JSON fields and defaults, dependencies, runtime behavior, and linked guide
 
 - [Heightmap terrain](docs/terrain.md): chunked 3D landscapes, matching native collision, PNG/r16 heightmaps, and hot reload. Try [Highland Walk](examples/terrain_3d/README.md).
 - [Runtime static geometry](docs/static-geometry.md): finite voxel surface extraction, merged in-memory meshes, shared triangle collision, material authoring, and automatic R3D resource ownership.
+- [Memory diagnostics and maintenance](docs/memory.md): backing-buffer statistics, reclaimable component JSON, scene compaction, acknowledged change cleanup, and generated-mesh ownership transfer.
 
 - [Audio mixer buses](docs/audio-mixer.md): master/music/SFX/UI volume, mute, and fades.
 - [2D resolution policies](docs/display.md): fit, stretch, integer scaling, and canvas mouse mapping.
@@ -1459,6 +1460,17 @@ changes.
 ```
 
 ## Multiple camera switching
+
+`Camera3D.projection` accepts `"perspective"` (the default) or `"orthographic"`.
+For perspective, `fovy` is the vertical field of view in degrees; for
+orthographic, it is the visible height in world units. For example:
+
+```json
+"Camera3D": { "target": [0, 0.5, 0], "fovy": 6, "projection": "orthographic", "active": true }
+```
+
+In Odin, set `camera.projection = .orthographic`. Scene rendering and debug
+gizmos use the selected projection.
 
 The camera-switching sample has three `Camera3D` entities loaded from JSON.
 Press `1`, `2`, or `3` to select the wide, front, or side camera:

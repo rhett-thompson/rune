@@ -467,10 +467,13 @@ destroy_tilemap_collider_storage :: proc(value: TilemapCollider) {
 
 adopt_snapshot_storage :: proc(world, snapshot: ^World) {
 	rehome_entity_metadata(world, snapshot)
-	rehome_component_json(world, snapshot)
+	owned_json := rehome_component_json(world, snapshot)
 	rehome_component_instance_json(world, snapshot)
 	rehome_component_map_names(world, snapshot)
 	rehome_builtin_strings(world, snapshot)
+	// Built-ins and instance keys have been rehomed before releasing owned JSON.
+	destroy_owned_component_json(world)
+	world.owned_component_json = owned_json
 
 	old_arena := world.scene_data_arena
 	delete(world.scene_strings)
@@ -508,19 +511,30 @@ rehome_entity_metadata :: proc(world, snapshot: ^World) {
 	world.entity_tags = entity_tags
 }
 
-rehome_component_json :: proc(world, snapshot: ^World) {
+rehome_component_json :: proc(world, snapshot: ^World) -> map[Component_Change_Key]Owned_Component_JSON {
 	component_data := make(map[string]map[Entity]json.Value)
+	owned_json := make(map[Component_Change_Key]Owned_Component_JSON)
 	for name, current_components in world.component_data {
 		owned_name := retain_scene_string(snapshot, name)
 		components := make(map[Entity]json.Value)
 		for entity, value in current_components {
-			components[entity] = json.clone_value(value, scene_data_allocator(snapshot))
+			key := Component_Change_Key{entity = entity, name = owned_name}
+			if owner, owned := world.owned_component_json[key]; owned {
+				// Keep runtime JSON reclaimable after compaction/value reload.
+				// Clone current data: reload may have replaced it with snapshot data.
+				data := json.clone_value(value, owner.allocator)
+				components[entity] = data
+				owned_json[key] = {data, owner.allocator}
+			} else {
+				components[entity] = json.clone_value(value, scene_data_allocator(snapshot))
+			}
 		}
 		component_data[owned_name] = components
 	}
 	for _, components in world.component_data {delete(components)}
 	delete(world.component_data)
 	world.component_data = component_data
+	return owned_json
 }
 
 rehome_component_instance_json :: proc(world, snapshot: ^World) {
@@ -533,7 +547,18 @@ rehome_component_instance_json :: proc(world, snapshot: ^World) {
 				entity = current_key.entity,
 				name   = retain_scene_string(snapshot, current_key.name),
 			}
-			instances[key] = json.clone_value(value, scene_data_allocator(snapshot))
+			if owner, owned := world.owned_component_json[{entity = key.entity, name = name}]; owned {
+				// Instance values share their owning root's independently owned tree.
+				// Merge per-instance reload results: unchanged authored instances
+				// may retain runtime edits while another instance changes on disk.
+				object := world.component_data[name][key.entity].(json.Object)
+				data := json.clone_value(value, owner.allocator)
+				json.destroy_value(object[key.name], owner.allocator)
+				object[key.name] = data
+				instances[key] = data
+			} else {
+				instances[key] = json.clone_value(value, scene_data_allocator(snapshot))
+			}
 		}
 		instance_data[owned_name] = instances
 	}

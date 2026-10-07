@@ -9,6 +9,7 @@ import "rune:shadows"
 import rl "vendor:raylib"
 
 Scene3D_Settings :: struct {
+	particle_batches: []Particle3D_Batch,
 	grid_slices:      i32,
 	grid_spacing:     f32,
 	draw_colliders:   bool,
@@ -245,7 +246,7 @@ draw_scene_ex :: proc(
 		target     = camera_component.target,
 		up         = camera_component.up,
 		fovy       = camera_component.fovy,
-		projection = .PERSPECTIVE,
+		projection = rl.CameraProjection(camera_component.projection),
 	}
 	if ctx.world_generation != world.generation {
 		destroy_scene_lights(ctx)
@@ -270,6 +271,7 @@ draw_scene_ex :: proc(
 	} else {
 		draw_cached_entities(ctx,world,asset_manager)
 	}
+	draw_particles_3d(ctx,asset_manager,settings.particle_batches)
 	// The bridge owns SCENE while rendering; moon radiance is fogged too.
 	chain: [3]^r3d.ScreenShader
 	count: i32

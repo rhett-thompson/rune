@@ -49,6 +49,13 @@ copies keyed by entity and revision; deletion, replacement, World changes,
 and bridge shutdown release them. World/entity destruction releases CPU and
 Box3D mesh resources. `ecs.remove_static_mesh` releases just the runtime mesh.
 
+For temporary generated meshes, `ecs.set_static_mesh_owned(world, entity,
+&mesh)` transfers the CPU vertex/index allocations into the World. Success
+zeros `mesh`; failure preserves it and the installed mesh. Optional collision
+and `collidable` arguments have the same behavior as the copying API. Supply
+independently owned, persistent buffers, and relinquish all aliases on success.
+See [memory maintenance](memory.md) for ownership and diagnostics details.
+
 Add a `MeshRenderer` with `primitive: "static"` to style installed runtime
 geometry. Its `material`, RGBA fallback `color`, and `shadows` switch use the same
 material cache and hot reload as primitive meshes. Vertex colors multiply the

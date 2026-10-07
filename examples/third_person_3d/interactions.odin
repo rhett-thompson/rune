@@ -77,7 +77,7 @@ draw_interaction_ui :: proc(world:^ecs.World) {
 		camera_pose,has_pose:=ecs.get_transform(world,camera_entity)
 		if has_camera && has_pose {
 			view:=rl.Camera3D{position=transmute(rl.Vector3)camera_pose.position,target=transmute(rl.Vector3)camera.target,
-				up=transmute(rl.Vector3)camera.up,fovy=camera.fovy,projection=.PERSPECTIVE}
+				up=transmute(rl.Vector3)camera.up,fovy=camera.fovy,projection=rl.CameraProjection(camera.projection)}
 			point:=rl.GetWorldToScreen(transmute(rl.Vector3)interaction.focus.point,view)
 			delta:=interaction.focus.point-camera_pose.position
 			forward:=camera.target-camera_pose.position

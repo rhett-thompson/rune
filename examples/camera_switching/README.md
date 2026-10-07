@@ -4,6 +4,9 @@ Choose the active scene camera at runtime.
 
 **Controls:** 1, 2, and 3 select cameras.
 
+The side camera (3) uses orthographic projection with a visible height of six
+world units. The other cameras use the default perspective projection.
+
 **Try editing:** [scenes/main.scene.json](scenes/main.scene.json): camera positions and projections. [main.odin](main.odin): camera selection.
 
 Run from the repository root with PowerShell 7:

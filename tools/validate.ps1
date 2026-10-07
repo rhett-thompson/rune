@@ -13,6 +13,7 @@ $failures = [System.Collections.Generic.List[string]]::new()
 $builtValidators = [System.Collections.Generic.List[string]]::new()
 $executableSuffix = if ($IsWindows) { '.exe' } else { '' }
 $runtimeValidators = @(
+	'overlay_3d_validation',
 	'static_mesh_material_validation',
 	'light_shafts_validation',
 	'light_shadow_validation',

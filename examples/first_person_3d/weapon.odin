@@ -3,6 +3,7 @@ package main
 import "core:math"
 import rune "rune:core"
 import "rune:ecs"
+import "rune:render"
 import rl "vendor:raylib"
 import "vendor:raylib/rlgl"
 
@@ -20,7 +21,7 @@ Weapon_Viewmodel_Defaults :: Weapon_Viewmodel {
 	fov = 55,
 	jump_motion_strength = 1,
 }
-weapon_target: rl.RenderTexture2D
+weapon_layer: render.Overlay3D
 
 Weapon_Jump_Motion :: struct {
 	initialized, grounded: bool,
@@ -75,8 +76,7 @@ advance_weapon_jump :: proc(state: ^Weapon_Jump_Motion, motor: ecs.Character_Con
 }
 
 shutdown_weapon :: proc() {
-	if weapon_target.id != 0 {rl.UnloadRenderTexture(weapon_target)}
-	weapon_target = {}
+	render.destroy_overlay_3d(&weapon_layer)
 }
 
 // Called after the world/canvas and before the HUD. A separate depth buffer
@@ -84,17 +84,7 @@ shutdown_weapon :: proc() {
 draw_weapon :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	settings, found := ecs.get(world, player, Weapon_Viewmodel)
 	if !found || !settings.enabled || settings.scale <= 0 {return}
-	width, height := rl.GetRenderWidth(), rl.GetRenderHeight()
-	if width <= 0 || height <= 0 {return}
-	if weapon_target.texture.width != width || weapon_target.texture.height != height {
-		shutdown_weapon()
-		weapon_target = rl.LoadRenderTexture(width, height)
-		if !rl.IsRenderTextureValid(weapon_target) {shutdown_weapon(); return}
-		rl.SetTextureFilter(weapon_target.texture, .BILINEAR)
-	}
-	rl.BeginTextureMode(weapon_target)
-	rl.ClearBackground({0, 0, 0, 0})
-	rl.BeginMode3D({position = {}, target = {0, 0, -1}, up = {0, 1, 0}, fovy = clamp(settings.fov, 10, 120), projection = .PERSPECTIVE})
+	if !render.begin_overlay_3d(&weapon_layer,{position = {}, target = {0, 0, -1}, up = {0, 1, 0}, fovy = clamp(settings.fov, 10, 120), projection = .PERSPECTIVE}) {return}
 	rlgl.PushMatrix()
 	alpha := clamp(game.fixed_accumulator/game.fixed_delta_time, 0, 1)
 	jump := (weapon_jump.previous_offset+(weapon_jump.offset-weapon_jump.previous_offset)*alpha)*clamp(settings.jump_motion_strength, 0, 3)
@@ -107,10 +97,7 @@ draw_weapon :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	rlgl.Scalef(settings.scale, settings.scale, settings.scale)
 	draw_placeholder_weapon()
 	rlgl.PopMatrix()
-	rl.EndMode3D()
-	rl.EndTextureMode()
-	rl.DrawTexturePro(weapon_target.texture, {0, 0, f32(width), -f32(height)},
-		{0, 0, f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight())}, {}, 0, rl.WHITE)
+	render.end_overlay_3d(&weapon_layer)
 }
 
 // Face shading gives the blockout readable form without world lighting/assets.

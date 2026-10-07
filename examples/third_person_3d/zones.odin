@@ -50,7 +50,7 @@ draw_course_zones :: proc(world:^ecs.World) {
 	pose,has_pose:=ecs.get_transform(world,entity)
 	if !found || !has_pose {return}
 	camera:=rl.Camera3D{position=transmute(rl.Vector3)pose.position,target=transmute(rl.Vector3)config.target,
-		up=transmute(rl.Vector3)config.up,fovy=config.fovy,projection=.PERSPECTIVE}
+		up=transmute(rl.Vector3)config.up,fovy=config.fovy,projection=rl.CameraProjection(config.projection)}
 	rl.BeginMode3D(camera)
 	for zone in ecs.entities_with_component(world,"ZoneEffect") {
 		value,has_trigger:=ecs.get(world,zone,ecs.Trigger3D)

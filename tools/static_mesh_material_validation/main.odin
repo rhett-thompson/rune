@@ -38,6 +38,7 @@ validate_runtime :: proc() {
 	manager:=assets.init("build"); defer assets.shutdown(&manager)
 	registry:=ecs.init_registry(); defer ecs.destroy_registry(&registry)
 	assert(ecs.register_builtin_components(&registry))
+	validate_camera_projection(&ctx,&registry,&manager)
 	validate_instanced_shadows(&ctx,&registry,&manager)
 	w:=ecs.init(); defer ecs.destroy(&w)
 	camera:=ecs.create_entity(&w)

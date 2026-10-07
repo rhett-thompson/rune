@@ -17,6 +17,27 @@ Static_Mesh :: struct {
 // visible detail. collidable=false installs only render data (e.g. surface paint).
 // Both inputs remain caller-owned; invalid replacements are atomic.
 set_static_mesh :: proc(world: ^World, entity: Entity, data: geometry.Mesh, collision: ^geometry.Mesh = nil, collidable := true) -> bool {
+	return install_static_mesh(world, entity, data, collision, collidable, false)
+}
+
+// Move independently owned, persistent vertex/index buffers into the World.
+// Success zeros data; failure leaves it and the installed mesh unchanged.
+// Collision remains caller-owned and is copied by Box3D, including when it is data.
+set_static_mesh_owned :: proc(world: ^World, entity: Entity, data: ^geometry.Mesh, collision: ^geometry.Mesh = nil, collidable := true) -> bool {
+	if world == nil || data == nil {return false}
+	// Reject borrowed installed buffers before removal can invalidate them.
+	for _, state in world.static_meshes {
+		if raw_data(state.data.vertices) == raw_data(data.vertices) ||
+		   raw_data(state.data.indices) == raw_data(data.indices) {return false}
+	}
+	if !install_static_mesh(world, entity, data^, collision, collidable, true) {return false}
+	data^ = {}
+	return true
+}
+
+@(private)
+install_static_mesh :: proc(world: ^World, entity: Entity, data: geometry.Mesh, collision: ^geometry.Mesh, collidable, transfer: bool) -> bool {
+	if world == nil {return false}
 	if !is_alive(world,entity) || !geometry.valid(data) {return false}
 	if !collidable && collision!=nil {return false}
 	shape_data:=data
@@ -44,8 +65,11 @@ set_static_mesh :: proc(world: ^World, entity: Entity, data: geometry.Mesh, coll
 		mesh = b3.CreateMesh({vertices=raw_data(vertices),indices=raw_data(indices),vertexCount=i32(len(vertices)),triangleCount=i32(len(indices)/3),identifyEdges=true,useMedianSplit=true},nil,0)
 		if mesh==nil {return false}
 	}
-	copy_data: geometry.Mesh
-	append(&copy_data.vertices,..data.vertices[:]); append(&copy_data.indices,..data.indices[:])
+	copy_data := data
+	if !transfer {
+		copy_data = {}
+		append(&copy_data.vertices,..data.vertices[:]); append(&copy_data.indices,..data.indices[:])
+	}
 	remove_static_mesh(world,entity)
 	world.static_mesh_revision += 1
 	world.static_meshes[entity] = {data=copy_data,mesh=mesh,revision=world.static_mesh_revision}

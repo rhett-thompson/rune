@@ -26,6 +26,8 @@ entities_with_component :: proc(world: ^World, name: string, include_disabled :=
 	return result[:]
 }
 
+// Borrowed read-only JSON, valid until replacement/removal, scene compaction,
+// reload, or World destruction. Clone it to keep an independent snapshot.
 get_component :: proc(world: ^World, entity: Entity, name: string) -> (json.Value, bool) {
 	components, found := world.component_data[name]
 	if !found {

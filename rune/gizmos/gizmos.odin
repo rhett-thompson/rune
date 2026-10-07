@@ -79,7 +79,7 @@ draw_3d_gizmos :: proc(world: ^ecs.World, settings: Settings) -> bool {
 		target     = camera_component.target,
 		up         = camera_component.up,
 		fovy       = camera_component.fovy,
-		projection = .PERSPECTIVE,
+		projection = rl.CameraProjection(camera_component.projection),
 	}
 	rl.BeginMode3D(camera)
 	if settings.physics_3d {draw_physics_3d(world)}

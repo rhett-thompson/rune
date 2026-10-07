@@ -58,6 +58,7 @@ prepare_light_shafts :: proc(ctx:^Context,world:^ecs.World,manager:^assets.Asset
 	settings:=[4]f32{v.intensity,v.radius,v.source_radius,f32(width)/f32(height)}
 	resolution:=[2]f32{f32(width),f32(height)}
 	disk:=v.source_radius/(depth*math.tan(camera.fovy*f32(math.PI)/360)*2)
+	if camera.projection==.ORTHOGRAPHIC {disk=v.source_radius/camera.fovy}
 	r3d.SetScreenShaderUniform(shader,"u_source",&source)
 	r3d.SetScreenShaderUniform(shader,"u_color",&color)
 	r3d.SetScreenShaderUniform(shader,"u_settings",&settings)

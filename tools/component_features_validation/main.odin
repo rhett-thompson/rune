@@ -61,7 +61,7 @@ validate_activation :: proc(r: ^ecs.Component_Registry) {
 	defer ecs.destroy(&snapshot)
 	assign_prefab_ids(&snapshot)
 	assert(ecs.apply_value_snapshot(&w, &snapshot))
-	assert(!ecs.is_enabled(&w, child) && w.lifetime_elapsed[child] == 0.5, "reload restores activation without resetting unchanged lifetime")
+	assert(ecs.is_enabled(&w, child) && w.lifetime_elapsed[child] == 0.5, "unchanged authored activation and lifetime preserve runtime edits")
 	report := validation.validate_scene("tools/component_features_validation/fixtures/invalid.scene.json")
 	defer validation.destroy_report(&report)
 	assert(!validation.is_valid(&report) && len(report.diagnostics) == 3)
@@ -185,6 +185,8 @@ assign_prefab_ids :: proc(w: ^ecs.World) {
 		child := ecs.child_entities(w, parent)[0]
 		assert(ecs.set_entity_metadata(w, child, fmt.tprintf("%s-child", id), "", "", 1))
 	}
+	// These fixture-authored IDs must be in the baseline used for value reload.
+	ecs.capture_scene_source(w)
 }
 
 validate_audio :: proc(r: ^ecs.Component_Registry) {

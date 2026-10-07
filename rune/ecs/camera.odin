@@ -23,13 +23,18 @@ CameraFollow2D :: struct {
 	has_bounds: bool,
 }
 
+Camera_Projection :: enum {perspective, orthographic}
+
 // Camera3D uses the entity Transform position as its world-space position.
 // Target and up remain explicit because they describe the view direction.
+// fovy is a vertical angle in degrees for perspective, or a visible height in
+// world units for orthographic. The zero-value projection is perspective.
 Camera3D :: struct {
-	target: [3]f32,
-	up:     [3]f32,
-	fovy:   f32,
-	active: bool,
+	target:     [3]f32,
+	up:         [3]f32,
+	fovy:       f32,
+	active:     bool,
+	projection: Camera_Projection,
 }
 
 OrbitCamera3D :: struct {
@@ -225,6 +230,15 @@ camera_3d_from_json :: proc(data: json.Value) -> (Camera3D, bool) {
 	if !ok {return {}, false}
 
 	result := default_camera_3d()
+	if value, found := object["projection"]; found {
+		projection, valid := value.(json.String)
+		if !valid {return {}, false}
+		switch projection {
+		case "perspective": result.projection = .perspective
+		case "orthographic": result.projection = .orthographic
+		case: return {}, false
+		}
+	}
 	if value, found := object["target"];
 	   found && !read_vector3(value, &result.target) {return {}, false}
 	if value, found := object["up"]; found && !read_vector3(value, &result.up) {return {}, false}

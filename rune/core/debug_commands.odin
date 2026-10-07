@@ -5,6 +5,7 @@ import "core:fmt"
 import "core:slice"
 import "core:strconv"
 import "core:strings"
+import "rune:assets"
 import "rune:console"
 import "rune:ecs"
 import "rune:input"
@@ -48,6 +49,16 @@ register_debug_commands :: proc(dev: ^console.Console) {
 	console.register(dev, "set", "Runtime edit: set <id> <Component.field> <JSON-value>.", set_command)
 	console.register(dev, "reload", "Reload the active scene from disk; discard runtime edits.", reload_command)
 	console.register(dev, "profile", "Sample CPU/frame timings: profile [frames, 1..600].", profile_command)
+	console.register(dev, "memory", "Known World/asset backing buffers and texture GPU estimates.", memory_command)
+}
+
+memory_command :: proc(dev: ^console.Console, arguments: string) {
+	engine, world, ok := command_world(dev)
+	if !ok || !no_arguments(dev, arguments) {return}
+	console.set_result(dev, struct {
+		world: ecs.Memory_Stats,
+		assets: assets.Memory_Stats,
+	}{ecs.memory_stats(world), assets.memory_stats(&engine.assets)})
 }
 
 bind_debug_console :: proc(engine: ^Engine, world: ^ecs.World) {

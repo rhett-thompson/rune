@@ -1,4 +1,4 @@
-# 2D particles
+# Particles
 
 The [particle example](../examples/particles_2d/README.md) shows a fountain,
 textured smoke, and a triggered burst on a 960x550 reference canvas. Space emits
@@ -117,9 +117,61 @@ borrowed read-only until the next mutation. Reset/destroy state when changing
 capacity or seed, as the ECS integration does. Storage uses the allocator active
 on first emission; use a persistent allocator, not a frame scratch allocator.
 
-This initial implementation supports 2D world-space circles and textured quads,
+The 2D implementation supports world-space circles and textured quads,
 with linear size/color fades. Particle collision, arbitrary curves, local-space
 simulation, 3D billboards, and GPU simulation can be added as needed.
+
+## Code-owned 3D bursts
+
+`rune:particles` also provides allocation-free world-space bursts. A value-only
+`Pool3D(capacity)` owns a fixed particle array; it can be copied with its owning
+game state and needs no destroy call. These bursts have no ECS component or
+automatic engine update. Advance the pool once from simulation and borrow its
+live prefix during rendering:
+
+```odin
+sparks: particles.Pool3D(128)
+settings := particles.Burst3D{
+    lifetime={0.25,0.6}, speed={2,5}, spread=160, gravity={0,-5,0},
+    start_size=0.12, end_size=0,
+    start_color={128,238,255,255}, end_color={28,103,150,0}, seed=131,
+}
+spawned := particles.emit_burst_3d(&sparks, settings, 18, hit_point, hit_normal)
+particles.update_3d(&sparks, dt)
+
+batches := [1]r3d_bridge.Particle3D_Batch{{
+    particles=sparks.particles[:sparks.count], material="assets/spark.material.json",
+}}
+view := r3d_bridge.Scene3D_Settings{particle_batches=batches[:]}
+r3d_bridge.draw_scene_ex(&bridge, world, manager, view)
+```
+
+Speed is world units per second, lifetime is seconds, and size is diameter.
+`spread` is the full cone width in degrees: 0 follows the supplied direction,
+180 covers its outward hemisphere, and 360 covers a sphere. Direction is
+normalized; invalid directions, settings, and timesteps leave the pool intact.
+Each birth keeps its own settings, allowing bursts to overlap. Overflow drops
+new births. Expiry compacts the live prefix, so particle indices are temporary.
+`clear_3d` empties the pool and restarts the seeded sequence on the next burst.
+Skip `update_3d` while gameplay is suspended; drawing never advances particles.
+
+The r3d bridge draws modest bursts as small additive spheres through its depth
+tested HDR scene and bloom pass, with no particle entities or shadows. Supply a
+lit material with black base color, white emission color, and HDR emission energy
+(for example 8). Birth colors tint emission and lifetime alpha fades radiance.
+The batch slices are borrowed only during the draw and are never retained.
+Particles do not collide with geometry during their motion.
+
+For raylib-only 3D passes, including `render.Overlay3D`, call
+`render.draw_particles_3d(pool.particles[:pool.count])` inside the active 3D mode.
+It draws additive spheres using birth colors and lifetime fading, respects model
+depth without writing particle depth, and never advances the borrowed pool.
+The caller owns simulation and the current coordinate transform. This path does
+not use R3D materials or bloom.
+
+Run `odin test rune/particles -collection:rune=rune` for 3D burst capacity,
+seed replay, directional emission, motion, fading, expiry, and invalid-input
+checks. The existing 2D validator below checks the shared random sequence too.
 
 ## Example and validation
 

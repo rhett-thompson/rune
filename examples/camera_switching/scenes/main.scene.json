@@ -39,7 +39,7 @@
       "name": "Side Camera",
       "components": {
         "Transform": { "position": [8, 2.5, 0] },
-        "Camera3D": { "target": [0, 0.5, 0], "up": [0, 1, 0], "fovy": 42, "active": false }
+        "Camera3D": { "target": [0, 0.5, 0], "up": [0, 1, 0], "fovy": 6, "projection": "orthographic", "active": false }
       }
     },
     {

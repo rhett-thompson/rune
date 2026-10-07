@@ -103,7 +103,7 @@ draw :: proc(game:^rune.Engine,world:^ecs.World) {
 	entity,found:=ecs.find_entity_by_id(world,"navigation");if !found {return}
 	mesh,ready:=ecs.navigation_mesh_3d(world,entity);if !ready {return}
 	t,_:=ecs.get_transform(world,camera_entity);camera,_:=ecs.get_camera_3d(world,camera_entity)
-	rl.BeginMode3D({position=t.position,target=camera.target,up={0,1,0},fovy=camera.fovy,projection=.PERSPECTIVE})
+	rl.BeginMode3D({position=t.position,target=camera.target,up={0,1,0},fovy=camera.fovy,projection=rl.CameraProjection(camera.projection)})
 	for triangle in mesh.triangles {
 		offset:=[3]f32{0,0.15,0}
 		a,b,c:=mesh.vertices[triangle.vertices[0]]+offset,mesh.vertices[triangle.vertices[1]]+offset,mesh.vertices[triangle.vertices[2]]+offset

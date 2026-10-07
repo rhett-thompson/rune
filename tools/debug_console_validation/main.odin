@@ -66,6 +66,10 @@ main :: proc() {
 	}
 	rune.register_debug_commands(&game.console)
 	rune.bind_debug_console(&game, &world)
+	assert(console.execute(&game.console, "memory"))
+	memory_result := game.console.result_data.(json.Object)
+	assert(memory_result["world"].(json.Object)["entity_count"].(json.Integer) == 1)
+	assert(memory_result["world"].(json.Object)["map_bytes"].(json.Integer) > 0)
 	assert(console.execute(&game.console, "inspect player Transform"))
 	coordinate, _ = ecs.read_number(game.console.result_data.(json.Object)["components"].(json.Object)["Transform"].(json.Object)["position"].(json.Array)[0])
 	assert(coordinate == 50)

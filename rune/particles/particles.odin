@@ -161,12 +161,7 @@ appearance :: proc(particle: Particle2D) -> (size: f32, color: [4]u8) {
 
 @(private)
 random_unit :: proc(state: ^State) -> f32 {
-	x := state.random
-	x ~= x << 13
-	x ~= x >> 17
-	x ~= x << 5
-	state.random = x
-	return f32(x >> 8) / 16777216
+	return next_random_unit(&state.random)
 }
 
 @(private)

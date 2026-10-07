@@ -108,7 +108,7 @@ draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	entity, camera, found := ecs.active_camera_3d(world)
 	if found {
 		pose, _ := ecs.get_transform(world, entity)
-		rl.BeginMode3D({position = transmute(rl.Vector3)pose.position, target = transmute(rl.Vector3)camera.target, up = transmute(rl.Vector3)camera.up, fovy = camera.fovy, projection = .PERSPECTIVE})
+		rl.BeginMode3D({position = transmute(rl.Vector3)pose.position, target = transmute(rl.Vector3)camera.target, up = transmute(rl.Vector3)camera.up, fovy = camera.fovy, projection = rl.CameraProjection(camera.projection)})
 		if foot_age >= 0 {rl.DrawCircle3D({-2, 0.03, 0}, 0.25 + foot_age * 2, {1, 0, 0}, 90, rl.SKYBLUE)}
 		if impact_age >= 0 {
 			for i in 0 ..< 12 {
