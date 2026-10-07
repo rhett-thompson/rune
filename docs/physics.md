@@ -304,7 +304,7 @@ inspection, captures, and reload work as in the other scene examples.
 `tools/collider_2d_validation` covers typed and JSON authoring, signed/scaled
 offsets, compound bodies, capsule geometry, sensors, grounding, native cleanup,
 and value reload. Its optional `--runtime` mode checks actual gizmo pixels. Both
-passes are included in `tools/validate.ps1` (`-Runtime` enables pixel checks).
+passes are included in `.\tools\validate.bat` (`--runtime` enables pixel checks).
 
 While a `CharacterController2D` crouches, its authored capsule remains unchanged.
 Use `get_effective_capsule_collider_2d` to read live dimensions and offset;

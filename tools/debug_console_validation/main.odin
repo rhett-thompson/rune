@@ -138,7 +138,50 @@ main :: proc() {
 		}
 	}
 	validate_snapshot_ownership(&registry, paths)
+	validate_navmesh_commands(&registry)
 	fmt.println("Debug commands, runtime edits, and deterministic stepping validation passed")
+}
+
+validate_navmesh_commands :: proc(registry: ^ecs.Component_Registry) {
+	world := ecs.init()
+	defer ecs.destroy(&world)
+	nav := ecs.create_entity(&world)
+	assert(ecs.set_entity_metadata(&world, nav, "navigation", "Navigation", "", ecs.Default_Layer_Mask))
+	assert(ecs.add_component(&world, registry, nav, "NavMesh3D", parse(`{"asset":"course.navmesh.json"}`)))
+	game := rune.Engine{console = console.init()}
+	defer delete(game.debug.navmesh_entity)
+	rune.register_debug_commands(&game.console)
+	rune.bind_debug_console(&game, &world)
+	// Command arguments are borrowed from an inbox/interactive buffer. Filters
+	// must survive buffer reuse and a scene World replacement with the same ID.
+	command := "navmesh on navigation"
+	buffer: [64]u8
+	copy(buffer[:], command)
+	assert(console.execute(&game.console, string(buffer[:len(command)])))
+	for &byte in buffer {byte = 0}
+	assert(game.gizmos.navmeshes && !game.gizmos.enabled && game.gizmos.navmesh_entity == "navigation")
+	for invalid in ([]string{"navmesh toggle", "navmesh off navigation", "navmesh on navigation extra", "navmesh on missing"}) {
+		errors := game.console.error_count
+		assert(console.execute(&game.console, invalid))
+		assert(game.console.error_count == errors + 1)
+		assert(game.gizmos.navmeshes && game.gizmos.navmesh_entity == "navigation", "invalid commands retain the display setting")
+	}
+	replacement := ecs.init()
+	defer ecs.destroy(&replacement)
+	nav = ecs.create_entity(&replacement)
+	assert(ecs.set_entity_metadata(&replacement, nav, "navigation", "Navigation", "", ecs.Default_Layer_Mask))
+	assert(ecs.add_component(&replacement, registry, nav, "NavMesh3D", parse(`{"asset":"course.navmesh.json"}`)))
+	rune.bind_debug_console(&game, &replacement)
+	assert(console.execute(&game.console, "navmesh"))
+	result := game.console.result_data.(json.Object)
+	assert(result["enabled"].(json.Boolean) && result["entity"].(json.String) == "navigation")
+	assert(console.execute(&game.console, "navmesh on"))
+	assert(game.gizmos.navmeshes && game.gizmos.navmesh_entity == "")
+	assert(console.execute(&game.console, "navmesh off"))
+	assert(!game.gizmos.navmeshes && game.debug.navmesh_entity == "")
+	errors := game.console.error_count
+	console.execute(&game.console, "navmesh on navigation_missing")
+	assert(game.console.error_count == errors + 1 && !game.gizmos.navmeshes)
 }
 
 validate_snapshot_ownership :: proc(registry: ^ecs.Component_Registry, paths: []string) {

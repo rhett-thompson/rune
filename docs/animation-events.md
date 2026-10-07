@@ -107,4 +107,4 @@ speed. `tools/sprite_animation_validation` covers parsing, ordered events,
 multiple loops, one-shots, speed changes, pause, overflow, and asset reload.
 `--runtime` adds real asset resolution, queues, component edits, activation,
 and entity removal with a hidden raylib window. It is included in
-`tools/validate.ps1 -AllExamples`; add `-Runtime` for graphics checks.
+`.\tools\validate.bat --all-examples`; add `--runtime` for graphics checks.

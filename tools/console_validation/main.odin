@@ -93,4 +93,7 @@ main :: proc() {
 	assert(json.unmarshal(data, &result, allocator = context.temp_allocator) == nil)
 	assert(!result.ok)
 	fmt.println("Console command and local inbox validation passed")
+	for argument in os.args[1:] {
+		if argument == "--runtime" {validate_console_view()}
+	}
 }

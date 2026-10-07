@@ -10,7 +10,7 @@ assignees: ""
 - Rune commit:
 - OS:
 - `odin version`:
-- PowerShell version:
+- Shell (cmd / sh or another terminal shell):
 
 **Task attempted**
 Which step of `docs/alpha-trial.md` were you following?

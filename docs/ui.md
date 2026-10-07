@@ -15,9 +15,9 @@ Programs that do not import `rune:ui` do not link Clay.
 From the repository root:
 
 ```powershell
-# PowerShell 7 on Windows or Linux
+# Windows PowerShell; on Linux omit .exe and run binaries with ./build/...
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin build examples/clay_ui -collection:rune=rune "-out:build/clay_ui$exe"
 & "./build/clay_ui$exe"
 ```
@@ -200,9 +200,9 @@ callbacks free of gameplay mutations.
 ## Validation
 
 ```powershell
-# PowerShell 7 on Windows or Linux
+# Windows PowerShell; on Linux omit .exe and run binaries with ./build/...
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin build tools/ui_validation -collection:rune=rune "-out:build/ui_validation$exe"
 & "./build/ui_validation$exe"
 & "./build/ui_validation$exe" --runtime
@@ -213,5 +213,5 @@ widgets, clicks and canceled clicks, dragging, bounded memory, context ownership
 input capture, UI input while paused, and independent pause/step controls.
 `--runtime` adds hidden-window pixel checks for rendering and nested clipping.
 The main validation script discovers this validator and builds the example with
-`-AllExamples`. Text entry, dropdowns, accessibility APIs, automatic directional
+`--all-examples`. Text entry, dropdowns, accessibility APIs, automatic directional
 spatial navigation, and a UI editor are outside this first integration.

@@ -41,13 +41,13 @@ counters. See [the skeletal event API](../../docs/model-animation-events.md) for
 reverse, seek, reload, and buffer rules. Sound cues reuse the bundled CC0
 Brackeys platformer pack; see its `LICENSE & CREDITS.txt` under `examples/assets`.
 
-**Try editing:** [scenes/main.scene.json](scenes/main.scene.json): animator settings. [main.odin](main.odin): playback controls. [generate_fixture.ps1](generate_fixture.ps1): source of the included arm model.
+**Try editing:** [scenes/main.scene.json](scenes/main.scene.json): animator settings. [main.odin](main.odin): playback controls. [generate_fixture.bat](generate_fixture.bat): source of the included arm model.
 
-Run from the repository root with PowerShell 7:
+Run from the repository root on Windows:
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin run examples/skeletal_animation_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/skeletal_animation_3d$exe"
 ```
 

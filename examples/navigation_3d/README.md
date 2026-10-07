@@ -66,12 +66,20 @@ odin run tools/navmesh_baker -collection:rune=rune -- examples/navigation_3d/cou
 
 `course.navbake.json` uses 0.25-unit cells, 0.4 units of radius clearance and
 2 units of headroom. The bake removes the obstacle footprint and insets ledges.
-The original hand-authored `course.navmesh.json` and `generate_mesh.ps1` remain
+Simplification is enabled by default and merges the course from 6,520 cell
+triangles to 55 triangles without changing those clearance settings. Add
+`"simplify": false` to the settings to skip merging, then press N or run `rebake`.
+The original hand-authored `course.navmesh.json` and `generate_mesh.bat` / `generate_mesh.sh` remain
 as a separate authoring reference. Rendering uses raylib directly for the mesh and debug capsule; this
 example does not need r3d. See the [navigation guide](../../docs/navigation-3d.md)
 for the API, authoring rules, and current limits.
 
 The console command `navigate` sets the upper platform as the destination.
+
+The engine command `navmesh on` adds the shared translucent navigation overlay,
+with triangle edges and red blocked triangles. `navmesh on navigation` selects
+this demo's navigation entity; `navmesh off` hides the overlay. This works through
+the console inbox and is independent of the demo's M edge toggle and F3 gizmos.
 
 Run the demo's baking and ramp/reload regressions with
 `odin test examples/navigation_3d -collection:rune=rune` from the repository root.

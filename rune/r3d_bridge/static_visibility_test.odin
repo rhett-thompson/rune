@@ -32,7 +32,9 @@ static_cache_tracks_parent_edits_activation_and_reparenting :: proc(t:^testing.T
 	// Public world-map edits must not require special cache invalidation.
 	w.transforms[parent]=ecs.Transform{position={4,3,0},rotation={0,90,0},scale={1,2,1}}
 	ctx.frame_stats={}; prepare_static_groups(&ctx,&w)
-	testing.expect(t,ctx.frame_stats.static_bounds_rebuilt==2 && ctx.static_meshes[a].pose.position==[3]f32{4,3,-5})
+	testing.expect(t,ctx.frame_stats.static_bounds_rebuilt==2)
+	expected_position:=[3]f32{-1,3,0}
+	for axis in 0..<3 {testing.expect(t,abs(ctx.static_meshes[a].pose.position[axis]-expected_position[axis])<0.001)}
 	expected,_:=ecs.terrain_transform(&w,a)
 	testing.expect(t,ctx.static_meshes[a].pose==expected,"cache uses Rune's hierarchy semantics")
 	ecs.set_enabled(&w,parent,false); ctx.frame_stats={}; prepare_static_groups(&ctx,&w)

@@ -3,8 +3,6 @@
   "tested_odin_version": "dev-2026-09-nightly:a2fb372",
   "tested_platforms": ["windows-amd64"],
   "target_platforms": ["windows-amd64", "linux-amd64"],
-  "powershell": "7.x",
-  "tested_powershell_version": "7.6.5",
   "archives": {
     "windows-amd64": {
       "name": "odin-windows-amd64-dev-2026-09.zip",

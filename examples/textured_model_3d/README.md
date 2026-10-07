@@ -16,11 +16,11 @@ For the minimal model setup, edit [scenes/simple.scene.json](scenes/simple.scene
 Set `startup_scene` in [project.json](project.json) to `scenes/simple.scene.json`
 to start there directly. Both scenes support JSON hot reload.
 
-Run from the repository root with PowerShell 7:
+Run from the repository root on Windows:
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin run examples/textured_model_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/textured_model_3d$exe"
 ```
 

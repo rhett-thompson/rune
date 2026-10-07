@@ -589,34 +589,34 @@ the previous configuration.
 The headless `tools/character_controller_2d_validation` executable covers data
 validation, acceleration, stopping, slope limits, descent, snapping, ceilings,
 jump grace, sensors, timing, activation, teleportation, removal, and prefab reload.
-It runs as part of `tools/validate.ps1` on Windows and Linux.
+It runs as part of `.\tools\validate.bat` on Windows and `sh tools/validate.sh` on Linux.
 
 `tools/moving_platform_2d_validation` additionally checks horizontal/vertical
 carrying, reversal, descending support with snapping disabled, jump inheritance,
 coyote departure, collision obstruction, and support invalidation/reload. It is
-included automatically by `tools/validate.ps1`.
+included automatically by `.\tools\validate.bat`.
 
 `tools/one_way_2d_validation` checks upward passage, landing, moving platforms,
 selective drops, thick-platform guards, ordinary bodies, data validation and
-invalidation. It is included automatically by `tools/validate.ps1`.
+invalidation. It is included automatically by `.\tools\validate.bat`.
 
 `tools/crouch_2d_validation` checks posture geometry, speed, blocked standing,
 automatic retry, reflected scales, collision filtering, moving support,
-drop-through and resets. It also runs through `tools/validate.ps1`.
+drop-through and resets. It also runs through `.\tools\validate.bat`.
 
 `tools/step_up_2d_validation` checks disabled behavior, repeated stair climbing,
 height and slope limits, crouched headroom, slow/fast movement in both directions,
 no extra horizontal travel, input/air restrictions, collision filters, moving
-supports, one-way support, and runtime disabling. It runs in `tools/validate.ps1`.
+supports, one-way support, and runtime disabling. It runs in `.\tools\validate.bat`.
 
 `tools/variable_jump_2d_validation` compares tap/partial/full jump heights and
 checks release ordering, buffering, expiry, repeated releases, moving-platform
-momentum, coyote jumps, drop priority and resets. It runs in `tools/validate.ps1`.
+momentum, coyote jumps, drop priority and resets. It runs in `.\tools\validate.bat`.
 
 `tools/wall_movement_2d_validation` checks independent feature settings, both wall
 directions, steering lock, input edges, filters, corners, moving-wall momentum,
-release cutting and contact invalidation. It runs in `tools/validate.ps1`.
+release cutting and contact invalidation. It runs in `.\tools\validate.bat`.
 
 `tools/dash_2d_validation` checks chained and reversed dashes, timing/queue limits,
 cooldowns, permissions, gravity, collisions, filters, jump/drop priority, moving
-platforms, serialization and resets. It runs in `tools/validate.ps1`.
+platforms, serialization and resets. It runs in `.\tools\validate.bat`.

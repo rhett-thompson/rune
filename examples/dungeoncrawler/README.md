@@ -6,11 +6,11 @@ Read a larger game with generated rooms, combat, enemy behavior, and textured du
 
 **Try editing:** [game.odin](game.odin): generation, combat, and drawing. [main.odin](main.odin): component registration. [scenes/main.scene.json](scenes/main.scene.json): game settings. This example reads raylib input directly.
 
-Run from the repository root with PowerShell 7:
+Run from the repository root on Windows:
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin run examples/dungeoncrawler -collection:rune=rune "-out:build/dungeoncrawler$exe"
 ```
 

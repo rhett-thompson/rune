@@ -61,9 +61,7 @@ cached_transform_node :: proc(nodes:^map[ecs.Entity]Static_Transform_Node,frame:
 		node.local=local; node.has_transform=has_transform; node.locally_enabled=locally_enabled
 		node.pose=ancestor.pose
 		if has_transform {
-			node.pose.position+=local.position
-			node.pose.rotation+=local.rotation
-			node.pose.scale*=local.scale
+			node.pose=ecs.compose_transform_3d(ancestor.pose,local)
 		}
 		node.enabled=ancestor.enabled && locally_enabled
 		node.version+=1

@@ -249,11 +249,11 @@ performance guarantee.
 Terrain also feeds the [3D navigation baker](navigation-3d.md). It uses the same
 heightmap triangles and world transform as collision, filters slopes/headroom,
 and combines the landscape with static obstacles. Run from the repository root
-with PowerShell 7 on Windows or Linux:
+with Windows PowerShell:
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin run tools/navmesh_baker -collection:rune=rune "-out:build/navmesh_baker$exe" -- examples/terrain_3d/terrain.navbake.json
 ```
 
@@ -308,15 +308,15 @@ odin build examples/terrain_3d -collection:rune=rune -collection:r3d=third_party
 ./build/terrain_3d.exe --console-dir=build/console/terrain
 ```
 
-On Linux, use `-out:build/terrain_3d` and run that executable. PowerShell scripts
-in the repository select the appropriate extension automatically.
+On Linux, use `-out:build/terrain_3d` and run that executable. The `.bat` and `.sh`
+helpers select the appropriate extension for their platform.
 
 `tools/terrain_validation` checks decoding, collision, character traversal,
 activation, hierarchy edits, reload recovery, and ownership. Its GPU checks also
 verify image/material layer colors, normal and ORM blending, point filtering,
 atlas mip isolation, eight material slots/control channels, reload retention,
 noise continuity and shader cleanup. It runs as part of
-`pwsh -NoProfile -File tools/validate.ps1 -AllExamples`.
+`.\tools\validate.bat --all-examples`.
 
 To run its GPU checks independently:
 
@@ -325,7 +325,7 @@ odin build tools/terrain_validation -collection:rune=rune -collection:r3d=third_
 ./build/terrain_validation.exe --runtime
 ```
 
-The optional `-Runtime` validation suite includes those checks. Linux GPU checks
+The optional `--runtime` validation suite includes those checks. Linux GPU checks
 need a desktop or Xvfb. PNG decoding uses Odin's `vendor:stb/image`; the toolchain
 installer builds its native Linux archive when missing. For an existing Odin
 installation without `vendor/stb/lib/stb_image.a`, run its

@@ -6,11 +6,11 @@ Read contact events, collect sensor pickups, and visualize ray and circle querie
 
 **Try editing:** [main.odin](main.odin): control and after_physics. [scenes/main.scene.json](scenes/main.scene.json): sensors and walls. Use the developer console's reload command to restore collected pickups.
 
-Run from the repository root with PowerShell 7:
+Run from the repository root on Windows:
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin run examples/physics_queries_2d -collection:rune=rune "-out:build/physics_queries_2d$exe"
 ```
 

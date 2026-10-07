@@ -24,6 +24,8 @@ Debug_State :: struct {
 	simulation_updates: u64,
 	fixed_steps: u64,
 	fps: f64,
+	// Owns the console-selected filter; Settings borrows it between frames.
+	navmesh_entity: string,
 	profile_count: int,
 	profile_target: int,
 	profile_samples: [Max_Debug_Frames]Profile_Sample,
@@ -50,6 +52,43 @@ register_debug_commands :: proc(dev: ^console.Console) {
 	console.register(dev, "reload", "Reload the active scene from disk; discard runtime edits.", reload_command)
 	console.register(dev, "profile", "Sample CPU/frame timings: profile [frames, 1..600].", profile_command)
 	console.register(dev, "memory", "Known World/asset backing buffers and texture GPU estimates.", memory_command)
+	console.register(dev, "navmesh", "Show navigation surfaces: navmesh [on [entity-id]|off].", navmesh_command)
+}
+
+navmesh_command :: proc(dev: ^console.Console, arguments: string) {
+	engine, ok := command_engine(dev)
+	if !ok {return}
+	mode, rest := take_word(arguments)
+	if mode != "" {
+		id, extra := take_word(rest)
+		if (mode != "on" && mode != "off") || extra != "" || (mode == "off" && id != "") {
+			console.error(dev, "Usage: navmesh [on [entity-id]|off].")
+			return
+		}
+		if id != "" {
+			_, world, attached := command_world(dev)
+			if !attached {return}
+			entity, found := ecs.find_entity_by_id(world, id)
+			if !found || !ecs.has_component_data(world, entity, "NavMesh3D") {
+				console.error(dev, fmt.tprintf("NavMesh3D scene entity not found: %s", id))
+				return
+			}
+		}
+		filter: string
+		if id != "" {
+			cloned, allocation_error := strings.clone(id)
+			if allocation_error != nil {console.error(dev, "Could not retain navmesh entity ID."); return}
+			filter = cloned
+		}
+		delete(engine.debug.navmesh_entity)
+		engine.debug.navmesh_entity = filter
+		engine.gizmos.navmesh_entity = filter
+		engine.gizmos.navmeshes = mode == "on"
+	}
+	console.info(dev, fmt.tprintf("Navmesh display %s (%s).",
+		"on" if engine.gizmos.navmeshes else "off",
+		engine.gizmos.navmesh_entity if engine.gizmos.navmesh_entity != "" else "all entities"))
+	console.set_result(dev, struct {enabled: bool, entity: string}{engine.gizmos.navmeshes, engine.gizmos.navmesh_entity})
 }
 
 memory_command :: proc(dev: ^console.Console, arguments: string) {

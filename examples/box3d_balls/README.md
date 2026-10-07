@@ -6,11 +6,11 @@ Simulate spheres and boxes with Box3D and draw their shapes directly through ray
 
 **Try editing:** [scenes/main.scene.json](scenes/main.scene.json): body and collider settings. [main.odin](main.odin): shape rendering and native body rotation access.
 
-Run from the repository root with PowerShell 7:
+Run from the repository root on Windows:
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin run examples/box3d_balls -collection:rune=rune "-out:build/box3d_balls$exe"
 ```
 

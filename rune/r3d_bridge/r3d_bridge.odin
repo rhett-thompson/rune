@@ -309,9 +309,7 @@ draw_entity_tree :: proc(
 	if !ecs.is_enabled(world, entity) {return}
 	local := parent
 	if transform, has_transform := ecs.get_transform(world, entity); has_transform {
-		local.position += transform.position
-		local.rotation += transform.rotation
-		local.scale *= transform.scale
+		local = ecs.compose_transform_3d(parent, transform)
 	}
 	draw_entity(ctx, world, asset_manager, entity, local, pass)
 	for child in ecs.child_entities(world, entity) {

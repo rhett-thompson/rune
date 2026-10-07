@@ -22,9 +22,7 @@ set_result :: proc(console: ^Console, value: any) {
 		return
 	}
 	if console.remote.result_len == 0 {
-		for offset := 0; offset < len(data); offset += Max_Line_Length {
-			info(console, string(data[offset:min(offset + Max_Line_Length, len(data))]))
-		}
+		log_result(console, string(data))
 	}
 }
 

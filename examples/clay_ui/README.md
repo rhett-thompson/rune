@@ -6,11 +6,11 @@ Build a Clay menu that pauses simulation and captures gameplay input while remai
 
 **Try editing:** [main.odin](main.odin): layout, focus, input capture, and audio volume. [input/default.input.json](input/default.input.json): UI actions.
 
-Run from the repository root with PowerShell 7:
+Run from the repository root on Windows:
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin run examples/clay_ui -collection:rune=rune "-out:build/clay_ui$exe"
 ```
 

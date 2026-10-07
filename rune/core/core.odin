@@ -541,7 +541,7 @@ run_callbacks :: proc(engine: ^Engine, on_update: Update_Proc, on_draw: Draw_Pro
 	mem.dynamic_arena_init(&frame_arena)
 	defer mem.dynamic_arena_destroy(&frame_arena)
 
-	for !engine.exit_requested && !rl.WindowShouldClose() {
+	for !engine.exit_requested && !window_should_close(engine) {
 		context.temp_allocator = mem.dynamic_arena_allocator(&frame_arena)
 		defer {
 			engine.console.result_data = {}
@@ -615,7 +615,7 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 	frame_arena: mem.Dynamic_Arena
 	mem.dynamic_arena_init(&frame_arena)
 	defer mem.dynamic_arena_destroy(&frame_arena)
-	for !engine.exit_requested && !rl.WindowShouldClose() {
+	for !engine.exit_requested && !window_should_close(engine) {
 		// Scratch results belong to this frame; keep blocks for reuse without
 		// resetting temporary allocations owned by the caller of run_scene.
 		context.temp_allocator = mem.dynamic_arena_allocator(&frame_arena)
@@ -844,7 +844,18 @@ begin_frame :: proc(engine: ^Engine) {
 		}
 	}
 	input.update(&engine.input)
+	console_was_open := console.is_open(&engine.console)
 	console.update(&engine.console)
+	if console_was_open || console.is_open(&engine.console) {input.capture(&engine.input)}
+}
+
+// Escape belongs to the open console. raylib's desktop event polling resets
+// the close flag on the next frame, so consuming it here preserves games'
+// custom exit-key settings without replacing them with SetExitKey.
+@(private)
+window_should_close :: proc(engine: ^Engine) -> bool {
+	if console.is_open(&engine.console) && rl.IsKeyPressed(.ESCAPE) {return false}
+	return rl.WindowShouldClose()
 }
 
 flush_asset_diagnostics :: proc(engine: ^Engine) {
@@ -879,6 +890,9 @@ hot_reload_poll_due :: proc(engine: ^Engine) -> bool {
 
 shutdown :: proc(engine: ^Engine) {
 	if engine.is_running {
+		delete(engine.debug.navmesh_entity)
+		engine.debug.navmesh_entity = ""
+		engine.gizmos.navmesh_entity = ""
 		delete(engine.save_request.name)
 		engine.save_request = {}
 		save.destroy(&engine.saves)
@@ -893,6 +907,7 @@ shutdown :: proc(engine: ^Engine) {
 			engine.has_active_world = false
 		}
 		audio.shutdown(&engine.audio)
+		console.destroy_renderer(&engine.console)
 		render.destroy_canvas(&engine.canvas)
 		assets.shutdown(&engine.assets)
 		ecs.destroy_registry(&engine.registry)

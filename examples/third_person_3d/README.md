@@ -131,12 +131,12 @@ reacquires player, avatar, camera, and platform handles. The course is authored
 locally so its obstacles can be edited independently of the first-person scene.
 The environment defaults are shared; use prefab child overrides for local changes.
 
-Run from the repository root with PowerShell 7, after installing the r3d dependency:
+Run from the repository root on Windows, after installing the r3d dependency:
 
 ```powershell
 git submodule update --init --recursive
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin run examples/third_person_3d -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/third_person_3d$exe"
 ```
 

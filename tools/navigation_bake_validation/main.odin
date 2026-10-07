@@ -31,7 +31,8 @@ main :: proc() {
 	validate_terrain()
 	validate_scene()
 	validate_limits()
-	fmt.println("Navigation bake validation passed: radius erosion, obstacle clearance, thin walls, ceilings, stacked floors, terrain topology/transforms/slopes, scene collection, determinism, serialization and invalid inputs")
+	validate_simplification()
+	fmt.println("Navigation bake validation passed: clearance, layers, terrain, scene collection, serialization, simplification coverage/connectivity, determinism and invalid inputs")
 }
 validate_flat_and_obstacles :: proc() {
 	g:navigation.Bake_Geometry_3D;defer navigation.destroy_bake_geometry_3d(&g)
@@ -105,10 +106,10 @@ validate_terrain :: proc() {
 validate_scene :: proc() {
 	r:=ecs.init_registry();defer ecs.destroy_registry(&r);check(ecs.register_builtin_components(&r),"registry")
 	w,ok:=scene.load("examples/navigation_3d/scenes/main.scene.json",&r);check(ok,"load demo scene");defer ecs.destroy(&w)
-	m,_,error:=ecs.bake_navigation_world_3d(&w,"examples/navigation_3d",{cell_size=0.25,agent_radius=0.4,agent_height=2,max_slope=45})
+	m,_,error:=ecs.bake_navigation_world_3d(&w,"examples/navigation_3d",{cell_size=0.25,agent_radius=0.4,agent_height=2,max_slope=45,simplify=true})
 	check(error=="",error);defer navigation.destroy_mesh_3d(&m)
 	check(route(&m,{-7,0,3},{7,2,3})==.Complete,"scene collider ramp joins both floors")
-	m2,_,error2:=ecs.bake_navigation_world_3d(&w,"examples/navigation_3d",{cell_size=0.25,agent_radius=0.4,agent_height=2,max_slope=45})
+	m2,_,error2:=ecs.bake_navigation_world_3d(&w,"examples/navigation_3d",{cell_size=0.25,agent_radius=0.4,agent_height=2,max_slope=45,simplify=true})
 	check(error2=="",error2);defer navigation.destroy_mesh_3d(&m2)
 	check(len(m.vertices)==len(m2.vertices) && len(m.triangles)==len(m2.triangles),"repeatable bake sizes")
 	for p,i in m.vertices {check(p==m2.vertices[i],"deterministic vertices")}
@@ -132,7 +133,7 @@ validate_scene :: proc() {
 	check(os.write_entire_file("build/bake-terrain.scene.json",string(`{"name":"Bake fixture","entities":[{"id":"parent","components":{"Transform":{"position":[10,3,20],"scale":[2,1,1]}},"children":[{"id":"ground","components":{"Transform":{"position":[1,2,3]},"Terrain":{"asset":"build/bake-height.terrain.json"}}}]}]}`))==nil,"write terrain scene")
 	tw,terrain_loaded:=scene.load("build/bake-terrain.scene.json",&r);check(terrain_loaded,scene.last_load_error());defer ecs.destroy(&tw)
 	tg,terrain_error:=ecs.collect_navigation_geometry_3d(&tw,".");defer navigation.destroy_bake_geometry_3d(&tg)
-	check(terrain_error=="" && len(tg.vertices)==4 && tg.vertices[0]==([3]f32{11,5,23}) && tg.vertices[3]==([3]f32{27,5,31}),"R16 terrain collector includes parent transform")
+	check(terrain_error=="" && len(tg.vertices)==4 && tg.vertices[0]==([3]f32{12,5,23}) && tg.vertices[3]==([3]f32{28,5,31}),"R16 terrain collector scales the child offset with its parent")
 	// A broken terrain source fails the bake instead of silently omitting it.
 	ground,_:=ecs.find_entity_by_id(&tw,"ground")
 	settings,_:=ecs.get_terrain(&tw,ground);settings.asset="missing.terrain.json";check(ecs.set_terrain(&tw,ground,settings),"change terrain path")

@@ -112,20 +112,10 @@ destroy_terrains :: proc(world: ^World) {
 	world.terrains = nil
 }
 
-// Match Rune's renderer hierarchy: additive positions/Euler angles and
-// multiplicative scales. Terrain uses positive scale on every axis.
+// Match Rune's 3D renderer hierarchy. Terrain uses positive scale on every axis.
 terrain_transform :: proc(world: ^World, entity: Entity) -> (Transform,bool) {
-	result := Transform{scale={1,1,1}}
 	if _,found := world.transforms[entity]; !found {return {},false}
-	current := entity
-	for current != 0 {
-		if t,found := world.transforms[current]; found {
-			result.position += t.position
-			result.rotation += t.rotation
-			result.scale *= t.scale
-		}
-		current = world.parents[current]
-	}
+	result := world_transform_3d(world, entity)
 	for n in result.scale {if !(n > 0) {return {},false}}
 	return result,component_value_valid(result)
 }

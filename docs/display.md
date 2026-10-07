@@ -57,9 +57,9 @@ These calls do not rewrite `project.json`.
 The developer console and opt-in inbox expose:
 
 ```powershell
-./tools/console.ps1 -Directory build/console/demo -Command 'window' -Json
-./tools/console.ps1 -Directory build/console/demo -Command 'window borderless' -Json
-./tools/console.ps1 -Directory build/console/demo -Command 'window windowed' -Json
+.\tools\console.bat --directory build/console/demo --command 'window' --json
+.\tools\console.bat --directory build/console/demo --command 'window borderless' --json
+.\tools\console.bat --directory build/console/demo --command 'window windowed' --json
 ```
 
 The response contains `mode`, `screen`, `framebuffer`, `dpi`, `high_dpi`, and
@@ -106,9 +106,9 @@ Set `render_2d.policy` in its `project.json` before launching to try another
 policy. The runtime validator below checks fit, stretch, and integer scaling.
 
 ```powershell
-# PowerShell 7 on Windows or Linux
+# Windows PowerShell; on Linux omit .exe and run binaries with ./build/...
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin build tools/resolution_validation -collection:rune=rune "-out:build/resolution_validation$exe"
 & "./build/resolution_validation$exe" --runtime
 ```
@@ -138,9 +138,9 @@ Runtime checks are validated on Windows at 200% DPI. Multi-monitor DPI moves,
 macOS, and Linux require testing on those configurations.
 
 ```powershell
-# PowerShell 7 on Windows or Linux
+# Windows PowerShell; on Linux omit .exe and run binaries with ./build/...
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin build tools/window_validation -collection:rune=rune "-out:build/window_validation$exe"
 & "./build/window_validation$exe"
 & "./build/window_validation$exe" --runtime

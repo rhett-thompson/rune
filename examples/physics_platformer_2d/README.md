@@ -6,11 +6,11 @@ Drive a capsule character with Rune's built-in `CharacterController2D`, backed b
 
 **Try editing:** [main.odin](main.odin): submit mapped movement and jump requests. [scenes/main.scene.json](scenes/main.scene.json): motor tuning, bodies, shapes, and colliders. `jump_speed` is 600 for the previous 150-unit jump setting at gravity 1200; the capsule keeps the old collider bounds with rounded corners.
 
-Run from the repository root with PowerShell 7:
+Run from the repository root on Windows:
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin run examples/physics_platformer_2d -collection:rune=rune "-out:build/physics_platformer_2d$exe"
 ```
 

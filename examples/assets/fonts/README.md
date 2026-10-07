@@ -33,5 +33,6 @@ Clay contexts borrow `example_text.font()` and refresh it with `ui.set_font`
 before layout. The helper supports one example engine per process.
 
 Rune loads scalable fonts into a 64-pixel atlas with bilinear filtering;
-bitmap fonts retain their pixel filtering. The developer console retains its
-own built-in font.
+bitmap fonts retain their pixel filtering. The developer console embeds its
+own copy of Inter, so its typography also works outside the examples. Games
+can use `console.set_font` to give it their current UI font.

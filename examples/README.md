@@ -13,11 +13,12 @@ The launcher supplies any extra collections. To invoke Odin directly:
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin run examples/launcher -collection:rune=rune "-out:build/launcher$exe"
 ```
 
-These commands use PowerShell 7 on Windows or Linux. Each guide below also has a
+These direct commands use Windows' built-in PowerShell. On Linux, use `sh launcher.sh`
+or omit the `.exe` suffix in the direct Odin commands. Each guide below also has a
 direct run command. For R3D setup and Linux display requirements, see
 [Linux development](../docs/linux.md) and the [repository README](../README.md).
 
@@ -93,5 +94,5 @@ Format Odin sources with the example settings, then run the headless checks:
 
 ```powershell
 odinfmt -path:examples -config:examples/odinfmt.json -w
-pwsh -NoProfile -File tools/validate.ps1 -AllExamples
+.\tools\validate.bat --all-examples
 ```

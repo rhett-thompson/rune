@@ -204,7 +204,7 @@ opt-in in Rune. `Context.cloud_volumes_disabled` skips cloud preparation and
 drawing without removing entities, for rendering comparisons.
 
 Run the headless ownership/collision validator (also discovered by
-`tools/validate.ps1`) from the Rune root:
+`.\tools\validate.bat`) from the Rune root:
 
 ```powershell
 odin run tools/static_mesh_validation -collection:rune=rune -out:build/static_mesh_validation.exe -keep-executable

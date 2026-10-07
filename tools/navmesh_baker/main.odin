@@ -29,7 +29,7 @@ main :: proc() {
 	for key in object {if key!="$schema" && key!="project_root" && key!="scene" && key!="output" && key!="settings" {fail(fmt.tprintf("unknown bake config field: %s",key))}}
 	if field,exists:=object["settings"];exists {
 		settings,is_object:=field.(json.Object);if !is_object {fail("settings must be an object")}
-		for key in settings {if key!="cell_size" && key!="agent_radius" && key!="agent_height" && key!="max_slope" {fail(fmt.tprintf("unknown bake setting: %s",key))}}
+		for key in settings {if key!="cell_size" && key!="agent_radius" && key!="agent_height" && key!="max_slope" && key!="simplify" {fail(fmt.tprintf("unknown bake setting: %s",key))}}
 	}
 	config:=Config{project_root=".",settings=navigation.Default_Bake_Settings_3D}
 	if json.unmarshal(bytes,&config,allocator=context.temp_allocator)!=nil || config.scene=="" || config.output=="" || !navigation.bake_settings_valid_3d(config.settings) {fail("invalid config: scene, output and valid settings are required")}

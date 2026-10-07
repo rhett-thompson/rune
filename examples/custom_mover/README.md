@@ -6,11 +6,11 @@ Give an entity a Mover component, read an input axis, and update its Transform i
 
 **Try editing:** [mover.odin](mover.odin): movement and wrapping. [scenes/main.scene.json](scenes/main.scene.json): Mover.speed. [input/default.input.json](input/default.input.json): movement keys.
 
-Run from the repository root with PowerShell 7:
+Run from the repository root on Windows:
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin run examples/custom_mover -collection:rune=rune "-out:build/custom_mover$exe"
 ```
 

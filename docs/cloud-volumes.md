@@ -46,7 +46,7 @@ shadows onto geometry, or perform multiple scattering. Transparent objects
 do not stop rays. Post-processing still applies through the existing scene
 chain; fog uses opaque depth, as it does for other transparent materials.
 
-Validate data with `tools/validate.ps1 -AllExamples`. The focused
+Validate data with `.\tools\validate.bat --all-examples`. The focused
 `build/cloud_volume_validation --runtime` (add `.exe` on Windows) checks
 opacity, foreground occlusion, a solid object inside a cloud, views inside a
 volume, zero density, and alias cleanup on a real graphics context.

@@ -9,6 +9,7 @@ import rl "vendor:raylib"
 frames:int
 arrived:bool
 validate_runtime :: proc() {
+	validate_navmesh_gizmos()
 	rl.SetConfigFlags({.WINDOW_HIDDEN})
 	game,ok:=rune.init("examples/navigation_3d/project.json");assert(ok)
 	defer rune.shutdown(&game)

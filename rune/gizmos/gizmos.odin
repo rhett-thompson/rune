@@ -14,6 +14,10 @@ Settings :: struct {
 	tilemaps:       bool,
 	audio:          bool,
 	lights:         bool,
+	// Navigation visualization is independent of the F3 overlay switch.
+	navmeshes:      bool,
+	// Borrowed stable scene ID; empty draws every enabled NavMesh3D.
+	navmesh_entity: string,
 	transform_size: f32,
 }
 
@@ -35,10 +39,10 @@ default_settings :: proc() -> Settings {
 // It owns its raylib mode boundaries so game systems can call it after normal
 // scene rendering without tracking whether the scene is 2D or 3D.
 draw_scene :: proc(world: ^ecs.World, settings: Settings) {
-	if !settings.enabled {return}
+	if !settings.enabled && !settings.navmeshes {return}
 	drew_2d := draw_scene_2d(world, settings)
 	drew_3d := draw_3d_gizmos(world, settings)
-	if !drew_2d && !drew_3d {
+	if settings.enabled && !drew_2d && !drew_3d {
 		draw_scene_screen_2d(world, settings)
 	}
 }
@@ -68,7 +72,7 @@ draw_scene_2d :: proc(world: ^ecs.World, settings: Settings) -> bool {
 }
 
 draw_3d_gizmos :: proc(world: ^ecs.World, settings: Settings) -> bool {
-	if !settings.enabled {return false}
+	if !settings.enabled && !settings.navmeshes {return false}
 	entity, camera_component, found := ecs.active_camera_3d(world)
 	if !found {return false}
 	transform, has_transform := ecs.get_transform(world, entity)
@@ -82,11 +86,14 @@ draw_3d_gizmos :: proc(world: ^ecs.World, settings: Settings) -> bool {
 		projection = rl.CameraProjection(camera_component.projection),
 	}
 	rl.BeginMode3D(camera)
-	if settings.physics_3d {draw_physics_3d(world)}
-	if settings.cameras {draw_cameras_3d(world)}
-	if settings.audio {draw_audio_3d(world)}
-	if settings.lights {draw_lights_3d(world)}
-	if settings.transforms {draw_transforms_3d(world, normalized_transform_size(settings) / 24)}
+	if settings.enabled {
+		if settings.physics_3d {draw_physics_3d(world)}
+		if settings.cameras {draw_cameras_3d(world)}
+		if settings.audio {draw_audio_3d(world)}
+		if settings.lights {draw_lights_3d(world)}
+		if settings.transforms {draw_transforms_3d(world, normalized_transform_size(settings) / 24)}
+	}
+	if settings.navmeshes {draw_navmeshes_3d(world, settings.navmesh_entity)}
 	rl.EndMode3D()
 	return true
 }

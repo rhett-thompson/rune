@@ -16,7 +16,7 @@ playback speed to see the timing stay attached to the animation.
 Build from the repository root, putting the executable in `build/`:
 
 ```powershell
-$suffix = if ($IsWindows) { '.exe' } else { '' }
+$suffix = '.exe'
 odin build examples/animation_events_2d -collection:rune=rune "-out:build/animation_events_2d$suffix"
 & "./build/animation_events_2d$suffix"
 ```

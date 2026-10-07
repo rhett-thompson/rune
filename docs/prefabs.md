@@ -208,7 +208,7 @@ Run the headless controller-shaped composition fixtures, legacy replacement
 checks, cycle/error checks, and nested reload tests:
 
 ```powershell
-$exe = if ($IsWindows) { '.exe' } else { '' }
+$exe = '.exe'
 odin run tools/prefab_validation -collection:rune=rune "-out:build/prefab_validation$exe"
 ```
 

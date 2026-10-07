@@ -72,6 +72,11 @@ state preservation and [checkpoint saves](save-load.md) for opt-in persistence.
 
 Local position, Euler rotation in degrees, and scale. 2D rendering uses X/Y and Z rotation; 3D uses all axes. Rendering composes parent transforms; individual physics backends have their own hierarchy/rotation restrictions. A zero-initialized Odin struct has zero scale: use `ecs.default_transform()` when creating one in code.
 
+In 3D, child offsets inherit parent scale and then parent rotation. Rendering,
+scene picking, terrain, and runtime static geometry share this composition.
+Euler angles compose additively, which is exact for rotations about a shared
+axis; arbitrary mixed-axis rotation composition and shear remain approximate.
+
 [Guide / example](../README.md#scene-owned-rendering) · [Implementation](../rune/ecs/transform.odin)
 
 | Field | Type / constraints | JSON default | Meaning |
@@ -511,7 +516,7 @@ Moves a `Camera2D` entity's transform toward a target entity with a transform. T
 
 ### Camera3D
 
-Uses the entity transform position as the camera position. Target and up explicitly define the view; transform rotation does not replace them. FOV is vertical degrees. Set `active: true` to select the view; the default is inactive. The camera-switching example changes active cameras in Odin.
+Uses the entity transform position as the camera position. Target and up explicitly define the view; transform rotation does not replace them. Set `active: true` to select the view; the default is inactive. The camera-switching example changes active cameras in Odin.
 
 [Guide / example](../examples/camera_switching/README.md) · [Implementation](../rune/ecs/camera.odin)
 
@@ -519,7 +524,8 @@ Uses the entity transform position as the camera position. Target and up explici
 | --- | --- | --- | --- |
 | `target` | 3-item array of number | `[0, 0, 0]` | Camera target position. |
 | `up` | 3-item array of number | `[0, 1, 0]` | Camera up vector. |
-| `fovy` | number; > 0 | `45` | Vertical field of view in degrees. |
+| `fovy` | number; > 0 | `45` | Vertical field of view in degrees for perspective; visible height in world units for orthographic. |
+| `projection` | `"perspective"` or `"orthographic"` | `"perspective"` | Camera projection. In Odin, use `.perspective` or `.orthographic`. |
 | `active` | boolean | `false` | Select this camera/listener. |
 
 ### OrbitCamera3D

@@ -58,7 +58,7 @@ check :: proc(ok: bool, manager: ^save.Manager) {if !ok {fmt.eprintln(save.last_
 
 main :: proc() {
 	// All writable fixtures stay under the repository's ignored build directory.
-	assert(os.make_directory_all("build/save-validation") == nil)
+	if err := os.make_directory_all("build/save-validation"); err != nil {assert(os.is_directory("build/save-validation"))}
 	game: rune.Engine
 	game.project_directory, _ = filepath.abs("tools/save_validation/fixtures")
 	defer delete(game.project_directory)
@@ -119,6 +119,7 @@ main :: proc() {
 	rune.process_save_requests(&game)
 	check(game.save_result.ok, &game.saves)
 	assert(game.save_result.sequence == 1 && starts == 1 && restores == 0)
+	validate_save_directories(&game.saves)
 	assert(ecs.set(world, old_player, Health{1}))
 	assert(ecs.destroy_entity(world, drop))
 	check(rune.request_load(&game,"checkpoint"), &game.saves)
