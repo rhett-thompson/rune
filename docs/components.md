@@ -511,7 +511,7 @@ Moves a `Camera2D` entity's transform toward a target entity with a transform. T
 
 ### Camera3D
 
-Uses the entity transform position as the camera position. Target and up explicitly define the view; transform rotation does not replace them. FOV is vertical degrees. Set `active: true` to select the view; the default is inactive. The camera-switching example changes active cameras in Odin.
+Uses the entity transform position as the camera position. Target and up explicitly define the view; transform rotation does not replace them. `projection` selects perspective or orthographic rendering. `fovy` is the vertical field of view in degrees for perspective, or the visible height in world units for orthographic. Set `active: true` to select the view; the default is inactive. The camera-switching example changes active cameras in Odin.
 
 [Guide / example](../examples/camera_switching/README.md) · [Implementation](../rune/ecs/camera.odin)
 
@@ -519,7 +519,8 @@ Uses the entity transform position as the camera position. Target and up explici
 | --- | --- | --- | --- |
 | `target` | 3-item array of number | `[0, 0, 0]` | Camera target position. |
 | `up` | 3-item array of number | `[0, 1, 0]` | Camera up vector. |
-| `fovy` | number; > 0 | `45` | Vertical field of view in degrees. |
+| `fovy` | number; > 0 | `45` | Vertical field of view in degrees for perspective; visible height in world units for orthographic. |
+| `projection` | `perspective` or `orthographic` | `perspective` | Camera projection mode. |
 | `active` | boolean | `false` | Select this camera/listener. |
 
 ### OrbitCamera3D
