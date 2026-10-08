@@ -257,10 +257,15 @@ uses a fixed seed and a 0.0001-unit vertical tolerance, rather than accumulating
 error across cells. This is a conservative planar merge, not arbitrary terrain
 decimation or contour smoothing. It does not invent step, jump or ladder links.
 
+Clipping, support heights and union coverage retain double precision during the
+bake, and neighboring cells share the same grid-boundary calculation. This avoids
+rounding slivers between fully supported triangles without loosening the coverage
+tolerance or filling real gaps. The completed mesh retains its float32 vertices.
+
 Set `"simplify": false` to skip the merge stage and retain the original
 four triangles per surviving cell. Both modes use identical slope, headroom and
 radius filtering. Simplification reduces the navigation graph and asset size;
-the demo course drops from 6,520 to 55 triangles at the same 0.25-unit resolution.
+the demo course drops from 6,608 to 34 triangles at the same 0.25-unit resolution.
 Meshes still use the same triangle asset format and runtime APIs.
 
 `cell_size` controls accuracy and cost. Smaller cells preserve narrower passages

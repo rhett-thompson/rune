@@ -92,8 +92,8 @@ odin run tools/navmesh_baker -linker:msvc -collection:rune=rune -- examples/navi
 
 `course.navbake.json` uses 0.25-unit cells, 0.4 units of radius clearance and
 2 units of headroom. The bake removes the obstacle footprint and insets ledges.
-Simplification is enabled by default and merges the course from 6,520 cell
-triangles to 55 triangles without changing those clearance settings. Add
+Simplification is enabled by default and merges the course from 6,608 cell
+triangles to 34 triangles without changing those clearance settings. Add
 `"simplify": false` to the settings to skip merging, then press N or run `rebake`.
 The original hand-authored `course.navmesh.json` and `generate_mesh.bat` / `generate_mesh.sh` remain
 as a separate authoring reference. Rendering uses raylib directly for the mesh and debug capsule; this

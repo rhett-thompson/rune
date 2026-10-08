@@ -31,6 +31,7 @@ main :: proc() {
 	validate_terrain()
 	validate_scene()
 	validate_limits()
+	validate_coverage_precision()
 	validate_simplification()
 	fmt.println("Navigation bake validation passed: clearance, layers, terrain, scene collection, serialization, simplification coverage/connectivity, determinism and invalid inputs")
 }
