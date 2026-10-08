@@ -184,14 +184,15 @@ try {
     var submodule = "third_party/r3d-odin", dependencyRoot = join(repositoryRoot, submodule);
     if (!filesystem.FileExists(join(dependencyRoot, "r3d/r3d_core.odin"))) fail("Initialize dependencies with git submodule update --init --recursive.");
     var dependencyCommit = trim(workingTree ? command("git", ["-C", dependencyRoot, "rev-parse", "HEAD"]).output : command("git", ["-C", repositoryRoot, "rev-parse", sourceCommit + ":" + submodule]).output);
-    if (workingTree && trim(command("git", ["-C", dependencyRoot, "status", "--porcelain"]).output)) fail("The r3d submodule is dirty. Commit or discard its changes before exporting a release candidate.");
+    if (workingTree) command(join(repositoryRoot, "tools/prepare_r3d.bat"), ["--check"]);
     var dependencyArchive = join(workspace, "r3d.tar");
-    command("git", ["-C", dependencyRoot, "archive", "--format=tar", "--output=" + dependencyArchive, dependencyCommit]);
+    command("git", ["-C", dependencyRoot, "-c", "core.autocrlf=false", "archive", "--format=tar", "--output=" + dependencyArchive, dependencyCommit]);
     mkdir(join(exportRoot, submodule)); command("tar.exe", ["-xf", dependencyArchive, "-C", join(exportRoot, submodule)]);
-    var requiredFiles = ["toolchain.json", "tools/new_project.bat", "tools/validate.bat", "tools/console.bat", "templates/blank_project/build.bat", "docs/asset_credits.json"];
+    var requiredFiles = ["toolchain.json", "tools/new_project.bat", "tools/validate.bat", "tools/console.bat", "tools/prepare_r3d.bat", "third_party/r3d-compat/bindings.patch", "third_party/r3d-compat/files.blobs", "third_party/r3d-importer/sources.json", "templates/blank_project/build.bat", "docs/asset_credits.json"];
     for (var requiredIndex = 0; requiredIndex < requiredFiles.length; requiredIndex++) {
         if (!filesystem.FileExists(join(exportRoot, requiredFiles[requiredIndex]))) fail("The exported commit is missing " + requiredFiles[requiredIndex] + ". Commit the release tooling, or use --working-tree to test it first.");
     }
+    echo(command(join(exportRoot, "tools/prepare_r3d.bat"), []).output);
     var toolchain = loadJson(join(exportRoot, "toolchain.json"));
     if (typeof toolchain.odin_release !== "string" || compilerVersion.indexOf(toolchain.odin_release) < 0) fail("Expected Odin " + toolchain.odin_release + "; found " + compilerVersion);
     if (compilerVersion.indexOf(toolchain.tested_odin_version) < 0) echo("Warning: Compiler differs from the recorded tested revision: " + toolchain.tested_odin_version);

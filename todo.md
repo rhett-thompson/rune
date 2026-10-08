@@ -1,6 +1,6 @@
 # Rune Engine — To-Do List
 
-> Planning checklist from our October 7, 2026 discussions. All items are **open**; implementation details and current behavior should be reverified against the latest Rune and dependency source before changes.
+> Planning checklist from our October 7, 2026 discussions. Implementation details and current behavior should be reverified against the latest Rune and dependency source before changes.
 
 > Progress notes below record verified implementation or source review. Items remain open while their stated acceptance checks are pending.
 
@@ -11,8 +11,8 @@
 - [ ] **Review shadow defaults.** Decide whether newly created lights should cast shadows by default and document the tradeoffs.
 - [ ] **Fix V-Sync and frame limiting.** Provide genuine display-synchronized V-Sync and an independent, configurable frame-rate cap. Test frame pacing and tearing on 60 Hz and high-refresh-rate displays.
   - October 7: implemented raylib V-Sync requests, independent `window.target_fps` (0 means uncapped), and runtime setters. Startup/reinitialization and window-mode transitions preserve the requested settings. The full Windows validation suite passes (96 builds and 40 project checks), as do settings, native frame-limiter, and window-mode runtime checks. Visible pacing/tearing checks on both display classes remain pending. Linux verification is pending because the installed toolchain lacks native Linux stb/Box2D libraries. See [display settings](docs/display.md).
-- [ ] **Upgrade R3D.** Evaluate a newer compatible R3D release versus the pinned revision; update Odin bindings and build integration as needed. Rebuild/test the model importer and regression-test materials, lighting, shadows, post-processing, and examples.
-  - October 7 source review: [v0.11.0](https://github.com/Bigfoot71/r3d-odin/releases/tag/v0.11.0) is a newer prerelease candidate than the pinned v0.10.0. The tag needs an Assimp library-name correction and import-flag binding updates; Rune's importer patches also need porting and rebuilding. Light/probe APIs change, and native shadow intervals move from milliseconds to seconds. Current upstream master replaces persistent light handles with per-frame light submission, making it a larger migration. Keep the existing pin until these changes and renderer/importer regression checks pass.
+- [x] **Upgrade R3D.** Evaluate a newer compatible R3D release versus the pinned revision; update Odin bindings and build integration as needed. Rebuild/test the model importer and regression-test materials, lighting, shadows, post-processing, and examples.
+  - October 7: migrated to the official [v0.11.0 prerelease](https://github.com/Bigfoot71/r3d-odin/releases/tag/v0.11.0). Rune uses the new light APIs and converts native shadow seconds while preserving public `interval_ms`. Added reproducible [binding corrections](third_party/r3d-compat/README.md), keeping the upstream gitlink; launchers, validation, project builds, and release exports prepare them automatically. Ported the FBX/animation importer and rebuilt Windows/Linux archives. A clean Windows export passes 96 builds, 40 project checks, and 24 runtime validators covering materials, lighting, shadows, animation, post-processing, and other engine systems. Its independent starter project passes debug/optimized builds and console pause/step/capture checks. All 274 checked ABI sizes, alignments, and field offsets match. Native Ubuntu preparation and shell checks pass; Linux compiler/renderer runtime acceptance remains pending in [Linux verification status](docs/linux.md#verification-status).
 
 ## Toolchain and engine runtime
 

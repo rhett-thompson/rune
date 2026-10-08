@@ -127,6 +127,45 @@ fog banks or volumetric light scattering. Scene edits hot reload; for a running
 game, the console can also set `PostProcessing.fog.mode`, `.start`, `.end`,
 `.density`, and `.color` on the profile entity.
 
+### Volumetric fog
+
+`volumetric_fog` uses r3d's native ray-marched light scattering. Directional,
+point, and spot lights illuminate the fog; their shadow maps shape the beams.
+An emissive material alone does not illuminate it. The uniform medium affects
+opaque geometry and the sky; it does not replace bounded, moving cloud volumes
+or the separate upper and lower height-density layers.
+
+```json
+"volumetric_fog": {
+  "enabled": true,
+  "scattering_density": 0.01,
+  "absorption_density": 0.03,
+  "scattering_color": [255,255,255,255],
+  "anisotropy": 0.5,
+  "emission_color": [255,255,255,255],
+  "emission_energy": 0,
+  "sky_affect": 0.5,
+  "length": 50,
+  "step_size": 1
+}
+```
+
+These values match r3d's defaults; the effect is disabled by default. Scattering
+density increases visible light in the air; absorption density attenuates light.
+Both must be finite and nonnegative. Anisotropy must be strictly between -1 and
+1: zero scatters uniformly, positive values favor forward scattering, and
+negative values favor backward scattering. Emission energy adds fog illumination
+independent of lights and must be finite and nonnegative; zero disables emission.
+Sky influence is 0–1. Length and step size are finite positive distances in world
+units. Smaller steps improve sampling quality and increase GPU cost. The ratio
+`length / step_size` must be at most 1024, bounding the ray-march work per pixel.
+
+This group operates independently of `fog`, `height_fog`, `upper_height_fog`, and
+`light_shafts`. Each can be enabled separately to compare them, or combined to
+layer their effects. Runtime console edits use the same component paths, such as
+`PostProcessing.volumetric_fog.enabled` and
+`PostProcessing.volumetric_fog.scattering_density`.
+
 ### Height fog
 
 `height_fog` adds an independent layer whose density decreases exponentially
@@ -228,6 +267,7 @@ temporal history; use it on one continuous scene render path.
 | `ssgi` | Global illumination enable, slices, edge fade, distance falloff, normal rejection, intensity, denoising |
 | `ssr` | Reflections enable, ray/binary steps, step size, thickness, distance, edge fade |
 | `fog` | `disabled`, `linear`, `exp2`, `exp`; RGBA color, start/end, density, sky influence |
+| `volumetric_fog` | Enable, scattering/absorption densities, scattering/emission RGBA colors, anisotropy strictly between -1 and 1, emission energy, sky influence, march length and step size |
 | `height_fog` | Enable, RGBA color, world base height, density at base, exponential falloff, sky integration distance |
 | `upper_height_fog` | Same controls as `height_fog`, with density increasing above the base height; disabled by default |
 | `dof` | Enable, focus distance/scale, near scale, maximum blur |

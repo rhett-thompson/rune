@@ -32,6 +32,10 @@ if "%runtime%"=="1" (
 )
 pushd "%scriptDirectory%.." || exit /b 1
 set "repositoryRoot=%CD%"
+if exist "third_party\r3d-odin\r3d\" (
+    call tools\prepare_r3d.bat
+    if errorlevel 1 (popd & exit /b 1)
+)
 if not exist build mkdir build
 if not exist build (popd & exit /b 1)
 set "failures=0"
@@ -42,7 +46,7 @@ for /d %%D in ("tools\*") do if exist "%%D\main.odin" call :build "%%~nxD" "%%D"
 for /f "usebackq delims=" %%N in ("build\validate-built.tmp") do call :run_validator "%%N"
 odin test rune/console -collection:rune=rune -out:build/console_test.exe -linker:msvc
 if errorlevel 1 call :fail "test console"
-if "%runtime%"=="1" for %%N in (overlay_3d_validation static_mesh_material_validation light_shafts_validation light_shadow_validation cloud_volume_validation billboard_validation procedural_material_validation navigation_3d_validation save_validation asset_validation terrain_validation skybox_validation post_processing_validation model_animation_validation sprite_animation_validation particle_validation component_features_validation collider_2d_validation polygon_2d_validation resolution_validation ui_validation window_validation mixer_validation console_validation) do call :run_runtime "%%N"
+if "%runtime%"=="1" for %%N in (overlay_3d_validation static_mesh_material_validation light_shafts_validation volumetric_fog_validation light_shadow_validation cloud_volume_validation billboard_validation procedural_material_validation navigation_3d_validation save_validation asset_validation terrain_validation skybox_validation post_processing_validation model_animation_validation sprite_animation_validation particle_validation component_features_validation collider_2d_validation polygon_2d_validation resolution_validation ui_validation window_validation mixer_validation console_validation) do call :run_runtime "%%N"
 if "%projectValidatorBuilt%"=="1" (
     for /d %%D in ("examples\*") do if exist "%%D\project.json" call :validate_project "%%D\project.json"
     if exist "templates\blank_project\project.json" call :validate_project "templates\blank_project\project.json"
@@ -73,7 +77,7 @@ exit /b 0
 :build
 set "buildName=%~1"
 set "extraCollection=%~3"
-for %%N in (static_mesh_material_validation light_shafts_validation light_shadow_validation cloud_volume_validation billboard_validation procedural_material_validation terrain_validation skybox_validation post_processing_validation r3d_cache_validation model_animation_validation) do if /i "%~1"=="%%N" set "extraCollection=-collection:r3d=third_party/r3d-odin"
+for %%N in (static_mesh_material_validation light_shafts_validation volumetric_fog_validation light_shadow_validation cloud_volume_validation billboard_validation procedural_material_validation terrain_validation skybox_validation post_processing_validation r3d_cache_validation model_animation_validation) do if /i "%~1"=="%%N" set "extraCollection=-collection:r3d=third_party/r3d-odin"
 rem Odin October defaults to radlink; bundled zlib /GL objects require MSVC LTCG.
 odin build "%~2" -collection:rune=rune "-out:build/%~1.exe" -linker:msvc %extraCollection%
 if errorlevel 1 (call :fail "build %~1" & exit /b 0)

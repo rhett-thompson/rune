@@ -1,0 +1,58 @@
+diff --git a/r3d/r3d_core.odin b/r3d/r3d_core.odin
+index 5f98f01f4f183e7d123dd780c7d2138e5f358764..4d7b4f3201ebd7fa7cd03bc41790a3824d07cd05 100644
+--- a/r3d/r3d_core.odin
++++ b/r3d/r3d_core.odin
+@@ -363,7 +363,7 @@ when ODIN_OS == .Windows {
+     foreign import lib {
+         "windows/r3d.lib",
+         "vendor:raylib/windows/raylib.lib",
+-        "windows/assimp-vc145-mt.lib",
++        "windows/assimp-vc143-mt.lib",
+         "vendor:zlib/libz.lib",
+     }
+ } else when ODIN_OS == .Linux {
+diff --git a/r3d/r3d_importer.odin b/r3d/r3d_importer.odin
+index 79c065af847f3f78ed9a7d79d3cf08ff4b5efa08..86ff7f8714a2833cdb7428c2ef6f5d6d18401f7b 100644
+--- a/r3d/r3d_importer.odin
++++ b/r3d/r3d_importer.odin
+@@ -128,19 +128,31 @@ ImportFlag :: enum u32 {
+      *
+      * When enabled, raw mesh data is preserved in RAM after model import.
+      */
+-    MESH_DATA = 0,
++    RETAIN_MESH_DATA = 0,
+ 
+     /**
+-     * @brief Enable high-quality import processing.
+-     *
+-     * When enabled, the importer uses a higher-quality post-processing
+-     * (e.g. smooth normals, mesh optimization, data validation).
+-     * This mode is intended for editor usage and offline processing.
+-     *
+-     * When disabled, a faster import preset is used, suitable for runtime.
++     * @brief Import and store mesh names from the model file.
++     */
++    RETAIN_MESH_NAMES = 1,
++
++    /**
++     * @brief Generate smooth normals for meshes that lack them.
++     */
++    SMOOTH_NORMALS = 2,
++
++    /**
++     * @brief Optimize mesh topology for runtime rendering.
++     */
++    OPTIMIZE_MESH = 3,
++
++    /**
++     * @brief Validate mesh data and detect degenerate geometry.
+      */
+-    QUALITY = 1,
++    VALIDATE_DATA = 4,
+ 
+ }
+ 
+ ImportFlags :: bit_set[ImportFlag; u32]
++
++/** Quality processing combines the three native post-processing flags. */
++IMPORT_QUALITY :: ImportFlags{.SMOOTH_NORMALS, .OPTIMIZE_MESH, .VALIDATE_DATA}

@@ -29,6 +29,9 @@ Character_Controller_State_3D :: struct {
 	// Runtime gravity frame. Zero up retains the default world-Y controller.
 	up, world_move: [3]f32,
 	use_world_move: bool,
+	// Navigation may use braking for a lower nonzero requested speed. Ordinary
+	// movement commands clear this override so analog player input is unchanged.
+	navigation_braking: bool,
 	sprint_requested, crouch_requested: bool,
 	jump_requested, jump_release_requested, jump_cut_available, jump_buffer_released: bool,
 	coyote_remaining, jump_buffer_remaining: f32,
@@ -143,6 +146,7 @@ character_controller_3d_move :: proc(world: ^World, entity: Entity, direction: [
 	magnitude := math.sqrt(direction[0]*direction[0]+direction[1]*direction[1])
 	state.move = direction
 	state.use_world_move = false
+	state.navigation_braking = false
 	state.up = {}
 	if magnitude > 1 {state.move /= magnitude}
 	state.sprint_requested = sprint
@@ -164,6 +168,7 @@ character_controller_3d_move_on_plane :: proc(world: ^World, entity: Entity, dir
 	if math.is_inf(magnitude) || math.is_nan(magnitude) {return false}
 	if magnitude > 1 {state.world_move /= magnitude}
 	state.use_world_move = true
+	state.navigation_braking = false
 	state.sprint_requested = sprint
 	world.character_controller_states_3d[entity] = state
 	return true

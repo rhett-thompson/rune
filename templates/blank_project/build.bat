@@ -46,6 +46,10 @@ if not exist "%engineRoot%\rune\core\core.odin" (
 )
 where odin >nul 2>nul
 if errorlevel 1 (echo Odin was not found on PATH. 1>&2 & exit /b 1)
+if exist "%engineRoot%\third_party\r3d-odin\r3d\" (
+    call "%engineRoot%\tools\prepare_r3d.bat"
+    if errorlevel 1 exit /b 1
+)
 pushd "%scriptDirectory%" || exit /b 1
 if not exist build mkdir build
 if not exist build (popd & exit /b 1)

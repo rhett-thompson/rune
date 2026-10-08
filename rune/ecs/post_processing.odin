@@ -19,6 +19,7 @@ PostProcessing :: struct {
 	ssgi: Post_SSGI,
 	ssr: Post_SSR,
 	fog: Post_Fog,
+	volumetric_fog: Post_Volumetric_Fog,
 	height_fog: Post_Height_Fog,
 	upper_height_fog: Post_Height_Fog,
 	light_shafts: Post_Light_Shafts,
@@ -107,6 +108,18 @@ Post_Fog :: struct {
 	end: f32,
 	density: f32,
 	sky_affect: f32,
+}
+
+// Native homogeneous fog scattering from scene lights. This is independent
+// of distance fog, height fog, and screen-space light shafts.
+Post_Volumetric_Fog :: struct {
+	enabled: bool,
+	scattering_density, absorption_density: f32,
+	scattering_color: [4]u8,
+	anisotropy: f32,
+	emission_color: [4]u8,
+	emission_energy, sky_affect: f32,
+	length, step_size: f32,
 }
 
 // Density at world Y = base_height. height_fog decreases above it;
@@ -215,6 +228,17 @@ default_post_processing :: proc() -> PostProcessing {
 			end = 50,
 			density = 0.05,
 			sky_affect = 0.5,
+		},
+		volumetric_fog = {
+			scattering_density = 0.01,
+			absorption_density = 0.03,
+			scattering_color = {255,255,255,255},
+			anisotropy = 0.5,
+			emission_color = {255,255,255,255},
+			emission_energy = 0,
+			sky_affect = 0.5,
+			length = 50,
+			step_size = 1,
 		},
 		height_fog = {
 			color = {255,255,255,255},
@@ -341,6 +365,15 @@ post_processing_valid :: proc(value: PostProcessing) -> bool {
 	if math.is_nan(value.fog.end) || math.is_inf(value.fog.end) || value.fog.end < 0 {return false}
 	if math.is_nan(value.fog.density) || math.is_inf(value.fog.density) || value.fog.density < 0 {return false}
 	if math.is_nan(value.fog.sky_affect) || math.is_inf(value.fog.sky_affect) || value.fog.sky_affect < 0 || value.fog.sky_affect > 1 {return false}
+	volumetric := value.volumetric_fog
+	if !finite_nonnegative(volumetric.scattering_density) || !finite_nonnegative(volumetric.absorption_density) {return false}
+	if !(volumetric.anisotropy > -1 && volumetric.anisotropy < 1) {return false}
+	if !finite_nonnegative(volumetric.emission_energy) {return false}
+	if !finite_nonnegative(volumetric.sky_affect) || volumetric.sky_affect > 1 {return false}
+	if !finite_nonnegative(volumetric.length) || volumetric.length <= 0 {return false}
+	if !finite_nonnegative(volumetric.step_size) || volumetric.step_size <= 0 {return false}
+	// r3d ray marches until length without an independent iteration cap.
+	if volumetric.length / volumetric.step_size > 1024 {return false}
 	for fog in ([2]Post_Height_Fog{value.height_fog,value.upper_height_fog}) {
 		if math.is_nan(fog.base_height) || math.is_inf(fog.base_height) {return false}
 		if !finite_nonnegative(fog.density) || !finite_nonnegative(fog.falloff) {return false}

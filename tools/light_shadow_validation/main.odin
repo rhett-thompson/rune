@@ -2,6 +2,7 @@ package main
 
 import "core:encoding/json"
 import "core:fmt"
+import "core:math"
 import "core:os"
 import "core:strings"
 import "core:time"
@@ -118,7 +119,9 @@ validate_runtime :: proc() {
 		assert(ecs.add_component(&w,&registry,entity,component,data))
 		bridge.create_scene_lights(&ctx,&w)
 		light,found := ctx.scene_lights[entity]
-		assert(found && !r3d.IsShadowEnabled(light),"new unshadowed lights must remain unshadowed")
+		assert(found && light!=0 && r3d.IsLightValid(light) && r3d.IsLightEnabled(light))
+		assert(!r3d.IsShadowEnabled(light),"new unshadowed lights must remain unshadowed")
+		assert(ctx.scene_shadow_defaults[entity].interval_ms==16,"native seconds must preserve the default millisecond interval")
 		for enabled in ([4]bool{true,false,true,false}) {
 			// Use the console's mutation path, then the renderer's per-frame sync.
 			assert(ecs.set_runtime_field(&w,&registry,entity,component,"shadows",json.Boolean(enabled)))
@@ -132,8 +135,14 @@ validate_runtime :: proc() {
 		assert(ecs.set_runtime_field(&w,&registry,entity,component,"shadow_profile",json.String(Profile_Path)))
 		bridge.create_scene_lights(&ctx,&w,&m)
 		assert(r3d.IsShadowEnabled(light),"profile must replace legacy flat shadow settings")
-		assert(r3d.GetShadowUpdateMode(light)==.INTERVAL && r3d.GetShadowUpdateFrequency(light)==350)
+		assert(r3d.GetShadowUpdateMode(light)==.INTERVAL && math.abs(r3d.GetShadowUpdateInterval(light)-0.35)<0.000001,"profile milliseconds must reach the native renderer as seconds")
 		assert(r3d.GetShadowSoftness(light)==1.5 && r3d.GetShadowOpacity(light)==0.75)
+		assert(ecs.set_runtime_field(&w,&registry,entity,component,"shadow_overrides.interval_ms",json.Integer(1)))
+		bridge.create_scene_lights(&ctx,&w,&m)
+		assert(math.abs(r3d.GetShadowUpdateInterval(light)-0.001)<0.000001,"one-millisecond overrides must retain their duration")
+		assert(ecs.set_runtime_field(&w,&registry,entity,component,"shadow_overrides.interval_ms",nil))
+		bridge.create_scene_lights(&ctx,&w,&m)
+		assert(math.abs(r3d.GetShadowUpdateInterval(light)-0.35)<0.000001,"removing an interval override must restore the profile duration")
 		ctx.shadows_disabled=true
 		bridge.create_scene_lights(&ctx,&w,&m); assert(!r3d.IsShadowEnabled(light))
 		ctx.shadows_disabled=false
@@ -156,7 +165,7 @@ validate_runtime :: proc() {
 		assert(ecs.set_runtime_field(&w,&registry,entity,component,"shadow_profile",json.String("")))
 		assert(ecs.set_runtime_field(&w,&registry,entity,component,"shadows",json.Boolean(true)))
 		bridge.create_scene_lights(&ctx,&w,&m)
-		assert(r3d.GetShadowUpdateMode(light)==.INTERVAL && r3d.GetShadowUpdateFrequency(light)==16 && r3d.IsShadowEnabled(light),"removing a profile must restore native legacy behavior")
+		assert(r3d.GetShadowUpdateMode(light)==.INTERVAL && math.abs(r3d.GetShadowUpdateInterval(light)-0.016)<0.000001 && r3d.IsShadowEnabled(light),"removing a profile must restore native legacy behavior")
 		assert(ecs.set_runtime_field(&w,&registry,entity,component,"shadow_profile",json.String("build/missing-shadow-profile.shadow.json")))
 		assert(ecs.set_runtime_field(&w,&registry,entity,component,"shadow_overrides.enabled",json.Boolean(true)))
 		bridge.create_scene_lights(&ctx,&w,&m)
@@ -164,7 +173,7 @@ validate_runtime :: proc() {
 		assert(ctx.scene_lights[entity]==light)
 		ecs.destroy_entity(&w,entity)
 		bridge.create_scene_lights(&ctx,&w)
-		assert(!r3d.IsLightExist(light),"removed lights must release native state")
+		assert(!r3d.IsLightValid(light),"removed lights must release native state")
 	}
 	fmt.println("Light shadow runtime validation passed")
 }

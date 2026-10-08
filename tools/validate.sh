@@ -17,6 +17,9 @@ done
 
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd) || exit 1
 cd "$repository_root" || exit 1
+if [ -d third_party/r3d-odin/r3d ]; then
+    sh "$repository_root/tools/prepare_r3d.sh" || exit $?
+fi
 command -v odin >/dev/null 2>&1 || { echo 'Odin was not found on PATH.' >&2; exit 1; }
 if [ "$runtime" -eq 1 ] && [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
     echo 'Runtime validation needs a display. On headless Linux, run under xvfb-run -a.' >&2
@@ -58,7 +61,7 @@ for package in tools/*; do
     [ -d "$package" ] && [ -f "$package/main.odin" ] || continue
     name=${package##*/}
     case "$name" in
-        static_mesh_material_validation|light_shafts_validation|light_shadow_validation|cloud_volume_validation|billboard_validation|procedural_material_validation|terrain_validation|skybox_validation|post_processing_validation|r3d_cache_validation|model_animation_validation)
+        static_mesh_material_validation|light_shafts_validation|volumetric_fog_validation|light_shadow_validation|cloud_volume_validation|billboard_validation|procedural_material_validation|terrain_validation|skybox_validation|post_processing_validation|r3d_cache_validation|model_animation_validation)
             build "$name" "$package" -collection:r3d=third_party/r3d-odin ;;
         *) build "$name" "$package" ;;
     esac
@@ -71,7 +74,7 @@ done
 odin test rune/console -collection:rune=rune -out:build/console_test || fail 'test console'
 
 if [ "$runtime" -eq 1 ]; then
-    for name in overlay_3d_validation static_mesh_material_validation light_shafts_validation light_shadow_validation cloud_volume_validation billboard_validation procedural_material_validation navigation_3d_validation save_validation asset_validation terrain_validation skybox_validation post_processing_validation model_animation_validation sprite_animation_validation particle_validation component_features_validation collider_2d_validation polygon_2d_validation resolution_validation ui_validation window_validation mixer_validation console_validation; do
+    for name in overlay_3d_validation static_mesh_material_validation light_shafts_validation volumetric_fog_validation light_shadow_validation cloud_volume_validation billboard_validation procedural_material_validation navigation_3d_validation save_validation asset_validation terrain_validation skybox_validation post_processing_validation model_animation_validation sprite_animation_validation particle_validation component_features_validation collider_2d_validation polygon_2d_validation resolution_validation ui_validation window_validation mixer_validation console_validation; do
         case " $built_validators " in *" $name "*) ;; *) continue ;; esac
         stdout="build/$name.runtime.stdout.log"
         stderr="build/$name.runtime.stderr.log"

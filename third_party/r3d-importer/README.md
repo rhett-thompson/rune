@@ -27,6 +27,12 @@ with R3D's `Load*FromImporter` functions, then call
 `r3d_bridge.unload_importer`. The extracted resources have independent
 lifetimes and use normal R3D unload functions.
 
+R3D 0.11 selects import processing with separate flags. The enhanced import
+path uses `SMOOTH_NORMALS | OPTIMIZE_MESH | VALIDATE_DATA` (native mask `28`),
+while the default path uses mask `0`. Both paths retain the FBX pivot policy.
+The optional `RETAIN_MESH_DATA` and `RETAIN_MESH_NAMES` flags are independent
+of those processing settings.
+
 The Rune extension in [animation_clips.c](animation_clips.c) imports the first
 clip of a separate animation file against a supplied skeleton. It matches
 joints by name, ignores unweighted source joints, and copies the mapped tracks
@@ -45,7 +51,10 @@ to R3D's skeleton or implement root-motion application.
 [sources.json](sources.json) pins R3D, Assimp, the raylib headers, and Zig.
 The importer uses R3D's private bone-map layout, so **rebuild and revalidate
 it when upgrading the r3d-odin submodule**. The pin matches r3d-odin commit
-`4813ecbfea503e8bb207a4297bbfc7da7c235a97`.
+`66315303455641dc4f097630c14d3adb56ba2a48` (R3D 0.11.0), with native source
+`86303391c92e32418181a8133848a15ba02f060d`. The pinned Assimp headers and
+raylib headers are unchanged. The Linux Assimp archive is unchanged; the
+Windows bundle now uses `assimp-vc143-mt.lib`.
 
 Ordinary Odin builds use the included archives and need no extra compiler.
 To reproduce the archives, install Zig 0.15.2 and obtain local Git checkouts
@@ -74,7 +83,8 @@ not shipped with Rune.
 ## Validation
 
 ```powershell
-odin build tools/model_animation_validation -collection:rune=rune -collection:r3d=third_party/r3d-odin -out:build/model_animation_validation.exe
+.\tools\prepare_r3d.bat
+odin build tools/model_animation_validation -collection:rune=rune -collection:r3d=third_party/r3d-odin -linker:msvc -out:build/model_animation_validation.exe
 ./build/model_animation_validation.exe --runtime
 ```
 
@@ -84,10 +94,14 @@ memory input, and reloads that preserve playback and other models' players.
 It also checks an animation-only punch, joint remapping, replay, blending,
 source/model reloads, failed reload recovery, and rejection of an unrelated
 rig, alongside the existing glTF, transition, marker, and reload checks.
-Use the platform's executable suffix on Linux.
+On Linux, omit `-linker:msvc` and use the platform's executable suffix.
+Windows uses MSVC because Odin's bundled zlib contains `/GL` objects requiring
+MSVC's link-time code generation when linked through Assimp.
 
-Windows runtime playback and captured frames were verified. The Linux
-archive was cross-compiled; Linux runtime verification is still required.
+Both archives were rebuilt against R3D 0.11.0. Windows AMD64 animation runtime
+validation passes with October Odin, including FBX file/memory imports, both
+processing modes, appended clips, and reload recovery. The Linux archive was
+cross-compiled; Linux runtime verification is still required.
 An Odin Linux cross-check on this Windows host stopped at missing Linux STB
 and Box2D toolchain libraries, before checking the application.
 

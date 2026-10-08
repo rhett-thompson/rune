@@ -49,6 +49,13 @@ the motor handles gravity, ramps, steps, and solid collision. Configure the
 navigation radius/height to cover the motor's standing capsule, and use a
 navigation slope limit no greater than the motor's. Actual speed is capped by
 the motor's `move_speed`. The physical level must match the navmesh.
+Controller speed is measured along the ground surface; its horizontal component
+is smaller on a slope. Grounded acceleration and braking preserve that surface
+speed across fixed steps.
+
+The bake must provide at least the agent's radius and height clearance, and its
+walkable slope limit must include the slopes the agent needs. Raising an agent's
+`max_slope` does not restore surfaces already removed by the bake.
 
 ## Targets and state
 
@@ -71,7 +78,13 @@ Repeatedly setting the identical target preserves the existing path. `stop` clea
 the target and the controller's movement request; a moving motor brakes normally.
 
 State exposes `status`, `path_status`, `has_target`, the requested `target`,
-`desired_velocity`, `path`, and `next_point`. Paths are borrowed until the next
+`desired_velocity`, `actual_velocity`, `remaining_distance`, `path`, and
+`next_point`. `desired_velocity` is the current navigation movement request;
+`actual_velocity` reports achieved displacement per second: the previous fixed
+step for controller agents and the current step for direct Transform agents.
+`remaining_distance` is the distance along the current route to its projected
+destination, measured in X/Z for controller agents and XYZ for direct Transform
+agents, before subtracting `stopping_distance`. Paths are borrowed until the next
 navigation update, target change, component removal, or world destruction.
 Copy them if they must outlive that boundary. Do not modify their storage.
 
@@ -80,7 +93,7 @@ Copy them if they must outlive that boundary. Do not modify their storage.
 | `Idle` | No target. |
 | `Pending` | Waiting for its first path calculation. |
 | `Moving` | Following a complete corridor. |
-| `Arrived` | Within the final waypoint's arrival tolerance. |
+| `Arrived` | Within the final-goal tolerance and moving at no more than 0.05 units/s. See turning and stopping below for mode-specific distance checks. |
 | `No_Path` | Query failed; inspect `path_status`. Retries continue at the configured interval. |
 | `Unavailable` | Mesh/reference or required agent setup is unavailable. |
 | `Disabled` | Agent is disabled; its target is retained for reactivation. |
@@ -99,11 +112,19 @@ asset polling continues. Callback-based loops should call
 | --- | --- | --- |
 | `mesh` | Required | Stable entity reference to a NavMesh3D. |
 | `speed` | 3 | World units per second; zero stops advancement. |
+| `acceleration` | 0 | Direct Transform speed increase in units/s²; zero changes speed instantly. Controller mode uses the motor's acceleration. |
+| `braking` | 0 | Direct Transform speed decrease in units/s²; zero changes speed instantly. Controller mode uses the motor's braking. |
+| `angular_speed` | 360 | Maximum yaw change in degrees/s when `update_rotation` is true; zero holds facing. |
+| `update_rotation` | false | Face the horizontal travel direction using local +Z forward, preserving pitch and roll. |
+| `auto_braking` | false | Predictively slow down before the destination using remaining route distance and braking. |
+| `corner_slowdown` | false | Predictively slow down before real bends in the route. |
 | `radius` | 0.3 | Required authored clearance radius. |
 | `height` | 1.8 | Required authored headroom. |
 | `max_slope` | 45 | Maximum slope in degrees, from 0 to below 89. |
 | `max_projection` | 1 | Maximum XYZ distance for snapping each query endpoint to the mesh. |
-| `arrival_distance` | 0.12 | Positive final-goal tolerance; also the motor waypoint tolerance. |
+| `arrival_distance` | 0.12 | Positive final-goal tolerance, added to `stopping_distance` for arrival. |
+| `waypoint_distance` | 0.12 | Nonnegative intermediate controller waypoint tolerance, independent of arrival; zero requires exact waypoints. |
+| `stopping_distance` | 0 | Stand-off distance from the projected destination in world units. |
 | `repath_interval` | 0.5 | Positive interval between path recalculations. |
 | `drive_controller` | false | Drive CharacterController3D instead of writing Transform directly. |
 
@@ -113,6 +134,51 @@ controller agents allow ordinary motor movement before treating a large displace
 as a teleport. If an endpoint is within `max_projection`, the reported arrival
 position is its projected surface point, not necessarily the originally requested
 coordinate. Set a smaller distance when destinations must already lie on the mesh.
+
+## Turning and stopping
+
+Enable `update_rotation` to turn the agent's facing gradually toward its travel
+direction. `angular_speed` limits yaw rotation without making the route curve
+outside its corridor. Movement can therefore change direction faster than facing;
+the setting controls orientation, not a vehicle's turning radius.
+Controller agents face their requested steering direction, so ground snap and
+contact corrections do not swing their facing. Direct Transform agents face
+their achieved travel direction. Facing holds when the agent stops.
+
+Enable `auto_braking` to start slowing before the destination, using the active
+mode's deceleration and remaining route distance. `stopping_distance` allows an
+agent to stop short of the projected destination; `arrival_distance` is the
+additional tolerance for settling. Direct Transform agents check XYZ distance
+against `stopping_distance + arrival_distance`. Controller agents check X/Z
+distance against that tolerance and allow a vertical offset of at most the
+greater of that tolerance and 0.25 units, accounting for physical ramp contact.
+Arrival also waits for speed to fall to at most 0.05 units/s, measured horizontally
+for controller agents. While an agent is inside that arrival region but still
+braking, its status remains `Moving`. `waypoint_distance` only controls
+when a controller agent advances past intermediate points, so increasing arrival
+tolerance does not cause it to skip more of an obstacle corner.
+
+Enable `corner_slowdown` to reduce speed before sharp horizontal turns. Collinear
+triangle crossings keep full speed, including crossings retained to follow the
+surface of a ramp. Replanning preserves the agent's current speed so ordinary
+route refreshes do not restart acceleration.
+Controller steering aims at the next actual bend along a straight horizontal
+section, while retaining the surface crossings for route progress. A fresh
+route's projected start anchors the query without becoming a steering goal.
+
+For direct Transform movement, set positive `acceleration` and `braking` values
+to ease speed changes. Zero retains instant speed changes; predictive slowdown
+has no braking distance to anticipate in that mode. For controller movement,
+configure `CharacterController3D.acceleration` and `.braking` instead. Navigation
+uses the motor's braking limit when reducing a movement request to a lower,
+nonzero speed if `auto_braking` or `corner_slowdown` is enabled, as well as when
+stopping. Agents with both options disabled retain the motor's existing response
+to analog movement requests. Existing agents keep constant-speed Transform
+movement and their existing facing unless these options are enabled.
+
+For example, the Navigation 3D demo enables facing, destination braking, and
+corner slowdown with `angular_speed: 360`, `waypoint_distance: 0.08`, and a motor
+configured with `move_speed: 3`, `acceleration: 8`, and `braking: 6`.
 
 ## Debug visualization
 
@@ -281,10 +347,13 @@ performed. Limits are 131072 vertices and 65536 triangles, with coordinates with
 one million world units. The JSON schema provides authoring completion.
 
 Walkable slopes are filtered per query. A* searches the shared-edge triangle graph
-using center-distance costs and a binary heap. The returned path crosses shared
-edge midpoints. Each segment remains in its corridor triangle, including on ramps;
-this is a complete valid route, not a globally shortest smoothed path. There are no
-off-mesh jump, ladder, elevator, or teleport links in this version.
+using center-distance costs and a binary heap. A funnel straightens the selected
+corridor in X/Z, eliminating detours through triangle-edge midpoints. The path
+retains each shared-edge crossing at its surface height, so each segment remains
+in its corridor triangle, including across ramp seams. `points[i]` to
+`points[i+1]` follows `triangles[i]`; crossings on a flat straight leg are collinear.
+This does not guarantee the globally shortest route across all possible corridors.
+There are no off-mesh jump, ladder, elevator, or teleport links in this version.
 
 ## Direct queries and mouse picking
 
@@ -341,7 +410,7 @@ frees paths and mesh storage; full world replacement starts with no destinations
 Only component settings serialize automatically. With checkpoint saves, reissue
 targets and blocked flags from `on_save_restored`, or use game-owned saved state.
 
-This version has no crowd avoidance, funnel smoothing,
+This version has no crowd avoidance,
 streaming tiles, or dynamic obstacle carving. Motor collision remains authoritative;
 an obstacle missing from the authored mesh can physically stop an agent even when
 its planned route is complete.
@@ -356,7 +425,8 @@ odin run tools/navigation_bake_validation -linker:msvc -collection:rune=rune -ou
 
 Use an extensionless output on Linux. Headless checks cover geometry/topology,
 corridor containment, ramp traversal, overlapping floors, clearance and slope
-limits, unreachable/blocked paths, native and Transform movement, teleportation,
+limits, unreachable/blocked paths, native and Transform movement, turning,
+predictive stopping, corner slowdown, speed-preserving replanning, teleportation,
 activation, removal, value reload, independent blocked flags, asset recovery, and
 project validation. Hidden-window checks exercise startup asset loading, pause,
 and the real fixed-step loop. Bake checks cover terrain sampling/transforms,

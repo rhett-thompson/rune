@@ -22,7 +22,7 @@ default_course_camera :: proc() -> ecs.OrbitCamera3D {
 	return result
 }
 
-update_course_camera :: proc(game:^rune.Engine,world:^ecs.World) {
+update_course_camera :: proc(game:^rune.Engine,world:^ecs.World,pointer_blocked:bool=false) {
 	controls:=rune.input_state(game)
 	if input.frame_action(controls,"reset_camera").pressed {orbit=default_course_camera()}
 	if input.frame_action(controls,"focus_agent").pressed {
@@ -35,6 +35,9 @@ update_course_camera :: proc(game:^rune.Engine,world:^ecs.World) {
 	orbit.zoom_sensitivity=orbit.distance*0.1
 	// Preserve pointer tracking across viewport sizes and field-of-view changes.
 	orbit.pan_sensitivity=2*math.tan(camera.fovy*math.PI/360)/f32(max(rl.GetScreenHeight(),1))
+	manual_action,pan_action,zoom_axis:=orbit.manual_action,orbit.pan_action,orbit.zoom_axis
+	if pointer_blocked {orbit.manual_action="";orbit.pan_action="";orbit.zoom_axis=""}
 	pose:=ecs.update_orbit_camera_3d(&orbit,controls,game.frame_delta_time)
+	orbit.manual_action,orbit.pan_action,orbit.zoom_axis=manual_action,pan_action,zoom_axis
 	camera.position=pose.position;camera.target=orbit.target
 }

@@ -1,3 +1,6 @@
 # Shell entry points must remain runnable after a Windows checkout or export.
 *.sh text eol=lf
 *.bat text eol=crlf
+# Patch comparison and archive blob manifests use canonical LF on every host.
+third_party/r3d-compat/bindings.patch text eol=lf
+third_party/r3d-compat/files.blobs text eol=lf

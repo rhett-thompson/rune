@@ -302,6 +302,12 @@ Sets scene ambient color and intensity for lit 3D materials. No position is need
 
 Provides a directional 3D light. Direction is an explicit vector, independent of entity position. `range` sets the camera-centered directional shadow radius. Shadow controls apply through r3d; enable shadows on both relevant lights and shadow-casting geometry. All three light types accept `shadow_profile`, `shadow_overrides`, and `shadows_disabled`; see [shadow profiles](shadows.md) for precedence, update policies, and hot reload.
 
+All three light types also accept `fog_energy`. Omit it or use `null` to retain
+the native multiplier of 1; an explicit zero disables that light's volumetric
+scattering. Odin exposes this as `Maybe(f32)` so existing typed light literals
+keep their default behavior. For example, `fog_energy = f32(12)` strengthens
+volumetric scattering while preserving the light's surface intensity.
+
 [Guide / example](../README.md#asset-backed-3d-models) · [Implementation](../rune/ecs/light.odin)
 
 | Field | Type / constraints | JSON default | Meaning |
@@ -310,6 +316,7 @@ Provides a directional 3D light. Direction is an explicit vector, independent of
 | `color` | 4-item array of integer; ≥ 0; ≤ 255 | `[255, 255, 255, 255]` | RGBA color with channels from 0 through 255. |
 | `intensity` | number; ≥ 0 | `1` | Light/effect strength. |
 | `range` | number; > 0 | `16` | Directional shadow radius around the camera. |
+| `fog_energy` | finite number; ≥ 0, or null | `1` | Volumetric fog contribution multiplier: `intensity * fog_energy`. Null restores 1; zero removes this light's scattering contribution. Surface lighting is unchanged. |
 | `specular` | number; ≥ 0 | `1` | Specular contribution multiplier. |
 | `shadows` | boolean | `false` | Enable shadow casting for geometry, or shadows for this light. |
 | `shadow_softness` | number; ≥ 0 | `0` | Shadow softness. |
@@ -331,6 +338,7 @@ Provides a local omnidirectional light at the entity transform position. Range i
 | `color` | 4-item array of integer; ≥ 0; ≤ 255 | `[255, 255, 255, 255]` | RGBA color with channels from 0 through 255. |
 | `intensity` | number; ≥ 0 | `1` | Light/effect strength. |
 | `range` | number; > 0 | `5` | Light reach in world units. |
+| `fog_energy` | finite number; ≥ 0, or null | `1` | Volumetric fog contribution multiplier: `intensity * fog_energy`. Null restores 1; zero removes this light's scattering contribution. Surface lighting is unchanged. |
 | `specular` | number; ≥ 0 | `1` | Specular contribution multiplier. |
 | `shadows` | boolean | `false` | Enable shadow casting for geometry, or shadows for this light. |
 | `shadow_softness` | number; ≥ 0 | `0` | Shadow softness. |
@@ -353,6 +361,7 @@ Provides a cone light at the entity transform position with an explicit directio
 | `color` | 4-item array of integer; ≥ 0; ≤ 255 | `[255, 255, 255, 255]` | RGBA color with channels from 0 through 255. |
 | `intensity` | number; ≥ 0 | `1` | Light/effect strength. |
 | `range` | number; > 0 | `8` | Light reach in world units. |
+| `fog_energy` | finite number; ≥ 0, or null | `1` | Volumetric fog contribution multiplier: `intensity * fog_energy`. Null restores 1; zero removes this light's scattering contribution. Surface lighting is unchanged. |
 | `inner_angle` | number; > 0 | `18` | Inner cone angle in degrees. |
 | `outer_angle` | number; > 0 | `32` | Outer cone angle in degrees; at least inner_angle. |
 | `specular` | number; ≥ 0 | `1` | Specular contribution multiplier. |
@@ -845,13 +854,34 @@ Fixed-step navigation agent with a reference to a `NavMesh3D` entity. Requires a
 | `mesh` | object | Required | Entity reference object: {"id":"navigation"}. |
 | `mesh.id` | string; nonempty | Required | Stable scene ID of the NavMesh3D entity. |
 | `speed` | number; ≥ 0 | `3` | Movement speed in world units/second. |
+| `acceleration` | number; ≥ 0 | `0` | Direct Transform acceleration in units/s²; zero changes speed instantly. Controller mode uses the motor's acceleration. |
+| `braking` | number; ≥ 0 | `0` | Direct Transform deceleration in units/s²; zero changes speed instantly. Controller mode uses the motor's braking. |
+| `angular_speed` | number; ≥ 0 | `360` | Maximum facing yaw change in degrees/second; zero holds facing. |
+| `update_rotation` | boolean | `false` | Face horizontal travel direction with local +Z forward, preserving pitch/roll. |
+| `auto_braking` | boolean | `false` | Predictively slow down before the destination using remaining path distance and braking. |
+| `corner_slowdown` | boolean | `false` | Reduce speed before route bends; straight triangle crossings keep full speed. |
 | `radius` | number; ≥ 0 | `0.3` | Radius in world/local units as described above. |
 | `height` | number; > 0 | `1.8` | Standing agent clearance height. |
 | `max_slope` | number; ≥ 0; < 89 | `45` | Walkable navigation slope in degrees. |
 | `max_projection` | number; ≥ 0 | `1` | Maximum distance for projecting onto the navmesh. |
-| `arrival_distance` | number; > 0 | `0.12` | Waypoint/goal arrival tolerance in world units. |
+| `arrival_distance` | number; > 0 | `0.12` | Extra final-goal tolerance added to stopping_distance in world units. |
+| `waypoint_distance` | number; ≥ 0 | `0.12` | Intermediate controller waypoint tolerance in world units; zero requires exact waypoints. |
+| `stopping_distance` | number; ≥ 0 | `0` | Stand-off distance from the projected destination in world units. |
 | `repath_interval` | number; > 0 | `0.5` | Seconds between path recomputations. |
 | `drive_controller` | boolean | `false` | Drive a CharacterController3D instead of moving Transform directly. |
+
+`angular_speed` limits facing rotation when `update_rotation` is enabled; movement
+continues along the path corridor. Controller mode uses the motor's acceleration
+and braking; when `auto_braking` or `corner_slowdown` is enabled, deceleration
+toward a lower, nonzero navigation speed also uses the motor's braking limit.
+Navigation clearance must cover the standing motor capsule, `max_slope` must be
+no greater than the motor's slope limit, and the bake must include those slopes.
+Arrival requires speed at most 0.05 units/second (horizontal in controller mode) and distance within
+`stopping_distance + arrival_distance`: XYZ in direct mode, X/Z in controller
+mode. Controller arrival also permits a vertical offset up to the greater of
+that tolerance and 0.25 units. Runtime state includes `actual_velocity` (achieved
+displacement per second) and `remaining_distance` (route length in XYZ for direct
+mode or X/Z for controller mode), as well as the current movement request and route.
 
 ## Interactions and triggers
 

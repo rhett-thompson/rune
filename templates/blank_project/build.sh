@@ -24,6 +24,9 @@ done
 engine_root=$(CDPATH= cd -- "$rune_root" && pwd) || exit 1
 [ -f "$engine_root/rune/core/core.odin" ] || { echo "Rune engine was not found at $engine_root" >&2; exit 1; }
 command -v odin >/dev/null 2>&1 || { echo 'Odin was not found on PATH.' >&2; exit 1; }
+if [ -d "$engine_root/third_party/r3d-odin/r3d" ]; then
+    sh "$engine_root/tools/prepare_r3d.sh" || exit $?
+fi
 game_root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || exit 1
 cd "$game_root" || exit 1
 mkdir -p build || exit 1

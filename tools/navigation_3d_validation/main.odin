@@ -27,7 +27,11 @@ entity :: proc(w:^ecs.World,id:string) -> ecs.Entity {e,ok:=ecs.find_entity_by_i
 
 main :: proc() {
 	validate_geometry()
+	validate_path_smoothing()
 	validate_agents()
+	validate_smoothed_movement()
+	validate_movement_options()
+	validate_ramp_facing()
 	validate_assets()
 	fmt.println("Navigation 3D validation passed: topology, ramps, stacked floors, corridor containment, clearance, blocked routes, movement, controller integration, lifecycle, reload and authoring")
 	for arg in os.args[1:] {if arg=="--runtime" {validate_runtime()}}

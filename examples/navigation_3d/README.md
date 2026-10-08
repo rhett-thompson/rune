@@ -2,7 +2,33 @@
 
 A clickable navigation course with an obstacle, a ramp, an upper platform, and
 a disconnected island. The blue capsule follows a NavAgent3D route through
-CharacterController3D. The gold line shows the current triangle corridor.
+CharacterController3D. The gold line shows the smoothed route through the current
+triangle corridor. Agents travel straight across open floor and turn at passage
+corners, with surface crossings retained at ramp seams.
+
+The agent turns its facing at up to 360°/second, accelerates at 8 units/s², and
+brakes at 6 units/s². Destination braking and corner slowdown are enabled, so it
+slows before sharp turns and settles at the goal. A facing marker and the HUD's
+actual speed and remaining route distance make the movement settings visible.
+Ramp steering follows each straight route section, and facing follows the
+requested heading. Ground contact keeps stopped agents settled on the slope.
+Speed is measured along the surface, so the ramp retains the configured cruise
+speed while the HUD includes its vertical motion.
+The controller's intermediate waypoint tolerance is 0.08 units; final arrival
+uses 0.12 units and waits until speed falls to 0.05 units/s or less. Change these
+settings on the `agent` entity in `scenes/main.scene.json`; direct Transform agents
+use `NavAgent3D.acceleration` and `.braking` instead of the motor's values.
+
+The on-screen Movement panel adjusts speed, acceleration, braking, turning
+speed, stopping distance, waypoint tolerance, and maximum slope while running
+or paused. Its toggles enable facing, destination braking, and corner slowdown.
+Speed and slope changes also update the capsule motor's matching limits. The
+45° slope range matches this course's bake; lowering it below the ramp's angle
+makes the ramp unavailable to the agent. Turning speed zero holds facing.
+Reset movement settings restores the scene values loaded at startup. Hide/Show
+collapses the panel to expose more of the course. Slider
+changes last for the session and do not write the scene file. Mouse input over
+the panel or during a slider drag is reserved for the panel.
 
 ```powershell
 odin run examples/navigation_3d -linker:msvc -collection:rune=rune

@@ -220,18 +220,18 @@ submodule=third_party/r3d-odin
 dependency_root="$repository_root/$submodule"
 [ -f "$dependency_root/r3d/r3d_core.odin" ] || fail 'Initialize dependencies with git submodule update --init --recursive.'
 if $working_tree; then
+    sh "$repository_root/tools/prepare_r3d.sh" --check
     dependency_commit=$(git -C "$dependency_root" rev-parse HEAD)
-    dependency_status=$(git -C "$dependency_root" status --porcelain)
-    [ -z "$dependency_status" ] || fail 'The r3d submodule is dirty. Commit or discard its changes before exporting a release candidate.'
 else
     dependency_commit=$(git -C "$repository_root" rev-parse "$source_commit:$submodule")
 fi
-git -C "$dependency_root" archive --format=tar --output="$workspace/r3d.tar" "$dependency_commit"
+git -C "$dependency_root" -c core.autocrlf=false archive --format=tar --output="$workspace/r3d.tar" "$dependency_commit"
 mkdir -p -- "$export_root/$submodule"
 tar -xf "$workspace/r3d.tar" -C "$export_root/$submodule"
-for relative_path in toolchain.json tools/new_project.sh tools/validate.sh tools/console.sh templates/blank_project/build.sh docs/asset_credits.json; do
+for relative_path in toolchain.json tools/new_project.sh tools/validate.sh tools/console.sh tools/prepare_r3d.sh third_party/r3d-compat/bindings.patch third_party/r3d-compat/files.blobs third_party/r3d-importer/sources.json templates/blank_project/build.sh docs/asset_credits.json; do
     [ -f "$export_root/$relative_path" ] || fail "The exported commit is missing $relative_path. Commit the release tooling, or use --working-tree to test it first."
 done
+sh "$export_root/tools/prepare_r3d.sh"
 odin_release=$(json_read string "$export_root/toolchain.json" /odin_release)
 tested_version=$(json_read string "$export_root/toolchain.json" /tested_odin_version)
 case "$compiler_version" in *"$odin_release"*) ;; *) fail "Expected Odin $odin_release; found $compiler_version" ;; esac

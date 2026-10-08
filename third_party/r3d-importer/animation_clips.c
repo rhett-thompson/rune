@@ -25,7 +25,8 @@ bool Rune_AppendAnimation(R3D_AnimationLib* library, const char* path,
     struct aiPropertyStore* properties = create_import_properties();
     if (!properties) return false;
     aiSetImportPropertyInteger(properties, AI_CONFIG_IMPORT_NO_SKELETON_MESHES, 1);
-    const struct aiScene* scene = aiImportFileExWithProperties(path, POST_PROCESS_PRESET_FAST, NULL, properties);
+    // Match R3D 0.11's baseline import policy without mesh-retention flags.
+    const struct aiScene* scene = aiImportFileExWithProperties(path, build_flags(0), NULL, properties);
     aiReleasePropertyStore(properties);
     // Animation-only scenes may be flagged INCOMPLETE because they have no mesh.
     if (!scene || !scene->mRootNode || scene->mNumAnimations == 0) {
@@ -37,8 +38,9 @@ bool Rune_AppendAnimation(R3D_AnimationLib* library, const char* path,
     R3D_AnimationLib imported = {0};
     struct aiNodeAnim** channels = NULL;
     bool success = false;
-    importer.bones.array = RL_CALLOC(skeleton->boneCount, sizeof(r3d_importer_bone_entry_t));
+    importer.bones.array = MemAlloc(skeleton->boneCount * sizeof(r3d_importer_bone_entry_t));
     if (!importer.bones.array) goto cleanup;
+    memset(importer.bones.array, 0, skeleton->boneCount * sizeof(r3d_importer_bone_entry_t));
     for (int i = 0; i < skeleton->boneCount; i++) {
         const char* boneName = skeleton->bones[i].name;
         // This is joint-name mapping for the same rig, not skeleton retargeting.
@@ -56,7 +58,7 @@ bool Rune_AppendAnimation(R3D_AnimationLib* library, const char* path,
     // Keep only channels belonging to target joints. A skinless export often
     // also animates unweighted finger tips, which are absent from the mesh rig.
     struct aiAnimation animation = *scene->mAnimations[0];
-    channels = RL_MALLOC(animation.mNumChannels * sizeof(*channels));
+    channels = MemAlloc(animation.mNumChannels * sizeof(*channels));
     if (!channels) goto cleanup;
     unsigned int count = 0;
     for (unsigned int i = 0; i < animation.mNumChannels; i++) {
@@ -75,7 +77,7 @@ bool Rune_AppendAnimation(R3D_AnimationLib* library, const char* path,
     imported = R3D_LoadAnimationLibFromImporter(&importer);
     if (imported.count != 1) goto cleanup;
 
-    R3D_Animation* combined = RL_REALLOC(library->animations, (library->count + 1) * sizeof(*combined));
+    R3D_Animation* combined = MemRealloc(library->animations, (library->count + 1) * sizeof(*combined));
     if (!combined) goto cleanup;
     library->animations = combined;
     combined[library->count] = imported.animations[0];
@@ -83,15 +85,15 @@ bool Rune_AppendAnimation(R3D_AnimationLib* library, const char* path,
     strcpy(combined[library->count].name, name);
     library->count++;
     // Transfer the copied keyframe tracks, retaining only the combined array.
-    RL_FREE(imported.animations);
+    MemFree(imported.animations);
     imported = (R3D_AnimationLib){0};
     success = true;
 
 cleanup:
     R3D_UnloadAnimationLib(imported);
-    RL_FREE(channels);
+    MemFree(channels);
     HASH_CLEAR(hh, importer.bones.head);
-    RL_FREE(importer.bones.array);
+    MemFree(importer.bones.array);
     aiReleaseImport(scene);
     return success;
 }

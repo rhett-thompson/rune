@@ -447,20 +447,21 @@ create_scene_lights :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.A
 		   (!ecs.has_component_data(world, entity, "DirectionalLight") &&
 		    !ecs.has_component_data(world, entity, "PointLight") &&
 		    !ecs.has_component_data(world, entity, "SpotLight")) {
-			if r3d.IsLightExist(light) {r3d.DestroyLight(light)}
+			if r3d.IsLightValid(light) {r3d.DestroyLight(light)}
 			delete_key(&ctx.scene_lights, entity)
 			delete_key(&ctx.scene_shadow_defaults, entity)
 			delete_key(&ctx.scene_shadow_settings, entity)
 			delete_key(&ctx.light_properties, entity)
 			continue
 		}
-		if ctx.render_optimizations_disabled {r3d.SetLightActive(light,false)}
+		if ctx.render_optimizations_disabled {r3d.DisableLight(light)}
 	}
 	for entity in ecs.entities_with_component(world, "DirectionalLight") {
 		light, found := ecs.get_directional_light(world, entity)
 		if !found {continue}
 		if light.intensity <= 0 {continue}
 		id := scene_light(ctx, entity, .DIR)
+		if id==0 {continue}
 		sync_light_properties(ctx,entity,id,light)
 		sync_light_shadows(ctx,manager,entity,id,light)
 	}
@@ -470,6 +471,7 @@ create_scene_lights :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.A
 		if !has_light || !has_transform {continue}
 		if light.intensity <= 0 {continue}
 		id := scene_light(ctx, entity, .OMNI)
+		if id==0 {continue}
 		sync_light_properties(ctx,entity,id,light,transform.position)
 		sync_light_shadows(ctx,manager,entity,id,light)
 	}
@@ -479,27 +481,33 @@ create_scene_lights :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.A
 		if !has_light || !has_transform {continue}
 		if light.intensity <= 0 {continue}
 		id := scene_light(ctx, entity, .SPOT)
+		if id==0 {continue}
 		sync_light_properties(ctx,entity,id,light,transform.position)
 		sync_light_shadows(ctx,manager,entity,id,light)
 	}
 	for e,id in ctx.scene_lights {
 		properties:=ctx.light_properties[e]
-		if properties.frame!=ctx.light_sync_frame && r3d.IsLightActive(id) {r3d.SetLightActive(id,false)}
+		if properties.frame!=ctx.light_sync_frame && r3d.IsLightEnabled(id) {r3d.DisableLight(id)}
 	}
 }
 
 scene_light :: proc(ctx: ^Context, entity: ecs.Entity, light_type: r3d.LightType) -> r3d.Light {
 	if id, found := ctx.scene_lights[entity]; found {
-		if r3d.IsLightExist(id) && r3d.GetLightType(id) == light_type {
+		if r3d.IsLightValid(id) && r3d.GetLightType(id) == light_type {
 			return id
 		}
-		if r3d.IsLightExist(id) {
+		if r3d.IsLightValid(id) {
 			r3d.DestroyLight(id)
 		}
 	}
 	id := r3d.CreateLight(light_type)
 	delete_key(&ctx.light_properties, entity)
 	delete_key(&ctx.scene_shadow_settings, entity)
+	if id==0 {
+		delete_key(&ctx.scene_lights, entity)
+		delete_key(&ctx.scene_shadow_defaults, entity)
+		return 0
+	}
 	ctx.scene_shadow_defaults[entity] = native_shadow_defaults(id)
 	ctx.scene_lights[entity] = id
 	return id
@@ -507,7 +515,7 @@ scene_light :: proc(ctx: ^Context, entity: ecs.Entity, light_type: r3d.LightType
 
 destroy_scene_lights :: proc(ctx: ^Context) {
 	for entity, light in ctx.scene_lights {
-		if r3d.IsLightExist(light) {
+		if r3d.IsLightValid(light) {
 			r3d.DestroyLight(light)
 		}
 		delete_key(&ctx.scene_lights, entity)

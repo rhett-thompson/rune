@@ -36,13 +36,13 @@ validate_light_occlusion :: proc(ctx:^bridge.Context,registry:^ecs.Component_Reg
 	optimized:=occlusion_frame(ctx,&w,manager,true); defer rl.UnloadImage(optimized)
 	assert_same_occlusion_pixels(baseline,optimized)
 	assert(ctx.frame_stats.local_lights==2 && ctx.frame_stats.local_lights_occluded==2 && ctx.frame_stats.local_shadow_lights_occluded==1)
-	assert(!r3d.IsLightActive(ctx.scene_lights[point]) && !r3d.IsLightActive(ctx.scene_lights[spot]))
-	assert(r3d.IsLightActive(ctx.scene_lights[directional]),"directional lighting remains active")
+	assert(!r3d.IsLightEnabled(ctx.scene_lights[point]) && !r3d.IsLightEnabled(ctx.scene_lights[spot]))
+	assert(r3d.IsLightEnabled(ctx.scene_lights[directional]),"directional lighting remains active")
 	// The source remains hidden, but its enlarged volume reaches visible floor.
 	light,_:=ecs.get_point_light(&w,point); light.range=8; assert(ecs.set(&w,point,light))
 	wide_baseline:=occlusion_frame(ctx,&w,manager,false); defer rl.UnloadImage(wide_baseline)
 	wide_optimized:=occlusion_frame(ctx,&w,manager,true); defer rl.UnloadImage(wide_optimized)
-	assert(ctx.frame_stats.local_lights_occluded==1 && r3d.IsLightActive(ctx.scene_lights[point]),"hidden sources must retain lighting when their volume is visible")
+	assert(ctx.frame_stats.local_lights_occluded==1 && r3d.IsLightEnabled(ctx.scene_lights[point]),"hidden sources must retain lighting when their volume is visible")
 	assert_same_occlusion_pixels(wide_baseline,wide_optimized)
 	// Verify that keeping the hidden source preserves actual visible lighting.
 	light.intensity=0; assert(ecs.set(&w,point,light)); sample(ctx,&w,manager)
@@ -54,24 +54,24 @@ validate_light_occlusion :: proc(ctx:^bridge.Context,registry:^ecs.Component_Reg
 	light.intensity=1; light.range=0.5; assert(ecs.set(&w,point,light))
 	// Removing the wall restores both lights, including the manual shadow map.
 	assert(ecs.set_enabled(&w,wall,false)); sample(ctx,&w,manager)
-	assert(ctx.frame_stats.local_lights_occluded==0 && r3d.IsLightActive(ctx.scene_lights[point]) && r3d.IsLightActive(ctx.scene_lights[spot]))
+	assert(ctx.frame_stats.local_lights_occluded==0 && r3d.IsLightEnabled(ctx.scene_lights[point]) && r3d.IsLightEnabled(ctx.scene_lights[spot]))
 	assert(ecs.set_enabled(&w,wall,true)); sample(ctx,&w,manager)
 	assert(ctx.frame_stats.local_lights_occluded==2)
 	// Current position/range must be tested before R3D refreshes its cached AABB.
 	assert(ecs.set_transform(&w,point,ecs.Transform{position={4,0,-7},scale={1,1,1}})); sample(ctx,&w,manager)
-	assert(ctx.frame_stats.local_lights_occluded==1 && r3d.IsLightActive(ctx.scene_lights[point]))
+	assert(ctx.frame_stats.local_lights_occluded==1 && r3d.IsLightEnabled(ctx.scene_lights[point]))
 	ctx.static_optimizations_disabled=true; sample(ctx,&w,manager)
-	assert(ctx.frame_stats.local_lights_occluded==0 && r3d.IsLightActive(ctx.scene_lights[spot]),"baseline switch must restore local lights")
+	assert(ctx.frame_stats.local_lights_occluded==0 && r3d.IsLightEnabled(ctx.scene_lights[spot]),"baseline switch must restore local lights")
 	assert(ctx.frame_stats.light_properties_updated==0,"unchanged light properties do not dirty native matrices")
 	light.color={80,120,200,255}; light.intensity=0.4; light.specular=0.75; assert(ecs.set(&w,point,light))
 	rl.BeginDrawing(); assert(bridge.draw_scene_ex(ctx,&w,manager,{background_color=rl.BLACK})); rl.EndDrawing()
 	assert(ctx.frame_stats.light_properties_updated==3)
 	id:=ctx.scene_lights[point]
 	assert(r3d.GetLightEnergy(id)==light.intensity && r3d.GetLightSpecular(id)==light.specular && r3d.GetLightColor(id)==rl.Color{80,120,200,255})
-	assert(ecs.set_enabled(&w,point,false)); sample(ctx,&w,manager); assert(!r3d.IsLightActive(id))
-	assert(ecs.set_enabled(&w,point,true)); sample(ctx,&w,manager); assert(r3d.IsLightActive(id) && ctx.frame_stats.light_properties_updated==0)
+	assert(ecs.set_enabled(&w,point,false)); sample(ctx,&w,manager); assert(!r3d.IsLightEnabled(id))
+	assert(ecs.set_enabled(&w,point,true)); sample(ctx,&w,manager); assert(r3d.IsLightEnabled(id) && ctx.frame_stats.light_properties_updated==0)
 	ctx.render_optimizations_disabled=true; sample(ctx,&w,manager)
-	assert(ctx.frame_stats.light_properties_updated==15,"baseline updates all five properties on each of three lights")
+	assert(ctx.frame_stats.light_properties_updated==18,"baseline updates all six properties on each of three lights")
 	ctx.render_optimizations_disabled=false
 	fmt.println("PASS light volume occlusion, hidden-source visible illumination, live edits, and baseline pixels")
 }

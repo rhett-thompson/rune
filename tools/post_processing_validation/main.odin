@@ -110,6 +110,91 @@ validate_data :: proc(registry: ^ecs.Component_Registry) {
 	assert(ecs.destroy_entity(&w, e) && len(w.post_processing) == 0)
 }
 
+validate_volumetric_fog_data :: proc(registry: ^ecs.Component_Registry) {
+	defaults := ecs.default_post_processing()
+	assert(defaults.volumetric_fog == ecs.Post_Volumetric_Fog{
+		scattering_density=0.01, absorption_density=0.03,
+		scattering_color={255,255,255,255}, anisotropy=0.5,
+		emission_color={255,255,255,255}, emission_energy=0,
+		sky_affect=0.5, length=50, step_size=1,
+	})
+	partial, valid := ecs.post_processing_from_json(parse(`{"volumetric_fog":{"enabled":true,"scattering_density":0.02}}`))
+	expected := defaults
+	expected.volumetric_fog.enabled = true
+	expected.volumetric_fog.scattering_density = 0.02
+	assert(valid && partial == expected, "partial volumetric fog retains every omitted default")
+	complete, complete_valid := ecs.post_processing_from_json(parse(`{"volumetric_fog":{"enabled":true,"scattering_density":0,"absorption_density":0.005,"scattering_color":[60,80,100,255],"anisotropy":-0.4,"emission_color":[140,120,100,200],"emission_energy":2,"sky_affect":0,"length":512,"step_size":2},"height_fog":{"enabled":true,"density":0.006},"upper_height_fog":{"enabled":true},"light_shafts":{"enabled":true,"source":"sun"}}`))
+	assert(complete_valid && complete.volumetric_fog.anisotropy == -0.4 && complete.volumetric_fog.emission_energy == 2)
+	assert(complete.height_fog.enabled && complete.upper_height_fog.enabled && complete.light_shafts.enabled, "native fog coexists with existing fog and shafts")
+	assert(complete.volumetric_fog.scattering_color == [4]u8{60,80,100,255} && complete.volumetric_fog.emission_color == [4]u8{140,120,100,200})
+	data, serialized := ecs.post_processing_json(complete)
+	copy, roundtrip := ecs.post_processing_from_json(data)
+	assert(serialized && roundtrip && copy == complete, "every volumetric fog field must roundtrip")
+	for bad in ([]string{
+		`{"volumetric_fog":null}`, `{"volumetric_fog":{"enabled":1}}`,
+		`{"volumetric_fog":{"scattering_density":-0.001}}`, `{"volumetric_fog":{"absorption_density":-1}}`,
+		`{"volumetric_fog":{"scattering_color":[256,0,0,255]}}`, `{"volumetric_fog":{"emission_color":[0,0,0]}}`,
+		`{"volumetric_fog":{"emission_color":[0,0,0,0.5]}}`,
+		`{"volumetric_fog":{"anisotropy":-1}}`, `{"volumetric_fog":{"anisotropy":1}}`,
+		`{"volumetric_fog":{"emission_energy":-1}}`,
+		`{"volumetric_fog":{"sky_affect":-0.1}}`, `{"volumetric_fog":{"sky_affect":1.1}}`,
+		`{"volumetric_fog":{"length":0}}`, `{"volumetric_fog":{"length":-1}}`,
+		`{"volumetric_fog":{"step_size":0}}`, `{"volumetric_fog":{"step_size":-1}}`,
+		`{"volumetric_fog":{"length":100,"step_size":0.0001}}`,
+		`{"volumetric_fog":{"length":1e100}}`, `{"volumetric_fog":{"absortion_density":0.03}}`,
+	}) {
+		_, accepted := ecs.post_processing_from_json(parse(bad))
+		assert(!accepted, bad)
+	}
+	w := ecs.init()
+	defer ecs.destroy(&w)
+	e := ecs.create_entity(&w)
+	assert(ecs.add(&w, registry, e, complete))
+	work_limit := complete
+	work_limit.volumetric_fog.length = 1024
+	work_limit.volumetric_fog.step_size = 1
+	assert(ecs.post_processing_valid(work_limit), "the maximum ray-march ratio remains valid")
+	work_limit.volumetric_fog.length = 100
+	work_limit.volumetric_fog.step_size = 0.0001
+	assert(!ecs.set(&w, e, work_limit) && !ecs.add(&w, registry, e, work_limit), "excessive ray-march work must be rejected")
+	unchanged_work, _ := ecs.get(&w, e, ecs.PostProcessing)
+	assert(unchanged_work == complete)
+	assert(ecs.set_runtime_field(&w, registry, e, "PostProcessing", "volumetric_fog.absorption_density", json.Float(0.01)))
+	current, _ := ecs.get(&w, e, ecs.PostProcessing)
+	assert(current.volumetric_fog.absorption_density == 0.01 && current.volumetric_fog.emission_energy == 2)
+	for bad in ([]struct{path: string, value: json.Value}{
+		{"volumetric_fog.scattering_density", json.Float(-1)},
+		{"volumetric_fog.absorption_density", json.Float(-1)},
+		{"volumetric_fog.anisotropy", json.Float(-1)},
+		{"volumetric_fog.anisotropy", json.Float(1)},
+		{"volumetric_fog.emission_energy", json.Float(-1)},
+		{"volumetric_fog.sky_affect", json.Float(1.1)},
+		{"volumetric_fog.length", json.Integer(0)},
+		{"volumetric_fog.step_size", json.Integer(0)},
+		{"volumetric_fog.scattering_density", json.Float(math.nan_f64())},
+		{"volumetric_fog.absorption_density", json.Float(math.inf_f64(1))},
+	}) {
+		assert(!ecs.set_runtime_field(&w, registry, e, "PostProcessing", bad.path, bad.value), bad.path)
+		unchanged, _ := ecs.get(&w, e, ecs.PostProcessing)
+		assert(unchanged == current, "rejected volumetric fog edits preserve the complete profile")
+	}
+	invalid := current
+	for field in ([]^f32{
+		&invalid.volumetric_fog.scattering_density, &invalid.volumetric_fog.absorption_density,
+		&invalid.volumetric_fog.anisotropy, &invalid.volumetric_fog.emission_energy,
+		&invalid.volumetric_fog.sky_affect, &invalid.volumetric_fog.length, &invalid.volumetric_fog.step_size,
+	}) {
+		saved := field^
+		for nonfinite in ([3]f32{math.nan_f32(), math.inf_f32(1), math.inf_f32(-1)}) {
+			field^ = nonfinite
+			assert(!ecs.set(&w, e, invalid) && !ecs.add(&w, registry, e, invalid), "typed writes reject all nonfinite fog scalars")
+			unchanged, _ := ecs.get(&w, e, ecs.PostProcessing)
+			assert(unchanged == current)
+		}
+		field^ = saved
+	}
+}
+
 validate_selection :: proc(registry: ^ecs.Component_Registry) {
 	w := ecs.init()
 	defer ecs.destroy(&w)
@@ -370,6 +455,7 @@ main :: proc() {
 	defer ecs.destroy_registry(&registry)
 	assert(ecs.register_builtin_components(&registry))
 	validate_data(&registry)
+	validate_volumetric_fog_data(&registry)
 	validate_selection(&registry)
 	validate_reload(&registry)
 	validate_mapping()

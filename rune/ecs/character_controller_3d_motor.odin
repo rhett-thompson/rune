@@ -9,6 +9,15 @@ character_approach_3d :: proc(current,target:[3]f32,amount:f32)->[3]f32 {
 	if length <= amount || length == 0 {return target}
 	return current+difference*(amount/length)
 }
+// Lift the requested planar heading onto the ground, then retain its surface
+// speed. Orthogonal projection bends diagonal headings across a slope.
+character_ground_velocity_3d :: proc(velocity,normal,up:[3]f32,speed:f32)->[3]f32 {
+	horizontal:=velocity-up*character_dot_3d(velocity,up)
+	tangent:=horizontal-up*(character_dot_3d(horizontal,normal)/character_dot_3d(up,normal))
+	length:=character_length_3d(tangent)
+	if length<=1e-6 {return {}}
+	return tangent*(speed/length)
+}
 character_support_3d :: proc(world:^World,state:^Character_Controller_State_3D,hit:Raycast_Hit_3D,position:[3]f32) {
 	state.support_entity = hit.entity
 	state.ground_normal = hit.normal
@@ -120,22 +129,31 @@ character_controllers_3d_step :: proc(world:^World,dt:f32) {
 		if state.use_world_move {desired=state.world_move*speed}
 		desired-=up*character_dot_3d(desired,up)
 		horizontal := state.velocity-up*character_dot_3d(state.velocity,up)
+		moving_on_ground:=state.grounded
+		current:=horizontal
 		acceleration := config.air_acceleration
 		if state.grounded {
+			// The previous grounded velocity already includes the slope's rise.
+			// Preserve that magnitude instead of losing it by flattening every
+			// tick. A fresh landing discards falling speed before ground movement.
+			current_speed:=character_length_3d(state.velocity) if was_grounded else character_length_3d(horizontal)
+			current=character_ground_velocity_3d(horizontal,state.ground_normal,up,current_speed)
+			desired=character_ground_velocity_3d(desired,state.ground_normal,up,character_length_3d(desired))
 			acceleration=config.acceleration
-			if character_length_3d(desired) < 0.0001 {acceleration=config.braking}
+			desired_speed := character_length_3d(desired)
+			if desired_speed < 0.0001 || (state.navigation_braking &&
+				desired_speed < character_length_3d(current) && character_dot_3d(current,desired) > 0) {
+				acceleration=config.braking
+			}
 		} else {
 			desired+=state.inherited_velocity-up*character_dot_3d(state.inherited_velocity,up)
 		}
-		horizontal=character_approach_3d(horizontal,desired,acceleration*dt)
-		state.velocity=horizontal+up*character_dot_3d(state.velocity,up)
+		current=character_approach_3d(current,desired,acceleration*dt)
 		if state.grounded {
-			tangent := horizontal-state.ground_normal*character_dot_3d(horizontal,state.ground_normal)
-			length := character_length_3d(tangent)
-			if length > 0.0001 {tangent*=character_length_3d(horizontal)/length}
-			state.velocity=tangent
+			state.velocity=current
 			state.jump_cut_available=false
 		} else {
+			state.velocity=current+up*character_dot_3d(state.velocity,up)
 			vertical:=character_dot_3d(state.velocity,up)
 			state.velocity+=up*(max(-config.max_fall_speed,vertical-config.gravity*dt)-vertical)
 		}
@@ -180,7 +198,9 @@ character_controllers_3d_step :: proc(world:^World,dt:f32) {
 			hit,landing,grounded:=character_ground_3d(world,entity,position,config.radius,state.height,distance,min_up,up)
 			if grounded {
 				position=landing
-				state.velocity-=up*character_dot_3d(state.velocity,up)
+				surface_speed:=character_length_3d(state.velocity) if moving_on_ground else
+					character_length_3d(state.velocity-up*character_dot_3d(state.velocity,up))
+				state.velocity=character_ground_velocity_3d(state.velocity,hit.normal,up,surface_speed)
 				state.inherited_velocity={}
 				character_support_3d(world,&state,hit,position)
 			} else if state.grounded {

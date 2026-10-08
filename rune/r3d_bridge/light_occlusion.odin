@@ -22,14 +22,14 @@ cull_scene_lights :: proc(ctx:^Context) {
 	started:=rl.GetTime()
 	active:=ctx.occlusion_enabled && !ctx.static_optimizations_disabled && ctx.occlusion.prepared
 	for _,id in ctx.scene_lights {
-		if !r3d.IsLightActive(id) || r3d.GetLightType(id)==.DIR {continue}
+		if !r3d.IsLightEnabled(id) || r3d.GetLightType(id)==.DIR {continue}
 		ctx.frame_stats.local_lights+=1
 		if !active {continue}
 		bounds,valid:=light_influence_bounds(r3d.GetLightPosition(id),r3d.GetLightRange(id))
 		if !valid {continue}
 		ctx.frame_stats.light_occlusion_tests+=1
 		if !bounds_occluded(bounds,&ctx.occlusion) {continue}
-		r3d.SetLightActive(id,false)
+		r3d.DisableLight(id)
 		ctx.frame_stats.local_lights_occluded+=1
 		if r3d.IsShadowEnabled(id) {
 			ctx.frame_stats.local_shadow_lights_occluded+=1

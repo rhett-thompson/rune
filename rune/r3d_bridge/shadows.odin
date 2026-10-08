@@ -1,5 +1,6 @@
 package r3d_bridge
 
+import "core:math"
 import "rune:assets"
 import "rune:ecs"
 import "rune:shadows"
@@ -14,7 +15,7 @@ native_shadow_defaults :: proc(id: r3d.Light) -> shadows.Settings {
 	}
 	return {enabled=false,softness=r3d.GetShadowSoftness(id),opacity=r3d.GetShadowOpacity(id),
 		depth_bias=r3d.GetShadowDepthBias(id),slope_bias=r3d.GetShadowSlopeBias(id),
-		update_mode=mode,interval_ms=r3d.GetShadowUpdateFrequency(id)}
+		update_mode=mode,interval_ms=i32(math.round(r3d.GetShadowUpdateInterval(id)*1000))}
 }
 
 sync_light_shadows :: proc(ctx: ^Context, manager: ^assets.Asset_Manager, entity: ecs.Entity, id: r3d.Light, light: $T) {
@@ -48,7 +49,8 @@ sync_light_shadows :: proc(ctx: ^Context, manager: ^assets.Asset_Manager, entity
 	mode:=r3d.ShadowUpdateMode.CONTINUOUS
 	switch s.update_mode {case "interval": mode=.INTERVAL; case "manual": mode=.MANUAL}
 	r3d.SetShadowUpdateMode(id,mode)
-	r3d.SetShadowUpdateFrequency(id,s.interval_ms)
+	// Rune profiles retain milliseconds; R3D 0.11 uses seconds.
+	r3d.SetShadowUpdateInterval(id,f32(s.interval_ms)/1000)
 	// New/re-enabled maps and edited profiles always get an initial refresh.
 	if s.enabled {r3d.UpdateShadowMap(id)}
 	ctx.scene_shadow_settings[entity]=s
@@ -58,7 +60,7 @@ sync_light_shadows :: proc(ctx: ^Context, manager: ^assets.Asset_Manager, entity
 // Call after the light has been synchronized at least once by the renderer.
 request_shadow_update :: proc(ctx: ^Context, entity: ecs.Entity) -> bool {
 	id,found:=ctx.scene_lights[entity]
-	if !found || !r3d.IsLightExist(id) || !r3d.IsShadowEnabled(id) {return false}
+	if !found || !r3d.IsLightValid(id) || !r3d.IsShadowEnabled(id) {return false}
 	r3d.UpdateShadowMap(id)
 	return true
 }

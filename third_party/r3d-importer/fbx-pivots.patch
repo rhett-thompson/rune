@@ -1,5 +1,5 @@
 diff --git a/src/r3d_importer.c b/src/r3d_importer.c
-index 10616e7..dd32eb7 100644
+index 9578250..58cf391 100644
 --- a/src/r3d_importer.c
 +++ b/src/r3d_importer.c
 @@ -15,6 +15,7 @@
@@ -10,7 +10,7 @@ index 10616e7..dd32eb7 100644
  #endif
  
  // ========================================
-@@ -51,6 +52,17 @@
+@@ -36,6 +37,17 @@
  
  #ifdef R3D_SUPPORT_ASSIMP
  
@@ -25,30 +25,30 @@ index 10616e7..dd32eb7 100644
 +    return properties;
 +}
 +
- static void determine_importer_name(char* outName, size_t outSize, const struct aiScene* scene, const char* hint)
+ static enum aiPostProcessSteps build_flags(R3D_ImportFlags flags)
  {
-     if (!outName || outSize == 0) return;
-@@ -145,7 +157,10 @@ R3D_Importer* R3D_LoadImporter(const char* filePath, R3D_ImportFlags flags)
-         aiFlags = POST_PROCESS_PRESET_QUALITY;
-     }
- 
+     enum aiPostProcessSteps aiFlags = POST_PROCESS_BASELINE;
+@@ -153,7 +165,10 @@ R3D_Importer* R3D_LoadImporter(const char* filePath, R3D_ImportFlags flags)
+ {
+ #ifdef R3D_SUPPORT_ASSIMP
+     enum aiPostProcessSteps aiFlags = build_flags(flags);
 -    const struct aiScene* scene = aiImportFile(filePath, aiFlags);
 +    struct aiPropertyStore* properties = create_import_properties();
 +    if (!properties) return NULL;
 +    const struct aiScene* scene = aiImportFileExWithProperties(filePath, aiFlags, NULL, properties);
 +    aiReleasePropertyStore(properties);
-     if (!scene || !scene->mRootNode || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE)) {
+     if (!scene || !scene->mRootNode || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE))
+     {
          R3D_TRACELOG(LOG_ERROR, "Assimp failed to load '%s': %s", filePath, aiGetErrorString());
-         return NULL;
-@@ -179,7 +194,10 @@ R3D_Importer* R3D_LoadImporterFromMemory(const void* data, unsigned int size, co
-         aiFlags = POST_PROCESS_PRESET_QUALITY;
-     }
- 
+@@ -184,7 +199,10 @@ R3D_Importer* R3D_LoadImporterFromMemory(const void* data, unsigned int size, co
+ {
+ #ifdef R3D_SUPPORT_ASSIMP
+     enum aiPostProcessSteps aiFlags = build_flags(flags);
 -    const struct aiScene* scene = aiImportFileFromMemory(data, size, aiFlags, hint);
 +    struct aiPropertyStore* properties = create_import_properties();
 +    if (!properties) return NULL;
 +    const struct aiScene* scene = aiImportFileFromMemoryWithProperties(data, size, aiFlags, hint, properties);
 +    aiReleasePropertyStore(properties);
-     if (!scene || !scene->mRootNode || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE)) {
-         if (hint && hint[0] != '\0') {
-             R3D_TRACELOG(LOG_ERROR, "Assimp failed to load memory asset '%s': %s", hint, aiGetErrorString());
+     if (!scene || !scene->mRootNode || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE))
+     {
+         if (hint && hint[0] != '\0')

@@ -8,9 +8,14 @@ targets; the bundled native dependencies need separate verification.
 ## Verification status
 
 The current pinned compiler is `dev-2026-10-nightly:84bc3fc`, validated on
-Windows AMD64. October Odin and the current checkout have not been validated
-on Linux; `toolchain.json` retains only Windows in `tested_platforms`.
+Windows AMD64. Full engine validation with October Odin and the current checkout
+is pending on Linux; `toolchain.json` retains only Windows in `tested_platforms`.
 The September results below are historical and do not establish October support.
+
+The R3D 0.11 importer archive was cross-compiled for Linux AMD64. Native Ubuntu
+shell syntax and binding preparation checks pass, including pristine release
+archives without Git metadata. Linux compiler, renderer, and animation runtime
+regressions still need a native Odin installation and validation run.
 
 The native helpers were exercised on Ubuntu 26.04.1 LTS AMD64 under WSL2 with Odin
 `dev-2026-09-nightly:a2fb372` on 2026-10-07. Compiler installation, project creation
@@ -60,6 +65,7 @@ dependency automatically. It is safe to repeat if r3d is already installed.
 
 ```bash
 git submodule update --init --recursive
+sh tools/prepare_r3d.sh
 sh tools/install_odin.sh --destination "$PWD/build/odin-toolchain"
 ```
 
@@ -110,6 +116,7 @@ when changing build, validation, or release behavior.
 | Task | Linux command |
 | --- | --- |
 | Install the pinned compiler | `sh tools/install_odin.sh --destination build/odin-toolchain` |
+| Prepare initialized R3D bindings | `sh tools/prepare_r3d.sh` |
 | Validate and build all examples | `sh tools/validate.sh --all-examples` |
 | Check an isolated release export | `sh tools/release_check.sh --working-tree` |
 | Create a project | `sh tools/new_project.sh --path ../MyGame --name 'My Game'` |

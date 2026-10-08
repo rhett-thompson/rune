@@ -128,6 +128,22 @@ run_example :: proc(example: Example) -> (int, string) {
 			return -1, message
 		}
 	}
+	if os.is_dir("third_party/r3d-odin/r3d") {
+		preparation: []string
+		when ODIN_OS == .Windows {
+			preparation = {"cmd.exe", "/d", "/c", "tools\\prepare_r3d.bat"}
+		} else {
+			preparation = {"sh", "tools/prepare_r3d.sh"}
+		}
+		process, start_error := os.process_start(
+			{command = preparation, stdin = os.stdin, stdout = os.stdout, stderr = os.stderr},
+		)
+		if start_error != nil {return -1, "Could not prepare R3D. See terminal for details."}
+		state, wait_error := os.process_wait(process)
+		if wait_error != nil || state.exit_code != 0 {
+			return -1, "R3D preparation failed. See terminal for details."
+		}
+	}
 	fmt.printf("Building and running %s...\n", example.name)
 
 	command := make([dynamic]string)

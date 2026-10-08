@@ -127,7 +127,11 @@ air; zero preserves horizontal momentum. Sprint multiplies normal speed;
 crouching uses `crouch_speed`. Direction magnitude below 1 retains analog strength.
 
 Walkable surfaces have an upward normal within `max_slope_angle` degrees.
-Grounded movement follows the slope. Downward capsule probes maintain contact
+Grounded speed measures distance along the surface. The motor preserves the
+requested heading in the plane perpendicular to local up, lifts it onto the
+slope, and applies acceleration and braking along that surface. Runtime velocity
+retains the full ground tangent, including the slope's rise, between steps.
+Downward capsule probes maintain contact
 within `ground_snap_distance`; they do not pull a rising jump back to the floor.
 Movement sweeps the entire capsule and resolves collision planes to slide along
 obstacles, including thin walls. Steep surfaces do not count as jumpable ground.

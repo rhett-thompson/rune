@@ -9,6 +9,7 @@ AmbientLight :: struct {
 }
 
 DirectionalLight :: struct {
+	fog_energy: Maybe(f32), // Nil retains r3d's default multiplier of 1.
 	shadows_disabled: bool,
 	shadow_profile: string,
 	shadow_overrides: shadows.Overrides,
@@ -25,6 +26,7 @@ DirectionalLight :: struct {
 }
 
 PointLight :: struct {
+	fog_energy: Maybe(f32),
 	shadows_disabled: bool,
 	shadow_profile: string,
 	shadow_overrides: shadows.Overrides,
@@ -40,6 +42,7 @@ PointLight :: struct {
 }
 
 SpotLight :: struct {
+	fog_energy: Maybe(f32),
 	shadows_disabled: bool,
 	shadow_profile: string,
 	shadow_overrides: shadows.Overrides,
@@ -107,6 +110,7 @@ directional_light_from_json :: proc(data: json.Value) -> (DirectionalLight, bool
 	}
 	if !read_light_rendering_settings(
 		object,
+		&result.fog_energy,
 		&result.specular,
 		&result.shadows,
 		&result.shadow_softness,
@@ -143,6 +147,7 @@ point_light_from_json :: proc(data: json.Value) -> (PointLight, bool) {
 	}
 	if !read_light_rendering_settings(
 		object,
+		&result.fog_energy,
 		&result.specular,
 		&result.shadows,
 		&result.shadow_softness,
@@ -193,6 +198,7 @@ spot_light_from_json :: proc(data: json.Value) -> (SpotLight, bool) {
 	if result.outer_angle < result.inner_angle {return {}, false}
 	if !read_light_rendering_settings(
 		object,
+		&result.fog_energy,
 		&result.specular,
 		&result.shadows,
 		&result.shadow_softness,
@@ -226,6 +232,7 @@ read_shadow_profile :: proc(object: json.Object, path: ^string, overrides: ^shad
 
 read_light_rendering_settings :: proc(
 	object: json.Object,
+	fog_energy: ^Maybe(f32),
 	specular: ^f32,
 	shadows: ^bool,
 	shadow_softness: ^f32,
@@ -234,6 +241,15 @@ read_light_rendering_settings :: proc(
 	shadow_slope_bias: ^f32,
 ) -> bool {
 	ok := true
+	if value, found := object["fog_energy"]; found {
+		// Snapshots retain null so console edits can restore the native default.
+		_, null := value.(json.Null)
+		if value != nil && !null {
+			energy, valid := read_number(value)
+			if !valid || !finite_nonnegative(energy) {return false}
+			fog_energy^ = energy
+		}
+	}
 	if value, found := object["specular"]; found {
 		specular^, ok = read_number(value)
 		if !ok || specular^ < 0 {return false}

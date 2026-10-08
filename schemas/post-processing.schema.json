@@ -364,6 +364,22 @@
       },
       "description": "end must be greater than start."
     },
+    "volumetric_fog": {
+      "type": "object", "additionalProperties": false,
+      "description": "Native homogeneous volumetric fog scattering from scene lights. Independent of distance fog, height fog, and screen-space light shafts; disabled by default. Runtime validation also requires length / step_size <= 1024 to bound ray-march work.",
+      "properties": {
+        "enabled": {"type": "boolean", "default": false},
+        "scattering_density": {"type": "number", "minimum": 0, "default": 0.01},
+        "absorption_density": {"type": "number", "minimum": 0, "default": 0.03},
+        "scattering_color": {"type": "array", "items": {"type": "integer", "minimum": 0, "maximum": 255}, "minItems": 4, "maxItems": 4, "default": [255,255,255,255]},
+        "anisotropy": {"type": "number", "exclusiveMinimum": -1, "exclusiveMaximum": 1, "default": 0.5, "description": "Zero scatters uniformly; positive values favor forward scattering, negative values backward scattering."},
+        "emission_color": {"type": "array", "items": {"type": "integer", "minimum": 0, "maximum": 255}, "minItems": 4, "maxItems": 4, "default": [255,255,255,255]},
+        "emission_energy": {"type": "number", "minimum": 0, "default": 0},
+        "sky_affect": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.5},
+        "length": {"type": "number", "exclusiveMinimum": 0, "default": 50, "description": "Maximum fog render distance in world units."},
+        "step_size": {"type": "number", "exclusiveMinimum": 0, "default": 1, "description": "Ray march step size in world units; smaller values increase quality and GPU cost."}
+      }
+    },
     "height_fog": {
       "type": "object",
       "additionalProperties": false,

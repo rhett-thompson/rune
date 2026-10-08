@@ -21,7 +21,9 @@ validate_fbx_importer :: proc(ctx: ^bridge.Context, world: ^ecs.World, manager: 
 	file_player, ready := bridge.animation_player(ctx, entity)
 	assert(ready)
 
-	import_flags := [?]r3d.ImportFlags{{}, {.QUALITY}}
+	// R3D 0.11 quality import controls occupy native bits 2, 3 and 4.
+	import_flags := [?]r3d.ImportFlags{{}, {.SMOOTH_NORMALS,.OPTIMIZE_MESH,.VALIDATE_DATA}}
+	assert(transmute(u32)import_flags[1] == 28,"quality import flags match the native R3D mask")
 	for flags in import_flags {
 		importer := bridge.load_importer_from_memory(raw_data(source), u32(len(source)), "fbx", flags)
 		assert(importer != nil)

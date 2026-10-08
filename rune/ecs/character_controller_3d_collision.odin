@@ -128,8 +128,12 @@ character_ground_3d :: proc(world:^World,entity:Entity,position:[3]f32,radius,he
 	origin := position+up*0.03
 	delta := -up*(distance+0.03)
 	hit,found := character_sweep_3d(world,entity,origin,delta,radius,height,up)
-	if !found || character_dot_3d(hit.normal,up) < min_up {return {},position,false}
-	landing := origin+delta*hit.fraction+up*Character_Skin_3D
+	normal_up := character_dot_3d(hit.normal,up)
+	if !found || normal_up < min_up {return {},position,false}
+	// The plane solver keeps skin clearance along the surface normal. Match
+	// that clearance when snapping vertically, so slopes do not repeatedly
+	// push the capsule downhill and then snap it back into the contact margin.
+	landing := origin+delta*hit.fraction+up*(Character_Skin_3D/normal_up)
 	return hit,landing,true
 }
 

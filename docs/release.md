@@ -40,6 +40,11 @@ After the intended files have been committed, run the publication check:
 Without `--working-tree`, only `HEAD` and its recorded submodule revision are
 exported. This catches files that exist locally but were never committed. Both
 modes require initialized local submodules and do not download dependencies.
+The r3d checkout may contain exactly Rune's recorded binding patch; unrelated
+changes are rejected. The export archives the official dependency commit, then
+applies the [parent-owned corrections](../third_party/r3d-compat/README.md) and
+verifies every dependency file against the recorded Git blob manifest. This
+preserves the fixes in an export without Git metadata.
 Omit `--runtime` for checks without graphics or audio initialization. On headless Linux,
 use `xvfb-run -a sh tools/release_check.sh --runtime` after
 installing the dependencies in [Linux development](linux.md).

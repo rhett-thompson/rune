@@ -95,11 +95,20 @@ libraries into `third_party/r3d-odin`:
 
 ```powershell
 git submodule update --init --recursive
+.\tools\prepare_r3d.bat
 ```
 
 This is required if you cloned without `--recurse-submodules`; it is safe to run
 again if the dependency is already installed. The launcher does not download
 r3d automatically. Without it, examples that use r3d cannot build.
+
+Preparation applies the two recorded R3D 0.11 binding corrections while keeping
+the official upstream revision pinned. It is safe to repeat and rejects
+unrelated dependency edits. Rune's launchers, validators, and generated project
+build scripts prepare initialized bindings automatically; run it before manual
+Odin builds. On Linux, use `sh tools/prepare_r3d.sh` after submodule initialization.
+See [the binding corrections](third_party/r3d-compat/README.md) for the patch and
+release-export checks.
 
 On Windows, add `-linker:msvc` to direct `odin build`, `odin run`, and
 `odin test` commands. Rune's Windows launcher and build/validation helpers
@@ -731,9 +740,13 @@ Mouse-wheel input is available as `{ "type": "mouse_wheel" }`; it returns
 the wheel movement sampled for the current frame and also supports `scale` and
 `invert`. The third-person example uses it to zoom its follow camera.
 
-`third_party/r3d-odin` is pinned to r3d `v0.10.0`. Rune uses the bundled Odin
+`third_party/r3d-odin` is pinned to r3d `v0.11.0`. Rune uses the bundled Odin
 raylib binding for windowing, input, audio, 2D rendering, and debug overlays;
 3D examples now render scene data through `rune/r3d_bridge`.
+
+R3D 0.11 converts authored light colors from sRGB to linear for lighting, so
+colored lights may look different after the upgrade. Rune's public shadow update
+`interval_ms` remains in milliseconds; its bridge converts to R3D's seconds.
 
 ## Run the example
 

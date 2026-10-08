@@ -1,6 +1,7 @@
 package main
 
 import "core:fmt"
+import "core:math"
 import example_text "../shared/text"
 import rune "rune:core"
 import "rune:ecs"
@@ -8,6 +9,7 @@ import "rune:input"
 import "rune:console"
 import "rune:navigation"
 import "rune:gizmos"
+import "rune:ui"
 import rl "vendor:raylib"
 
 camera := rl.Camera3D{position={17,20,23},target={1,0,0},up={0,1,0},fovy=45,projection=.PERSPECTIVE}
@@ -23,7 +25,9 @@ main :: proc() {
 	if !ok {fmt.eprintln("Could not initialize navigation demo"); return}
 	defer rune.shutdown(&game)
 	if !example_text.init(&game.assets) {fmt.eprintln("Could not load shared example font");return}
-	rune.register_system(&game,{name="navigation-demo",start=enter,on_scene_reloaded=reload_course,on_save_restored=reload_course,ui_update=controls,draw=draw})
+	if !ui.init(&movement_ui,example_text.font()) {fmt.eprintln("Could not initialize movement controls");return}
+	defer ui.destroy(&movement_ui)
+	rune.register_system(&game,{name="navigation-demo",start=enter,on_scene_reloaded=reload_course,on_save_restored=reload_course,ui_update=controls,draw=draw,draw_ui=draw_movement_panel})
 	console.register(rune.developer_console(&game),"navigate","Route to the upper platform.",navigate_command)
 	console.register(rune.developer_console(&game),"ramp","Close or reopen the ramp.",ramp_command)
 	console.register(rune.developer_console(&game),"rebake","Bake navigation from the current scene geometry.",rebake_command)
@@ -31,7 +35,7 @@ main :: proc() {
 	console.register(rune.developer_console(&game),"undo_cube","Remove the last placed cube and rebake.",undo_cube_command)
 	rune.run_project(&game)
 }
-enter :: proc(game:^rune.Engine,world:^ecs.World) {has_destination=false;cube_preview=false}
+enter :: proc(game:^rune.Engine,world:^ecs.World) {has_destination=false;cube_preview=false;reset_movement_panel(world)}
 
 // The mesh owns closure state. Scene value reloads retain its blocked flags;
 // rebakes replace them. A separate toggle bool gets out of sync in both cases.
@@ -54,8 +58,9 @@ ramp_command :: proc(c:^console.Console,args:string) {
 }
 controls :: proc(game:^rune.Engine,world:^ecs.World) {
 	cube_preview=false
+	pointer_owned:=update_movement_panel(game,world)
 	if console.is_open(rune.developer_console(game)) || !rl.IsWindowFocused() {return}
-	update_course_camera(game,world)
+	update_course_camera(game,world,pointer_owned)
 	if input.frame_action(rune.input_state(game),"place_mode").pressed {placing_cubes=!placing_cubes}
 	if input.frame_action(rune.input_state(game),"undo_cube").pressed {undo_cube(game,world)}
 	if input.frame_action(rune.input_state(game),"rebake").pressed {rebake_course(game,world)}
@@ -70,6 +75,7 @@ controls :: proc(game:^rune.Engine,world:^ecs.World) {
 	if input.frame_action(rune.input_state(game),"ramp").pressed {
 		toggle_ramp(world)
 	}
+	if pointer_owned {return}
 	if placing_cubes {cube_controls(game,world);return}
 	if input.frame_action(rune.input_state(game),"select").pressed && !input.frame_action(rune.input_state(game),"orbit_camera").is_down && !input.frame_action(rune.input_state(game),"pan_camera").is_down {
 		ray:=rl.GetScreenToWorldRay(rl.GetMousePosition(),camera)
@@ -107,6 +113,11 @@ draw :: proc(game:^rune.Engine,world:^ecs.World) {
 	rl.DrawCubeWires({-5,0.7,-1},1.3,1.4,1.3,{240,175,105,255})
 	draw_placed_cubes(world)
 	rl.DrawCapsule(pose.position+[3]f32{0,0.35,0},pose.position+[3]f32{0,1.45,0},0.35,8,8,{105,195,255,255})
+	facing:=pose.rotation.y*math.PI/180
+	center:=pose.position+[3]f32{0,1.05,0}
+	nose:=center+[3]f32{math.sin(facing)*0.7,0,math.cos(facing)*0.7}
+	rl.DrawLine3D(center,nose,{225,245,255,255})
+	rl.DrawSphere(nose,0.1,{225,245,255,255})
 	for i in 1..<len(state.path) {rl.DrawLine3D(state.path[i-1]+[3]f32{0,0.08,0},state.path[i]+[3]f32{0,0.08,0},{255,225,115,255})}
 	if has_destination {rl.DrawSphere(destination+[3]f32{0,0.13,0},0.13,{255,225,115,255})}
 	if game.gizmos.navmeshes {gizmos.draw_navmeshes_3d(world, game.gizmos.navmesh_entity)}
@@ -116,6 +127,7 @@ draw :: proc(game:^rune.Engine,world:^ecs.World) {
 	example_text.draw("Right-drag orbit   Wheel zoom   Middle-drag pan   F focus agent   R reset view",28,94,17,{175,195,210,255})
 	example_text.draw(fmt.ctprintf("C %s   Left-click %s   Z undo cube   |   %d cubes", "finish placing" if placing_cubes else "place cubes", "place at preview" if placing_cubes else "move agent",placed_cube_count(world)),28,122,17,{235,195,135,255})
 	example_text.draw(fmt.ctprintf("Agent: %v    Path: %v    Ramp: %s%s",state.status,state.path_status,"Closed" if ramp_is_closed(mesh) else "Open","    PAUSED" if rune.is_paused(game) else ""),28,650,22,{225,235,245,255})
+	example_text.draw(fmt.ctprintf("Speed %.2f   Remaining %.2f",navigation.length_3d(state.actual_velocity),state.remaining_distance),28,620,18,{175,195,210,255})
 	if bake_failed {
 		example_text.draw("Bake failed; previous mesh retained. See console for details. N retries.",28,688,17,{240,140,110,255})
 	} else {

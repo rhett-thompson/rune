@@ -2,7 +2,7 @@
   "name":"Navigation course",
   "entities":[
     {"id":"navigation","components":{"NavMesh3D":{"asset":"course.baked.navmesh.json"}}},
-    {"id":"agent","components":{"Transform":{"position":[-7,0,3]},"NavAgent3D":{"mesh":{"id":"navigation"},"speed":3,"radius":0.35,"height":1.8,"drive_controller":true},"CharacterController3D":{"move_speed":3,"radius":0.35}}},
+    {"id":"agent","components":{"Transform":{"position":[-7,0,3]},"NavAgent3D":{"mesh":{"id":"navigation"},"speed":3,"angular_speed":360,"update_rotation":true,"auto_braking":true,"corner_slowdown":true,"stopping_distance":0,"arrival_distance":0.12,"waypoint_distance":0.08,"radius":0.35,"height":1.8,"drive_controller":true},"CharacterController3D":{"move_speed":3,"acceleration":8,"braking":6,"radius":0.35}}},
     {"id":"lower_floor","components":{"Transform":{"position":[-5.25,-0.25,0]},"BoxCollider":{"size":[6.5,0.5,9]}}},
     {"id":"upper_floor","components":{"Transform":{"position":[5.25,1.75,0]},"BoxCollider":{"size":[6.5,0.5,9]}}},
     {"id":"ramp","components":{"Transform":{"position":[0.04472136,0.9105573,0],"rotation":[0,0,26.565051]},"BoxCollider":{"size":[4.472136,0.2,4.8]}}},

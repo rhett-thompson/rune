@@ -71,6 +71,19 @@ post_processing_environment :: proc(base: r3d.Environment, value: ecs.PostProces
 		density = value.fog.density,
 		skyAffect = value.fog.sky_affect,
 	}
+	env.volumetricFog = {
+		enabled = value.volumetric_fog.enabled,
+		scatteringDensity = value.volumetric_fog.scattering_density,
+		// The r3d binding keeps the upstream spelling of absorption.
+		absortionDensity = value.volumetric_fog.absorption_density,
+		scatteringColor = rl.Color{value.volumetric_fog.scattering_color[0], value.volumetric_fog.scattering_color[1], value.volumetric_fog.scattering_color[2], value.volumetric_fog.scattering_color[3]},
+		anisotropy = value.volumetric_fog.anisotropy,
+		emissionColor = rl.Color{value.volumetric_fog.emission_color[0], value.volumetric_fog.emission_color[1], value.volumetric_fog.emission_color[2], value.volumetric_fog.emission_color[3]},
+		emissionEnergy = value.volumetric_fog.emission_energy,
+		skyAffect = value.volumetric_fog.sky_affect,
+		length = value.volumetric_fog.length,
+		stepSize = value.volumetric_fog.step_size,
+	}
 	env.dof = {
 		mode = .ENABLED if value.dof.enabled else .DISABLED,
 		focusPoint = value.dof.focus_point,

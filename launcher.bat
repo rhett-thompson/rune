@@ -7,6 +7,10 @@ if errorlevel 1 (
     exit /b 1
 )
 
+if exist "third_party\r3d-odin\r3d\" (
+    call tools\prepare_r3d.bat
+    if errorlevel 1 (popd & exit /b 1)
+)
 if not exist "build\" mkdir "build"
 if not exist "build\" (
     echo Could not create the build directory.
