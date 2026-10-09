@@ -89,8 +89,11 @@ foreground surfaces to represent light in the air between them and the camera.
 A wall filling the viewport contributes no shafts. A partially hidden core
 can still produce beams through nearby openings. Fixed per-pixel sample jitter
 reduces repeated silhouette bands without animated noise.
-It turns off behind the camera and fades at the viewport edge. The SCENE shader
-runs before height fog and built-in bloom/tone mapping; HUD is unaffected.
+It turns off behind the camera and fades at the viewport edge. On Windows/Linux
+AMD64, the shaft shader runs before height fog, transparent clouds, and built-in
+bloom/tone mapping; clouds can cover the beams through alpha blending. Other
+targets retain the previous `SCENE` chain after transparent rendering.
+HUD is unaffected.
 Samples from 8 to 64 trade smoothness for GPU cost. This approximates scattering
 in screen space; transparent clouds do not write occlusion depth and cannot
 cast shafts. It does not replace volumetric scattering or shadow maps.
@@ -193,9 +196,11 @@ background blends with submerged geometry without an abrupt horizon band or
 depending on the camera's far clip. Choose a sky distance beyond the structures
 you want to conceal. The upper sky and nearby surfaces remain visible according
 to the same density function. RGBA colors use the same sRGB convention as
-distance fog; alpha is ignored. Transparent geometry without depth writes uses
-the depth behind it. This layer provides extinction and color, not volumetric
-light scattering or bounded fog banks.
+distance fog; alpha is ignored. On Windows/Linux AMD64, transparent blending
+follows this background pass; cloud volumes apply height fog at their own sample
+distances as described below. Other transparent materials receive no separate
+camera-to-surface height-fog integration. This layer provides extinction and
+color, not volumetric light scattering or bounded fog banks.
 
 For a second layer that thickens upward, add `upper_height_fog` to the same
 profile. It has the same fields and defaults as `height_fog`, is disabled by
@@ -222,9 +227,14 @@ avoiding overflow in dense upper/lower regions, and compose in one screen pass
 If both are disabled or zero-density, the bridge adds no height-fog shader to
 the chain. Existing profiles keep their original lower-fog behavior.
 
-The moon disk and both height-fog layers share the bridge's `SCENE` stage, with the moon
-drawn first. The bridge clears this chain after each render and releases its
-cached shader at shutdown. Custom screen effects should use the other stages.
+On Windows/Linux AMD64, the moon disk, light shafts, and height fog share a
+bridge-owned chain after opaque surfaces, including unlit geometry, and before
+transparent blending, in that order. [Cloud volumes](cloud-volumes.md) integrate
+the same height fog to each ray sample's finite distance, so distant sky fog
+cannot wash over nearby clouds. Their rays still stop at opaque scene depth.
+The bridge clears this chain after each render and releases its cached shaders
+at shutdown. Native `volumetric_fog` remains independent of this composition.
+Other targets retain the previous `SCENE` chain and opaque-depth fog behavior.
 
 ## Profile selection and lifetime
 
@@ -379,20 +389,28 @@ as `active_post_processing`. Tools can use it to edit the rendered profile.
 
 Console changes are runtime-only. Edit scene JSON to persist them.
 Custom fullscreen shader chains remain available through r3d's
-`LoadScreenShader` and stage-chain APIs. The bridge reserves `SCENE` while
-drawing its moon and height fog, and `FINAL` while film grain is active; this
-component does not load custom shader assets.
+`LoadScreenShader` and stage-chain APIs. On Windows/Linux AMD64, the bridge's
+atmospheric chain runs before transparent blending; the public `SCENE` stage
+receives the combined scene including clouds. Other targets reserve
+`SCENE` for atmospheric effects. The bridge reserves `FINAL` while film grain
+is active; this component does not load custom shader assets.
 
 ## Example and checks
 
 From the repository root:
 
 ```powershell
-odin build examples/post_processing_3d -o:none -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin -out:build/post_processing_3d.exe
+odin build examples/post_processing_3d -o:none -thread-count:2 -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin -out:build/post_processing_3d.exe
 ./build/post_processing_3d.exe --console-dir=build/console/post
 ```
 
-On Linux, use `-out:build/post_processing_3d` and `./build/post_processing_3d`.
+On Linux:
+
+```sh
+odin build examples/post_processing_3d -o:none -thread-count:2 -collection:rune=rune -collection:r3d=third_party/r3d-odin -out:build/post_processing_3d
+./build/post_processing_3d --console-dir=build/console/post
+```
+
 The example is also listed as **Post Processing 3D** in the launcher.
 
 Space compares the profile with the baseline; B toggles bloom, O occlusion,
@@ -405,4 +423,6 @@ Glowing material JSON files demonstrate emission feeding bloom.
 post-processing validation. Adding `--runtime` exercises r3d effect rendering,
 baseline restoration, and grain's monochrome pixel variation, animation, frozen
 pattern, pixel size after AA, and cleanup on toggles/removal. Linux runtime
-validation requires a desktop or Xvfb.
+validation requires a desktop or Xvfb. See
+[atmosphere validation](cloud-volumes.md#validation) for focused cloud, moon,
+height-fog, and light-shaft build/runtime commands on both platforms.

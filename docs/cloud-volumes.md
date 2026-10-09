@@ -40,13 +40,55 @@ It supports views from inside a volume. It shares one generated, filtered
 per entity. Aliases are released on removal or world generation changes;
 shutdown frees the shared GPU resources. Disabled entities stop drawing.
 
-This is a bounded cloud renderer: overlapping volumes use r3d's transparent
-draw ordering. It does not combine overlapping densities, cast volumetric
-shadows onto geometry, or perform multiple scattering. Transparent objects
-do not stop rays. Post-processing still applies through the existing scene
-chain; fog uses opaque depth, as it does for other transparent materials.
+On Windows/Linux AMD64, the bridge renders the
+[moon disk](skybox.md#night-sky-and-optional-moon),
+[screen-space light shafts and height fog](post-processing.md) after opaque
+surfaces, including unlit geometry, and before transparent blending. The order
+is moon, shafts, then height fog. Each cloud ray sample applies both height-fog
+layers over its finite camera-to-sample distance. Nearby cloud density receives
+foreground fog, while fog farther behind it remains in the transmitted
+background. Clouds can cover the moon and shafts through alpha blending without
+writing opaque depth. Public r3d `SCENE` screen effects run after the clouds.
+Other targets retain the previous `SCENE` atmospheric chain, where height fog
+uses the opaque depth behind transparent clouds.
 
-Validate data with `.\tools\validate.bat --all-examples`. The focused
-`build/cloud_volume_validation --runtime` (add `.exe` on Windows) checks
+This is a bounded cloud renderer: overlapping volumes use r3d's transparent
+draw ordering; their densities are not merged. It does not cast volumetric
+shadows onto geometry or perform multiple scattering. Opaque geometry stops
+cloud rays; other transparent objects do not. Native `volumetric_fog` is a
+separate effect; these height-fog changes do not alter its integration.
+
+## Validation
+
+From the repository root, build and run the focused atmosphere checks on Windows:
+
+```powershell
+New-Item -ItemType Directory -Force build | Out-Null
+foreach ($tool in 'cloud_volume_validation', 'skybox_validation', 'light_shafts_validation') {
+    odin build "tools/$tool" -o:none -thread-count:2 -collection:rune=rune -collection:r3d=third_party/r3d-odin -linker:msvc "-out:build/$tool.exe"
+    if ($LASTEXITCODE -ne 0) { throw "Build failed: $tool" }
+    & "./build/$tool.exe" --runtime
+    if ($LASTEXITCODE -ne 0) { throw "Validation failed: $tool" }
+}
+```
+
+On Linux AMD64:
+
+```sh
+mkdir -p build
+for tool in cloud_volume_validation skybox_validation light_shafts_validation; do
+    odin build "tools/$tool" -o:none -thread-count:2 -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/$tool" || exit 1
+    "./build/$tool" --runtime || exit 1
+done
+```
+
+Runtime checks require a graphics context; Linux needs a desktop or
+[Xvfb](linux.md). Omit `--runtime` for data-only checks. Cloud validation covers
 opacity, foreground occlusion, a solid object inside a cloud, views inside a
-volume, zero density, and alias cleanup on a real graphics context.
+volume, zero density, and alias cleanup. It also checks nearby clouds against
+thick distant height fog, changes in the opaque background distance, fogged
+foreground solids, and both height-fog layers, saving
+`build/cloud-height-fog-validation.png`. The other checks cover moon/fog
+composition and shaft occlusion. The
+[native rebuild guide](../third_party/r3d-shadows/README.md) documents the owned
+Windows/Linux objects and their pinned sources.

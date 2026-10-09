@@ -28,11 +28,12 @@ if [ -e "$dependency/.git" ]; then
     git -C "$dependency" -c core.autocrlf=true -c core.safecrlf=false -c diff.suppressBlankEmpty=false diff --binary --full-index --no-ext-diff --no-textconv --no-color --no-renames --no-relative --src-prefix=a/ --dst-prefix=b/ --unified=3 --inter-hunk-context=0 --diff-algorithm=myers --indent-heuristic -O"$temporary/order" HEAD > "$temporary/diff"
     if [ -s "$temporary/diff" ]; then
         cmp -s "$patch" "$temporary/diff" || fail "R3D tracked changes differ from Rune's owned binding patch. Preserve your changes before preparing it."
-        git -C "$dependency" -c core.autocrlf=true apply --reverse --check "$patch" || fail 'The owned R3D binding patch is not fully applied.'
+        git -C "$dependency" -c core.autocrlf=true -c core.safecrlf=false apply --reverse --check "$patch" || fail 'The owned R3D binding patch is not fully applied.'
     else
-        git -C "$dependency" apply --check "$patch" || fail 'The owned R3D patch does not apply to the pinned bindings.'
+        # Match diff normalization even when Linux Git reads a Windows checkout.
+        git -C "$dependency" -c core.autocrlf=true -c core.safecrlf=false apply --check "$patch" || fail 'The owned R3D patch does not apply to the pinned bindings.'
         if ! $check_only; then
-            git -C "$dependency" apply "$patch"
+            git -C "$dependency" -c core.autocrlf=true -c core.safecrlf=false apply "$patch"
             printf '%s\n' "Applied Rune's pinned R3D binding corrections."
         fi
     fi

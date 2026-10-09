@@ -274,7 +274,7 @@ draw_scene_ex :: proc(
 	} else {
 		r3d.Begin(camera)
 	}
-	prepare_cloud_volumes(ctx,world,asset_manager,camera)
+	prepare_cloud_volumes(ctx,world,asset_manager,camera,entity)
 	static_started:=rl.GetTime()
 	draw_static_meshes(ctx,world,asset_manager,camera)
 	ctx.frame_stats.static_cpu_ms=(rl.GetTime()-static_started)*1000
@@ -288,13 +288,14 @@ draw_scene_ex :: proc(
 		draw_cached_entities(ctx,world,asset_manager)
 	}
 	draw_particles_3d(ctx,asset_manager,settings.particle_batches)
-	// The bridge owns SCENE while rendering; moon radiance is fogged too.
+	// Fog the opaque background before alpha clouds. Their own ray samples
+	// integrate height fog only up to the sample, never to the sky behind them.
 	chain: [3]^r3d.ScreenShader
 	count: i32
 	if prepare_moon_disk(ctx) {chain[count] = ctx.skybox.moon_shader; count += 1}
 	if prepare_light_shafts(ctx,world,asset_manager,entity,camera) {chain[count]=ctx.light_shafts_shader; count+=1}
 	if prepare_height_fog(ctx, world, asset_manager, entity) {chain[count] = ctx.height_fog_shader; count += 1}
-	if count > 0 {r3d.SetScreenShaderChain(.SCENE, raw_data(chain[:]), count)}
+	if count > 0 {set_pre_transparency_shader_chain(raw_data(chain[:]),count)}
 	grain_enabled:=prepare_film_grain(ctx,world,asset_manager,entity)
 	if grain_enabled {r3d.SetScreenShaderChain(.FINAL, &ctx.film_grain_shader, 1)}
 	backend_started:=rl.GetTime()
@@ -302,7 +303,7 @@ draw_scene_ex :: proc(
 	r3d.End()
 	end_gpu_timing(ctx,gpu_slot)
 	ctx.frame_stats.backend_cpu_ms=(rl.GetTime()-backend_started)*1000
-	if count > 0 {r3d.SetScreenShaderChain(.SCENE, nil, 0)}
+	if count > 0 {set_pre_transparency_shader_chain(nil,0)}
 	if grain_enabled {r3d.SetScreenShaderChain(.FINAL, nil, 0)}
 	draw_debug_overlays(world, visible_camera, settings)
 	ctx.frame_stats.scene_cpu_ms=(rl.GetTime()-started)*1000

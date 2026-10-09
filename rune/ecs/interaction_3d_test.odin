@@ -3,6 +3,34 @@ package ecs
 import "core:testing"
 
 @(test)
+interaction_handles_scenes_without_targets_and_later_target_removal :: proc(t: ^testing.T) {
+	w:=init(); defer destroy(&w)
+	r:=init_registry(); defer destroy_registry(&r)
+	testing.expect(t,register_builtin_components(&r))
+	actor:=create_entity(&w)
+	testing.expect(t,add(&w,&r,actor,default_transform()))
+	testing.expect(t,add(&w,&r,actor,Default_Interactor_3D))
+	origin,forward:=[3]f32{0,1,0},[3]f32{0,0,1}
+	_,has_targets:=w.typed_component_data["Interactable3D"]
+	testing.expect(t,!has_targets,"a scene with only an actor has no target component bucket")
+	testing.expect(t,find_interaction_3d(&w,actor,origin,forward).entity==0)
+	state:Interaction_State_3D
+	testing.expect(t,update_interaction_3d(&w,&state,actor,origin,forward,false,1.0/60)==0)
+	testing.expect(t,update_interaction_3d(&w,&state,actor,origin,forward,true,1.0/60)==0)
+	testing.expect(t,state.focus.entity==0 && !state.holding && state.progress==0)
+	button:=create_entity(&w)
+	testing.expect(t,add(&w,&r,button,Transform{position={0,1,2},scale={1,1,1}}))
+	testing.expect(t,add(&w,&r,button,Default_Interactable_3D))
+	testing.expect(t,find_interaction_3d(&w,actor,origin,forward).entity==button)
+	update_interaction_3d(&w,&state,actor,origin,forward,false,1.0/60)
+	testing.expect(t,update_interaction_3d(&w,&state,actor,origin,forward,true,1.0/60)==button)
+	destroy_entity(&w,button)
+	testing.expect(t,find_interaction_3d(&w,actor,origin,forward).entity==0)
+	testing.expect(t,update_interaction_3d(&w,&state,actor,origin,forward,true,1.0/60)==0)
+	testing.expect(t,state.focus.entity==0 && !state.holding && state.progress==0,"removing the last target clears interaction state")
+}
+
+@(test)
 interaction_follows_scaled_rotated_ancestors_and_moving_parent :: proc(t: ^testing.T) {
 	w:=init(); defer destroy(&w)
 	r:=init_registry(); defer destroy_registry(&r)

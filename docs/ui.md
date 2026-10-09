@@ -128,6 +128,7 @@ the simulation pause condition, then call `ui.draw` during drawing.
 | `ui.label(ctx, text, color, size = 0)` | Wrapped text; zero size uses the context style. |
 | `ui.button(ctx, id, text, enabled = true)` | True on pointer release inside the pressed button or focused accept. |
 | `ui.slider(ctx, id, &value, min, max, step = 0.05, enabled = true)` | A bar slider; returns true when value changes. Left/right uses `step`; pointer dragging is continuous. |
+| `ui.text_input(ctx, id, &field, enabled = true)` | Single-line UTF-8 field; returns `changed`, `committed`, and `canceled`. Click or focused accept activates editing. |
 | `ui.image(ctx, id, texture, size, tint)` | A borrowed texture stretched to a rectangle. |
 | `ui.focused(ctx, id)` / `ui.reset_focus(ctx)` | Inspect focus or reset it to the first enabled control on the next build. |
 | `ui.bounds(ctx, id)` | Bounds and a found flag from the last completed layout, for tools/tests. |
@@ -138,6 +139,18 @@ pointer does not override keyboard focus. Disabled controls cannot activate and
 are skipped in navigation. A press captures its widget until release; releasing
 outside a button cancels its activation. Sliders keep dragging outside their
 bounds and clamp to their range.
+
+`ui.Text_Field` is caller-owned, allocation-free storage for up to 1024 UTF-8
+bytes. Initialize or replace its value with `ui.text_field_set(&field, text)`;
+read the borrowed value with `ui.text_field_text(&field)`. Fields activate only
+on click or focused accept. Enter or moving focus commits; Escape cancels and
+lets the caller restore the prior value. Active fields support arrows, Home/End,
+Backspace/Delete and Ctrl+A/C/V/X. Invalid UTF-8, control characters, and pastes
+that exceed capacity are rejected without modifying the selection. A selected
+field uses accent text; the caret is shown while editing. Applications should
+gate their own raw keyboard shortcuts while `field.active`, and use
+`Inputs.blocked` when a console or another modal owns input. Text fields read
+raylib's character queue only while active and unblocked.
 
 Hit testing uses the previous completed Clay layout, as with Clay's normal
 immediate-mode interaction model. A newly shown control needs one completed

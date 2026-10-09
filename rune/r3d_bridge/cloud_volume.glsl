@@ -10,6 +10,10 @@ uniform vec3 u_shadow;
 uniform vec3 u_offset;
 uniform vec3 u_settings; // extinction, noise wavelength, coverage
 uniform int u_steps;
+uniform vec3 u_fog_color;
+uniform vec4 u_fog_params;
+uniform vec3 u_upper_fog_color;
+uniform vec4 u_upper_fog_params;
 
 // 32 slices in an 8x4 atlas, with wrapped borders for bilinear XY sampling.
 float cloudNoise(vec3 p) {
@@ -62,7 +66,9 @@ void fragment() {
         float shade=cloudDensity(p+u_light*(u_settings.y*0.18),false);
         float light=exp(-shade*u_settings.x*u_settings.y*0.7);
         float opacity=1.0-exp(-density*u_settings.x*ds);
-        radiance+=transmittance*opacity*mix(u_shadow,u_color,light);
+        vec3 sampleRadiance=rune_height_fog(mix(u_shadow,u_color,light),u_camera,p-u_camera,false,
+                                           u_fog_color,u_fog_params,u_upper_fog_color,u_upper_fog_params);
+        radiance+=transmittance*opacity*sampleRadiance;
         transmittance*=1.0-opacity;
     }
     ALPHA=1.0-transmittance;

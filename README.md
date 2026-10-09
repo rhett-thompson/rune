@@ -52,7 +52,7 @@ their JSON fields and defaults, dependencies, runtime behavior, and linked guide
 - [3D trigger zones](docs/triggers-3d.md): box/sphere volumes, layer filtering, and enter/stay/exit events for characters and colliders. Try the third-person checkpoint and hazard.
 - [Animation transitions](docs/animation-transitions.md): queued sprite clips and skeletal pose blends.
 - [3D post processing](docs/post-processing.md): scene/camera profiles, distance and height fog, screen-space light shafts, bloom, tone mapping, occlusion, focus, and hot reload. Try [Post Processing 3D](examples/post_processing_3d/README.md).
-- [Cloud volumes](docs/cloud-volumes.md): bounded 3D density, ray-marched opacity, directional shading, and opaque-depth occlusion.
+- [Cloud volumes](docs/cloud-volumes.md): bounded 3D density, ray-marched opacity, directional shading, opaque-depth occlusion, and height fog at cloud sample distances.
 
 - raylib-backed engine lifecycle and registered update/draw systems;
 - JSON projects, scenes, prefabs, materials, tilesets, sprite animations, input mappings, and schemas;

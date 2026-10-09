@@ -1,5 +1,5 @@
 #!/bin/sh
-# Export and build the pinned native light and shader modules; never edit a checkout.
+# Export and build the pinned native light, shader, and draw modules; never edit a checkout.
 set -eu
 usage() { printf '%s\n' 'Usage: tools/build_r3d_shadows.sh --r3d-source <checkout> --raylib-headers <directory> [--zig <executable>] [--python <Python 3 executable>] [--target Linux]'; }
 fail() { printf 'Error: %s\n' "$*" >&2; exit 1; }
@@ -32,7 +32,7 @@ zig_version=$("$zig" version)
 case "$("$python" --version)" in 'Python 3.'*) ;; *) fail 'Python 3 is required to embed the pinned shader sources.' ;; esac
 r3d_source=$(CDPATH= cd -- "$r3d_source" && pwd -P)
 raylib_headers=$(CDPATH= cd -- "$raylib_headers" && pwd -P)
-for header in raylib.h raymath.h; do
+for header in raylib.h raymath.h rlgl.h; do
     expected=$(pin "$header" | tr 'A-F' 'a-f')
     [ -n "$expected" ] && [ "$(sha256sum "$raylib_headers/$header" | awk '{print $1}')" = "$expected" ] || fail "Header does not match the pinned raylib revision: $raylib_headers/$header"
 done
@@ -52,7 +52,10 @@ git -C "$work/r3d" apply --reverse --check "$native_root/receiver-plane.patch"
 git -C "$work/r3d" apply --check "$native_root/ssao-reconstruction.patch"
 git -C "$work/r3d" apply "$native_root/ssao-reconstruction.patch"
 git -C "$work/r3d" apply --reverse --check "$native_root/ssao-reconstruction.patch"
-cp "$raylib_headers/raylib.h" "$raylib_headers/raymath.h" "$work/headers/"
+git -C "$work/r3d" apply --check "$native_root/pre-transparency.patch"
+git -C "$work/r3d" apply "$native_root/pre-transparency.patch"
+git -C "$work/r3d" apply --reverse --check "$native_root/pre-transparency.patch"
+cp "$raylib_headers/raylib.h" "$raylib_headers/raymath.h" "$raylib_headers/rlgl.h" "$work/headers/"
 cp "$native_root/r3d_config.h" "$work/headers/r3d_config.h"
 "$python" "$root/tools/generate_r3d_shader_headers.py" --source "$work/r3d" --output "$work/generated"
 export ZIG_GLOBAL_CACHE_DIR=$root/build/zig-cache
@@ -60,7 +63,10 @@ export ZIG_GLOBAL_CACHE_DIR=$root/build/zig-cache
     "-I$work/headers" "-I$work/r3d/include" "-I$work/r3d/external/glad" -o "$work/shadows.o"
 "$zig" cc -target x86_64-linux-gnu -c "$work/r3d/src/modules/r3d_shader.c" -O2 -g0 -fPIC -DNDEBUG -D_CRT_SECURE_NO_WARNINGS -std=c11 \
     "-I$work/headers" "-I$work/r3d/include" "-I$work/r3d/external/glad" "-I$work/generated" -o "$work/receiver_shader.o"
+"$zig" cc -target x86_64-linux-gnu -c "$work/r3d/src/r3d_draw.c" -O2 -g0 -fPIC -DNDEBUG -D_CRT_SECURE_NO_WARNINGS -std=c11 \
+    "-I$work/headers" "-I$work/r3d/include" "-I$work/r3d/external/glad" "-I$work/generated" -o "$work/pre_transparency.o"
 mkdir -p "$native_root/linux"
 cp "$work/shadows.o" "$native_root/linux/shadows.o"
 cp "$work/receiver_shader.o" "$native_root/linux/receiver_shader.o"
-sha256sum "$native_root/linux/shadows.o" "$native_root/linux/receiver_shader.o"
+cp "$work/pre_transparency.o" "$native_root/linux/pre_transparency.o"
+sha256sum "$native_root/linux/shadows.o" "$native_root/linux/receiver_shader.o" "$native_root/linux/pre_transparency.o"

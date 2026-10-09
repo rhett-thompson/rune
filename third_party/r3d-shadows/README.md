@@ -1,10 +1,11 @@
-# Stable R3D directional shadows and SSAO
+# Stable R3D directional shadows, SSAO, and atmospheric composition
 
-This is an altered build of R3D's native light and shader modules. The exact
+This is an altered build of R3D's native light, shader, and draw modules. The exact
 changes are in [stable-projection.patch](stable-projection.patch),
-[receiver-plane.patch](receiver-plane.patch), and
-[ssao-reconstruction.patch](ssao-reconstruction.patch). Rune's bridge loads the included
-objects on Windows AMD64 and Linux AMD64. They replace two members of the
+[receiver-plane.patch](receiver-plane.patch),
+[ssao-reconstruction.patch](ssao-reconstruction.patch), and
+[pre-transparency.patch](pre-transparency.patch). Rune's bridge loads the included
+objects on Windows AMD64 and Linux AMD64. They replace three members of the
 bundled native archive without modifying the r3d-odin submodule or its bindings.
 Other targets retain the upstream shadow and screen-space sampling behavior.
 
@@ -58,6 +59,17 @@ fades because of numerical rejection alone. The sampling and lighting settings
 remain authored values; animated lenses can still use Rune's separate
 `ssao_reference_fovy` screen-radius correction.
 
+The draw module provides a Rune-owned screen shader chain after opaque surfaces,
+including unlit geometry, and before transparent blending. Rune's bridge orders
+the moon disk, screen-space shafts, and height fog in this chain; volumetric
+clouds apply height fog at their actual ray-march sample distances. Public
+`SCENE` screen effects still run after transparent rendering. The chain stores
+at most four shader pointers outside
+the pinned native core state, preserving the public screen-stage enum and all
+private module layouts. With an empty chain, the original pass order is retained.
+Scene-target swaps return the processed image to transparent rendering, and
+transparent surfaces continue to test opaque depth without writing it.
+
 ## Rebuild
 
 The build shares Rune's exact R3D, raylib header, and Zig pins in
@@ -66,13 +78,14 @@ The build shares Rune's exact R3D, raylib header, and Zig pins in
 `66315303455641dc4f097630c14d3adb56ba2a48`, and Zig 0.15.2.
 The private core and shader states use the pinned CMake defaults recorded in
 [r3d_config.h](r3d_config.h), including `R3D_MAX_SCREEN_SHADERS=4`. Rebuild and
-revalidate both objects when upgrading the bundled native library. The build
-applies the three patches in the order listed above.
+revalidate all three objects when upgrading the bundled native library. The build
+applies the four patches in the order listed above.
 
 Ordinary Odin builds use the checked-in objects. Rebuilding exports the pinned
 revision into a fresh directory under `build/`, verifies the raylib header
-hashes and compiler version, and applies only the recorded patches. It preserves
-the source checkout and publishes objects only after all requested builds pass.
+hashes (including `rlgl.h`) and compiler version, and applies only the recorded
+patches. It preserves the source checkout and publishes objects only after all
+requested builds pass.
 Python 3 is required for the pinned upstream GLSL embedding scripts; no Python
 packages are required. Ordinary builds do not need Python or Zig.
 
@@ -93,9 +106,9 @@ never replace the same-named scene entry point.
 ## Validation
 
 ```powershell
-odin build tools/light_shadow_validation -collection:rune=rune -collection:r3d=third_party/r3d-odin -linker:msvc -out:build/light_shadow_validation.exe
+odin build tools/light_shadow_validation -o:none -thread-count:2 -collection:rune=rune -collection:r3d=third_party/r3d-odin -linker:msvc -out:build/light_shadow_validation.exe
 ./build/light_shadow_validation.exe --runtime
-odin build tools/shadow_render_probe -collection:rune=rune -collection:r3d=third_party/r3d-odin -linker:msvc -out:build/shadow_render_probe.exe
+odin build tools/shadow_render_probe -o:none -thread-count:2 -collection:rune=rune -collection:r3d=third_party/r3d-odin -linker:msvc -out:build/shadow_render_probe.exe
 ./build/shadow_render_probe.exe build/shadow-render-probe
 ```
 
@@ -116,6 +129,12 @@ shading through FOV animation. The separate
 grazing floor surfaces through even, odd, and portrait render sizes, comparing
 raw white SSAO with the final shaded output. A clean raw buffer must not darken
 the corresponding surface during upsampling.
+
+The [atmosphere checks](../../docs/cloud-volumes.md#validation) provide focused
+Windows/Linux build and runtime commands for cloud depth, both height-fog
+layers, moon/fog composition, and screen-space shafts. Windows runtime checks
+pass; the Linux draw object is cross-compiled, with Linux runtime verification
+still required.
 
 R3D's [zlib license](../r3d-importer/LICENSE.r3d) and the
 [raylib/raymath notices](../r3d-importer/README.md#notices) apply to this altered

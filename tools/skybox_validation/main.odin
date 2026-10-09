@@ -380,7 +380,7 @@ validate_moon_disk :: proc(ctx: ^bridge.Context, w: ^ecs.World, manager: ^assets
 	defer rl.UnloadImage(blocked)
 	assert(rl.GetImageColor(blocked,160,90).r < 5, "foreground geometry occludes the moon")
 	assert(ecs.destroy_entity(w,blocker))
-	// Both SCENE effects must execute: height fog attenuates the moon, rather
+	// Both atmospheric effects must execute: height fog attenuates the moon, rather
 	// than replacing its shader chain or drawing the moon over the fog.
 	post := ecs.create_entity(w)
 	profile := ecs.default_post_processing()

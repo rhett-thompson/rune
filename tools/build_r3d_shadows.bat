@@ -4,7 +4,7 @@ setlocal EnableExtensions DisableDelayedExpansion
 cscript //nologo //E:JScript "%~f0" %*
 exit /b %errorlevel%
 */
-// Export and build the pinned native light and shader modules; never edit a checkout.
+// Export and build the pinned native light, shader, and draw modules; never edit a checkout.
 var fs = new ActiveXObject("Scripting.FileSystemObject"), shell = new ActiveXObject("WScript.Shell");
 function fail(message) { throw new Error(message); }
 function read(path) { var f = fs.OpenTextFile(path, 1), text = f.AtEndOfStream ? "" : f.ReadAll(); f.Close(); return text; }
@@ -52,7 +52,7 @@ try {
     if (zigVersion != pin(pins, "zig")) fail("Expected Zig " + pin(pins, "zig") + "; found '" + zigVersion + "'.");
     if (!/^Python 3\./.test(run([options.python, "--version"]))) fail("Python 3 is required to embed the pinned shader sources.");
     var r3dSource = directory(options.r3d), raylibHeaders = directory(options.headers);
-    var headers = ["raylib.h", "raymath.h"];
+    var headers = ["raylib.h", "raymath.h", "rlgl.h"];
     for (var i = 0; i < headers.length; ++i) {
         var path = fs.BuildPath(raylibHeaders, headers[i]);
         if (hash(path) != pin(pins, headers[i]).toUpperCase()) fail("Header does not match the pinned raylib revision: " + path);
@@ -76,6 +76,10 @@ try {
     run(["git", "-C", source, "apply", "--check", ssaoPatch]);
     run(["git", "-C", source, "apply", ssaoPatch]);
     run(["git", "-C", source, "apply", "--reverse", "--check", ssaoPatch]);
+    var transparencyPatch = fs.BuildPath(nativeRoot, "pre-transparency.patch");
+    run(["git", "-C", source, "apply", "--check", transparencyPatch]);
+    run(["git", "-C", source, "apply", transparencyPatch]);
+    run(["git", "-C", source, "apply", "--reverse", "--check", transparencyPatch]);
     var headerRoot = fs.BuildPath(work, "headers"); mkdir(headerRoot);
     for (var i = 0; i < headers.length; ++i) fs.CopyFile(fs.BuildPath(raylibHeaders, headers[i]), fs.BuildPath(headerRoot, headers[i]), true);
     fs.CopyFile(fs.BuildPath(nativeRoot, "r3d_config.h"), fs.BuildPath(headerRoot, "r3d_config.h"), true);
@@ -85,11 +89,11 @@ try {
     var platforms = target == "all" ? ["windows", "linux"] : [target], outputs = [];
     for (var i = 0; i < platforms.length; ++i) {
         var windows = platforms[i] == "windows";
-        var modules = [{source: "r3d_light.c", output: "shadows"}, {source: "r3d_shader.c", output: "receiver_shader"}];
+        var modules = [{source: "modules/r3d_light.c", output: "shadows"}, {source: "modules/r3d_shader.c", output: "receiver_shader"}, {source: "r3d_draw.c", output: "pre_transparency"}];
         for (var m = 0; m < modules.length; ++m) {
             var name = modules[m].output + (windows ? ".obj" : ".o");
             var object = fs.BuildPath(work, name);
-            var compile = [options.zig, "cc", "-target", windows ? "x86_64-windows-msvc" : "x86_64-linux-gnu", "-c", fs.BuildPath(source, "src/modules/" + modules[m].source), "-O2", "-g0", "-DNDEBUG", "-D_CRT_SECURE_NO_WARNINGS", "-std=c11", "-I" + headerRoot, "-I" + fs.BuildPath(source, "include"), "-I" + fs.BuildPath(source, "external/glad"), "-I" + generated, "-o", object];
+            var compile = [options.zig, "cc", "-target", windows ? "x86_64-windows-msvc" : "x86_64-linux-gnu", "-c", fs.BuildPath(source, "src/" + modules[m].source), "-O2", "-g0", "-DNDEBUG", "-D_CRT_SECURE_NO_WARNINGS", "-std=c11", "-I" + headerRoot, "-I" + fs.BuildPath(source, "include"), "-I" + fs.BuildPath(source, "external/glad"), "-I" + generated, "-o", object];
             if (!windows) compile.push("-fPIC");
             run(compile);
             outputs.push({source: object, directory: fs.BuildPath(nativeRoot, platforms[i]), name: name});

@@ -1,0 +1,135 @@
+diff --git a/src/r3d_draw.c b/src/r3d_draw.c
+index 3cd4714..e760b09 100644
+--- a/src/r3d_draw.c
++++ b/src/r3d_draw.c
+@@ -91,14 +91,16 @@ static void pass_deferred_compose(r3d_target_t sceneTarget, r3d_target_t ssrSour
+ static void pass_deferred_fog(r3d_target_t sceneTarget);
+ static void pass_deferred_volumetric_fog(r3d_target_t sceneTarget);
+ 
+-static void pass_scene_forward(r3d_target_t sceneTarget);
++static r3d_target_t pass_scene_forward(r3d_target_t sceneTarget);
+ static void pass_scene_background(r3d_target_t sceneTarget);
+ 
++static r3d_target_t pass_pre_transparency(r3d_target_t sceneTarget);
+ static r3d_target_t pass_post_setup(r3d_target_t sceneTarget);
+ static r3d_target_t pass_post_dof(r3d_target_t sceneTarget);
+ static r3d_target_t pass_post_bloom(r3d_target_t sceneTarget);
+ static r3d_target_t pass_post_auto_exposure(r3d_target_t sceneTarget);
+ static r3d_target_t pass_post_screen(R3D_ScreenShaderStage stage, r3d_target_t sceneTarget);
++static r3d_target_t pass_screen_chain(R3D_ScreenShader** shaders, int count, r3d_target_t sceneTarget);
+ static r3d_target_t pass_post_output(r3d_target_t sceneTarget);
+ static r3d_target_t pass_post_fxaa(r3d_target_t sceneTarget);
+ static r3d_target_t pass_post_smaa(r3d_target_t sceneTarget);
+@@ -112,6 +114,20 @@ static void cleanup_after_render(void);
+ // PUBLIC API
+ // ========================================
+ 
++// Rune-owned insertion point. Keep storage separate from R3D's pinned core
++// state so the bundled archive's public stages and private layouts stay intact.
++static R3D_ScreenShader* PRE_TRANSPARENCY_SHADERS[R3D_MAX_SCREEN_SHADERS];
++
++void Rune_R3D_SetPreTransparencyShaderChain(R3D_ScreenShader** shaders, int count)
++{
++    int capacity = R3D_ARRAY_SIZE(PRE_TRANSPARENCY_SHADERS);
++    if (count > capacity) count = capacity;
++    for (int i = 0; i < capacity; i++)
++    {
++        PRE_TRANSPARENCY_SHADERS[i] = shaders != NULL && i < count ? shaders[i] : NULL;
++    }
++}
++
+ void R3D_Begin(Camera3D camera)
+ {
+     R3D_BeginEx(R3D_CameraFromRL(camera));
+@@ -260,7 +276,11 @@ void R3D_End(void)
+ 
+     if (r3d_render_has_forward() || r3d_render_has_prepass())
+     {
+-        pass_scene_forward(sceneTarget);
++        sceneTarget = pass_scene_forward(sceneTarget);
++    }
++    else
++    {
++        sceneTarget = pass_pre_transparency(sceneTarget);
+     }
+ 
+     /* --- Applying effects over the scene and final blit --- */
+@@ -2396,7 +2416,7 @@ void pass_deferred_volumetric_fog(r3d_target_t sceneTarget)
+     R3D_RENDER_SCREEN();
+ }
+ 
+-void pass_scene_forward(r3d_target_t sceneTarget)
++r3d_target_t pass_scene_forward(r3d_target_t sceneTarget)
+ {
+     R3D_TARGET_BIND(true, sceneTarget);
+ 
+@@ -2417,6 +2437,14 @@ void pass_scene_forward(r3d_target_t sceneTarget)
+         }
+     }
+ 
++    // Opaque unlit surfaces contribute to the image/depth before atmospheric
++    // passes. Transparent surfaces then blend over that processed background.
++    sceneTarget = pass_pre_transparency(sceneTarget);
++    R3D_TARGET_BIND(true, sceneTarget);
++    r3d_driver_enable(GL_STENCIL_TEST);
++    r3d_driver_enable(GL_DEPTH_TEST);
++    r3d_driver_enable(GL_BLEND);
++
+     /* --- Render all transparent in order - (prepass/alpha treated as same) --- */
+ 
+     r3d_driver_set_depth_mask(GL_FALSE);
+@@ -2438,6 +2466,7 @@ void pass_scene_forward(r3d_target_t sceneTarget)
+ 
+     r3d_driver_set_depth_offset(0.0f, 0.0f);
+     r3d_driver_set_depth_range(0.0f, 1.0f);
++    return sceneTarget;
+ }
+ 
+ void pass_scene_background(r3d_target_t sceneTarget)
+@@ -2475,6 +2504,23 @@ void pass_scene_background(r3d_target_t sceneTarget)
+     R3D_RENDER_SCREEN();
+ }
+ 
++r3d_target_t pass_pre_transparency(r3d_target_t sceneTarget)
++{
++    bool hasShader = false;
++    for (int i = 0; i < R3D_ARRAY_SIZE(PRE_TRANSPARENCY_SHADERS); i++)
++    {
++        if (PRE_TRANSPARENCY_SHADERS[i] != NULL) hasShader = true;
++    }
++    if (!hasShader) return sceneTarget;
++
++    sceneTarget = pass_post_setup(sceneTarget);
++    sceneTarget = pass_screen_chain(PRE_TRANSPARENCY_SHADERS,
++        R3D_ARRAY_SIZE(PRE_TRANSPARENCY_SHADERS), sceneTarget);
++    // Post passes return the next destination, whereas scene rendering takes
++    // the target containing the latest image.
++    return r3d_target_swap_scene(sceneTarget);
++}
++
+ r3d_target_t pass_post_setup(r3d_target_t sceneTarget)
+ {
+     r3d_driver_disable(GL_STENCIL_TEST);
+@@ -2698,13 +2744,19 @@ r3d_target_t pass_post_auto_exposure(r3d_target_t sceneTarget)
+ 
+ r3d_target_t pass_post_screen(R3D_ScreenShaderStage stage, r3d_target_t sceneTarget)
+ {
+-    for (int i = 0; i < R3D_ARRAY_SIZE(R3D.screenShaders[stage]); i++)
++    return pass_screen_chain(R3D.screenShaders[stage],
++        R3D_ARRAY_SIZE(R3D.screenShaders[stage]), sceneTarget);
++}
++
++r3d_target_t pass_screen_chain(R3D_ScreenShader** shaders, int count, r3d_target_t sceneTarget)
++{
++    for (int i = 0; i < count; i++)
+     {
+-        R3D_ScreenShader* shader = R3D.screenShaders[stage][i];
++        R3D_ScreenShader* shader = shaders[i];
+         if (shader == NULL) continue;
+ 
+         R3D_TARGET_BIND_AND_SWAP_SCENE(sceneTarget);
+-        R3D_SHADER_USE_CUSTOM(R3D.screenShaders[stage][i], post.screen);
++        R3D_SHADER_USE_CUSTOM(shader, post.screen);
+ 
+         R3D_SHADER_BIND_SAMPLER_CUSTOM(shader, post.screen, uSceneTex, r3d_target_get(sceneTarget));
+         R3D_SHADER_BIND_SAMPLER_CUSTOM(shader, post.screen, uNormalTex, r3d_target_get_level(R3D_TARGET_NORMAL, 0));

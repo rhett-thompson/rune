@@ -175,11 +175,16 @@ The moon disk is evaluated at the scene's render resolution with an antialiased
 edge, independently of `Skybox.resolution`. The cubemap stores only its atmospheric
 haze. This keeps small moons sharp without increasing the cost of atmospheric
 integration across the whole sky. The disk retains atmospheric extinction, sky
-energy, fog influence, bloom, and tonemapping. Scene depth masks foreground objects;
-transparent materials that do not write depth do not mask this pass.
-The bridge uses r3d's `SCENE` screen-shader stage for the disk during `draw_scene`,
-followed by optional height fog, and clears it afterward; custom screen effects
-should use the other stages.
+energy, fog influence, bloom, and tonemapping. Opaque scene depth masks foreground
+objects. On Windows/Linux AMD64, the disk runs after opaque surfaces, including
+unlit geometry, followed by optional screen-space shafts and height fog, then
+transparent blending. [Cloud volumes](cloud-volumes.md) and other transparent
+surfaces can cover the disk through alpha blending. This bridge-owned chain is
+cleared after each render; public r3d `SCENE` screen effects run afterward.
+Other targets retain the previous `SCENE` chain, where transparent materials
+without depth writes do not mask the moon. See
+[post processing](post-processing.md#height-fog) for height-fog composition and
+[atmosphere validation](cloud-volumes.md#validation) for focused checks.
 
 Set `moon` to `""` to remove it from the sky, or disable its light entity to remove
 both its sky contribution and scene lighting. An invalid optional moon reports a

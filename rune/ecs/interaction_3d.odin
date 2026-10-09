@@ -61,7 +61,11 @@ find_interaction_3d :: proc(world:^World, actor:Entity, origin,forward:[3]f32) -
 	min_dot:=math.cos(config.half_angle*f32(math.PI/180))
 	best:=Interaction_Focus_3D{}
 	best_dot:f32=-2
-	for entity in world.typed_component_data["Interactable3D"] {
+	// Scenes may have an actor before any interaction targets have been added.
+	// Read the optional nested map before ranging; a missing bucket has no data.
+	targets,has_targets:=world.typed_component_data["Interactable3D"]
+	if !has_targets || len(targets)==0 {return {}}
+	for entity in targets {
 		if entity==actor || !is_enabled(world,entity) {continue}
 		value,ok:=get(world,entity,Interactable3D)
 		mask,_:=entity_layer_mask(world,entity)

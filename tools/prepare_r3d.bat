@@ -58,10 +58,11 @@ try {
         var diff = command(git.concat(["-c", "core.autocrlf=true", "-c", "core.safecrlf=false", "-c", "diff.suppressBlankEmpty=false", "diff", "--binary", "--full-index", "--no-ext-diff", "--no-textconv", "--no-color", "--no-renames", "--no-relative", "--src-prefix=a/", "--dst-prefix=b/", "--unified=3", "--inter-hunk-context=0", "--diff-algorithm=myers", "--indent-heuristic", "-O" + orderPath, "HEAD"])).output;
         if (diff.length) {
             if (diff !== patchText) fail("R3D tracked changes differ from Rune's owned binding patch. Preserve your changes before preparing it.");
-            command(git.concat(["-c", "core.autocrlf=true", "apply", "--reverse", "--check", patch]));
+            command(git.concat(["-c", "core.autocrlf=true", "-c", "core.safecrlf=false", "apply", "--reverse", "--check", patch]));
         } else {
-            command(git.concat(["apply", "--check", patch]));
-            if (!checkOnly) { command(git.concat(["apply", patch])); WScript.Echo("Applied Rune's pinned R3D binding corrections."); }
+            // Match diff normalization independently of the user's Git settings.
+            command(git.concat(["-c", "core.autocrlf=true", "-c", "core.safecrlf=false", "apply", "--check", patch]));
+            if (!checkOnly) { command(git.concat(["-c", "core.autocrlf=true", "-c", "core.safecrlf=false", "apply", patch])); WScript.Echo("Applied Rune's pinned R3D binding corrections."); }
         }
     } else {
         // Exports often live inside another checkout's build directory.

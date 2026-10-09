@@ -15,6 +15,7 @@ Cloud_Volume_Renderer :: struct {
 	attempted: bool,
 	camera: rl.Camera3D,
 	light: [3]f32,
+	fog: Height_Fog_Uniforms,
 }
 
 release_cloud_volumes :: proc(ctx: ^Context) {
@@ -60,7 +61,7 @@ load_cloud_noise :: proc() -> rl.Texture2D {
 	return texture
 }
 
-prepare_cloud_volumes :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.Asset_Manager, camera: rl.Camera3D) {
+prepare_cloud_volumes :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.Asset_Manager, camera: rl.Camera3D, camera_entity:ecs.Entity) {
 	if ctx.cloud_volumes_disabled {return}
 	c:=&ctx.cloud_volumes
 	if c.generation!=world.generation {
@@ -76,7 +77,7 @@ prepare_cloud_volumes :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets
 	if !c.attempted {
 		c.attempted=true
 		c.aliases=make(map[ecs.Entity]^r3d.SurfaceShader)
-		source::#load("cloud_volume.glsl",string)
+		source::#load("height_fog_common.glsl",string)+#load("cloud_volume.glsl",string)
 		c.shader=r3d.LoadSurfaceShaderFromMemory(strings.clone_to_cstring(source,context.temp_allocator))
 		if c.shader!=nil {c.noise=load_cloud_noise()}
 		if c.shader==nil || c.noise.id==0 {
@@ -85,6 +86,9 @@ prepare_cloud_volumes :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets
 	}
 	if c.shader==nil || c.noise.id==0 {return}
 	c.camera=camera
+	when PRE_TRANSPARENCY_SHADERS_SUPPORTED {
+		c.fog=height_fog_uniforms(world,camera_entity)
+	}
 	c.light={0.4,0.8,0.3}
 	strongest:f32
 	for entity,light in world.directional_lights {
@@ -121,6 +125,10 @@ draw_cloud_volume :: proc(ctx: ^Context, world: ^ecs.World, entity: ecs.Entity, 
 	r3d.SetSurfaceShaderUniform(shader,"u_offset",&v.noise_offset)
 	r3d.SetSurfaceShaderUniform(shader,"u_settings",&settings)
 	r3d.SetSurfaceShaderUniform(shader,"u_steps",&v.steps)
+	r3d.SetSurfaceShaderUniform(shader,"u_fog_color",&c.fog.lower_color)
+	r3d.SetSurfaceShaderUniform(shader,"u_fog_params",&c.fog.lower_params)
+	r3d.SetSurfaceShaderUniform(shader,"u_upper_fog_color",&c.fog.upper_color)
+	r3d.SetSurfaceShaderUniform(shader,"u_upper_fog_params",&c.fog.upper_params)
 	r3d.SetSurfaceShaderSampler(shader,"u_noise",c.noise)
 	r3d.SetSurfaceShaderSampler(shader,"u_depth",r3d.GetBufferDepth())
 	material:=r3d.GetDefaultMaterial()
