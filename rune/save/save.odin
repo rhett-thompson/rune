@@ -150,7 +150,8 @@ register_named :: proc(manager: ^Manager, registry: ^ecs.Component_Registry, nam
 	if !manager.initialized || !ecs.has_component(registry, name) {return fail(manager, "Unknown save component '%s'", name)}
 	if (adapter.capture == nil) != (adapter.restore == nil) {return fail(manager, "Save adapters require both capture and restore")}
 	descriptor := registry.components[name]
-	if adapter.capture == nil && descriptor.type_id != nil && !automatic_type_safe(type_info_of(descriptor.type_id)) {
+	visited := make(map[typeid]bool, context.temp_allocator)
+	if adapter.capture == nil && descriptor.type_id != nil && !automatic_type_safe(type_info_of(descriptor.type_id), &visited) {
 		return fail(manager, "Save component '%s' needs an adapter; use stable Entity_Ref values instead of handles or pointers", name)
 	}
 	if _, exists := manager.policies[name]; exists {return fail(manager, "Duplicate save policy '%s'", name)}
@@ -221,10 +222,10 @@ globals :: proc(manager: ^Manager) -> json.Value {return manager.checkpoint.docu
 // Automatic persistence must never encode world-generation handles or native
 // pointers. JSON-tagged exclusions are respected. Recursive pointer types must
 // use an adapter, which also avoids recursion during registration.
-automatic_type_safe :: proc(info: ^reflect.Type_Info, visited: map[typeid]bool = nil) -> bool {
+// Share the map header so inserts and growth remain visible to every frame.
+// Passing a map by value leaves ancestor lengths and storage pointers stale.
+automatic_type_safe :: proc(info: ^reflect.Type_Info, visited: ^map[typeid]bool) -> bool {
 	if info.id == typeid_of(ecs.Entity) {return false}
-	visited := visited
-	if visited == nil {visited = make(map[typeid]bool, context.temp_allocator)}
 	if visited[info.id] {return true}
 	visited[info.id] = true
 	info := reflect.type_info_base(info)

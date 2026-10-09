@@ -46,7 +46,8 @@ capture :: proc(manager: ^Manager, world: ^ecs.World) -> bool {
 			// component themselves when restoring a runtime-spawned entity.
 			if adapter.capture == nil {
 				descriptor := world.component_descriptors[name]
-				if descriptor.type_id != nil && !automatic_type_safe(type_info_of(descriptor.type_id)) {return fail(manager, "Saved spawn '%s.%s' requires a custom adapter", id, name)}
+				visited := make(map[typeid]bool, context.temp_allocator)
+				if descriptor.type_id != nil && !automatic_type_safe(type_info_of(descriptor.type_id), &visited) {return fail(manager, "Saved spawn '%s.%s' requires a custom adapter", id, name)}
 				value, captured := ecs.runtime_component_json(world, entity, name, a)
 				if !captured {return fail(manager, "Could not save '%s.%s'", id, name)}
 				record.components[owned_name] = value
