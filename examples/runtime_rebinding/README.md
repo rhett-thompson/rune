@@ -11,7 +11,7 @@ Run from the repository root on Windows:
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin run examples/runtime_rebinding -linker:msvc -collection:rune=rune "-out:build/runtime_rebinding$exe"
+odin run examples/runtime_rebinding -o:none -linker:msvc -collection:rune=rune "-out:build/runtime_rebinding$exe"
 ```
 
 [All examples](../README.md)

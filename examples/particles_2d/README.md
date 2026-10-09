@@ -11,7 +11,7 @@ Run from the repository root on Windows:
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin run examples/particles_2d -linker:msvc -collection:rune=rune "-out:build/particles_2d$exe"
+odin run examples/particles_2d -o:none -linker:msvc -collection:rune=rune "-out:build/particles_2d$exe"
 ```
 
 [All examples](../README.md)

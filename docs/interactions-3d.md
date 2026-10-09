@@ -88,5 +88,5 @@ Its HUD uses the shared Inter font. Run regression
 checks from the repository root:
 
 ```powershell
-odin test examples/third_person_3d -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin -out:build/interaction_tests.exe
+odin test examples/third_person_3d -o:none -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin -out:build/interaction_tests.exe
 ```

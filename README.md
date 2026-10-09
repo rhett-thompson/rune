@@ -164,12 +164,15 @@ Both scripts find the checkout from their own location and put the launcher in
 `build/`. The Linux launcher needs Odin on `PATH` and a desktop session; it does
 not require PowerShell. See [Linux development](docs/linux.md) for dependencies.
 
+The launcher, validation helpers, and documented example build/run/test commands
+use `-o:none` to disable compiler optimization for faster iteration.
+
 To invoke Odin directly from the checkout with Windows' built-in PowerShell:
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin run examples/launcher -linker:msvc -collection:rune=rune "-out:build/launcher$exe"
+odin run examples/launcher -o:none -linker:msvc -collection:rune=rune "-out:build/launcher$exe"
 ```
 
 The other direct Odin commands below use this `build/` directory and `$exe`
@@ -179,7 +182,7 @@ Use the category tabs to filter examples. Left/Right switches tabs; Up/Down or
 the mouse wheel browses the list; Enter or a click runs the selected example.
 The launcher keeps the active category when the example closes. Each example
 remains an independent Odin program and can still be run directly with its
-usual `odin run examples/<name> -collection:rune=rune` command. Launcher
+usual `odin run examples/<name> -o:none -collection:rune=rune` command. Launcher
 entries and descriptions live in `examples/examples.json`. See the
 [example guide](examples/README.md) for a learning order, controls, and files to edit.
 
@@ -203,7 +206,7 @@ and runs from the correct working directory. Engine paths containing spaces work
 The project-creation helper refuses to overwrite an existing directory.
 
 Pass `--release` to the generated `build.bat` or `build.sh` for an optimized `-o:speed` build.
-Use optimized builds when profiling; Odin's default build uses minimal optimization.
+Use optimized builds when profiling; generated projects use Odin's default minimal optimization.
 Runtime checks remain enabled, and hot reload still follows `project.json`.
 
 To run the template directly from the engine checkout:
@@ -447,7 +450,7 @@ scene JSON, then uses a ping-pong tween to animate its position and color.
 Left-click to cycle through easing equations:
 
 ```powershell
-odin run examples/tweening_2d -linker:msvc -collection:rune=rune "-out:build/tweening_2d$exe"
+odin run examples/tweening_2d -o:none -linker:msvc -collection:rune=rune "-out:build/tweening_2d$exe"
 ```
 
 [`scene_transition_2d`](examples/scene_transition_2d) demonstrates replacing
@@ -455,7 +458,7 @@ the runtime `World` with another JSON scene. A left click fades to black,
 loads the next scene, then fades back in:
 
 ```powershell
-odin run examples/scene_transition_2d -linker:msvc -collection:rune=rune "-out:build/scene_transition_2d$exe"
+odin run examples/scene_transition_2d -o:none -linker:msvc -collection:rune=rune "-out:build/scene_transition_2d$exe"
 ```
 
 [`third_person_3d`](examples/third_person_3d) demonstrates a code-driven
@@ -470,7 +473,7 @@ character follows the motor's crouch height; the camera pulls inward around
 obstacles. See the [example guide](examples/third_person_3d/README.md) for tuning.
 
 ```powershell
-odin run examples/third_person_3d -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin "-out:build/third_person_3d$exe"
+odin run examples/third_person_3d -o:none -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin "-out:build/third_person_3d$exe"
 ```
 
 [`planetary_3d`](examples/planetary_3d) takes the same built-in capsule motor
@@ -480,7 +483,7 @@ It includes a gravity-following third-person camera, footsteps, and landing audi
 See the [Pocket Planets guide](examples/planetary_3d/README.md).
 
 ```powershell
-odin run examples/planetary_3d -linker:msvc -collection:rune=rune -out:build/planetary_3d.exe
+odin run examples/planetary_3d -o:none -linker:msvc -collection:rune=rune -out:build/planetary_3d.exe
 ```
 
 ## Clay UI
@@ -492,7 +495,7 @@ continues while gameplay is paused, and draw it in `System.draw_ui`. The
 resizable pause-menu example:
 
 ```powershell
-odin build examples/clay_ui -linker:msvc -collection:rune=rune -out:build/clay_ui.exe
+odin build examples/clay_ui -o:none -linker:msvc -collection:rune=rune -out:build/clay_ui.exe
 ./build/clay_ui.exe
 ```
 
@@ -710,7 +713,7 @@ between arrows and `A`/`D`; each change is saved to `input/default.input.json`,
 and later launches use the saved keys:
 
 ```powershell
-odin run examples/runtime_rebinding -linker:msvc -collection:rune=rune "-out:build/runtime_rebinding$exe"
+odin run examples/runtime_rebinding -o:none -linker:msvc -collection:rune=rune "-out:build/runtime_rebinding$exe"
 ```
 
 Mouse motion can be exposed as an axis using `"type": "mouse_delta"` and
@@ -753,7 +756,7 @@ colored lights may look different after the upgrade. Rune's public shadow update
 From the repository root on Windows:
 
 ```powershell
-odin run examples/hello_world -linker:msvc -collection:rune=rune "-out:build/hello_world$exe"
+odin run examples/hello_world -o:none -linker:msvc -collection:rune=rune "-out:build/hello_world$exe"
 ```
 
 The example loads `project.json`; `scene.load` then reads `scenes/main.scene.json` and returns its populated runtime `World`.
@@ -923,7 +926,7 @@ not require that listener to carry a camera component.
 The runnable component-loading example is available at:
 
 ```powershell
-odin run examples/audio_components -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin "-out:build/audio_components$exe"
+odin run examples/audio_components -o:none -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin "-out:build/audio_components$exe"
 ```
 
 When using the scene-owning `rune.run`, the engine updates audio automatically. Odin
@@ -1018,7 +1021,7 @@ odin run tools/component_validation -linker:msvc -collection:rune=rune "-out:bui
 The 3D sample loads a JSON scene and shows a rotating cube with a perspective camera:
 
 ```powershell
-odin run examples/hello_3d -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin "-out:build/hello_3d$exe"
+odin run examples/hello_3d -o:none -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin "-out:build/hello_3d$exe"
 ```
 
 ## JSON sprite scene
@@ -1029,7 +1032,7 @@ Edit the sprite's position, scale, or texture in `scenes/main.scene.json`
 while it runs to see hot reload:
 
 ```powershell
-odin run examples/sprite_scene_2d -linker:msvc -collection:rune=rune "-out:build/sprite_scene_2d$exe"
+odin run examples/sprite_scene_2d -o:none -linker:msvc -collection:rune=rune "-out:build/sprite_scene_2d$exe"
 ```
 
 ## Sprite-sheet animation
@@ -1072,7 +1075,7 @@ Odin systems can call `ecs.play_sprite_animation`,
 `ecs.stop_sprite_animation`. Run the complete example with:
 
 ```powershell
-odin run examples/sprite_animation_2d -linker:msvc -collection:rune=rune "-out:build/sprite_animation_2d$exe"
+odin run examples/sprite_animation_2d -o:none -linker:msvc -collection:rune=rune "-out:build/sprite_animation_2d$exe"
 ```
 
 The example animates both the coin and knight sheets. Press `Tab` to cycle the
@@ -1104,7 +1107,7 @@ rules, stable child lookup, and migration details.
 Run the multiple-instance example with:
 
 ```powershell
-odin run examples/prefabs_2d -linker:msvc -collection:rune=rune "-out:build/prefabs_2d$exe"
+odin run examples/prefabs_2d -o:none -linker:msvc -collection:rune=rune "-out:build/prefabs_2d$exe"
 ```
 
 Validate prefab scene loading without opening a window:
@@ -1310,7 +1313,7 @@ crate with a textured, lit material. Press Space to switch scenes and Tab to
 inspect the crate's material maps:
 
 ```powershell
-odin run examples/textured_model_3d -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin "-out:build/textured_model_3d$exe"
+odin run examples/textured_model_3d -o:none -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin "-out:build/textured_model_3d$exe"
 ```
 
 The bridge is intentionally small for now. Rune scene loading, ECS, input,
@@ -1415,7 +1418,7 @@ useful for scene-authored HUD text.
 Run the example with:
 
 ```powershell
-odin run examples/tilemap_2d -linker:msvc -collection:rune=rune "-out:build/tilemap_2d$exe"
+odin run examples/tilemap_2d -o:none -linker:msvc -collection:rune=rune "-out:build/tilemap_2d$exe"
 ```
 
 `TilemapCollider` uses the same grid and blocks IDs in `solid_tiles`. A solid
@@ -1497,7 +1500,7 @@ which makes jumping an explicit game-code decision. Callback-based programs may
 still call `ecs.physics_2d_update` directly. Run the example and validation:
 
 ```powershell
-odin run examples/physics_platformer_2d -linker:msvc -collection:rune=rune "-out:build/physics_platformer_2d$exe"
+odin run examples/physics_platformer_2d -o:none -linker:msvc -collection:rune=rune "-out:build/physics_platformer_2d$exe"
 odin run tools/physics_2d_validation -linker:msvc -collection:rune=rune "-out:build/physics_2d_validation$exe"
 ```
 
@@ -1533,7 +1536,7 @@ The camera-switching sample has three `Camera3D` entities loaded from JSON.
 Press `1`, `2`, or `3` to select the wide, front, or side camera:
 
 ```powershell
-odin run examples/camera_switching -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin "-out:build/camera_switching$exe"
+odin run examples/camera_switching -o:none -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin "-out:build/camera_switching$exe"
 ```
 
 ## Orbit camera
@@ -1575,7 +1578,7 @@ drag in the orbit-camera example to control the orbit, middle-drag to pan, and
 use the mouse wheel to zoom:
 
 ```powershell
-odin run examples/orbit_camera -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin "-out:build/orbit_camera$exe"
+odin run examples/orbit_camera -o:none -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin "-out:build/orbit_camera$exe"
 ```
 
 ## First-person controller
@@ -1589,7 +1592,7 @@ movement requests, runtime state, and local validation.
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin run examples/first_person_3d -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin "-out:build/first_person_3d$exe"
+odin run examples/first_person_3d -o:none -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin "-out:build/first_person_3d$exe"
 ```
 
 WASD moves, Shift sprints, Space jumps, and Ctrl crouches. Mouse movement looks
@@ -1600,7 +1603,7 @@ around; Escape releases or recaptures the cursor. F3 shows physics gizmos.
 This sample shows nested scene entities and transform inheritance: `Sun > Earth > Moon`.
 
 ```powershell
-odin run examples/solar_system -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin "-out:build/solar_system$exe"
+odin run examples/solar_system -o:none -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin "-out:build/solar_system$exe"
 ```
 
 ## Custom component updating a Transform
@@ -1642,7 +1645,7 @@ validates a replacement struct, then swaps it into the existing World while
 preserving the entity handle.
 
 ```powershell
-odin run examples/custom_mover -linker:msvc -collection:rune=rune "-out:build/custom_mover$exe"
+odin run examples/custom_mover -o:none -linker:msvc -collection:rune=rune "-out:build/custom_mover$exe"
 ```
 
 ## Tetris
@@ -1652,7 +1655,7 @@ scene, system, and input APIs. It includes all seven tetrominoes, scoring,
 levels, next-piece and ghost previews, pause, and restart:
 
 ```powershell
-odin run examples/tetris -linker:msvc -collection:rune=rune "-out:build/tetris$exe"
+odin run examples/tetris -o:none -linker:msvc -collection:rune=rune "-out:build/tetris$exe"
 ```
 
 ### Skyboxes

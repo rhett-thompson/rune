@@ -16,7 +16,7 @@ Details are decorative; terrain collision and the baked navmesh describe the gro
 From the repository root:
 
 ```powershell
-odin build examples/terrain_3d -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin -out:build/terrain_3d.exe
+odin build examples/terrain_3d -o:none -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin -out:build/terrain_3d.exe
 ./build/terrain_3d.exe
 ```
 

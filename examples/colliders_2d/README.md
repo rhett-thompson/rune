@@ -5,7 +5,7 @@ a capsule sensor, and independently offset box/circle colliders. Green outlines
 show collision geometry; white crosses mark entity origins.
 
 ```powershell
-odin build examples/colliders_2d -linker:msvc -collection:rune=rune -out:build/colliders_2d.exe
+odin build examples/colliders_2d -o:none -linker:msvc -collection:rune=rune -out:build/colliders_2d.exe
 ./build/colliders_2d.exe
 ```
 

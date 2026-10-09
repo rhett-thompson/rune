@@ -291,7 +291,7 @@ created shapes have no automatic Rune entity mapping.
 Run from the repository root:
 
 ```powershell
-odin build examples/physics_queries_2d -linker:msvc -collection:rune=rune -out:build/physics_queries_2d.exe
+odin build examples/physics_queries_2d -o:none -linker:msvc -collection:rune=rune -out:build/physics_queries_2d.exe
 ./build/physics_queries_2d.exe
 odin build tools/physics_query_validation -linker:msvc -collection:rune=rune -out:build/physics_query_validation.exe
 ./build/physics_query_validation.exe

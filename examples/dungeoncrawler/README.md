@@ -11,7 +11,7 @@ Run from the repository root on Windows:
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin run examples/dungeoncrawler -linker:msvc -collection:rune=rune "-out:build/dungeoncrawler$exe"
+odin run examples/dungeoncrawler -o:none -linker:msvc -collection:rune=rune "-out:build/dungeoncrawler$exe"
 ```
 
 [All examples](../README.md)

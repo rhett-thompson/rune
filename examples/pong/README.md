@@ -11,7 +11,7 @@ Run from the repository root on Windows:
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin run examples/pong -linker:msvc -collection:rune=rune "-out:build/pong$exe"
+odin run examples/pong -o:none -linker:msvc -collection:rune=rune "-out:build/pong$exe"
 ```
 
 [All examples](../README.md)

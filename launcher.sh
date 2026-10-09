@@ -14,4 +14,4 @@ if ! command -v odin >/dev/null 2>&1; then
 fi
 
 mkdir -p build
-exec odin run examples/launcher -collection:rune=rune -out:build/launcher
+exec odin run examples/launcher -o:none -collection:rune=rune -out:build/launcher

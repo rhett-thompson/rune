@@ -41,6 +41,9 @@ build() {
     build_name=$1
     build_package=$2
     shift 2
+    case "$build_package" in
+        examples/*) set -- -o:none "$@" ;;
+    esac
     if odin build "$build_package" -collection:rune=rune "-out:build/$build_name" "$@"; then
         echo "PASS build $build_name"
         case "$build_name" in
@@ -52,7 +55,7 @@ build() {
     fi
 }
 test_example() {
-    if ! odin test "examples/$1" -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/${1}_test"; then
+    if ! odin test "examples/$1" -o:none -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/${1}_test"; then
         fail "test $1"
     fi
 }

@@ -31,7 +31,7 @@ changes last for the session and do not write the scene file. Mouse input over
 the panel or during a slider drag is reserved for the panel.
 
 ```powershell
-odin run examples/navigation_3d -linker:msvc -collection:rune=rune
+odin run examples/navigation_3d -o:none -linker:msvc -collection:rune=rune
 ```
 
 | Control | Action |
@@ -108,5 +108,5 @@ this demo's navigation entity; `navmesh off` hides the overlay. This works throu
 the console inbox and is independent of the demo's M edge toggle and F3 gizmos.
 
 Run the demo's baking and ramp/reload regressions with
-`odin test examples/navigation_3d -collection:rune=rune` from the repository root.
+`odin test examples/navigation_3d -o:none -collection:rune=rune` from the repository root.
 

@@ -388,7 +388,7 @@ component does not load custom shader assets.
 From the repository root:
 
 ```powershell
-odin build examples/post_processing_3d -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin -out:build/post_processing_3d.exe
+odin build examples/post_processing_3d -o:none -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin -out:build/post_processing_3d.exe
 ./build/post_processing_3d.exe --console-dir=build/console/post
 ```
 

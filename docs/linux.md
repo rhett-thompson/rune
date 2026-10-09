@@ -82,7 +82,7 @@ run `bash /path/to/odin/vendor/box2d/build_box2d.sh` once before building Rune.
 ```bash
 odin version
 sh tools/validate.sh --all-examples
-odin build examples/hello_world -collection:rune=rune -out:build/hello_world
+odin build examples/hello_world -o:none -collection:rune=rune -out:build/hello_world
 ./build/hello_world
 ```
 

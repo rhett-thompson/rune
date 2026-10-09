@@ -17,7 +17,7 @@ Build from the repository root, putting the executable in `build/`:
 
 ```powershell
 $suffix = '.exe'
-odin build examples/animation_events_2d -linker:msvc -collection:rune=rune "-out:build/animation_events_2d$suffix"
+odin build examples/animation_events_2d -o:none -linker:msvc -collection:rune=rune "-out:build/animation_events_2d$suffix"
 & "./build/animation_events_2d$suffix"
 ```
 

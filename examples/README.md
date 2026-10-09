@@ -8,13 +8,16 @@ Run commands from the repository root. Keep each example in place: some use asse
 from neighboring examples. Start the launcher with `launcher.bat` on Windows or
 `sh launcher.sh` on Linux. Both entry points find the checkout automatically and
 write executables to `build/`; the Linux entry point does not require PowerShell.
+The launcher, validation helpers, and documented example commands use `-o:none`
+to disable compiler optimization for faster iteration. This also applies to
+example tests run by the validation helpers.
 
 The launcher supplies any extra collections. To invoke Odin directly:
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin run examples/launcher -linker:msvc -collection:rune=rune "-out:build/launcher$exe"
+odin run examples/launcher -o:none -linker:msvc -collection:rune=rune "-out:build/launcher$exe"
 ```
 
 These direct commands use Windows' built-in PowerShell. On Linux, use

@@ -14,7 +14,7 @@ Run from the repository root on Windows:
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin run examples/tetris -linker:msvc -collection:rune=rune "-out:build/tetris$exe"
+odin run examples/tetris -o:none -linker:msvc -collection:rune=rune "-out:build/tetris$exe"
 ```
 
 [All examples](../README.md)

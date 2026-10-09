@@ -15,7 +15,7 @@ Run from the repository root on Windows:
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin run examples/asteroids -linker:msvc -collection:rune=rune "-out:build/asteroids$exe"
+odin run examples/asteroids -o:none -linker:msvc -collection:rune=rune "-out:build/asteroids$exe"
 ```
 
 [All examples](../README.md)

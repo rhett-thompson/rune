@@ -11,7 +11,7 @@ Run from the repository root on Windows:
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin run examples/clay_ui -linker:msvc -collection:rune=rune "-out:build/clay_ui$exe"
+odin run examples/clay_ui -o:none -linker:msvc -collection:rune=rune "-out:build/clay_ui$exe"
 ```
 
 [All examples](../README.md)

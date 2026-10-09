@@ -18,7 +18,7 @@ From the repository root:
 # Windows PowerShell; on Linux omit .exe and -linker:msvc, and use ./build/...
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin build examples/clay_ui -linker:msvc -collection:rune=rune "-out:build/clay_ui$exe"
+odin build examples/clay_ui -o:none -linker:msvc -collection:rune=rune "-out:build/clay_ui$exe"
 & "./build/clay_ui$exe"
 ```
 

@@ -151,6 +151,7 @@ run_example :: proc(example: Example) -> (int, string) {
 	append(&command, "odin")
 	append(&command, "run")
 	append(&command, fmt.tprintf("examples/%s", example.path))
+	append(&command, "-o:none")
 	append(&command, "-collection:rune=rune")
 	output_suffix := ""
 	when ODIN_OS == .Windows {

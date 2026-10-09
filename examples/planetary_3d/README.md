@@ -11,7 +11,7 @@ From the repository root (no additional collections or downloaded assets):
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin run examples/planetary_3d -linker:msvc -collection:rune=rune "-out:build/planetary_3d$exe"
+odin run examples/planetary_3d -o:none -linker:msvc -collection:rune=rune "-out:build/planetary_3d$exe"
 ```
 
 Or select **Pocket Planets** in the example launcher.
@@ -108,7 +108,7 @@ unreachable gaps or non-walkable launch markers after terrain/layout changes.
 ## Validation
 
 ```powershell
-odin test examples/planetary_3d -linker:msvc -collection:rune=rune "-out:build/planetary_3d_test$exe"
+odin test examples/planetary_3d -o:none -linker:msvc -collection:rune=rune "-out:build/planetary_3d_test$exe"
 odin run tools/character_controller_3d_validation -linker:msvc -collection:rune=rune "-out:build/character_controller_3d_validation$exe"
 ```
 

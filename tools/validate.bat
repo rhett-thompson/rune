@@ -75,10 +75,14 @@ popd
 exit /b 0
 :build
 set "buildName=%~1"
+set "buildPackage=%~2"
+set "buildPackage=%buildPackage:\=/%"
+set "exampleOptimization="
+if "%buildPackage:~0,9%"=="examples/" set "exampleOptimization=-o:none"
 set "extraCollection=%~3"
 for %%N in (static_mesh_material_validation light_shafts_validation volumetric_fog_validation light_shadow_validation cloud_volume_validation billboard_validation procedural_material_validation terrain_validation skybox_validation post_processing_validation r3d_cache_validation model_animation_validation shadow_render_probe ssao_contact_probe ssao_fov_probe ssao_upsample_probe) do if /i "%~1"=="%%N" set "extraCollection=-collection:r3d=third_party/r3d-odin"
 rem Odin October defaults to radlink; bundled zlib /GL objects require MSVC LTCG.
-odin build "%~2" -collection:rune=rune "-out:build/%~1.exe" -linker:msvc %extraCollection%
+odin build "%~2" %exampleOptimization% -collection:rune=rune "-out:build/%~1.exe" -linker:msvc %extraCollection%
 if errorlevel 1 (call :fail "build %~1" & exit /b 0)
 echo PASS build %~1
 if "%buildName:~-11%"=="_validation" >>"build\validate-built.tmp" echo %~1
@@ -100,7 +104,7 @@ exit /b 0
 if errorlevel 1 call :fail "validate %~1"
 exit /b 0
 :test_example
-odin test "examples/%~1" -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/%~1_test.exe" -linker:msvc
+odin test "examples/%~1" -o:none -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/%~1_test.exe" -linker:msvc
 if errorlevel 1 call :fail "test %~1"
 exit /b 0
 :test_rune
