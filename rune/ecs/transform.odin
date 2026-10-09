@@ -33,6 +33,23 @@ compose_transform_3d :: proc(parent, local: Transform) -> Transform {
 	}
 }
 
+// Convert a world point into the local frame of this composed TRS transform.
+// Mirrors compose_transform_3d's scale-then-rotate convention. Zero scale or
+// non-finite inputs/results have no usable inverse and return false.
+inverse_transform_point_3d :: proc(transform: Transform, point: [3]f32) -> ([3]f32,bool) {
+	if !component_value_valid(transform) || !physics_query_vector_valid(point) {return {},false}
+	for axis in transform.scale {if axis==0 {return {},false}}
+	offset:=point-transform.position
+	if transform.rotation!=([3]f32{}) {
+		rotation:=transform.rotation*Radians_Per_Degree
+		orientation:=linalg.quaternion_from_pitch_yaw_roll(rotation[0],rotation[1],rotation[2])
+		offset=linalg.quaternion_mul_vector3(linalg.quaternion_inverse(orientation),offset)
+	}
+	local:=offset/transform.scale
+	if !physics_query_vector_valid(local) {return {},false}
+	return local,true
+}
+
 // Resolve from the root so rendering, picking and terrain/static collision
 // use the same composition, including ancestors without a Transform.
 world_transform_3d :: proc(world: ^World, entity: Entity) -> Transform {

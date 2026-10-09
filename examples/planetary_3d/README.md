@@ -50,8 +50,12 @@ completes the expedition. R also recovers a missed jump; drifting more than
   broad ridges and a depressed basin. Subdivision preserves the original
   icosahedron's large-scale facets. The example owns these procedural meshes
   and registers their native bodies/shapes with Rune's physics lookup tables.
-- Built-in raylib primitives draw the astronaut, props, stars, and launch guides;
-  shared example typography draws the HUD. There are no new image/audio assets.
+- A static raylib GPU mesh batches the stars, colored terrain faces, and dotted
+  flight paths. It is built once at startup and rebuilt on scene reload; sphere
+  geometry and facet colors are preserved without resubmitting their vertices
+  from the CPU each frame. Raylib primitives draw the astronaut, props, and
+  launch rings; shared example typography draws the HUD. There are no new
+  image/audio assets.
 
 Gravity selection, terrain generation, and camera behavior are example-owned.
 Gravity has constant magnitude toward the nearest nominal surface, with a

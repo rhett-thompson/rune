@@ -1,0 +1,23 @@
+diff --git a/src/modules/r3d_light.c b/src/modules/r3d_light.c
+--- a/src/modules/r3d_light.c
++++ b/src/modules/r3d_light.c
+@@ -309,16 +309,14 @@ static void light_update_dir_matrix(r3d_light_t* light, R3D_Camera camera, double aspect)
+ {
+     assert(light->type == R3D_LIGHT_DIR);
+ 
+-    float camNear = light->range / 1000.0f;
+     float camFar = light->range;
+     float camFovy = (float)camera.fovy;
+     float camAspect = (float)aspect;
+ 
+     float farH = camFar * tanf(camFovy * (DEG2RAD * 0.5f));
+-    float halfDepth = (camFar - camNear) * 0.5f;
+-    float radius = sqrtf(farH * farH * (1.0f + camAspect * camAspect) + halfDepth * halfDepth);
++    // Cover the far-plane corners in every orientation without following camera rotation.
++    float radius = sqrtf(farH * farH * (1.0f + camAspect * camAspect) + camFar * camFar);
+ 
+-    Vector3 forward = R3D_GetCameraForward(camera);
+-    Vector3 frustumCenter = Vector3Add(camera.position, Vector3Scale(forward, (camNear + camFar) * 0.5f));
++    Vector3 frustumCenter = camera.position;
+ 
+     Vector3 lightDir = Vector3Normalize(light->direction);

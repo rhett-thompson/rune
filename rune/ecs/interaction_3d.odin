@@ -3,7 +3,7 @@ package ecs
 import "core:encoding/json"
 import "core:math"
 
-// Interaction points are Transform positions plus an unscaled world-axis offset.
+// Interaction points are composed world positions plus an unscaled world-axis offset.
 // Game code owns the result (doors, dialogue, inventory, etc.). No input or UI
 // dependency is imposed on the engine, and each character owns its own state.
 Interactable3D :: struct {
@@ -66,13 +66,9 @@ find_interaction_3d :: proc(world:^World, actor:Entity, origin,forward:[3]f32) -
 		value,ok:=get(world,entity,Interactable3D)
 		mask,_:=entity_layer_mask(world,entity)
 		if !ok || !value.enabled || mask&config.target_layers==0 {continue}
-		pose,has_pose:=get_transform(world,entity)
+		_,has_pose:=get_transform(world,entity)
 		if !has_pose {continue}
-		point:=pose.position+value.offset
-		// Match Rune's additive hierarchy translations.
-		for parent:=world.parents[entity]; parent!=0; parent=world.parents[parent] {
-			if p,exists:=get_transform(world,parent); exists {point+=p.position}
-		}
+		point:=world_transform_3d(world,entity).position+value.offset
 		delta:=point-origin
 		distance:=math.sqrt(delta.x*delta.x+delta.y*delta.y+delta.z*delta.z)
 		if !finite_nonnegative(distance) || distance>config.range {continue}

@@ -1,8 +1,25 @@
 package r3d_bridge
 
+import "core:math"
 import r3d "r3d:r3d"
 import "rune:ecs"
 import rl "vendor:raylib"
+
+// A fixed pixel cap changes its world-space reach and close-range attenuation
+// when the lens changes. Scale that cap by the same projection factor as the
+// unbounded SSAO radius, so both quantities keep their ratio at a fixed depth.
+@(private)
+ssao_max_radius_for_lens :: proc(value:r3d.EnvSSAO,camera:rl.Camera3D,reference_fovy:f32) -> f32 {
+	if !value.enabled || camera.projection!=.PERSPECTIVE {return value.maxRadius}
+	if math.is_nan(reference_fovy) || math.is_inf(reference_fovy) || reference_fovy<=0 || reference_fovy>=180 {return value.maxRadius}
+	if math.is_nan(camera.fovy) || math.is_inf(camera.fovy) || camera.fovy<=0 || camera.fovy>=180 {return value.maxRadius}
+	if math.is_nan(value.maxRadius) || math.is_inf(value.maxRadius) || value.maxRadius<=0 {return value.maxRadius}
+	if camera.fovy==reference_fovy {return value.maxRadius}
+	scale:=math.tan(f64(reference_fovy)*math.PI/360)/math.tan(f64(camera.fovy)*math.PI/360)
+	radius:=f32(f64(value.maxRadius)*scale)
+	if math.is_nan(radius) || math.is_inf(radius) || radius<=0 {return value.maxRadius}
+	return radius
+}
 
 // Convert without touching background, sky or ambient lighting. Returning a
 // value also lets headless tools verify the renderer mapping without a GPU.

@@ -788,6 +788,11 @@ update_orbit_cameras_3d :: proc(engine: ^Engine, world: ^ecs.World) {
 		camera, has_camera := ecs.get_camera_3d(world, entity)
 		if !has_orbit || !has_camera {continue}
 		transform := ecs.update_orbit_camera_3d(&orbit, &engine.input, engine.delta_time)
+		if parent, parented:=ecs.get_parent(world,entity); parented {
+			position, valid:=ecs.inverse_transform_point_3d(ecs.world_transform_3d(world,parent),transform.position)
+			if !valid {continue}
+			transform.position=position
+		}
 		camera.target = orbit.target
 		ecs.set_orbit_camera_3d(world, entity, orbit)
 		ecs.set_transform(world, entity, transform)

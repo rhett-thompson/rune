@@ -417,9 +417,10 @@ spatial_factors :: proc(
 	gain: f32 = 1
 	pan: f32 = 0.5
 	if player.spatial && listener_found {
-		listener_transform, listener_has_transform := ecs.get_transform(world, listener_entity)
-		player_transform, player_has_transform := ecs.get_transform(world, entity)
-		if listener_has_transform && player_has_transform {
+		if ecs.has_component_data(world, listener_entity, "Transform") &&
+		   ecs.has_component_data(world, entity, "Transform") {
+			listener_transform := ecs.world_transform_3d(world, listener_entity)
+			player_transform := ecs.world_transform_3d(world, entity)
 			dx := player_transform.position[0] - listener_transform.position[0]
 			dy := player_transform.position[1] - listener_transform.position[1]
 			dz := player_transform.position[2] - listener_transform.position[2]

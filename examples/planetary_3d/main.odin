@@ -39,6 +39,7 @@ initialize :: proc(game:^rune.Engine,world:^ecs.World) {
 	player,_=ecs.find_entity_by_id(world,"player")
 	follow_camera,_=ecs.find_entity_by_id(world,"follow_camera")
 	for i in 0..<len(PLANETS) {gates[i]=surface_point(world,i,gate_direction(i))}
+	create_scenery()
 	reset_player(world)
 }
 reset_player :: proc(world:^ecs.World) {
@@ -49,7 +50,7 @@ reset_player :: proc(world:^ecs.World) {
 	actual_distance=camera_distance
 	ecs.character_controller_3d_teleport(world,player,surface_point(world,0,{0,1,0})+V3{0,0.15,0})
 }
-shutdown :: proc(game:^rune.Engine,world:^ecs.World) {destroy_planets(world)}
+shutdown :: proc(game:^rune.Engine,world:^ecs.World) {destroy_scenery();destroy_planets(world)}
 controls :: proc(game:^rune.Engine,world:^ecs.World) {
 	jump_sent,release_sent=false,false
 	if console.is_open(rune.developer_console(game)) || rune.is_paused(game) {return}

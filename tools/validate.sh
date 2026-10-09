@@ -56,12 +56,17 @@ test_example() {
         fail "test $1"
     fi
 }
+test_rune() {
+    if ! odin test "rune/$1" -collection:rune=rune -collection:r3d=third_party/r3d-odin "-out:build/${1}_test"; then
+        fail "test $1"
+    fi
+}
 
 for package in tools/*; do
     [ -d "$package" ] && [ -f "$package/main.odin" ] || continue
     name=${package##*/}
     case "$name" in
-        static_mesh_material_validation|light_shafts_validation|volumetric_fog_validation|light_shadow_validation|cloud_volume_validation|billboard_validation|procedural_material_validation|terrain_validation|skybox_validation|post_processing_validation|r3d_cache_validation|model_animation_validation)
+        static_mesh_material_validation|light_shafts_validation|volumetric_fog_validation|light_shadow_validation|cloud_volume_validation|billboard_validation|procedural_material_validation|terrain_validation|skybox_validation|post_processing_validation|r3d_cache_validation|model_animation_validation|shadow_render_probe|ssao_contact_probe|ssao_fov_probe|ssao_upsample_probe)
             build "$name" "$package" -collection:r3d=third_party/r3d-odin ;;
         *) build "$name" "$package" ;;
     esac
@@ -71,7 +76,9 @@ done
 for name in $built_validators; do
     "build/$name" || fail "run $name"
 done
-odin test rune/console -collection:rune=rune -out:build/console_test || fail 'test console'
+for name in console ecs audio core geometry r3d_bridge save; do
+    test_rune "$name"
+done
 
 if [ "$runtime" -eq 1 ]; then
     for name in overlay_3d_validation static_mesh_material_validation light_shafts_validation volumetric_fog_validation light_shadow_validation cloud_volume_validation billboard_validation procedural_material_validation navigation_3d_validation save_validation asset_validation terrain_validation skybox_validation post_processing_validation model_animation_validation sprite_animation_validation particle_validation component_features_validation collider_2d_validation polygon_2d_validation resolution_validation ui_validation window_validation mixer_validation console_validation; do

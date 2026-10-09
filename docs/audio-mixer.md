@@ -26,6 +26,11 @@ times bus volume times master volume. Players routed directly to master apply
 master once. Mute preserves the slider value. A new linear fade replaces the
 previous fade starting at the current value; setting volume cancels a fade.
 
+Spatial audio measures XYZ distance between the emitter and listener's composed
+3D world positions, including ancestor translation, rotation, and scale. The
+distance settings are world units. Pan uses their world X separation; it does
+not rotate with the camera. Both entities require their own `Transform`.
+
 Changes affect buffered sounds, all overlapping aliases, looping sounds, and
 streaming music on the next audio update. A newly played sound uses the current
 gain immediately. Scene loops advance fades using frame time even when gameplay

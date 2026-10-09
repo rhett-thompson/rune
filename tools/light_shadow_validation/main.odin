@@ -103,6 +103,8 @@ validate_runtime :: proc() {
 	ctx,ok := bridge.init(".",320,240)
 	assert(ok)
 	defer bridge.shutdown(&ctx)
+	validate_directional_stability()
+	validate_light_hierarchy(&ctx)
 	m:=assets.init("."); defer assets.shutdown(&m)
 	defer os.remove(Profile_Path)
 	registry := ecs.init_registry()

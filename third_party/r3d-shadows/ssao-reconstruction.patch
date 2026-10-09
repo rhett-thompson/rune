@@ -1,0 +1,128 @@
+diff --git a/shaders/deferred/ambient.frag b/shaders/deferred/ambient.frag
+index 7c6cc84..c175ae8 100644
+--- a/shaders/deferred/ambient.frag
++++ b/shaders/deferred/ambient.frag
+@@ -101,14 +101,23 @@ UpsampleWeights ComputeUpsampleWeights(float refDepth, float NoV)
+     const float kDepthEdgeToleranceMeters = 0.05;
+     float depthSharpness = max(NoV, kMinNdotV) / kDepthEdgeToleranceMeters; // = 1.0 / (t / max(NoV, min))
+ 
+-    w *= exp(-abs(d - vec4(refDepth)) * depthSharpness);
++    // Removing a common exponent preserves the relative bilateral weights,
++    // while keeping at least one supported tap finite. Direct exponentiation
++    // can underflow on grazing/distant surfaces, turning a white AO buffer
++    // dark when an epsilon replaces the actual normalization denominator.
++    vec4 depthError = abs(d - vec4(refDepth));
++    float nearestError = min(min(w.x > 0.0 ? depthError.x : 1e30,
++                                 w.y > 0.0 ? depthError.y : 1e30),
++                             min(w.z > 0.0 ? depthError.z : 1e30,
++                                 w.w > 0.0 ? depthError.w : 1e30));
++    w *= exp(-max(depthError - vec4(nearestError), vec4(0.0)) * depthSharpness);
+ 
+     r.w00 = w.x;
+     r.w10 = w.y;
+     r.w01 = w.z;
+     r.w11 = w.w;
+ 
+-    r.invWSum = 1.0 / max(w.x + w.y + w.z + w.w, 1e-5);
++    r.invWSum = 1.0 / (w.x + w.y + w.z + w.w);
+ 
+     return r;
+ }
+diff --git a/shaders/prepare/ssao.frag b/shaders/prepare/ssao.frag
+index 70cc47e..9ac5015 100644
+--- a/shaders/prepare/ssao.frag
++++ b/shaders/prepare/ssao.frag
+@@ -39,6 +39,7 @@ const int ROTATIONS[98] = int[98](
+ #include <wrap/view.glsl>
+ #include <lib/math.glsl>
+ #include <ubo/fx.glsl>
++#include <ubo/frame.glsl>
+ 
+ // ================================
+ // In - Varyings
+@@ -58,11 +59,23 @@ out float FragOcclusion;
+ 
+ uniform sampler2D uNormalTex;
+ uniform sampler2D uDepthTex;
++uniform usampler2D uSelectorTex;
+ 
+ // ================================
+ // Helper Functions
+ // ================================
+ 
++// The depth pyramid selects one full-resolution pixel from each 2x2 block.
++// Reconstruct at that pixel rather than the block center, matching its normal.
++// Using the full render size also preserves the mapping at odd resolutions.
++vec3 SsaoViewPosition(ivec2 pixelCoord, float depth)
++{
++    uint selected = texelFetch(uSelectorTex, pixelCoord, 0).r & 3u;
++    ivec2 offset = ivec2(int(selected & 1u), int(selected >> 1u));
++    vec2 uv = (vec2(pixelCoord * 2 + offset) + 0.5) / uFrame.screenSize;
++    return V_GetViewPosition(uv, depth);
++}
++
+ vec2 TapLocation(int i, float numSpiralTurns, float spin, out float rNorm)
+ {
+     float alpha = (float(i) + 0.5) / float(uSsao.sampleCount);
+@@ -82,9 +95,10 @@ void main()
+ 
+     ivec2 pixelCoord = ivec2(gl_FragCoord.xy);
+     float depth = texelFetch(uDepthTex, pixelCoord, 0).r;
+-    if (depth >= uView.far) return;
++    if (!(depth > 0.0 && depth < uView.far)) return;
+ 
+-    vec3 position = V_GetViewPosition(vTexCoord, depth);
++    ivec2 resolution = textureSize(uDepthTex, 0);
++    vec3 position = SsaoViewPosition(pixelCoord, depth);
+     vec3 normal = V_GetViewNormal(uNormalTex, pixelCoord);
+ 
+     float projScale = abs(uView.proj[1][1]) * textureSize(uDepthTex, 0).y * 0.5;
+@@ -107,7 +121,14 @@ void main()
+         vec2 unitDir = TapLocation(i, float(numSpiralTurns), spin, rNorm);
+         ivec2 pixelOffset = pixelCoord + ivec2(unitDir * ssRadius * rNorm);
+ 
+-        vec3 samplePos = V_GetViewPosition(uDepthTex, pixelOffset);
++        // Missing geometry contributes no occlusion. texelFetch outside a
++        // texture is undefined and must not become a near-camera occluder.
++        if (any(lessThan(pixelOffset, ivec2(0))) ||
++            any(greaterThanEqual(pixelOffset, resolution))) continue;
++        float sampleDepth = texelFetch(uDepthTex, pixelOffset, 0).r;
++        if (!(sampleDepth > 0.0 && sampleDepth < uView.far)) continue;
++
++        vec3 samplePos = SsaoViewPosition(pixelOffset, sampleDepth);
+         vec3 v = samplePos - position;
+ 
+         float vv = dot(v, v);
+diff --git a/src/modules/r3d_shader.c b/src/modules/r3d_shader.c
+index 4fb23da..c67ff7e 100644
+--- a/src/modules/r3d_shader.c
++++ b/src/modules/r3d_shader.c
+@@ -384,10 +384,13 @@ bool r3d_shader_load_prepare_ssao(r3d_shader_custom_t* custom)
+ 
+     SET_UNIFORM_BUFFER(ssao, ViewBlock, R3D_SHADER_BLOCK_SLOT_VIEW);
+     SET_UNIFORM_BUFFER(ssao, FxBlock, R3D_SHADER_BLOCK_SLOT_FX);
++    SET_UNIFORM_BUFFER(ssao, FrameBlock, R3D_SHADER_BLOCK_SLOT_FRAME);
+ 
+     USE_SHADER(ssao);
+     SET_SAMPLER(ssao, uNormalTex, R3D_SHADER_SAMPLER_BUFFER_NORMAL);
+     SET_SAMPLER(ssao, uDepthTex, R3D_SHADER_SAMPLER_BUFFER_DEPTH);
++    // Rune: reuse the existing selector slot without changing native layouts.
++    glUniform1i(glGetUniformLocation(ssao->id, "uSelectorTex"), R3D_SHADER_SAMPLER_BUFFER_SELECTOR);
+ 
+     return true;
+ }
+@@ -1828,6 +1831,14 @@ void r3d_shader_bind_sampler(r3d_shader_sampler_t sampler, GLuint texture)
+     {
+         r3d_shader_bind_sampler(R3D_SHADER_SAMPLER_BUFFER_GEOM_NORMAL,
+                                r3d_target_get(R3D_TARGET_GEOM_NORMAL));
++        // SSAO reconstructs the selected full-resolution depth sample. Refresh
++        // the selector after pyramid generation and when targets are resized.
++        // It is absent when no screen-space effect has requested the pyramid.
++        if (r3d_target_exists(R3D_TARGET_SELECTOR))
++        {
++            r3d_shader_bind_sampler(R3D_SHADER_SAMPLER_BUFFER_SELECTOR,
++                                   r3d_target_get_level(R3D_TARGET_SELECTOR, 0));
++        }
+     }
+ 
+     assert(R3D_MOD_SHADER.samplerTargets[sampler] != GL_NONE);

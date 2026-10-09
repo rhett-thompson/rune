@@ -10,6 +10,12 @@ import rl "vendor:raylib"
 
 Scene3D_Settings :: struct {
 	particle_batches: []Particle3D_Batch,
+	// Optional widest perspective lens for stable scene sampling. Present a
+	// centered crop at the active camera's visible FOV; zero uses that FOV directly.
+	sampling_fovy: f32,
+	// Keep the SSAO screen-radius limit at a reference perspective lens during
+	// FOV animation. Zero retains the profile's fixed screen-space limit.
+	ssao_reference_fovy: f32,
 	grid_slices:      i32,
 	grid_spacing:     f32,
 	draw_colliders:   bool,
@@ -238,16 +244,22 @@ draw_scene_ex :: proc(
 	entity, camera_component, found := ecs.active_camera_3d(world)
 	apply_post_processing(ctx, world, entity)
 	if !found {release_skybox(ctx); return false}
-	transform, has_transform := ecs.get_transform(world, entity)
+	camera,has_transform:=scene_camera_3d(world,entity,camera_component)
 	if !has_transform {release_skybox(ctx); return false}
-
-	camera := rl.Camera3D {
-		position   = transform.position,
-		target     = camera_component.target,
-		up         = camera_component.up,
-		fovy       = camera_component.fovy,
-		projection = rl.CameraProjection(camera_component.projection),
-	}
+	visible_camera:=camera
+	sampling_camera,viewport,sampling_projection:=scene_sampling_projection(camera,settings.sampling_fovy,{rl.GetRenderWidth(),rl.GetRenderHeight()})
+	camera=sampling_camera
+	// Present the crop continuously between source pixels. Native nearest
+	// upscaling otherwise makes contact bands jump during lens animation.
+	upscale_mode:=r3d.GetUpscaleMode()
+	if sampling_projection {r3d.SetUpscaleMode(.LINEAR)}
+	defer if sampling_projection {r3d.SetUpscaleMode(upscale_mode)}
+	// Apply after profile selection and restore after this draw. Never accumulate
+	// the correction in native state or change the authored ECS profile.
+	environment:=r3d.GetEnvironment()
+	ssao_max_radius:=environment.ssao.maxRadius
+	environment.ssao.maxRadius=ssao_max_radius_for_lens(environment.ssao,camera,settings.ssao_reference_fovy)
+	defer environment.ssao.maxRadius=ssao_max_radius
 	if ctx.world_generation != world.generation {
 		destroy_scene_lights(ctx)
 		ctx.world_generation = world.generation
@@ -257,7 +269,11 @@ draw_scene_ex :: proc(
 	apply_ambient(world)
 	create_scene_lights(ctx, world, asset_manager)
 
-	r3d.Begin(camera)
+	if sampling_projection {
+		r3d.BeginPro({camera=r3d.CameraFromRL(camera),viewport=viewport})
+	} else {
+		r3d.Begin(camera)
+	}
 	prepare_cloud_volumes(ctx,world,asset_manager,camera)
 	static_started:=rl.GetTime()
 	draw_static_meshes(ctx,world,asset_manager,camera)
@@ -288,7 +304,7 @@ draw_scene_ex :: proc(
 	ctx.frame_stats.backend_cpu_ms=(rl.GetTime()-backend_started)*1000
 	if count > 0 {r3d.SetScreenShaderChain(.SCENE, nil, 0)}
 	if grain_enabled {r3d.SetScreenShaderChain(.FINAL, nil, 0)}
-	draw_debug_overlays(world, camera, settings)
+	draw_debug_overlays(world, visible_camera, settings)
 	ctx.frame_stats.scene_cpu_ms=(rl.GetTime()-started)*1000
 	return true
 }
@@ -467,22 +483,22 @@ create_scene_lights :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.A
 	}
 	for entity in ecs.entities_with_component(world, "PointLight") {
 		light, has_light := ecs.get_point_light(world, entity)
-		transform, has_transform := ecs.get_transform(world, entity)
+		_, has_transform := ecs.get_transform(world, entity)
 		if !has_light || !has_transform {continue}
 		if light.intensity <= 0 {continue}
 		id := scene_light(ctx, entity, .OMNI)
 		if id==0 {continue}
-		sync_light_properties(ctx,entity,id,light,transform.position)
+		sync_light_properties(ctx,entity,id,light,ecs.world_transform_3d(world,entity).position)
 		sync_light_shadows(ctx,manager,entity,id,light)
 	}
 	for entity in ecs.entities_with_component(world, "SpotLight") {
 		light, has_light := ecs.get_spot_light(world, entity)
-		transform, has_transform := ecs.get_transform(world, entity)
+		_, has_transform := ecs.get_transform(world, entity)
 		if !has_light || !has_transform {continue}
 		if light.intensity <= 0 {continue}
 		id := scene_light(ctx, entity, .SPOT)
 		if id==0 {continue}
-		sync_light_properties(ctx,entity,id,light,transform.position)
+		sync_light_properties(ctx,entity,id,light,ecs.world_transform_3d(world,entity).position)
 		sync_light_shadows(ctx,manager,entity,id,light)
 	}
 	for e,id in ctx.scene_lights {

@@ -1,0 +1,192 @@
+diff --git a/shaders/deferred/lighting.frag b/shaders/deferred/lighting.frag
+index 915bad0..1d53ce1 100644
+--- a/shaders/deferred/lighting.frag
++++ b/shaders/deferred/lighting.frag
+@@ -40,6 +40,8 @@ layout(location = 1) out vec4 FragSpec;
+ 
+ uniform sampler2D uAlbedoTex;
+ uniform sampler2D uNormalTex;
++// Rune: receiver planes use geometry normals, independent of normal maps.
++uniform sampler2D uGeomNormalTex;
+ uniform sampler2D uDepthTex;
+ uniform sampler2D uOrmTex;
+ 
+@@ -51,6 +53,7 @@ uniform samplerCubeArrayShadow uShadowOmniTex;
+ // Helper Includes
+ // ================================
+ 
++#define RUNE_SURFACE_SHADOW_RECEIVER
+ #include <wrap/light.glsl>
+ #include <wrap/view.glsl>
+ 
+@@ -66,6 +69,7 @@ void main()
+ 
+     float depth = texelFetch(uDepthTex, pixCoord, 0).r;
+     vec3 N = V_GetWorldNormal(uNormalTex, pixCoord);
++    vec3 receiverNormal = V_GetWorldNormal(uGeomNormalTex, pixCoord);
+     vec3 P = V_GetWorldPosition(vTexCoord, depth);
+ 
+     /* Compute light direction and the dot product of the normal and light direction */
+@@ -137,7 +141,7 @@ void main()
+         mat2 diskRot = L_ShadowDebandingMatrix(gl_FragCoord.xy);
+         switch (uLight.type)
+         {
+-        case LIGHT_DIR:  shadow *= L_SampleShadowDir(uLight, P, depth, NoL, diskRot); break;
++        case LIGHT_DIR:  shadow *= L_SampleShadowDir(uLight, P, depth, NoL, diskRot, receiverNormal); break;
+         case LIGHT_SPOT: shadow *= L_SampleShadowSpot(uLight, P, NoL, diskRot); break;
+         case LIGHT_OMNI: shadow *= L_SampleShadowOmni(uLight, P, NoL, diskRot); break;
+         }
+diff --git a/shaders/include/wrap/light.glsl b/shaders/include/wrap/light.glsl
+index 17770f0..08830bc 100644
+--- a/shaders/include/wrap/light.glsl
++++ b/shaders/include/wrap/light.glsl
+@@ -50,18 +50,78 @@ mat2 L_ShadowDebandingMatrix(vec2 fragCoord)
+     return mat2(vec2(cr, -sr), vec2(sr, cr));
+ }
+ 
+-float L_SampleShadowDir(Light light, vec3 Pws, float Zvs, float NoL, mat2 diskRot)
++
++// Rune altered source: directional surface taps compare against their receiver
++// plane at each shadow texel center. Volume samples retain upstream behavior.
++#if defined(RUNE_SURFACE_SHADOW_RECEIVER)
++vec2 L_DirectionalReceiverGradient(Light light, vec3 receiverNormal)
++{
++    // The cofactor matrix transforms a plane normal into projection space.
++    // Its common determinant cancels when solving z as a function of x/y.
++    mat3 projection = mat3(light.viewProj);
++    vec3 plane = cross(projection[1], projection[2]) * receiverNormal.x
++               + cross(projection[2], projection[0]) * receiverNormal.y
++               + cross(projection[0], projection[1]) * receiverNormal.z;
++    float magnitude = length(plane);
++    if (!(magnitude > 0.0) || any(isnan(plane)) || any(isinf(plane)) ||
++        abs(plane.z) <= magnitude * 0.000001)
++    {
++        return vec2(0.0);
++    }
++    vec2 gradient = -plane.xy / plane.z;
++    return (any(isnan(gradient)) || any(isinf(gradient))) ? vec2(0.0) : gradient;
++}
++
++float L_DirectionalReceiverTap(Light light, vec2 pixel, vec2 mapSize,
++                              vec3 projection, vec2 gradient, float bias)
++{
++    // Keep native clamp-to-edge semantics at the map border. Comparing exactly
++    // at a texel center avoids four hardware PCF neighbors sharing one depth.
++    vec2 center = (clamp(pixel, vec2(0.0), mapSize - 1.0) + 0.5) / mapSize;
++    float reference = projection.z + dot(gradient, center - projection.xy) - bias;
++    // Directional maps use D16; allow half a depth quantization step.
++    reference -= 0.5 / 65535.0;
++    return texture(uShadowDirTex, vec4(center, light.shadowLayer, reference));
++}
++
++float L_DirectionalReceiverBilinear(Light light, vec2 uv, vec2 mapSize,
++                                   vec3 projection, vec2 gradient, float bias)
++{
++    vec2 pixel = uv * mapSize - 0.5;
++    vec2 base = floor(pixel);
++    vec2 weight = fract(pixel);
++    float a = L_DirectionalReceiverTap(light, base, mapSize, projection, gradient, bias);
++    float b = L_DirectionalReceiverTap(light, base + vec2(1.0, 0.0), mapSize, projection, gradient, bias);
++    float c = L_DirectionalReceiverTap(light, base + vec2(0.0, 1.0), mapSize, projection, gradient, bias);
++    float d = L_DirectionalReceiverTap(light, base + vec2(1.0, 1.0), mapSize, projection, gradient, bias);
++    return mix(mix(a, b, weight.x), mix(c, d, weight.x), weight.y);
++}
++#endif
++
++float L_SampleShadowDir(Light light, vec3 Pws, float Zvs, float NoL, mat2 diskRot
++#if defined(RUNE_SURFACE_SHADOW_RECEIVER)
++                        , vec3 receiverNormal
++#endif
++                        )
+ {
+     vec4 Pls = light.viewProj * vec4(Pws, 1.0);
+     vec3 projCoords = Pls.xyz / Pls.w * 0.5 + 0.5;
+     float bias = light.shadowDepthBias + light.shadowSlopeBias * (1.0 - NoL);
+     float compareDepth = projCoords.z - bias;
+ 
++#if defined(RUNE_SURFACE_SHADOW_RECEIVER)
++    vec2 gradient = L_DirectionalReceiverGradient(light, receiverNormal);
++    vec2 mapSize = vec2(textureSize(uShadowDirTex, 0).xy);
++#endif
+     float shadow = 0.0;
+     for (int i = 0; i < SHADOW_SAMPLES; ++i)
+     {
+         vec2 offset = diskRot * VOGEL_DISK[i] * light.shadowSoftness;
++#if defined(RUNE_SURFACE_SHADOW_RECEIVER)
++        shadow += L_DirectionalReceiverBilinear(light, projCoords.xy + offset, mapSize, projCoords, gradient, bias);
++#else
+         shadow += texture(uShadowDirTex, vec4(projCoords.xy + offset, light.shadowLayer, compareDepth));
++#endif
+     }
+     shadow /= float(SHADOW_SAMPLES);
+ 
+diff --git a/shaders/scene/forward.frag b/shaders/scene/forward.frag
+index fb8a9b5..258ec90 100644
+--- a/shaders/scene/forward.frag
++++ b/shaders/scene/forward.frag
+@@ -73,6 +73,7 @@ uniform bool uProbeInterior;
+ // Herlper Includes
+ // ================================
+ 
++#define RUNE_SURFACE_SHADOW_RECEIVER
+ #include <wrap/light.glsl>
+ #include <wrap/env.glsl>
+ #include <wrap/fog.glsl>
+@@ -89,6 +90,9 @@ uniform bool uProbeInterior;
+ 
+ void main()
+ {
++    // Rune: the interpolated geometry normal is unaffected by material normal maps.
++    vec3 receiverNormal = normalize(vTBN[2]);
++
+     /* Sample material maps */
+ 
+     SceneFragment(vTexCoord, vTBN, 0.0);
+@@ -175,7 +179,7 @@ void main()
+         {
+             switch (light.type)
+             {
+-            case LIGHT_DIR:  shadow *= L_SampleShadowDir(light, vPosition, vLinearDepth, NoL, diskRot); break;
++            case LIGHT_DIR:  shadow *= L_SampleShadowDir(light, vPosition, vLinearDepth, NoL, diskRot, receiverNormal); break;
+             case LIGHT_SPOT: shadow *= L_SampleShadowSpot(light, vPosition, NoL, diskRot); break;
+             case LIGHT_OMNI: shadow *= L_SampleShadowOmni(light, vPosition, NoL, diskRot); break;
+             }
+diff --git a/src/modules/r3d_shader.c b/src/modules/r3d_shader.c
+index 204b301..4fb23da 100644
+--- a/src/modules/r3d_shader.c
++++ b/src/modules/r3d_shader.c
+@@ -7,6 +7,7 @@
+  */
+ 
+ #include "./r3d_shader.h"
++#include "./r3d_target.h"
+ #include <r3d_config.h>
+ #include <stdint.h>
+ #include <string.h>
+@@ -1351,6 +1352,9 @@ bool r3d_shader_load_deferred_lighting(r3d_shader_custom_t* custom)
+ 
+     USE_SHADER(lighting);
+ 
++    // Rune: use the existing geometry-normal sampler slot without changing ABI.
++    glUniform1i(glGetUniformLocation(lighting->id, "uGeomNormalTex"), R3D_SHADER_SAMPLER_BUFFER_GEOM_NORMAL);
++
+     SET_SAMPLER(lighting, uAlbedoTex, R3D_SHADER_SAMPLER_BUFFER_ALBEDO);
+     SET_SAMPLER(lighting, uNormalTex, R3D_SHADER_SAMPLER_BUFFER_NORMAL);
+     SET_SAMPLER(lighting, uDepthTex, R3D_SHADER_SAMPLER_BUFFER_DEPTH);
+@@ -1816,6 +1820,16 @@ void r3d_shader_quit()
+ 
+ void r3d_shader_bind_sampler(r3d_shader_sampler_t sampler, GLuint texture)
+ {
++    // Rune: deferred lighting reads the geometry normal for receiver-plane taps.
++    // This reserved slot already belongs to the native geometry-normal buffer.
++    // Resolve the current target on each normal bind so resize cannot leave an
++    // obsolete texture cached. All existing sampler fields and layouts remain.
++    if (sampler == R3D_SHADER_SAMPLER_BUFFER_NORMAL)
++    {
++        r3d_shader_bind_sampler(R3D_SHADER_SAMPLER_BUFFER_GEOM_NORMAL,
++                               r3d_target_get(R3D_TARGET_GEOM_NORMAL));
++    }
++
+     assert(R3D_MOD_SHADER.samplerTargets[sampler] != GL_NONE);
+ 
+     if (texture != R3D_MOD_SHADER.samplerBindings[sampler])

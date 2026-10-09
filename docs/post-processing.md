@@ -253,6 +253,72 @@ r3d still has global rendering state. These are settings selected for Rune's
 active view, not isolated renderer instances. Auto exposure uses r3d's single
 temporal history; use it on one continuous scene render path.
 
+## SSAO during lens animation
+
+Screen-space effects sample visible geometry on a pixel grid. Animating the
+native perspective projection moves that grid across surfaces, so contact
+occlusion can change even when its radius and intensity remain constant. Games
+can keep the scene projection fixed and animate only its presentation crop:
+
+```odin
+view := r3d_bridge.Scene3D_Settings{sampling_fovy=75.8, ssao_reference_fovy=70}
+r3d_bridge.draw_scene_ex(&bridge, world, manager, view)
+```
+
+Set `sampling_fovy` to the widest vertical perspective FOV the camera is expected
+to reach. Rune renders the complete scene with that lens, then presents a
+centered crop matching the active camera's visible FOV. Scene depth, ambient
+effects, culling, clouds, and shadows all use the fixed projection. The ECS
+camera remains unchanged for picking, gizmos, and later overlays. Color and
+depth are cropped by the native presentation viewport; this adds no render
+target, scene pass, or resolution reallocation.
+
+The cropped draw temporarily uses linear presentation filtering so enlarging
+the image does not replicate pixels in steps. Rune restores the prior native
+upscale mode after the draw; ordinary scene draws retain their existing filter.
+
+Zero retains the normal draw path. Orthographic cameras, invalid angles, and
+sampling lenses narrower than the visible lens also use that path. Use a fixed
+widest value throughout an animation; increasing it mid-animation changes the
+sampling grid. Native integer viewport coordinates can leave at most half a
+pixel of centering offset. Native diagnostic buffer outputs display the full
+sampling lens, while normal scene output displays the crop.
+
+The internal resolution stays unchanged. A narrower visible lens magnifies a
+smaller part of that image, reducing effective pixel detail; 70 degrees viewed
+from a 75.8-degree sampling lens uses about 90% of each image dimension. A game
+can configure a higher fixed internal resolution if needed, at extra GPU cost.
+
+SSAO's `radius` is measured in world units, while `max_radius` limits sampling
+to a fraction of the rendered screen. A fixed screen limit changes its world
+reach and near-camera attenuation when a perspective lens widens. Games with
+animated FOV can keep that limit tied to their normal lens for each scene draw:
+
+```odin
+view := r3d_bridge.Scene3D_Settings{ssao_reference_fovy=70}
+r3d_bridge.draw_scene_ex(&bridge, world, manager, view)
+```
+
+Set the reference to the view's base vertical FOV in degrees. Rune scales only
+the native SSAO screen-radius cap by `tan(reference / 2) / tan(current / 2)`;
+the effect's world radius, intensity, bias, and samples retain their authored
+values. The correction is derived after profile selection and restored after
+each draw, including when the renderer has no ECS post-processing profile.
+It does not modify `PostProcessing` components. Zero is the default and keeps
+the original fixed screen limit; disabled SSAO, orthographic cameras, and
+invalid angles also retain the original setting. Sampling still depends on
+visible geometry and resolution, so occlusion can change at newly visible
+edges as the lens widens.
+
+On Windows/Linux AMD64, Rune's native shader patch also reconstructs SSAO at
+the exact full-resolution pixels selected by the depth pyramid and rejects
+off-screen samples. Ambient-effect upsampling preserves constant values when
+all depth comparisons are far apart: a white occlusion buffer remains white
+on distant or grazing surfaces through lens animation. The same numerical
+normalization applies to SSIL and SSGI's shared upsampling weights without
+changing their relative bilateral weighting. See the
+[native patch and GPU probes](../third_party/r3d-shadows/README.md).
+
 ## Effects and validation
 
 | Group | Controls |

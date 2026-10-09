@@ -25,7 +25,7 @@ CameraFollow2D :: struct {
 
 Camera_Projection :: enum {perspective, orthographic}
 
-// Camera3D uses the entity Transform position as its world-space position.
+// Camera3D uses the entity's composed Transform position as its world position.
 // Target and up remain explicit because they describe the view direction.
 // fovy is a vertical angle in degrees for perspective, or a visible height in
 // world units for orthographic. The zero-value projection is perspective.
@@ -37,6 +37,8 @@ Camera3D :: struct {
 	projection: Camera_Projection,
 }
 
+// Target and orbit distances are world-space. The scene loop converts the
+// computed camera position to its parent's local frame before storing it.
 OrbitCamera3D :: struct {
 	target:            [3]f32,
 	yaw:               f32,
@@ -305,6 +307,8 @@ orbit_camera_3d_from_json :: proc(data: json.Value) -> (OrbitCamera3D, bool) {
 	return result, true
 }
 
+// Returns a world-space camera pose; convert position to the parent frame when
+// writing it to a parented entity's local Transform.
 update_orbit_camera_3d :: proc(
 	orbit: ^OrbitCamera3D,
 	controls: ^input.Input,

@@ -66,10 +66,9 @@ trigger_contains_3d :: proc(world:^World,trigger,other:Entity) -> bool {
 
 trigger_geometry_3d :: proc(world:^World,entity:Entity,value:Trigger3D) -> (center,half_size:[3]f32,radius:f32,ok:bool) {
 	if !has_component_data(world,entity,"Transform") {return}
-	scale:=[3]f32{1,1,1}
-	for current:=entity; current!=0; current=world.parents[current] {
-		if pose,found:=get_transform(world,current); found {center+=pose.position;scale*=pose.scale}
-	}
+	pose:=world_transform_3d(world,entity)
+	center=pose.position
+	scale:=pose.scale
 	for &axis in scale {axis=math.abs(axis)}
 	center+=value.offset;half_size=value.size*scale*0.5;radius=value.radius*max(scale.x,scale.y,scale.z)
 	if !physics_query_vector_valid(center) || !physics_query_vector_valid(half_size) || !finite_nonnegative(radius) {return}

@@ -7,20 +7,14 @@ import "rune:ecs"
 import r3d "r3d:r3d"
 import rl "vendor:raylib"
 
-// Match the bridge's additive parent positions. Resolve the stable ID every
+// Match the rendered source's composed position. Resolve the stable ID every
 // frame so regeneration and scene reload never retain an obsolete handle.
 light_shaft_source :: proc(world:^ecs.World,id:string) -> ([3]f32,bool) {
 	entity,found:=ecs.find_entity_by_id(world,id)
 	if !found || !ecs.is_enabled(world,entity) {return {},false}
-	transform,has_transform:=ecs.get_transform(world,entity)
+	_,has_transform:=ecs.get_transform(world,entity)
 	if !has_transform {return {},false}
-	position:=transform.position
-	for {
-		parent,has_parent:=ecs.get_parent(world,entity)
-		if !has_parent {break}
-		if pose,ok:=ecs.get_transform(world,parent); ok {position+=pose.position}
-		entity=parent
-	}
+	position:=ecs.world_transform_3d(world,entity).position
 	return position,ecs.physics_query_vector_valid(position)
 }
 

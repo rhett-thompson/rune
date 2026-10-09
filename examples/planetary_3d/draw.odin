@@ -27,36 +27,13 @@ ring :: proc(center,up:V3,radius:f32,color:rl.Color) {
 draw :: proc(game:^rune.Engine,world:^ecs.World) {
 	// Distant stars are fixed world directions, so camera orbit has real parallax.
 	rl.BeginMode3D(camera)
-	for j in 0..<500 {
-		a:=f32(j)*2.399963
-		y:=1-2*(f32(j)+0.5)/500
-		r:=math.sqrt(1-y*y)
-		p:=V3{r*math.cos(a),y,r*math.sin(a)}*210
-		rl.DrawSphere(rv(p),0.1+f32(j%4)*0.04,rl.Color{145,166,204,255})
-	}
-	for planet,i in PLANETS {
-		mesh:=&meshes[i]
-		for j:=0;j<len(mesh.indices);j+=3 {
-			a,b,c:=mesh.vertices[mesh.indices[j]],mesh.vertices[mesh.indices[j+1]],mesh.vertices[mesh.indices[j+2]]
-			n:=unit(cross(b-a,c-a))
-			height:=(length((a+b+c)/3)-planet.radius*0.79)/max(planet.relief*1.4,0.1)
-			light:=0.58+0.42*max(0,dot(n,unit({-0.5,0.9,0.6})))
-			color:=mix_color(planet.low,planet.high,height,light)
-			rl.DrawTriangle3D(rv(a+planet.center),rv(b+planet.center),rv(c+planet.center),color)
-		}
+	rl.DrawMesh(scenery_mesh,scenery_material,rl.Matrix(1))
+	for i in 0..<len(PLANETS) {
 		up:=gate_direction(i);gate:=gates[i]
 		// A launch marker points along the next gravity well, without teleporting.
 		ring(gate+up*0.07,up,1.25,GOLD);ring(gate+up*0.1,up,1.05,GOLD)
 		for k in 0..<3 {ring(gate+up*(0.9+f32(k)*0.55),up,0.45-f32(k)*0.09,rl.Fade(GOLD,0.9-f32(k)*0.2))}
 		rl.DrawCylinderEx(rv(gate),rv(gate+up*1.9),0.025,0.025,6,GOLD)
-		// Dotted flight line stops before the next surface.
-		next:=(i+1)%len(PLANETS)
-		end:=PLANETS[next].center-up*(PLANETS[next].radius+0.6)
-		for k in 0..<16 {
-			t:=f32(k)/16
-			p:=gate+up*2+(end-gate-up*2)*t
-			rl.DrawSphere(rv(p),0.055,rl.Fade(GOLD,0.8))
-		}
 	}
 	for entity in rocks {
 		if native,ok:=ecs.physics_3d_native_body(world,entity);ok {

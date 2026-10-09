@@ -18,8 +18,9 @@ and save snapshots support these components.
 }
 ```
 
-Offsets use world axes and world units, added to the entity's accumulated
-Transform position. Rotation and scale do not alter them. The caller supplies
+Offsets use world axes and world units, added to the entity's composed world
+position, including ancestor translation, rotation, and scale. Rotation and
+scale do not alter the offset itself. The caller supplies
 the character's eye/reach position and facing direction each update. For an
 orbit camera, use the character's position for reach rather than the camera's.
 

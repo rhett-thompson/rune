@@ -77,6 +77,7 @@ draw_3d_gizmos :: proc(world: ^ecs.World, settings: Settings) -> bool {
 	if !found {return false}
 	transform, has_transform := ecs.get_transform(world, entity)
 	if !has_transform {return false}
+	transform = ecs.world_transform_3d(world, entity)
 
 	camera := rl.Camera3D {
 		position   = transform.position,
@@ -122,6 +123,7 @@ draw_transforms_3d :: proc(world: ^ecs.World, size: f32) {
 	for entity in ecs.entities_with_component(world, "Transform") {
 		transform, found := ecs.get_transform(world, entity)
 		if !found {continue}
+		transform = ecs.world_transform_3d(world, entity)
 		position := rl.Vector3(transform.position)
 		rl.DrawLine3D(position, position + rl.Vector3{size, 0, 0}, rl.RED)
 		rl.DrawLine3D(position, position + rl.Vector3{0, size, 0}, rl.GREEN)
@@ -147,6 +149,7 @@ draw_cameras_3d :: proc(world: ^ecs.World) {
 		transform, has_transform := ecs.get_transform(world, entity)
 		camera, has_camera := ecs.get_camera_3d(world, entity)
 		if !has_transform || !has_camera {continue}
+		transform = ecs.world_transform_3d(world, entity)
 		color := rl.GOLD if camera.active else rl.GRAY
 		rl.DrawSphereWires(transform.position, 0.15, 8, 4, color)
 		rl.DrawLine3D(transform.position, camera.target, color)
@@ -352,6 +355,7 @@ draw_audio_3d :: proc(world: ^ecs.World) {
 		transform, has_transform := ecs.get_transform(world, entity)
 		listener, has_listener := ecs.get_audio_listener(world, entity)
 		if !has_transform || !has_listener {continue}
+		transform = ecs.world_transform_3d(world, entity)
 		rl.DrawSphereWires(
 			transform.position,
 			0.25,
@@ -363,6 +367,7 @@ draw_audio_3d :: proc(world: ^ecs.World) {
 	for entity in ecs.entities_with_component(world, "AudioPlayer") {
 		transform, has_transform := ecs.get_transform(world, entity)
 		if !has_transform {continue}
+		transform = ecs.world_transform_3d(world, entity)
 		for instance_name in ecs.component_instance_names(world, entity, "AudioPlayer") {
 			player, has_player := ecs.get_audio_player(world, entity, instance_name)
 			if !has_player {continue}
@@ -439,16 +444,17 @@ draw_lights_3d :: proc(world: ^ecs.World) {
 		transform, has_transform := ecs.get_transform(world, entity)
 		light, has_light := ecs.get_ambient_light(world, entity)
 		if !has_transform || !has_light {continue}
+		transform = ecs.world_transform_3d(world, entity)
 		color := light_color(light.color, light.intensity)
 		rl.DrawSphere(transform.position, 0.16, rl.Fade(color, 0.65))
 		rl.DrawSphereWires(transform.position, 0.22, 10, 5, color)
 	}
 	for entity in ecs.entities_with_component(world, "DirectionalLight") {
-		transform, has_transform := ecs.get_transform(world, entity)
+		_, has_transform := ecs.get_transform(world, entity)
 		light, has_light := ecs.get_directional_light(world, entity)
 		if !has_light {continue}
 		position := rl.Vector3{}
-		if has_transform {position = transform.position}
+		if has_transform {position = ecs.world_transform_3d(world, entity).position}
 		direction := normalize3(rl.Vector3(light.direction))
 		color := light_color(light.color, light.intensity)
 		end := vec3_add(position, vec3_scale(direction, 1.5))
@@ -461,6 +467,7 @@ draw_lights_3d :: proc(world: ^ecs.World) {
 		transform, has_transform := ecs.get_transform(world, entity)
 		light, has_light := ecs.get_point_light(world, entity)
 		if !has_transform || !has_light {continue}
+		transform = ecs.world_transform_3d(world, entity)
 		color := light_color(light.color, light.intensity)
 		rl.DrawSphere(transform.position, 0.14, rl.Fade(color, 0.75))
 		rl.DrawSphereWires(transform.position, 0.2, 8, 4, color)
@@ -470,6 +477,7 @@ draw_lights_3d :: proc(world: ^ecs.World) {
 		transform, has_transform := ecs.get_transform(world, entity)
 		light, has_light := ecs.get_spot_light(world, entity)
 		if !has_transform || !has_light {continue}
+		transform = ecs.world_transform_3d(world, entity)
 		color := light_color(light.color, light.intensity)
 		direction := normalize3(rl.Vector3(light.direction))
 		center := vec3_add(transform.position, vec3_scale(direction, light.range))

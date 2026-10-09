@@ -86,12 +86,38 @@ settings request an initial map update.
 Use continuous updates for moving lights/casters and camera-centered sun maps.
 Interval updates reduce recurring work but can lag behind moving objects.
 Manual maps require explicit refreshes after moving a light or its casters, or
-changing scene geometry:
+changing scene geometry or the camera's directional-shadow coverage:
 
 ```odin
 // After the renderer has synchronized this entity at least once:
 r3d_bridge.request_shadow_update(renderer, entity)
 ```
+
+On Windows/Linux AMD64, the bridge fits directional shadows around the camera
+position with enough coverage for the far-plane corners in every orientation.
+Turning the camera leaves the shadow matrix and caster clipping volume unchanged,
+so distant casters no longer appear or disappear merely because of a look turn.
+Camera movement, FOV, aspect ratio, light direction, and shadow range changes
+still alter the fit when the map refreshes. The shadow volume remains finite;
+map size, distance fading, and texel snapping retain the backend's behavior.
+See the [native patch and rebuild instructions](../third_party/r3d-shadows/README.md).
+
+On those targets, directional surface comparisons follow the receiver plane
+at each sampled texel center. This suppresses grazing-angle stripes without
+requiring a large bias that also removes small contact shadows. Geometry normals
+are used independently of material normal maps. Spot/point shadows and volume
+samples retain the backend's filtering. The surface correction performs four
+explicit comparisons per filter tap, increasing directional sampling work.
+
+Directional/spot bias values are in normalized map depth, so their world-space
+effect grows with the projection's depth span. Prefer a small bias and validate
+both illuminated receiver surfaces and nearby small casters; a clean surface
+alone can also mean its real shadows have been biased away.
+
+Point-light depth and slope bias values use radial world distance in scene
+units. Allow for the cubemap's depth quantization and filter footprint when
+tuning a wide-range point light. Verify both flat receivers and real caster
+shadows at the intended distances.
 
 Changing map update frequency does not reduce the number of enabled maps or
 their sampling cost. The bundled r3d backend fixes resolution at 2048² for

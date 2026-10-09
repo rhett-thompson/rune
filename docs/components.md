@@ -329,7 +329,7 @@ volumetric scattering while preserving the light's surface intensity.
 
 ### PointLight
 
-Provides a local omnidirectional light at the entity transform position. Range is in world units. Specular and shadow settings use the same controls as a directional light; the active r3d light budget still applies.
+Provides a local omnidirectional light at the entity's composed world transform position, including parent rotation and scale. Range is in world units. Specular and shadow settings use the same controls as a directional light; the active r3d light budget still applies.
 
 [Guide / example](../README.md#asset-backed-3d-models) · [Implementation](../rune/ecs/light.odin)
 
@@ -351,7 +351,7 @@ Provides a local omnidirectional light at the entity transform position. Range i
 
 ### SpotLight
 
-Provides a cone light at the entity transform position with an explicit direction. Inner/outer cone angles are degrees; outer must be at least inner. Direction is not derived from transform rotation. Range is in world units.
+Provides a cone light at the entity's composed world transform position, including parent rotation and scale, with an explicit world-space direction. Inner/outer cone angles are degrees; outer must be at least inner. Direction is not derived from transform rotation. Range is in world units.
 
 [Guide / example](../README.md#asset-backed-3d-models) · [Implementation](../rune/ecs/light.odin)
 
@@ -525,38 +525,30 @@ Moves a `Camera2D` entity's transform toward a target entity with a transform. T
 
 ### Camera3D
 
-<<<<<<< HEAD
-Uses the entity transform position as the camera position. Target and up explicitly define the view; transform rotation does not replace them. `projection` selects perspective or orthographic rendering. `fovy` is the vertical field of view in degrees for perspective, or the visible height in world units for orthographic. Set `active: true` to select the view; the default is inactive. The camera-switching example changes active cameras in Odin.
-=======
-Uses the entity transform position as the camera position. Target and up explicitly define the view; transform rotation does not replace them. Set `active: true` to select the view; the default is inactive. The camera-switching example changes active cameras in Odin.
->>>>>>> 35a11b28a2acabfd6a622dd26aa3b525a2d0641b
+Uses the entity's composed world transform position as the camera position, including parent rotation and scale. Target and up explicitly define the view in world space; transform rotation does not replace them. `projection` selects perspective or orthographic rendering. `fovy` is the vertical field of view in degrees for perspective, or the visible height in world units for orthographic. Set `active: true` to select the view; the default is inactive. The camera-switching example changes active cameras in Odin.
 
 [Guide / example](../examples/camera_switching/README.md) · [Implementation](../rune/ecs/camera.odin)
 
 | Field | Type / constraints | JSON default | Meaning |
 | --- | --- | --- | --- |
-| `target` | 3-item array of number | `[0, 0, 0]` | Camera target position. |
-| `up` | 3-item array of number | `[0, 1, 0]` | Camera up vector. |
+| `target` | 3-item array of number | `[0, 0, 0]` | World-space camera target position. |
+| `up` | 3-item array of number | `[0, 1, 0]` | World-space camera up vector. |
 | `fovy` | number; > 0 | `45` | Vertical field of view in degrees for perspective; visible height in world units for orthographic. |
-<<<<<<< HEAD
-| `projection` | `perspective` or `orthographic` | `perspective` | Camera projection mode. |
-=======
 | `projection` | `"perspective"` or `"orthographic"` | `"perspective"` | Camera projection. In Odin, use `.perspective` or `.orthographic`. |
->>>>>>> 35a11b28a2acabfd6a622dd26aa3b525a2d0641b
 | `active` | boolean | `false` | Select this camera/listener. |
 
 ### OrbitCamera3D
 
-Drives `Transform` and `Camera3D` around a target. The scene-owning loop updates it automatically; callback loops call `rune.update_orbit_cameras_3d`. Held manual input controls orbit; panning takes precedence over orbit and automatic rotation. Empty pan action disables panning. Minimum pitch/distance must not exceed their maxima; initial pitch and distance are clamped to the configured range.
+Drives `Transform` and `Camera3D` around a world-space target, with distances in world units. The scene-owning loop updates it automatically; callback loops call `rune.update_orbit_cameras_3d`. Parented cameras convert the calculated world position into the composed parent's local frame; a zero-scale parent skips the update. Held manual input controls orbit; panning takes precedence over orbit and automatic rotation. Empty pan action disables panning. Minimum pitch/distance must not exceed their maxima; initial pitch and distance are clamped to the configured range.
 
 [Guide / example](../README.md#orbit-camera) · [Implementation](../rune/ecs/camera.odin)
 
 | Field | Type / constraints | JSON default | Meaning |
 | --- | --- | --- | --- |
-| `target` | 3-item array of number | `[0, 0, 0]` | Camera target position. |
+| `target` | 3-item array of number | `[0, 0, 0]` | World-space orbit target position. |
 | `yaw` | number | `0` | Orbit azimuth in degrees. |
 | `pitch` | number | `25` | Orbit elevation in degrees. |
-| `distance` | number; > 0 | `8` | Distance to the orbit target. |
+| `distance` | number; > 0 | `8` | Distance to the orbit target in world units. |
 | `min_pitch` | number | `-80` | Lower pitch limit in degrees. |
 | `max_pitch` | number | `80` | Upper pitch limit in degrees. |
 | `min_distance` | number; > 0 | `1` | Minimum distance. |
@@ -887,7 +879,7 @@ mode or X/Z for controller mode), as well as the current movement request and ro
 
 ### Interactable3D
 
-An interaction target on an entity with `Transform`. Offset is unscaled and world-axis aligned. Zero hold time is a press action; positive time requires a hold. Prompt is data for game-owned UI. Odin handles the resulting door, pickup, dialogue, or other behavior.
+An interaction target on an entity with `Transform`. Its position includes ancestor translation, rotation, and scale, matching rendering. Offset is unscaled and world-axis aligned. Zero hold time is a press action; positive time requires a hold. Prompt is data for game-owned UI. Odin handles the resulting door, pickup, dialogue, or other behavior.
 
 [Guide / example](interactions-3d.md) · [Implementation](../rune/ecs/interaction_3d.odin)
 
@@ -914,7 +906,7 @@ Reach, facing cone, and visibility configuration on the actor, which also needs 
 
 ### Trigger3D
 
-A query-only box/sphere zone on an entity with `Transform`; it never blocks movement and needs no rigid body/collider of its own. Boxes remain world-axis aligned, dimensions follow absolute hierarchy scale, and offset is unscaled world space. The fixed-step loop buffers enter/stay/exit events; consume them in `post_physics` to observe every step.
+A query-only box/sphere zone on an entity with `Transform`; it never blocks movement and needs no rigid body/collider of its own. The zone center follows the composed world position, including parent rotation and scale. Boxes remain world-axis aligned, dimensions follow absolute hierarchy scale, and offset is unscaled world space. The fixed-step loop buffers enter/stay/exit events; consume them in `post_physics` to observe every step.
 
 [Guide / example](triggers-3d.md) · [Implementation](../rune/ecs/triggers_3d.odin)
 
@@ -932,7 +924,7 @@ A query-only box/sphere zone on an entity with `Transform`; it never blocks move
 
 ### AudioListener
 
-Selects the scene audio reference point, normally on a camera entity with a transform. Sharing a camera is a convention, not a requirement. Keep one active listener. Entity activation also affects selection.
+Selects the scene audio reference point, normally on a camera entity with a transform. The listener uses its composed world position, including parent rotation and scale. Sharing a camera is a convention, not a requirement. Keep one active listener. Entity activation also affects selection.
 
 [Guide / example](../README.md#audio-component-data) · [Implementation](../rune/ecs/audio.odin)
 
@@ -942,7 +934,7 @@ Selects the scene audio reference point, normally on a camera entity with a tran
 
 ### AudioPlayer
 
-Named audio instances on an entity. Supply a nonempty sound path or nonempty clips list; clips overrides sound and chooses randomly per play. Music formats stream; short effects use buffered voices. Playback is game-owned unless `play_on_start` is true. Spatial audio uses emitter/listener positions. `max_distance >= min_distance`. Disabled entities suspend playback; mix bus settings live at engine/project level.
+Named audio instances on an entity. Supply a nonempty sound path or nonempty clips list; clips overrides sound and chooses randomly per play. Music formats stream; short effects use buffered voices. Playback is game-owned unless `play_on_start` is true. Spatial audio uses composed emitter/listener world positions. `max_distance >= min_distance`. Disabled entities suspend playback; mix bus settings live at engine/project level.
 
 [Guide / example](audio-mixer.md) · [Implementation](../rune/ecs/audio.odin)
 

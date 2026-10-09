@@ -20,15 +20,16 @@ on layer index 2. The trigger entity's own layer does not filter participants.
 | `shape` | `box` | `box` or `sphere`; typed serialization also accepts 0 or 1. |
 | `size` | [2, 2, 2] | Full box dimensions. |
 | `radius` | 1 | Sphere radius. |
-| `offset` | [0, 0, 0] | Unscaled world-axis offset from the accumulated Transform position. |
+| `offset` | [0, 0, 0] | Unscaled world-axis offset from the composed world Transform position. |
 | `layers` | All 64 bits | Accepted participant layers. |
 | `enabled` | true | Disable detection while leaving the zone's visuals enabled. |
 | `include_sensors` | false | Whether ordinary sensor colliders count as participants. |
 
 Boxes remain aligned to world axes, even if the Transform is rotated. Dimensions
 inherit the absolute product of hierarchy scales; spheres use the largest scale
-axis. A zero scale disables detection. Positions follow Rune's additive
-hierarchy translations. Both geometry dimensions and participants use full XYZ.
+axis. A zero scale disables detection. The zone's position follows ancestor
+translation, rotation, and scale, matching 3D rendering. Its offset stays in
+world-axis units. Both geometry dimensions and participants use full XYZ.
 
 Register built-in components normally. The engine samples zones **after physics
 and before `post_physics` callbacks**, once per fixed tick:

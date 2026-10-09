@@ -7,6 +7,16 @@ values index a caller-provided RGBA palette. `fill_box` fills half-open bounds.
 same color index. Solid/solid boundaries are omitted. The caller owns the
 returned `Mesh`; release it with `geometry.destroy_mesh`.
 
+`append_tube(&mesh, points, radius, sides=8, color={255,255,255,255})` adds a
+capped circular tube along a caller-sampled `[][3]f32` path. Side rings follow
+averaged path tangents and retain smooth normals; endpoint caps have separate
+flat normals. Callers choose curves, spacing, layout, materials, and collision.
+Multiple calls append independent paths to one mesh. The function returns false
+without changing existing buffers for invalid/nonfinite inputs, consecutive
+duplicate points, reversals, collapsed or folded triangles, or mesh limits.
+It accepts 2–65,536 points and 3–64 sides. Choose a radius small enough for the
+path's bends; open paths and gentle sampled curves work best.
+
 `surface_chunks(volume, colors, chunk_size)` emits independent meshes in
 deterministic Z/Y/X order. Chunk sizes are positive voxel counts, anchored at
 volume index zero. Each `Mesh_Chunk` carries its coordinate and half-open voxel
