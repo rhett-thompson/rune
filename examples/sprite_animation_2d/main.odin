@@ -48,7 +48,7 @@ knight_clip_name :: proc(index: int) -> string {
 
 draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	example_text.draw("JSON sprite-sheet animation", 24, 24, 28, rl.RAYWHITE)
-	example_text.draw("Tab: knight clip   Space: reverse coin", 24, 60, 18, rl.LIGHTGRAY)
+	example_text.draw("Tab / Pad X: knight clip | Space / Pad A: reverse coin", 24, 60, 18, rl.LIGHTGRAY)
 	example_text.draw("Knight clips: idle, run, roll, hit, death", 24, 88, 18, rl.LIGHTGRAY)
 	example_text.draw("Roll and hit queue a return to idle", 24, 116, 18, rl.LIGHTGRAY)
 }

@@ -22,3 +22,5 @@ Edit `scenes/main.scene.json` and save to hot reload. Keyboard adjustments are
 runtime-only. The HUD is drawn after r3d and remains outside post-processing.
 See [the engine documentation](../../docs/post-processing.md) for all settings,
 camera overrides, code-first use, and console commands.
+
+Controller: A toggles post-processing, B bloom, X SSAO, Y depth of field; LB cycles tonemapping; D-pad up/down adjusts exposure. Hold RB with the right stick to orbit; LT/RT zoom out/in. Hold Start for one second to exit. Button names use Xbox layout.

@@ -1,22 +1,149 @@
 {
   "$schema": "../../../schemas/input.schema.json",
   "actions": {
-    "punch": [{ "type": "keyboard", "key": "SPACE" }],
-    "orbit_camera": [{ "type": "mouse_button", "button": "LEFT" }],
-    "pan_camera": [{ "type": "mouse_button", "button": "MIDDLE" }],
-    "speed": [{ "type": "keyboard", "key": "S" }],
-    "reverse": [{ "type": "keyboard", "key": "V" }],
-    "seek": [{ "type": "keyboard", "key": "H" }],
-    "pause": [{ "type": "keyboard", "key": "P" }],
-    "resume": [{ "type": "keyboard", "key": "R" }],
-    "bend": [{ "type": "keyboard", "key": "1" }],
-    "sway": [{ "type": "keyboard", "key": "2" }]
+    "punch": [
+      {
+        "type": "keyboard",
+        "key": "SPACE"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "A"
+      }
+    ],
+    "orbit_camera": [
+      {
+        "type": "mouse_button",
+        "button": "LEFT"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "RIGHT_BUMPER"
+      }
+    ],
+    "pan_camera": [
+      {
+        "type": "mouse_button",
+        "button": "MIDDLE"
+      }
+    ],
+    "speed": [
+      {
+        "type": "keyboard",
+        "key": "S"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "Y"
+      }
+    ],
+    "reverse": [
+      {
+        "type": "keyboard",
+        "key": "V"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_LEFT"
+      }
+    ],
+    "seek": [
+      {
+        "type": "keyboard",
+        "key": "H"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_RIGHT"
+      }
+    ],
+    "pause": [
+      {
+        "type": "keyboard",
+        "key": "P"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_DOWN"
+      }
+    ],
+    "resume": [
+      {
+        "type": "keyboard",
+        "key": "R"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_UP"
+      }
+    ],
+    "bend": [
+      {
+        "type": "keyboard",
+        "key": "1"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "B"
+      }
+    ],
+    "sway": [
+      {
+        "type": "keyboard",
+        "key": "2"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "X"
+      }
+    ],
+    "zoom_in": [
+      {
+        "type": "gamepad_button",
+        "button": "RIGHT_TRIGGER"
+      }
+    ],
+    "zoom_out": [
+      {
+        "type": "gamepad_button",
+        "button": "LEFT_TRIGGER"
+      }
+    ]
   },
   "axes": {
-    "orbit_x": { "type": "mouse_delta", "axis": "x", "invert": true },
-    "orbit_y": { "type": "mouse_delta", "axis": "y" },
-    "pan_x": { "type": "mouse_delta", "axis": "x" },
-    "pan_y": { "type": "mouse_delta", "axis": "y" },
-    "zoom": { "type": "mouse_wheel", "scale": 0.75 }
+    "orbit_x": {
+      "type": "mouse_delta",
+      "axis": "x",
+      "invert": true
+    },
+    "orbit_y": {
+      "type": "mouse_delta",
+      "axis": "y"
+    },
+    "pan_x": {
+      "type": "mouse_delta",
+      "axis": "x"
+    },
+    "pan_y": {
+      "type": "mouse_delta",
+      "axis": "y"
+    },
+    "zoom": {
+      "type": "mouse_wheel",
+      "scale": 0.75
+    },
+    "orbit_x_pad": {
+      "type": "gamepad_axis",
+      "axis": "RIGHT_X",
+      "gamepad": 0,
+      "deadzone": 0.15,
+      "invert": true
+    },
+    "orbit_y_pad": {
+      "type": "gamepad_axis",
+      "axis": "RIGHT_Y",
+      "gamepad": 0,
+      "deadzone": 0.15
+    }
   }
 }

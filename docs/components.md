@@ -558,6 +558,12 @@ Drives `Transform` and `Camera3D` around a world-space target, with distances in
 | `yaw_axis` | string | `"orbit_x"` | Input axis for horizontal orbit. |
 | `pitch_axis` | string | `"orbit_y"` | Input axis for vertical orbit. |
 | `zoom_axis` | string | `"zoom"` | Input axis for zoom. |
+| `pad_yaw_axis` | string | `"orbit_x_pad"` | Stick axis for horizontal orbit while manual action is held. |
+| `pad_pitch_axis` | string | `"orbit_y_pad"` | Stick axis for vertical orbit while manual action is held. |
+| `zoom_in_action` | string | `"zoom_in"` | Held action decreasing distance. |
+| `zoom_out_action` | string | `"zoom_out"` | Held action increasing distance. |
+| `pad_orbit_speed` | number; ≥ 0 | `180` | Degrees/second at full stick deflection. |
+| `pad_zoom_speed` | number; ≥ 0 | `8` | World units/second while a zoom action is held. |
 | `pan_action` | string | `""` | Held action enabling camera-plane panning. Empty disables panning; panning takes priority over orbit rotation. |
 | `pan_x_axis` | string | `"pan_x"` | Input axis for horizontal pan. |
 | `pan_y_axis` | string | `"pan_y"` | Input axis for vertical pan. |

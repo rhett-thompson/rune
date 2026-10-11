@@ -43,6 +43,20 @@ gamepad_mapping_validation :: proc(t: ^testing.T) {
 }
 
 @(test)
+gamepad_digital_trigger_bindings :: proc(t: ^testing.T) {
+	testing.expect(t, button_from_name("LEFT_TRIGGER").valid && button_from_name("LEFT_TRIGGER").button == .LEFT_TRIGGER_2)
+	testing.expect(t, button_from_name("right_trigger").valid && button_from_name("right_trigger").button == .RIGHT_TRIGGER_2)
+	testing.expect(t, button_from_name("LEFT_BUMPER").button == .LEFT_TRIGGER_1)
+	testing.expect(t, button_from_name("RIGHT_BUMPER").button == .RIGHT_TRIGGER_1)
+	mappings := Mappings{actions=make(map[string][]Binding),axes=make(map[string]Axis)}
+	defer delete(mappings.actions)
+	defer delete(mappings.axes)
+	bindings := []Binding{{type="gamepad_button",button="LEFT_TRIGGER"},{type="gamepad_button",button="RIGHT_TRIGGER",gamepad=1}}
+	mappings.actions["fire"] = bindings
+	testing.expect(t, validate_mappings(mappings), "trigger actions load like other gamepad buttons")
+}
+
+@(test)
 gamepad_disconnect_and_multiple_device_edges :: proc(t: ^testing.T) {
 	held:=Action_State{is_down=true,strength=1}
 	press:=resolve_action_edges(held,{})

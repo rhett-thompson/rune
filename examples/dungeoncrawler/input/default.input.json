@@ -5,30 +5,50 @@
       {
         "type": "keyboard",
         "key": "R"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "BACK"
       }
     ],
     "forward": [
       {
         "type": "keyboard",
         "key": "W"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_UP"
       }
     ],
     "back": [
       {
         "type": "keyboard",
         "key": "S"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_DOWN"
       }
     ],
     "left": [
       {
         "type": "keyboard",
         "key": "A"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_LEFT"
       }
     ],
     "right": [
       {
         "type": "keyboard",
         "key": "D"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_RIGHT"
       }
     ],
     "turn_left": [
@@ -47,6 +67,10 @@
       {
         "type": "keyboard",
         "key": "LEFT_SHIFT"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "LEFT_TRIGGER"
       }
     ],
     "attack": [
@@ -57,6 +81,10 @@
       {
         "type": "mouse_button",
         "button": "LEFT"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "RIGHT_TRIGGER"
       }
     ]
   },
@@ -76,6 +104,25 @@
     "look_x": {
       "type": "mouse_delta",
       "axis": "x"
+    },
+    "move_x_pad": {
+      "type": "gamepad_axis",
+      "axis": "LEFT_X",
+      "gamepad": 0,
+      "deadzone": 0.15
+    },
+    "move_z_pad": {
+      "type": "gamepad_axis",
+      "axis": "LEFT_Y",
+      "gamepad": 0,
+      "deadzone": 0.15,
+      "invert": true
+    },
+    "look_x_pad": {
+      "type": "gamepad_axis",
+      "axis": "RIGHT_X",
+      "gamepad": 0,
+      "deadzone": 0.15
     }
   }
 }

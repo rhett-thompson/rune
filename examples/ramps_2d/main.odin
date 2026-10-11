@@ -21,7 +21,7 @@ after_load :: proc(game: ^rune.Engine, world: ^ecs.World) {
 control :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	move_platforms(world,game.fixed_delta_time)
 	ecs.character_controller_2d_crouch(world,player,input.is_down(rune.input_state(game),"move_down"))
-	axis := input.axis(rune.input_state(game),"move_x")
+	axis := clamp(input.axis(rune.input_state(game),"move_x") + input.axis(rune.input_state(game),"move_x_pad"), -1, 1)
 	if axis != 0 {facing = 1 if axis > 0 else -1}
 	ecs.character_controller_2d_move(world,player,axis)
 	if input.pressed(rune.input_state(game),"dash") {ecs.character_controller_2d_dash(world,player,facing)}
@@ -88,9 +88,9 @@ draw_terrain :: proc(game: ^rune.Engine, world: ^ecs.World) {
 
 draw_ui :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	example_text.draw("RAMPS + CHAINED DASHES",32,24,26,rl.RAYWHITE)
-	example_text.draw("A/D: move   SPACE: jump   SHIFT: dash   S/DOWN: crouch   S + SPACE: drop",32,65,18,rl.LIGHTGRAY)
-	example_text.draw("Tap SPACE for a short hop; hold it to reach the orange ledge.",32,96,18,rl.LIGHTGRAY)
-	example_text.draw("Tap SHIFT again during a dash to chain; steer to redirect. Up to 3 before cooldown.",32,127,18,rl.LIGHTGRAY)
+	example_text.draw("A/D / LS move | Space / A jump | Shift / X dash | Down crouch | Down + A drop",32,65,18,rl.LIGHTGRAY)
+	example_text.draw("Tap SPACE / A for a short hop; hold it to reach the orange ledge.",32,96,18,rl.LIGHTGRAY)
+	example_text.draw("Tap SHIFT / X during a dash to chain; steer to redirect. Up to 3 before cooldown.",32,127,18,rl.LIGHTGRAY)
 	example_text.draw("Walk right into the shaft. Jump between walls to climb; press toward a wall to slide.",32,158,16,rl.LIGHTGRAY)
 	example_text.draw("WALL SHAFT",1050,195,16,rl.LIGHTGRAY)
 	example_text.draw("ENTER BELOW",1030,515,16,rl.LIGHTGRAY)

@@ -1,11 +1,45 @@
 {
   "$schema": "../../../schemas/input.schema.json",
   "actions": {
-    "mute_sfx": [{ "type": "keyboard", "key": "M" }],
-    "fade_sfx": [{ "type": "keyboard", "key": "F" }],
-    "restore_sfx": [{ "type": "keyboard", "key": "R" }],
+    "mute_sfx": [
+      {
+        "type": "keyboard",
+        "key": "M"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "X"
+      }
+    ],
+    "fade_sfx": [
+      {
+        "type": "keyboard",
+        "key": "F"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "Y"
+      }
+    ],
+    "restore_sfx": [
+      {
+        "type": "keyboard",
+        "key": "R"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "B"
+      }
+    ],
     "play_bell": [
-      { "type": "mouse_button", "button": "LEFT" }
+      {
+        "type": "mouse_button",
+        "button": "LEFT"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "A"
+      }
     ]
   },
   "axes": {}

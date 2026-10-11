@@ -113,6 +113,8 @@ Available engine commands:
 | Command | Behavior |
 | --- | --- |
 | `status` | Scene, frame number, simulation time, fixed-step count, FPS, pause state, active 2D/3D cameras, entity count, and recent errors. |
+| `pads` | Connected gamepad slots 0–3, names, axis counts, and live axis values. |
+| `quit` | Request engine exit, acknowledging a remote request before shutdown. |
 | `entities [component]` | Sorted entity IDs, names, parents, and component names; optionally filter by registered component. |
 | `inspect <entity-id> [component]` | Current runtime component values and hierarchy. Runtime-only entities use the `@handle` returned by `entities`; handles expire on reload. |
 | `enable <entity-id>` / `disable <entity-id>` | Change the entity's local activation setting without saving files. Disabled ancestors keep descendants inactive; descendants retain their own local settings. See [entity activation](entity_features.md#entity-activation). |

@@ -45,8 +45,8 @@ draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 		"ON" if value.enabled else "OFF", "ON" if value.bloom.mode != .disabled else "OFF",
 		"ON" if value.ssao.enabled else "OFF", "ON" if value.dof.enabled else "OFF",
 		value.tonemap.mode, value.tonemap.exposure), 28, 60, 18, {135,205,230,255})
-	example_text.draw("SPACE Compare   B Bloom   O Occlusion   D Focus   T Tone map   UP/DOWN Exposure", 28, 91, 18, {185,196,213,255})
-	example_text.draw("Left-drag to orbit. Edit scenes/main.scene.json and save to reload.", 28, rl.GetScreenHeight()-35, 18, {210,220,235,255})
+	example_text.draw("Keys: Space/B/O/D/T | Pad: A/B/X/Y/LB | Up/Down exposure", 28, 91, 18, {185,196,213,255})
+	example_text.draw("Mouse / RB + RS orbit | LT/RT zoom. Edit scenes/main.scene.json to reload.", 28, rl.GetScreenHeight()-35, 18, {210,220,235,255})
 }
 
 shutdown :: proc(game: ^rune.Engine, world: ^ecs.World) {r3d_bridge.shutdown(&bridge)}

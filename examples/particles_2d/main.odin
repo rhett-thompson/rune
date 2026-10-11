@@ -30,7 +30,7 @@ on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 
 on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	example_text.draw("Particles", 40, 30, 30, {230, 238, 250, 255})
-	example_text.draw("SPACE burst     E toggle emitters     C clear     F3 gizmos", 40, 77, 18, {150, 164, 189, 255})
+	example_text.draw("Space / A burst | E / X toggle emitters | C / B clear | F3 gizmos", 40, 77, 18, {150, 164, 189, 255})
 	example_text.draw("Fountain", 123, 460, 20, {255, 204, 121, 255})
 	example_text.draw("Textured smoke", 391, 460, 20, {155, 194, 225, 255})
 	example_text.draw("Burst", 704, 460, 20, {140, 236, 210, 255})

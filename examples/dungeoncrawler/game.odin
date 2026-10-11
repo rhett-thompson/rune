@@ -297,6 +297,12 @@ strike :: proc(engine: ^rune.Engine, world: ^ecs.World) {
 	}
 }
 
+// Cap keyboard diagonals while preserving partial analog stick deflection.
+dungeon_move_axes :: proc(direction: [2]f32) -> [2]f32 {
+	length := f32(math.sqrt(f64(direction[0]*direction[0]+direction[1]*direction[1])))
+	return direction/length if length > 1 else direction
+}
+
 dungeon_update_system :: proc(engine: ^rune.Engine, world: ^ecs.World) {
 	dt := engine.delta_time
 	controls := rune.input_state(engine)
@@ -313,10 +319,12 @@ dungeon_update_system :: proc(engine: ^rune.Engine, world: ^ecs.World) {
 		}
 		return
 	}
-	game.angle += input.axis(controls, "look_x") * .0024 + input.axis(controls, "turn") * 1.8 * dt
-	f, s := input.axis(controls, "move_z"), input.axis(controls, "move_x")
+	game.angle += input.axis(controls, "look_x") * .0024 + input.axis(controls, "turn") * 1.8 * dt + input.axis(controls, "look_x_pad") * f32(math.PI) * dt
+	f := clamp(input.axis(controls, "move_z") + input.axis(controls, "move_z_pad"), -1, 1)
+	s := clamp(input.axis(controls, "move_x") + input.axis(controls, "move_x_pad"), -1, 1)
 	if f != 0 || s != 0 {
-		l := f32(math.sqrt(f64(f * f + s * s))); f /= l; s /= l
+		movement := dungeon_move_axes({f, s})
+		f, s = movement[0], movement[1]
 		speed := player_settings.walk_speed; if input.is_down(controls, "sprint") { speed = player_settings.sprint_speed }
 		c, sn := f32(math.cos(f64(game.angle))), f32(math.sin(f64(game.angle)))
 		dx, dy := (c * f - sn * s) * speed * dt, (sn * f + c * s) * speed * dt
@@ -457,7 +465,7 @@ dungeon_draw_system :: proc(engine: ^rune.Engine, world: ^ecs.World) {
 	rl.DrawRectangle(30, h - 45, 220 * max(0, game.health) / 100, 16, {195, 35, 42, 255})
 	example_text.draw(fmt.ctprintf("HEALTH %d", game.health), 30, h - 62, 16, rl.RAYWHITE)
 	example_text.draw(fmt.ctprintf("DEPTH %d   KILLS %d", game.level, game.kills), 18, 18, 22, {235, 215, 170, 255})
-	example_text.draw("WASD move  Mouse look  LMB/Space attack  Shift sprint", 18, 48, 16, {190, 185, 175, 255})
+	example_text.draw("WASD / LS move | Mouse / RS look | RT attack | LT sprint", 18, 48, 16, {190, 185, 175, 255})
 	rl.DrawCircle(w / 2, h / 2, 2, rl.GOLD)
 	sc: i32 = 4; ox: i32 = w - MAP * sc - 18; oy: i32 = 18; rl.DrawRectangle(ox - 4, oy - 4, MAP * sc + 8, MAP * sc + 8, {0, 0, 0, 160})
 	for y in 0 ..< MAP { for x in 0 ..< MAP { if game.tiles[y][x] != 0 { rl.DrawRectangle(ox + i32(x) * sc, oy + i32(y) * sc, sc, sc, {90, 75, 70, 220}) } } }
@@ -466,8 +474,8 @@ dungeon_draw_system :: proc(engine: ^rune.Engine, world: ^ecs.World) {
 	if game.health <=
 	   0 {rl.DrawRectangle(0, 0, w, h, {20, 0, 0, 210}); example_text.draw("YOU DIED", w / 2 - example_text.measure("YOU DIED", 64) / 2, h / 2 - 60, 64, rl.RED)
 		example_text.draw(
-			"Press R to descend again",
-			w / 2 - example_text.measure("Press R to descend again", 24) / 2,
+			"Press R / Back to descend again",
+			w / 2 - example_text.measure("Press R / Back to descend again", 24) / 2,
 			h / 2 + 20,
 			24,
 			rl.RAYWHITE,

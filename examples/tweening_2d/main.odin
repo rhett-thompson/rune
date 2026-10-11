@@ -63,7 +63,7 @@ on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 
 on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	example_text.draw("Tweening and easing", 32, 28, 30, rl.RAYWHITE)
-	example_text.draw("Left-click to change easing", 32, 68, 18, rl.LIGHTGRAY)
+	example_text.draw("Click / Pad A changes easing", 32, 68, 18, rl.LIGHTGRAY)
 	example_text.draw(easing_options[easing_index].name, 32, 100, 22, rl.SKYBLUE)
 }
 

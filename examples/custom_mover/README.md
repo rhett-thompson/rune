@@ -15,3 +15,5 @@ odin run examples/custom_mover -o:none -linker:msvc -collection:rune=rune "-out:
 ```
 
 [All examples](../README.md)
+
+Controller: D-pad left/right moves the entity. Hold Start for one second to exit. Button names use Xbox layout.

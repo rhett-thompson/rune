@@ -65,8 +65,8 @@ controls :: proc(game:^rune.Engine,world:^ecs.World) {
 		return
 	}
 	if captured {
-		yaw += input.axis(i,"look_x")*0.15
-		pitch = clamp(pitch-input.axis(i,"look_y")*0.15,-85,85)
+		yaw += input.axis(i,"look_x")*0.15 + input.axis(i,"look_x_pad")*180*game.delta_time
+		pitch = clamp(pitch-input.axis(i,"look_y")*0.15-input.axis(i,"look_y_pad")*120*game.delta_time,-85,85)
 	}
 }
 
@@ -75,7 +75,7 @@ fixed_update :: proc(game:^rune.Engine,world:^ecs.World) {
 	direction: [2]f32
 	if !console.is_open(rune.developer_console(game)) {
 		a := yaw*f32(math.PI/180)
-		direction = [2]f32{math.sin(a),-math.cos(a)}*input.axis(i,"move_z") + [2]f32{math.cos(a),math.sin(a)}*input.axis(i,"move_x")
+		direction = [2]f32{math.sin(a),-math.cos(a)}*clamp(input.axis(i,"move_z")+input.axis(i, "move_z_pad"), -1, 1) + [2]f32{math.cos(a),math.sin(a)}*clamp(input.axis(i,"move_x")+input.axis(i, "move_x_pad"), -1, 1)
 		if input.pressed(i,"jump") {ecs.character_controller_3d_jump(world,player)}
 	}
 	ecs.character_controller_3d_move(world,player,direction,input.is_down(i,"sprint"))
@@ -114,7 +114,7 @@ draw :: proc(game:^rune.Engine,world:^ecs.World) {
 draw_ui :: proc(game:^rune.Engine,world:^ecs.World) {
 	rl.DrawRectangle(16,16,720,162,{14,24,30,210})
 	example_text.draw("Rune / Highland Walk",30,28,28,rl.RAYWHITE)
-	example_text.draw("WASD move | Shift sprint | Space jump | Escape mouse | R reset",30,65,18,rl.RAYWHITE)
+	example_text.draw("WASD / LS move | Space / A jump | Shift / LT sprint | Escape / R3 mouse",30,65,18,rl.RAYWHITE)
 	example_text.draw("Edit assets/hills.png or hills.terrain.json to reload the landscape",30,93,16,rl.LIGHTGRAY)
 	example_text.draw("Mouse look active | Escape releases cursor" if captured else "Mouse released | Click window or press Escape to look around",30,119,16,rl.RAYWHITE)
 	example_text.draw("N baked navigation mesh | Re-run navmesh_baker after terrain edits",30,145,16,{255,220,85,255})

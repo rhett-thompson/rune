@@ -52,3 +52,5 @@ odin run examples/skeletal_animation_3d -o:none -collection:rune=rune -linker:ms
 ```
 
 [All examples](../README.md)
+
+Controller: A punches, B bends, X sways, Y changes speed; D-pad left reverses, right seeks, down pauses and up resumes. Hold RB with the right stick to orbit; LT/RT zoom out/in. Screen-plane panning remains a middle-button drag interaction. Hold Start for one second to exit. Button names use Xbox layout.

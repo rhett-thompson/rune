@@ -62,6 +62,8 @@ update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	controls := rune.input_state(game)
 	previous := selected
 	for action, index in preset_actions {if input.pressed(controls, action) {selected = index}}
+	if input.pressed(controls, "preset_next") {selected = (selected+1)%PRESET_COUNT}
+	if input.pressed(controls, "preset_previous") {selected = (selected+PRESET_COUNT-1)%PRESET_COUNT}
 	if previous != selected {select_material(world)}
 	manager := rune.asset_manager(game)
 	data, loaded := assets.material_data(manager, paths[selected])
@@ -179,7 +181,7 @@ draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 		28, 96, 16, {177,190,206,255})
 	example_text.draw("N Seed    UP / DOWN Scale    D Detail    LEFT / RIGHT Contrast    B Bump    Q / E Resolution    F Retro    R Reset",
 		28, 126, 16, {177,190,206,255})
-	example_text.draw("Drag to orbit. Edit the selected material JSON and save to reload. Key tweaks are temporary.",
+	example_text.draw("Pad: A/L3 preset, X seed, Y retro, LB detail, R3 bump, triggers resolution; RB + RS orbit.",
 		28, rl.GetScreenHeight()-36, 17, {205,214,224,255})
 	frames += 1
 	if smoke && frames % 8 == 4 {

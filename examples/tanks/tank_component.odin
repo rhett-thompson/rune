@@ -7,6 +7,7 @@ Tank :: struct {
 	position, spawn:                rl.Vector2,
 	angle, spawn_angle:             f32,
 	turret_angle:                   f32,
+	turret_held:                    bool, // Right stick owns aim until the mouse moves again.
 	radius, move_speed, turn_speed: f32,
 	fire_cooldown, cooldown:        f32,
 	max_shot_bounces:               i32,

@@ -61,7 +61,12 @@ controls :: proc(game:^rune.Engine,world:^ecs.World) {
 		camera_forward=unit(camera_forward*math.cos(yaw)+cross(camera_up,camera_forward)*math.sin(yaw))
 		pitch=clamp(pitch+input.axis(i,"look_y")*0.004,-0.15,1.1)
 	}
-	camera_distance=clamp(camera_distance-input.axis(i,"zoom"),4,26)
+	// Rotate the stick in the transported sphere frame, independent of mouse drag.
+	pad_yaw := -input.axis(i,"look_x_pad")*f32(math.PI)*game.delta_time
+	camera_forward=unit(camera_forward*math.cos(pad_yaw)+cross(camera_up,camera_forward)*math.sin(pad_yaw))
+	pitch=clamp(pitch+input.axis(i,"look_y_pad")*f32(math.PI*2/3)*game.delta_time,-0.15,1.1)
+	pad_zoom := input.strength(i,"zoom_in")-input.strength(i,"zoom_out")
+	camera_distance=clamp(camera_distance-input.axis(i,"zoom")-pad_zoom*8*game.delta_time,4,26)
 }
 fixed_update :: proc(game:^rune.Engine,world:^ecs.World) {
 	pose,_:=ecs.get_transform(world,player)
@@ -70,7 +75,7 @@ fixed_update :: proc(game:^rune.Engine,world:^ecs.World) {
 	i:=rune.input_state(game)
 	forward:=unit(tangent(camera_forward,up))
 	right:=unit(cross(forward,up))
-	direction:=forward*input.axis(i,"move_z")+right*input.axis(i,"move_x")
+	direction:=forward*clamp(input.axis(i,"move_z")+input.axis(i, "move_z_pad"), -1, 1)+right*clamp(input.axis(i,"move_x")+input.axis(i, "move_x_pad"), -1, 1)
 	blocked:=console.is_open(rune.developer_console(game)) || rune.is_paused(game)
 	if blocked {direction={}}
 	ecs.character_controller_3d_move_on_plane(world,player,direction,up,!blocked && input.is_down(i,"sprint"))

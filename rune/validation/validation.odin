@@ -5,6 +5,7 @@ import "core:fmt"
 import "core:mem"
 import "core:os"
 import "core:path/filepath"
+import "rune:pathutil"
 import "core:strings"
 import "rune:jsonutil"
 import "rune:assets"
@@ -174,7 +175,12 @@ validate_project :: proc(project_path: string) -> Report {
 		"startup_scene",
 		false,
 	)
-	input_path, input_ok := string_field(&report, project_path, "$", project, "input", true)
+	input_path := ""
+	input_ok := true
+	if value, found := project["input"]; found {
+		input_path, input_ok = value.(json.String)
+		if !input_ok {add(&report, project_path, "$.input", "must be a string")}
+	}
 	validate_window(&report, project_path, project)
 	validate_render_2d(&report, project_path, project)
 	layers := validate_layers(&report, project_path, project)
@@ -390,7 +396,7 @@ validate_entity_layers :: proc(
 // Validate the same expanded data used at runtime, including nested dependencies.
 validate_prefab :: proc(report: ^Report, prefab_path, project_directory: string) {
 	allocator := report_allocator(report)
-	absolute, error := filepath.abs(prefab_path, allocator)
+	absolute, error := pathutil.absolute(prefab_path, allocator)
 	if error != nil {add(report, prefab_path, "$", "could not resolve prefab path"); return}
 	entity := make(json.Object, allocator)
 	entity["id"] = "prefab"

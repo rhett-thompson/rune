@@ -79,9 +79,10 @@ done
 for name in $built_validators; do
     "build/$name" || fail "run $name"
 done
-for name in console ecs audio core geometry r3d_bridge save; do
+for name in console ecs audio core geometry r3d_bridge save input ui pathutil; do
     test_rune "$name"
 done
+test_example launcher
 
 if [ "$runtime" -eq 1 ]; then
     for name in overlay_3d_validation static_mesh_material_validation light_shafts_validation volumetric_fog_validation light_shadow_validation cloud_volume_validation billboard_validation procedural_material_validation navigation_3d_validation save_validation asset_validation terrain_validation skybox_validation post_processing_validation model_animation_validation sprite_animation_validation particle_validation component_features_validation collider_2d_validation polygon_2d_validation resolution_validation ui_validation window_validation mixer_validation console_validation; do
@@ -115,7 +116,7 @@ else
 fi
 
 if [ "$all_examples" -eq 1 ]; then
-    for name in asteroids tetris physics_platformer_2d first_person_3d third_person_3d; do
+    for name in asteroids tetris physics_platformer_2d first_person_3d third_person_3d tanks terrain_3d navigation_3d dungeoncrawler; do
         test_example "$name"
     done
     # Discover runnable packages, including the launcher. The engine's r3d

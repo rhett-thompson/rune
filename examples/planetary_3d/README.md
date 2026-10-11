@@ -119,3 +119,5 @@ landing, and tilted capsule triggers alongside the existing movement regressions
 
 For a short render/audio smoke test that captures `build/planetary_3d.png` and
 exits, run the built executable with `--smoke-test`.
+
+Controller: Left stick or D-pad moves over the sphere; right stick freely orbits in the local gravity frame, LB/RB zoom out/in, A jumps, LT sprints, B crouches and Back resets. Hold Start for one second to exit. Button names use Xbox layout.

@@ -35,9 +35,20 @@ update_course_camera :: proc(game:^rune.Engine,world:^ecs.World,pointer_blocked:
 	orbit.zoom_sensitivity=orbit.distance*0.1
 	// Preserve pointer tracking across viewport sizes and field-of-view changes.
 	orbit.pan_sensitivity=2*math.tan(camera.fovy*math.PI/360)/f32(max(rl.GetScreenHeight(),1))
-	manual_action,pan_action,zoom_axis:=orbit.manual_action,orbit.pan_action,orbit.zoom_axis
-	if pointer_blocked {orbit.manual_action="";orbit.pan_action="";orbit.zoom_axis=""}
-	pose:=ecs.update_orbit_camera_3d(&orbit,controls,game.frame_delta_time)
-	orbit.manual_action,orbit.pan_action,orbit.zoom_axis=manual_action,pan_action,zoom_axis
+	pose:=course_camera_pose(&orbit,controls,game.frame_delta_time,pointer_blocked)
 	camera.position=pose.position;camera.target=orbit.target
+}
+
+// A pointer hovering the panel suppresses mouse gestures, while an unfocused
+// controller can still orbit. Deliberate menu focus gates world controls earlier.
+course_camera_pose :: proc(orbit:^ecs.OrbitCamera3D,controls:^input.Input,dt:f32,pointer_blocked:bool) -> ecs.Transform {
+	if !pointer_blocked {return ecs.update_orbit_camera_3d(orbit,controls,dt)}
+	manual,pan,zoom,yaw,pitch:=orbit.manual_action,orbit.pan_action,orbit.zoom_axis,orbit.yaw_axis,orbit.pitch_axis
+	defer {
+		orbit.manual_action,orbit.pan_action,orbit.zoom_axis=manual,pan,zoom
+		orbit.yaw_axis,orbit.pitch_axis=yaw,pitch
+	}
+	orbit.manual_action="orbit_pad_hold"
+	orbit.pan_action="";orbit.zoom_axis="";orbit.yaw_axis="";orbit.pitch_axis=""
+	return ecs.update_orbit_camera_3d(orbit,controls,dt)
 }

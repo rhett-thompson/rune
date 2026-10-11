@@ -34,3 +34,5 @@ Runtime edits rebuild the native body and refresh its gizmo without saving the
 scene. Edit `scenes/main.scene.json` to persist changes.
 
 See [physics authoring and queries](../../docs/physics.md).
+
+Controller: D-pad left/right moves; A jumps. Hold Start for one second to exit. Button names use Xbox layout.

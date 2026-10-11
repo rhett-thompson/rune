@@ -2,28 +2,78 @@
   "$schema": "../../../schemas/input.schema.json",
   "actions": {
     "turn_left": [
-      { "type": "keyboard", "key": "A" },
-      { "type": "keyboard", "key": "LEFT" }
+      {
+        "type": "keyboard",
+        "key": "A"
+      },
+      {
+        "type": "keyboard",
+        "key": "LEFT"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_LEFT"
+      }
     ],
     "turn_right": [
-      { "type": "keyboard", "key": "D" },
-      { "type": "keyboard", "key": "RIGHT" }
+      {
+        "type": "keyboard",
+        "key": "D"
+      },
+      {
+        "type": "keyboard",
+        "key": "RIGHT"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_RIGHT"
+      }
     ],
     "thrust": [
-      { "type": "keyboard", "key": "W" },
-      { "type": "keyboard", "key": "UP" }
+      {
+        "type": "keyboard",
+        "key": "W"
+      },
+      {
+        "type": "keyboard",
+        "key": "UP"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "A"
+      }
     ],
     "fire": [
-      { "type": "keyboard", "key": "SPACE" }
+      {
+        "type": "keyboard",
+        "key": "SPACE"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "RIGHT_TRIGGER"
+      }
     ],
     "restart": [
-      { "type": "keyboard", "key": "R" }
+      {
+        "type": "keyboard",
+        "key": "R"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "BACK"
+      }
     ]
   },
   "axes": {
     "turn": {
       "negative": "turn_left",
       "positive": "turn_right"
+    },
+    "turn_pad": {
+      "type": "gamepad_axis",
+      "axis": "LEFT_X",
+      "gamepad": 0,
+      "deadzone": 0.15
     }
   }
 }

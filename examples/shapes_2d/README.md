@@ -20,3 +20,5 @@ Run `pause` before the purple bar expires to inspect or reset its lifetime.
 Reload restores all authored entities and their activation settings.
 
 See [the feature guide](../../docs/entity_features.md) for the Odin APIs and JSON fields.
+
+Controller: This showcase runs automatically; no gameplay actions are required. Hold Start for one second to exit. Button names use Xbox layout.

@@ -55,7 +55,7 @@ after_physics :: proc(game: ^rune.Engine, world: ^ecs.World) {
 
 draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	example_text.draw("PHYSICS QUERIES", 40, 32, 28, rl.RAYWHITE)
-	example_text.draw("A / D to move. Gold sensors are pickups; blue walls are solid.", 40, 74, 18, rl.LIGHTGRAY)
+	example_text.draw("A / D or D-pad moves. Gold sensors are pickups; blue walls are solid.", 40, 74, 18, rl.LIGHTGRAY)
 	example_text.draw("The ray points right. The faint circle queries nearby colliders.", 40, 100, 18, rl.LIGHTGRAY)
 	if transform, found := ecs.get_transform(world, player); found {
 		x, y := transform.position[0], transform.position[1]

@@ -44,7 +44,8 @@ type nul >"build\validate-built.tmp"
 type nul >"build\validate-failures.log"
 for /d %%D in ("tools\*") do if exist "%%D\main.odin" call :build "%%~nxD" "%%D"
 for /f "usebackq delims=" %%N in ("build\validate-built.tmp") do call :run_validator "%%N"
-for %%N in (console ecs audio core geometry r3d_bridge save) do call :test_rune "%%N"
+for %%N in (console ecs audio core geometry r3d_bridge save input ui pathutil) do call :test_rune "%%N"
+call :test_example launcher
 if "%runtime%"=="1" for %%N in (overlay_3d_validation static_mesh_material_validation light_shafts_validation volumetric_fog_validation light_shadow_validation cloud_volume_validation billboard_validation procedural_material_validation navigation_3d_validation save_validation asset_validation terrain_validation skybox_validation post_processing_validation model_animation_validation sprite_animation_validation particle_validation component_features_validation collider_2d_validation polygon_2d_validation resolution_validation ui_validation window_validation mixer_validation console_validation) do call :run_runtime "%%N"
 if "%projectValidatorBuilt%"=="1" (
     for /d %%D in ("examples\*") do if exist "%%D\project.json" call :validate_project "%%D\project.json"
@@ -59,7 +60,7 @@ if exist "third_party\r3d-odin\r3d\" (
     call :fail "r3d submodule is not initialized; run git submodule update --init --recursive"
 )
 if "%allExamples%"=="1" (
-    for %%N in (asteroids tetris physics_platformer_2d first_person_3d third_person_3d) do call :test_example "%%N"
+    for %%N in (asteroids tetris physics_platformer_2d first_person_3d third_person_3d tanks terrain_3d navigation_3d dungeoncrawler) do call :test_example "%%N"
     rem Discover runnable packages including the launcher; unused collections are harmless.
     for /d %%D in ("examples\*") do if exist "%%D\main.odin" call :build "%%~nxD" "%%D" "-collection:r3d=third_party/r3d-odin"
 )

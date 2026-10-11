@@ -1,69 +1,114 @@
 {
+  "$schema": "../../../schemas/input.schema.json",
   "actions": {
     "save": [
       {
         "type": "keyboard",
         "key": "F5"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "Y"
       }
     ],
     "load": [
       {
         "type": "keyboard",
         "key": "F9"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "X"
       }
     ],
     "pause": [
       {
         "type": "keyboard",
         "key": "P"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "START"
       }
     ],
     "change_room": [
       {
         "type": "keyboard",
         "key": "TAB"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "BACK"
       }
     ],
     "damage": [
       {
         "type": "keyboard",
         "key": "H"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "LEFT_BUMPER"
       }
     ],
     "collect": [
       {
         "type": "keyboard",
         "key": "E"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "A"
       }
     ],
     "drop": [
       {
         "type": "keyboard",
         "key": "SPACE"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "B"
       }
     ],
     "left": [
       {
         "type": "keyboard",
         "key": "A"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_LEFT"
       }
     ],
     "right": [
       {
         "type": "keyboard",
         "key": "D"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_RIGHT"
       }
     ],
     "up": [
       {
         "type": "keyboard",
         "key": "W"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_UP"
       }
     ],
     "down": [
       {
         "type": "keyboard",
         "key": "S"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_DOWN"
       }
     ]
   },
@@ -76,6 +121,5 @@
       "negative": "up",
       "positive": "down"
     }
-  },
-  "$schema": "../../../schemas/input.schema.json"
+  }
 }

@@ -7,31 +7,30 @@ targets; the bundled native dependencies need separate verification.
 
 ## Verification status
 
-The current pinned compiler is `dev-2026-10-nightly:84bc3fc`, validated on
-Windows AMD64. Full engine validation with October Odin and the current checkout
-is pending on Linux; `toolchain.json` retains only Windows in `tested_platforms`.
-The September results below are historical and do not establish October support.
+The pinned compiler `dev-2026-10-nightly:84bc3fc` has passed headless validation
+on Windows AMD64 and Linux AMD64. The Linux run on 2026-10-11 used Ubuntu
+24.04.2 under WSL2 with glibc 2.39, HEAD `bffb14a` plus the current working
+changes, and the checkout mounted from the Windows filesystem at `/mnt/d`.
+This run does not verify filename casing on a native case-sensitive filesystem.
 
-The R3D 0.11 importer archive was cross-compiled for Linux AMD64. Native Ubuntu
-shell syntax and binding preparation checks pass, including pristine release
-archives without Git metadata. Linux compiler, renderer, and animation runtime
-regressions still need a native Odin installation and validation run.
+`sh tools/validate.sh --all-examples` completed successfully: 58 tool packages,
+52 headless validators, 21 unit-test packages, and all 40 project-file checks
+passed. The blank project, all 39 examples, and the launcher built successfully.
+A separate hidden Clay UI runtime check passed through WSLg. Windows full-suite
+validation and focused checks for the latest changes also passed.
 
-The native helpers were exercised on Ubuntu 26.04.1 LTS AMD64 under WSL2 with Odin
-`dev-2026-09-nightly:a2fb372` on 2026-10-07. Compiler installation, project creation
-and builds, fixture generation, and console requests, replies, and timeout cleanup
-passed. Release-helper fixtures also covered exports, reports, and process cleanup.
+The [Deck staging helper](steam-deck.md) built all 39 optimized static examples
+and the launcher. All 40 binaries require at most `GLIBC_2.38` and resolved their
+system libraries without the isolated build environment. This verifies builds,
+headless behavior, and the tested hidden UI path. Linux desktop rendering,
+GPU drivers, audible playback, physical controllers, and Steam Deck hardware
+remain unverified.
 
-The headless engine run used commit `ea6839be31d53ac0e0a72321778671a332dd4211`
-with the new helpers and the recorded r3d submodule on a case-sensitive Linux
-filesystem. All 96 build steps passed, including 53 tool packages, the blank project,
-39 games, and the launcher; all 40 project-file validations passed. Of 51 headless
-validators, 49 passed. Prefab path resolution and save-directory validation failed
-when invoked directly as well as through the helper. Six of seven unit-test packages
-passed; the third-person package reported a failure and stalled, so its process was
-stopped. A complete headless pass and Linux desktop verification remain pending;
-this run does not validate the independently changing engine code in the working
-checkout.
+Earlier native-helper checks on Ubuntu 26.04.1 under WSL2 with Odin
+`dev-2026-09-nightly:a2fb372` on 2026-10-07 covered compiler installation,
+project creation/builds, fixture generation, console requests/replies and timeout
+cleanup, and release-helper exports/reports/process cleanup. These are historical
+helper checks; the October engine validation above records the current evidence.
 
 Shell checks using Git's shell on Windows do not establish Linux support. Keep
 `toolchain.json`'s `tested_platforms` limited to platforms with passing validation;
@@ -42,8 +41,8 @@ and distinguish headless checks from graphics, audio, and real desktop checks.
 
 Install Git and the compiler release recorded in
 [`toolchain.json`](../toolchain.json). Helpers use the native shell and standard
-utilities (`awk`, `curl`, `tar`, `sha256sum`, and `timeout`); no additional scripting
-runtime is required.
+utilities (`awk`, `curl`, `tar`, `sha256sum`, and `timeout`). The Deck staging
+helper also requires Python 3 to parse the example manifest and audit binaries.
 
 - [Odin installation](https://odin-lang.org/docs/install/)
 
@@ -104,8 +103,25 @@ You can also invoke it from another directory with
 `sh /path/to/rune/launcher.sh` (quote paths containing spaces). It builds and runs
 the launcher with the checkout as its working directory and writes the executable
 to `build/launcher`. Compiler or launcher failures propagate to the calling shell.
-The launcher requires a desktop session and Odin on `PATH`.
-Windows has the matching `launcher.bat`.
+The launcher requires a desktop session. With Odin on `PATH`, it builds each
+selected example; without Odin, it runs the existing `build/<example>` binary.
+Set `RUNE_EXAMPLES_PREBUILT=1` to select prebuilt mode explicitly. This mode
+skips source dependency preparation. Windows has the matching `launcher.bat`
+and uses `.exe` binaries.
+
+D-pad or left stick browses the example list and categories, A launches, and B
+exits. Keyboard and mouse controls also work. `RUNE_EXAMPLE_ARGS` forwards flags
+to examples in both modes; quote values containing spaces:
+
+```sh
+RUNE_EXAMPLE_ARGS='--console-dir="build/my console"' sh launcher.sh
+```
+
+The parser groups single/double quotes and recognizes escaped whitespace, quotes,
+and backslashes. It passes arguments directly to the process, without shell
+expansion. Build mode inserts Odin's `--` separator before the example arguments.
+See [Steam Deck examples](steam-deck.md) for a staged package with static Rune
+libraries and a glibc compatibility audit.
 
 ## Native tooling
 
@@ -128,8 +144,8 @@ The Linux build helpers produce extensionless executables; Windows helpers use
 requires MSVC headers and the Windows SDK on a Windows host. The example mesh and
 animation fixture generators also have `.sh` and `.bat` versions.
 
-These portability choices still require actual Linux validation; the verification
-status above distinguishes intended support from completed platform testing.
+The verification status above records completed Linux checks. Other environments
+and desktop behavior need the runtime and real-desktop checks below.
 
 ## Create a game
 

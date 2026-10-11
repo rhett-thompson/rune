@@ -5,48 +5,80 @@
       {
         "type": "keyboard",
         "key": "W"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_UP"
       }
     ],
     "move_back": [
       {
         "type": "keyboard",
         "key": "S"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_DOWN"
       }
     ],
     "move_left": [
       {
         "type": "keyboard",
         "key": "A"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_LEFT"
       }
     ],
     "move_right": [
       {
         "type": "keyboard",
         "key": "D"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_RIGHT"
       }
     ],
     "jump": [
       {
         "type": "keyboard",
         "key": "SPACE"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "A"
       }
     ],
     "sprint": [
       {
         "type": "keyboard",
         "key": "LEFT_SHIFT"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "LEFT_TRIGGER"
       }
     ],
     "toggle_cursor": [
       {
         "type": "keyboard",
         "key": "ESCAPE"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "RIGHT_THUMB"
       }
     ],
     "crouch": [
       {
         "type": "keyboard",
         "key": "LEFT_CONTROL"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "B"
       }
     ]
   },
@@ -67,6 +99,33 @@
     "look_y": {
       "type": "mouse_delta",
       "axis": "y",
+      "invert": true
+    },
+    "move_x_pad": {
+      "type": "gamepad_axis",
+      "axis": "LEFT_X",
+      "gamepad": 0,
+      "deadzone": 0.15
+    },
+    "move_z_pad": {
+      "type": "gamepad_axis",
+      "axis": "LEFT_Y",
+      "gamepad": 0,
+      "deadzone": 0.15,
+      "invert": true
+    },
+    "look_x_pad": {
+      "type": "gamepad_axis",
+      "axis": "RIGHT_X",
+      "gamepad": 0,
+      "deadzone": 0.15,
+      "invert": true
+    },
+    "look_y_pad": {
+      "type": "gamepad_axis",
+      "axis": "RIGHT_Y",
+      "gamepad": 0,
+      "deadzone": 0.15,
       "invert": true
     }
   }

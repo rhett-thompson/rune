@@ -1,9 +1,36 @@
 {
   "$schema": "../../../schemas/input.schema.json",
   "actions": {
-    "camera_one": [{ "type": "keyboard", "key": "1" }],
-    "camera_two": [{ "type": "keyboard", "key": "2" }],
-    "camera_three": [{ "type": "keyboard", "key": "3" }]
+    "camera_one": [
+      {
+        "type": "keyboard",
+        "key": "1"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_LEFT"
+      }
+    ],
+    "camera_two": [
+      {
+        "type": "keyboard",
+        "key": "2"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_UP"
+      }
+    ],
+    "camera_three": [
+      {
+        "type": "keyboard",
+        "key": "3"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_RIGHT"
+      }
+    ]
   },
   "axes": {}
 }

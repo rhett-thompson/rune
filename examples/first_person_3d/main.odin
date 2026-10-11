@@ -68,7 +68,7 @@ on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 on_draw_ui :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	draw_weapon(game, world)
 	example_text.draw("Rune First Person Controller", 24, 24, 28, rl.RAYWHITE)
-	example_text.draw("WASD move | Space jump | Shift sprint | Ctrl crouch | Escape cursor", 24, 60, 18, rl.RAYWHITE)
+	example_text.draw("WASD / LS move | Space / A jump | LT sprint | B crouch | R3 cursor", 24, 60, 18, rl.RAYWHITE)
 	motor,_:=ecs.get_character_controller_3d_state(world,player)
 	example_text.draw(fmt.ctprintf("Grounded: %t   Crouched: %t   Stand blocked: %t",motor.grounded,motor.crouched,motor.stand_blocked),24,86,18,rl.LIGHTGRAY)
 	example_text.draw("Blue ramps | Orange stairs | Purple crawl tunnel | Green moving platform",24,138,18,rl.RAYWHITE)

@@ -1,21 +1,34 @@
 {
+  "$schema": "../../../schemas/input.schema.json",
   "actions": {
     "move_left": [
       {
         "type": "keyboard",
         "key": "A"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_LEFT"
       }
     ],
     "move_right": [
       {
         "type": "keyboard",
         "key": "D"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_RIGHT"
       }
     ],
     "jump": [
       {
         "type": "keyboard",
         "key": "SPACE"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "A"
       }
     ],
     "move_down": [
@@ -26,12 +39,20 @@
       {
         "type": "keyboard",
         "key": "DOWN"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_DOWN"
       }
     ],
     "dash": [
       {
         "type": "keyboard",
         "key": "LEFT_SHIFT"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "X"
       }
     ]
   },
@@ -39,6 +60,12 @@
     "move_x": {
       "negative": "move_left",
       "positive": "move_right"
+    },
+    "move_x_pad": {
+      "type": "gamepad_axis",
+      "axis": "LEFT_X",
+      "gamepad": 0,
+      "deadzone": 0.15
     }
   }
 }

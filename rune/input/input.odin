@@ -45,6 +45,8 @@ Input :: struct {
 	actions:          map[string]Action_State,
 	axes:             map[string]f32,
 	path:             string,
+	schema:           string,
+	has_schema:       bool,
 	retained_strings: map[string]string,
 	arena:            ^mem.Dynamic_Arena,
 }
@@ -69,6 +71,12 @@ load :: proc(path: string) -> (Input, bool) {
 	}
 	object, object_ok := document.(json.Object)
 	if !object_ok {destroy(&result); return {}, false}
+	if schema_value, found := object["$schema"]; found {
+		schema, valid := schema_value.(json.String)
+		if !valid {destroy(&result); return {}, false}
+		result.schema = schema
+		result.has_schema = true
+	}
 	_, actions_found := object["actions"]
 	_, axes_found := object["axes"]
 	if !actions_found || !axes_found {destroy(&result); return {}, false}
@@ -107,9 +115,16 @@ retain_string :: proc(input: ^Input, value: string) -> string {
 // It emits canonical, pretty-printed JSON so a runtime rebind persists across
 // the next launch.
 save :: proc(input: ^Input) -> bool {
-	if len(input.path) == 0 || !validate_mappings(input.mappings) {return false}
+	if input == nil || len(input.path) == 0 || !validate_mappings(input.mappings) {return false}
+	// Objects borrow mapping strings, while the temporary tree owns only its
+	// containers. Releasing an arena avoids freeing those borrowed strings.
+	arena: mem.Dynamic_Arena
+	mem.dynamic_arena_init(&arena)
+	defer mem.dynamic_arena_destroy(&arena)
+	allocator := mem.dynamic_arena_allocator(&arena)
+	document := mappings_document(input, allocator)
 	data, marshal_error := json.marshal(
-		input.mappings,
+		json.Value(document),
 		json.Marshal_Options {
 			pretty = true,
 			use_spaces = true,
@@ -143,11 +158,12 @@ validate_mappings :: proc(mappings: Mappings) -> bool {
 			continue
 		}
 		if axis_data.type == "mouse_delta" {
-			if axis_data.axis != "x" && axis_data.axis != "y" {return false}
+			if (axis_data.axis != "x" && axis_data.axis != "y") ||
+			   math.is_nan(axis_data.scale) || math.is_inf(axis_data.scale) {return false}
 			continue
 		}
 		if axis_data.type == "mouse_wheel" {
-			if len(axis_data.axis) != 0 {return false}
+			if len(axis_data.axis) != 0 || math.is_nan(axis_data.scale) || math.is_inf(axis_data.scale) {return false}
 			continue
 		}
 		if len(axis_data.type) != 0 {return false}
@@ -402,6 +418,10 @@ button_from_name :: proc(name: string) -> Button_Result {
 		return {.LEFT_TRIGGER_1, true}
 	case "RIGHT_BUMPER":
 		return {.RIGHT_TRIGGER_1, true}
+	case "LEFT_TRIGGER":
+		return {.LEFT_TRIGGER_2, true}
+	case "RIGHT_TRIGGER":
+		return {.RIGHT_TRIGGER_2, true}
 	case "BACK":
 		return {.MIDDLE_LEFT, true}
 	case "START":

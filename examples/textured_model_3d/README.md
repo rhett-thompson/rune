@@ -25,3 +25,5 @@ odin run examples/textured_model_3d -o:none -collection:rune=rune -linker:msvc -
 ```
 
 [All examples](../README.md)
+
+Controller: Hold RB and move the right stick to orbit; LT/RT zoom out/in; A changes scene and X cycles material view. Hold Start for one second to exit. Button names use Xbox layout.

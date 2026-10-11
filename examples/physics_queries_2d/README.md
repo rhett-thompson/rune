@@ -15,3 +15,5 @@ odin run examples/physics_queries_2d -o:none -linker:msvc -collection:rune=rune 
 ```
 
 [All examples](../README.md)
+
+Controller: D-pad left/right moves the player. Hold Start for one second to exit. Button names use Xbox layout.

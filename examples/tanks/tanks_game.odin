@@ -130,6 +130,7 @@ reset_round :: proc(game: ^Tanks_Game) {
 	game.left.position, game.left.angle, game.left.alive = game.left.spawn, game.left.spawn_angle, true
 	game.right.position, game.right.angle, game.right.alive = game.right.spawn, game.right.spawn_angle, true
 	game.left.turret_angle, game.right.turret_angle = game.left.spawn_angle, game.right.spawn_angle
+	game.left.turret_held, game.right.turret_held = false, false
 	game.left.cooldown, game.right.cooldown = .5, .5
 	game.match.winner, game.match.round_timer = 0, 0
 	delete(game.nav_path)
@@ -151,6 +152,22 @@ move_tank :: proc(game: ^Tanks_Game, tank: ^Tank, move, turn, dt: f32) {
 	next := tank.position + direction(tank.angle) * move * tank.move_speed * dt
 	if !position_blocked(game, {next.x, tank.position.y}, tank.radius) { tank.position.x = next.x }
 	if !position_blocked(game, {tank.position.x, next.y}, tank.radius) { tank.position.y = next.y }
+}
+
+// A released stick keeps its last heading; driving never drags the turret.
+// Desktop mouse aim resumes only after actual pointer movement.
+aim_turret :: proc(tank: ^Tank, stick: [2]f32, mouse_direction: rl.Vector2, mouse_moved, mouse_aim: bool) {
+	if stick[0]*stick[0]+stick[1]*stick[1] > 0 {
+		tank.turret_angle = math.atan2(stick[1], stick[0])*180/f32(math.PI)
+		tank.turret_held = true
+	} else if mouse_aim && (!tank.turret_held || mouse_moved) {
+		tank.turret_held = false
+		if mouse_direction.x*mouse_direction.x+mouse_direction.y*mouse_direction.y > 0 {
+			tank.turret_angle = math.atan2(mouse_direction.y, mouse_direction.x)*180/f32(math.PI)
+		}
+	} else if !tank.turret_held {
+		tank.turret_angle = tank.angle
+	}
 }
 
 fire_shell :: proc(game: ^Tanks_Game, tank: ^Tank, owner: i32) -> bool {
@@ -347,13 +364,13 @@ update_tanks :: proc(game: ^Tanks_Game, engine: ^rune.Engine, scene_world: ^ecs.
 	move_tank(
 		game,
 		&game.left,
-		input.axis(controls, "left_move"),
-		input.axis(controls, "left_turn"),
+		clamp(input.axis(controls, "left_move") + input.axis(controls, "left_move_pad"), -1, 1),
+		clamp(input.axis(controls, "left_turn") + input.axis(controls, "left_turn_pad"), -1, 1),
 		engine.delta_time,
 	)
-	mouse := rl.GetMousePosition()
-	mouse_delta := mouse - game.left.position
-	game.left.turret_angle = f32(math.atan2(f64(mouse_delta.y), f64(mouse_delta.x))) * 180 / f32(math.PI)
+	mouse_motion := rl.GetMouseDelta()
+	aim_turret(&game.left, {input.axis(controls, "left_aim_x"), input.axis(controls, "left_aim_y")},
+		rl.GetMousePosition()-game.left.position, mouse_motion.x != 0 || mouse_motion.y != 0, true)
 	if input.pressed(controls, "left_fire") && fire_shell(game, &game.left, 1) {
 		rune.play_audio(engine, scene_world, game.audio_entity, "shoot")
 	}
@@ -361,11 +378,11 @@ update_tanks :: proc(game: ^Tanks_Game, engine: ^rune.Engine, scene_world: ^ecs.
 		move_tank(
 			game,
 			&game.right,
-			input.axis(controls, "right_move"),
-			input.axis(controls, "right_turn"),
+			clamp(input.axis(controls, "right_move") + input.axis(controls, "right_move_pad"), -1, 1),
+			clamp(input.axis(controls, "right_turn") + input.axis(controls, "right_turn_pad"), -1, 1),
 			engine.delta_time,
 		)
-		game.right.turret_angle = game.right.angle
+		aim_turret(&game.right, {input.axis(controls, "right_aim_x"), input.axis(controls, "right_aim_y")}, {}, false, false)
 		if input.pressed(controls, "right_fire") && fire_shell(game, &game.right, 2) {
 			rune.play_audio(engine, scene_world, game.audio_entity, "shoot")
 		}
@@ -464,8 +481,8 @@ draw_tanks :: proc(game: ^Tanks_Game) {
 		if game.match.game_over { center_text("PRESS FIRE FOR A NEW MATCH", a.width, a.height / 2 + 8, 17, muted) }
 	}
 	mode :=
-		"1 PLAYER  |  W/S DRIVE  A/D TURN  MOUSE AIM  LEFT CLICK FIRE" if !game.match.two_player else "2 PLAYERS  |  BLUE: WASD + MOUSE   ORANGE: ARROWS + ENTER"
+		"1 PLAYER | WASD + MOUSE OR PAD: LS DRIVE / TURN, RS AIM, RT FIRE" if !game.match.two_player else "2 PLAYERS | KEYBOARD + MOUSE OR PAD 0 BLUE / PAD 1 ORANGE"
 	center_text(mode, a.width, a.height - 28, 14, muted)
-	example_text.draw("P: CHANGE PLAYERS", 18, 17, 13, muted)
-	example_text.draw("R: RESTART", a.width - 96, 17, 13, muted)
+	example_text.draw("P / START: PLAYERS", 18, 17, 13, muted)
+	example_text.draw("R / BACK: RESET", a.width - 124, 17, 13, muted)
 }

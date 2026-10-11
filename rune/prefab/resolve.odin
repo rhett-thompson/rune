@@ -5,6 +5,7 @@ import "core:fmt"
 import "core:mem"
 import "core:os"
 import "core:path/filepath"
+import "rune:pathutil"
 import "core:slice"
 import "core:strings"
 
@@ -57,7 +58,7 @@ absolute_path :: proc(r: ^Resolver, file, reference: string) -> string {
 	directory, _ := filepath.split(file)
 	path := reference
 	if !filepath.is_abs(path) {path, _ = filepath.join({directory, path}, r.allocator)}
-	absolute, err := filepath.abs(path, r.allocator)
+	absolute, err := pathutil.absolute(path, r.allocator)
 	if err != nil {fail(r, file, "could not resolve path"); return ""}
 	return absolute
 }

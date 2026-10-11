@@ -15,3 +15,5 @@ odin run examples/clay_ui -o:none -linker:msvc -collection:rune=rune "-out:build
 ```
 
 [All examples](../README.md)
+
+Controller: Left stick moves the player when the menu has released gameplay input. Stick/D-pad navigates menus; A accepts and B cancels. Hold Start for one second to exit. Button names use Xbox layout.

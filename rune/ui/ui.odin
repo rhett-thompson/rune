@@ -6,6 +6,7 @@ import "base:runtime"
 import "core:math"
 import "core:mem"
 import "core:strings"
+import "rune:input"
 import clay "../../third_party/clay/clay-odin"
 import rl "vendor:raylib"
 
@@ -60,6 +61,7 @@ Context :: struct {
 	widgets, previous_widgets: [dynamic]u32,
 	focus_id, active_id, clicked_id, hovered_id: u32,
 	inputs: Inputs,
+	nav: input.Nav_State,
 	last_pointer: [2]f32,
 	last_down: bool,
 	building, ready: bool,
@@ -153,7 +155,10 @@ begin :: proc(ui: ^Context, dimensions: [2]f32, inputs: Inputs, dt: f32) -> bool
 			index = (index + len(ui.previous_widgets)) % len(ui.previous_widgets)
 			ui.focus_id = ui.previous_widgets[index]
 		}
-	} else {ui.active_id = 0}
+	} else {
+		ui.active_id = 0
+		ui.nav.direction, ui.nav.remaining = .None, 0
+	}
 	ui.last_pointer, ui.last_down = inputs.pointer, inputs.pointer_down
 	mem.dynamic_arena_reset(&ui.scratch)
 	resize(&ui.widgets, 0)
@@ -282,7 +287,10 @@ image :: proc(ui: ^Context, id: string, texture: rl.Texture2D, size: [2]f32, tin
 
 focused :: proc(ui: ^Context, id: string) -> bool {return ui.focus_id == clay.ID(id).id}
 
-reset_focus :: proc(ui: ^Context) {ui.focus_id, ui.active_id = 0, 0}
+reset_focus :: proc(ui: ^Context) {
+	ui.focus_id, ui.active_id = 0, 0
+	ui.nav.direction, ui.nav.remaining = .None, 0
+}
 
 // Bounds from the most recently completed layout, useful for tool inspection.
 bounds :: proc(ui: ^Context, id: string) -> (rl.Rectangle, bool) {

@@ -17,3 +17,5 @@ odin run examples/orbit_camera -o:none -collection:rune=rune -linker:msvc -colle
 ```
 
 [All examples](../README.md)
+
+Controller: Hold RB and move the right stick to orbit; LT/RT zoom out/in. Screen-plane panning remains a middle-button drag interaction. Hold Start for one second to exit. Button names use Xbox layout.

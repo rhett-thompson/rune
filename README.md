@@ -73,18 +73,20 @@ See [ROADMAP.md](ROADMAP.md) for current priorities.
 
 Windows AMD64 and Linux AMD64 are equal development targets. Install Git and the
 Odin toolchain recorded in [toolchain.json](toolchain.json): `dev-2026-10`, tested
-with `dev-2026-10-nightly:84bc3fc` on Windows AMD64. Keep Odin's `base`, `core`,
-and `vendor` directories with the compiler, and put its directory on `PATH`.
+with `dev-2026-10-nightly:84bc3fc` on Windows AMD64 and Linux AMD64 under WSL2.
+Keep Odin's `base`, `core`, and `vendor` directories with the compiler, and put
+its directory on `PATH`.
 
 On Windows, Odin also requires MSVC and the Windows SDK from Visual Studio's
 Desktop development with C++ workload. See the
 [official Odin installation guide](https://odin-lang.org/docs/install/) for setup.
 For Linux dependencies, Bash commands, and runtime testing, see
 [Linux development](docs/linux.md). Development helpers use `.bat` files on Windows
-and `.sh` files on Linux; no additional scripting runtime is required. Windows
-JSON/process helpers use the built-in `cscript.exe` host. Native Linux tooling has
-been exercised under WSL; full Linux validation and desktop verification remain
-pending. See the [Linux verification status](docs/linux.md#verification-status).
+and `.sh` files on Linux. The Deck staging helper additionally requires Python 3. Windows
+JSON/process helpers use the built-in `cscript.exe` host. Full headless Linux
+validation and a hidden Clay UI runtime check passed under WSL2. Linux desktop
+GPU/audio behavior, physical controllers, and Steam Deck hardware remain unverified.
+See the [Linux verification status](docs/linux.md#verification-status).
 macOS is not yet a release target.
 
 Use the official GitHub repository's clone URL with `git clone --recurse-submodules`.
@@ -161,8 +163,9 @@ sh launcher.sh
 ```
 
 Both scripts find the checkout from their own location and put the launcher in
-`build/`. The Linux launcher needs Odin on `PATH` and a desktop session; it does
-not require PowerShell. See [Linux development](docs/linux.md) for dependencies.
+`build/`. A desktop session is required. When Odin is unavailable, an already
+built launcher runs `build/<example>` directly; set `RUNE_EXAMPLES_PREBUILT=1`
+to select this mode explicitly. See [Linux development](docs/linux.md) for dependencies.
 
 The launcher, validation helpers, and documented example build/run/test commands
 use `-o:none` to disable compiler optimization for faster iteration.
@@ -180,11 +183,19 @@ variable. From Bash, use the shell launcher or follow the Linux guide's commands
 
 Use the category tabs to filter examples. Left/Right switches tabs; Up/Down or
 the mouse wheel browses the list; Enter or a click runs the selected example.
+D-pad or left stick navigates, A launches, and B exits. Hold START for one
+second to exit a Rune example and return to the launcher.
 The launcher keeps the active category when the example closes. Each example
 remains an independent Odin program and can still be run directly with its
 usual `odin run examples/<name> -o:none -collection:rune=rune` command. Launcher
 entries and descriptions live in `examples/examples.json`. See the
 [example guide](examples/README.md) for a learning order, controls, and files to edit.
+
+`RUNE_EXAMPLE_ARGS` forwards arguments to examples in both build and prebuilt
+modes. Quotes group paths containing spaces, for example
+`RUNE_EXAMPLE_ARGS='--console-dir="build/console inbox"' sh launcher.sh` in Bash.
+See [gamepad input](docs/gamepads.md) for controller APIs and
+[Steam Deck staging](docs/steam-deck.md) for building and uploading a portable tree.
 
 Create an independent game from the starter template, without modifying an
 example. From the engine checkout:
@@ -691,7 +702,10 @@ if input.pressed(rune.input_state(game), "jump") {
 Keyboard names currently include letters, digits, arrows, `SPACE`, `ESCAPE`,
 `ENTER`, `TAB`, `BACKSPACE`, shift, and control. Mouse buttons use `LEFT`,
 `RIGHT`, or `MIDDLE`. Gamepad buttons use readable names such as `A`, `B`,
-`X`, `Y`, `DPAD_UP`, `LEFT_BUMPER`, and `START`.
+`X`, `Y`, `DPAD_UP`, `LEFT_BUMPER`, `LEFT_TRIGGER`, `RIGHT_TRIGGER`, and `START`.
+The trigger button names provide discrete actions; trigger axes remain available
+for analog values. See [gamepad input](docs/gamepads.md) for mappings, menu
+navigation, camera controls, diagnostics, and the default hold-START exit.
 
 ## Runtime key rebinding
 
@@ -706,6 +720,9 @@ if input.rebind_keyboard(controls, "move_left", "LEFT") &&
     input.save(controls) // Writes the JSON input file loaded by the project.
 }
 ```
+
+Saving retains an existing `$schema` pointer and writes only the fields relevant
+to each binding type. Controller bindings survive keyboard rebinding.
 
 The runnable [`runtime_rebinding`](examples/runtime_rebinding) sample starts
 with Left/Right arrow movement in the checked-in mapping. Press `R` to switch
@@ -1570,6 +1587,11 @@ string disables panning. Map it to the middle mouse button and map `pan_x` and
 Panning moves the target in the camera's screen plane and takes priority over
 manual and automatic rotation. Its speed scales with target distance and
 `pan_sensitivity` (default `0.0015`); the default axis names are `pan_x` and `pan_y`.
+
+Controller orbit uses separate `orbit_x_pad` and `orbit_y_pad` axes while the
+same manual action is held. The default speed is 180 degrees/second; `zoom_in`
+and `zoom_out` actions zoom at 8 world units/second. Configure their names and
+speeds with the fields in the [component reference](docs/components.md#orbitcamera3d).
 
 Projects using the scene-owning `rune.run` update orbit cameras automatically before
 registered systems run. Callback-based programs can call

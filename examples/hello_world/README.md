@@ -15,3 +15,5 @@ odin run examples/hello_world -o:none -linker:msvc -collection:rune=rune "-out:b
 ```
 
 [All examples](../README.md)
+
+Controller: This showcase runs automatically; no gameplay actions are required. Hold Start for one second to exit. Button names use Xbox layout.

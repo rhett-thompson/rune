@@ -63,7 +63,7 @@
             "type": { "const": "gamepad_button" },
             "button": {
               "type": "string",
-              "enum": ["A", "B", "X", "Y", "DPAD_UP", "DPAD_RIGHT", "DPAD_DOWN", "DPAD_LEFT", "LEFT_BUMPER", "RIGHT_BUMPER", "BACK", "START", "LEFT_THUMB", "RIGHT_THUMB"]
+              "enum": ["A", "B", "X", "Y", "DPAD_UP", "DPAD_RIGHT", "DPAD_DOWN", "DPAD_LEFT", "LEFT_BUMPER", "RIGHT_BUMPER", "LEFT_TRIGGER", "RIGHT_TRIGGER", "BACK", "START", "LEFT_THUMB", "RIGHT_THUMB"]
             },
             "gamepad": { "type": "integer", "minimum": 0, "default": 0 }
           },

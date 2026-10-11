@@ -2,10 +2,24 @@
   "$schema": "../../../schemas/input.schema.json",
   "actions": {
     "change_direction": [
-      { "type": "keyboard", "key": "SPACE" }
+      {
+        "type": "keyboard",
+        "key": "SPACE"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "A"
+      }
     ],
     "next_knight_clip": [
-      { "type": "keyboard", "key": "TAB" }
+      {
+        "type": "keyboard",
+        "key": "TAB"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "X"
+      }
     ]
   },
   "axes": {}

@@ -6,6 +6,7 @@ import "core:fmt"
 import "core:mem"
 import "core:os"
 import "core:path/filepath"
+import "rune:pathutil"
 import "core:reflect"
 import "core:strings"
 import "rune:ecs"
@@ -111,7 +112,7 @@ init :: proc(project_directory: string, options: Options) -> (Manager, bool) {
 	m.options = options
 	m.options.directory = ""
 	m.options.game_id, _ = strings.clone(options.game_id)
-	project_path, project_error := filepath.abs(project_directory)
+	project_path, project_error := pathutil.absolute(project_directory)
 	m.project_directory = project_path
 	if project_error != nil {destroy(&m); fail(&m, "Could not resolve save project directory"); return m, false}
 	directory := options.directory
@@ -120,7 +121,7 @@ init :: proc(project_directory: string, options: Options) -> (Manager, bool) {
 		if err != nil {destroy(&m); fail(&m, "Could not find the OS user-data directory"); return m, false}
 		directory, _ = filepath.join({base, options.game_id, "saves"}, context.temp_allocator)
 	}
-	m.options.directory, project_error = filepath.abs(directory)
+	m.options.directory, project_error = pathutil.absolute(directory)
 	if project_error != nil {destroy(&m); fail(&m, "Could not resolve save directory"); return m, false}
 	m.policies = make(map[string]Adapter)
 	m.spawned = make(map[string]bool)

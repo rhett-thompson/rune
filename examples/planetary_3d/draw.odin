@@ -93,6 +93,6 @@ draw_ui :: proc(game:^rune.Engine,world:^ecs.World) {
 	if count==4 {message="EXPEDITION COMPLETE  /  All four worlds explored. Keep wandering!"}
 	rl.DrawRectangle(24,h-108,w-48,84,INK)
 	example_text.draw(message,42,h-94,17,GOLD)
-	example_text.draw("WASD  move     SPACE  jump (hold for height)     SHIFT  sprint     CTRL  crouch",42,h-64,15,rl.RAYWHITE)
-	example_text.draw("Mouse drag  orbit     Wheel  zoom     R  restart",42,h-42,14,rl.Color{147,172,191,255})
+	example_text.draw("WASD / LS move | Space / A jump (hold for height) | LT sprint | B crouch",42,h-64,15,rl.RAYWHITE)
+	example_text.draw("Mouse / RS orbit | Wheel / LB/RB zoom | R / Back restart",42,h-42,14,rl.Color{147,172,191,255})
 }

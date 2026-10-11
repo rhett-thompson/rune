@@ -15,3 +15,5 @@ odin run examples/pong -o:none -linker:msvc -collection:rune=rune "-out:build/po
 ```
 
 [All examples](../README.md)
+
+Controller: Pad 0 controls the left paddle and pad 1 the right paddle with left stick or D-pad up/down; A serves, tap Start toggles one/two players and Back restarts. Hold Start for one second to exit. Button names use Xbox layout.

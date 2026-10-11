@@ -1,17 +1,46 @@
 {
   "$schema": "../../../schemas/input.schema.json",
   "actions": {
-    "change_scene": [{ "type": "keyboard", "key": "SPACE" }],
+    "change_scene": [
+      {
+        "type": "keyboard",
+        "key": "SPACE"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "A"
+      }
+    ],
     "orbit_camera": [
       {
         "type": "mouse_button",
         "button": "LEFT"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "RIGHT_BUMPER"
       }
     ],
     "material_view": [
       {
         "type": "keyboard",
         "key": "TAB"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "X"
+      }
+    ],
+    "zoom_in": [
+      {
+        "type": "gamepad_button",
+        "button": "RIGHT_TRIGGER"
+      }
+    ],
+    "zoom_out": [
+      {
+        "type": "gamepad_button",
+        "button": "LEFT_TRIGGER"
       }
     ]
   },
@@ -28,6 +57,19 @@
     "zoom": {
       "type": "mouse_wheel",
       "scale": 0.75
+    },
+    "orbit_x_pad": {
+      "type": "gamepad_axis",
+      "axis": "RIGHT_X",
+      "gamepad": 0,
+      "deadzone": 0.15,
+      "invert": true
+    },
+    "orbit_y_pad": {
+      "type": "gamepad_axis",
+      "axis": "RIGHT_Y",
+      "gamepad": 0,
+      "deadzone": 0.15
     }
   }
 }

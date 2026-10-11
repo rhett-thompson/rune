@@ -176,7 +176,7 @@ update_ship :: proc(game: ^Game, engine: ^rune.Engine, controls: ^input.Input, d
 		if ship.respawn_timer <= 0 { reset_ship(game) }
 		return
 	}
-	ship.angle += input.axis(controls, "turn") * game.ship_config.turn_speed * dt
+	ship.angle += clamp(input.axis(controls, "turn") + input.axis(controls, "turn_pad"), -1, 1) * game.ship_config.turn_speed * dt
 	if input.is_down(controls, "thrust") {
 		dir := direction(ship.angle)
 		ship.velocity += dir * game.ship_config.thrust * dt
@@ -389,11 +389,11 @@ draw_game :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 	example_text.draw(score_c, 22, 18, 20, line)
 	example_text.draw(wave_c, game.arena.width / 2 - example_text.measure(wave_c, 20) / 2, 18, 20, muted)
 	example_text.draw(lives_c, game.arena.width - example_text.measure(lives_c, 20) - 22, 18, 20, line)
-	example_text.draw("A/D OR ARROWS: TURN   W/UP: THRUST   SPACE: FIRE   R: RESTART", 22, game.arena.height - 28, 14, muted)
+	example_text.draw("A/D TURN | W THRUST | SPACE FIRE | PAD: LS / A / RT | R/BACK RESET", 22, game.arena.height - 28, 14, muted)
 	if game.game_over {
 		rl.DrawRectangle(0, game.arena.height / 2 - 70, game.arena.width, 140, {5, 8, 18, 230})
 		draw_centered("GAME OVER", game.arena.height / 2 - 48, 40, game.arena.width, accent)
-		draw_centered("PRESS R TO RESTART", game.arena.height / 2 + 12, 19, game.arena.width, line)
+		draw_centered("PRESS R / BACK TO RESTART", game.arena.height / 2 + 12, 19, game.arena.width, line)
 	} else if !game.ship.alive {
 		draw_centered("SHIP DESTROYED", game.arena.height / 2 - 20, 22, game.arena.width, muted)
 	}

@@ -2,25 +2,86 @@
   "$schema": "../../../schemas/input.schema.json",
   "actions": {
     "left_up": [
-      { "type": "keyboard", "key": "W" }
+      {
+        "type": "keyboard",
+        "key": "W"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_UP",
+        "gamepad": 0
+      }
     ],
     "left_down": [
-      { "type": "keyboard", "key": "S" }
+      {
+        "type": "keyboard",
+        "key": "S"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_DOWN",
+        "gamepad": 0
+      }
     ],
     "right_up": [
-      { "type": "keyboard", "key": "UP" }
+      {
+        "type": "keyboard",
+        "key": "UP"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_UP",
+        "gamepad": 1
+      }
     ],
     "right_down": [
-      { "type": "keyboard", "key": "DOWN" }
+      {
+        "type": "keyboard",
+        "key": "DOWN"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_DOWN",
+        "gamepad": 1
+      }
     ],
     "serve": [
-      { "type": "keyboard", "key": "SPACE" }
+      {
+        "type": "keyboard",
+        "key": "SPACE"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "A",
+        "gamepad": 0
+      },
+      {
+        "type": "gamepad_button",
+        "button": "A",
+        "gamepad": 1
+      }
     ],
     "toggle_players": [
-      { "type": "keyboard", "key": "P" }
+      {
+        "type": "keyboard",
+        "key": "P"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "START",
+        "gamepad": 0
+      }
     ],
     "restart": [
-      { "type": "keyboard", "key": "R" }
+      {
+        "type": "keyboard",
+        "key": "R"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "BACK",
+        "gamepad": 0
+      }
     ]
   },
   "axes": {
@@ -31,6 +92,18 @@
     "right_move": {
       "negative": "right_up",
       "positive": "right_down"
+    },
+    "left_move_pad": {
+      "type": "gamepad_axis",
+      "axis": "LEFT_Y",
+      "gamepad": 0,
+      "deadzone": 0.15
+    },
+    "right_move_pad": {
+      "type": "gamepad_axis",
+      "axis": "LEFT_Y",
+      "gamepad": 1,
+      "deadzone": 0.15
     }
   }
 }

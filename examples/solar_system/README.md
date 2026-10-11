@@ -15,3 +15,5 @@ odin run examples/solar_system -o:none -collection:rune=rune -linker:msvc -colle
 ```
 
 [All examples](../README.md)
+
+Controller: This showcase runs automatically; no gameplay actions are required. Hold Start for one second to exit. Button names use Xbox layout.

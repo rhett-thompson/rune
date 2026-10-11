@@ -15,3 +15,5 @@ odin run examples/sprite_scene_2d -o:none -linker:msvc -collection:rune=rune "-o
 ```
 
 [All examples](../README.md)
+
+Controller: This showcase runs automatically; no gameplay actions are required. Hold Start for one second to exit. Button names use Xbox layout.

@@ -5,6 +5,10 @@
       {
         "type": "keyboard",
         "key": "R"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "BACK"
       }
     ]
   },

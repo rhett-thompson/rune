@@ -15,3 +15,5 @@ odin run examples/sprite_animation_2d -o:none -linker:msvc -collection:rune=rune
 ```
 
 [All examples](../README.md)
+
+Controller: A changes direction; X selects the next knight clip. Hold Start for one second to exit. Button names use Xbox layout.

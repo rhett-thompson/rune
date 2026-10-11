@@ -121,9 +121,9 @@ draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	}
 	example_text.draw("SKELETAL ANIMATION", 30, 25, 28, rl.RAYWHITE)
 	example_text.draw("Independent players: bend 1x / bend 0.5x / sway / Strut Walking", 30, 66, 18, rl.LIGHTGRAY)
-	example_text.draw("Left model: 1 bend   2 sway (0.35s blend)   P pause   R resume", 30, 94, 18, rl.LIGHTGRAY)
-	example_text.draw("S speed   V reverse   H seek to 1s (silent)", 30, 122, 18, rl.LIGHTGRAY)
-	example_text.draw("Space punch   Left-drag orbit   Middle-drag pan   Wheel zoom", 30, 150, 18, rl.LIGHTGRAY)
+	example_text.draw("1 / Pad B bend | 2 / X sway | P / Down pause | R / Up resume", 30, 94, 18, rl.LIGHTGRAY)
+	example_text.draw("S / Y speed | V / Left reverse | H / Right seek to 1s", 30, 122, 18, rl.LIGHTGRAY)
+	example_text.draw("Space / A punch | Mouse / RB + RS orbit | Wheel / LT/RT zoom", 30, 150, 18, rl.LIGHTGRAY)
 	animator, _ := ecs.get_model_animator(world, left)
 	example_text.draw(fmt.ctprintf("Markers: footsteps %d / impacts %d   Last: %s   Speed: %.1fx", footsteps, impacts, last_marker, animator.speed), 30, 181, 20, rl.GOLD)
 	if state, found := ecs.get_model_animation_state(world, left); found {

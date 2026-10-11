@@ -4,7 +4,7 @@ import "core:encoding/json"
 import "core:fmt"
 import "core:mem"
 import "core:os"
-import "core:path/filepath"
+import "rune:pathutil"
 import "core:strings"
 import rune "rune:core"
 import "rune:ecs"
@@ -98,7 +98,7 @@ required_entity :: proc(world: ^ecs.World, id: string) -> ecs.Entity {
 }
 
 assert_asset_path :: proc(value: json.Value, relative: string) {
-	expected, error := filepath.abs(relative)
+	expected, error := pathutil.absolute(relative)
 	assert(error == nil)
 	defer delete(expected)
 	assert(value.(json.String) == expected)
@@ -225,7 +225,7 @@ validate_prefab_reload :: proc(registry: ^ecs.Component_Registry) {
 	scene.destroy_dependency_paths(paths)
 	assert(os.write_entire_file(child_file, `{"name":"Camera","components":{"Camera3D":{"fovy":90}}}`) == nil)
 	// Force only the child's recorded timestamp stale; avoid filesystem clock sleeps.
-	child_absolute, path_error := filepath.abs(child_file)
+	child_absolute, path_error := pathutil.absolute(child_file)
 	assert(path_error == nil)
 	defer delete(child_absolute)
 	watch := engine.scene_watches[scene_file]

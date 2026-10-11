@@ -2,32 +2,104 @@
   "$schema": "../../../schemas/input.schema.json",
   "actions": {
     "move_left": [
-      { "type": "keyboard", "key": "LEFT" },
-      { "type": "keyboard", "key": "A" }
+      {
+        "type": "keyboard",
+        "key": "LEFT"
+      },
+      {
+        "type": "keyboard",
+        "key": "A"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_LEFT"
+      }
     ],
     "move_right": [
-      { "type": "keyboard", "key": "RIGHT" },
-      { "type": "keyboard", "key": "D" }
+      {
+        "type": "keyboard",
+        "key": "RIGHT"
+      },
+      {
+        "type": "keyboard",
+        "key": "D"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_RIGHT"
+      }
     ],
     "soft_drop": [
-      { "type": "keyboard", "key": "DOWN" },
-      { "type": "keyboard", "key": "S" }
+      {
+        "type": "keyboard",
+        "key": "DOWN"
+      },
+      {
+        "type": "keyboard",
+        "key": "S"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_DOWN"
+      }
     ],
     "hard_drop": [
-      { "type": "keyboard", "key": "SPACE" }
+      {
+        "type": "keyboard",
+        "key": "SPACE"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "A"
+      }
     ],
     "rotate_cw": [
-      { "type": "keyboard", "key": "UP" },
-      { "type": "keyboard", "key": "X" }
+      {
+        "type": "keyboard",
+        "key": "UP"
+      },
+      {
+        "type": "keyboard",
+        "key": "X"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_UP"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "X"
+      }
     ],
     "rotate_ccw": [
-      { "type": "keyboard", "key": "Z" }
+      {
+        "type": "keyboard",
+        "key": "Z"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "Y"
+      }
     ],
     "pause": [
-      { "type": "keyboard", "key": "P" }
+      {
+        "type": "keyboard",
+        "key": "P"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "START"
+      }
     ],
     "restart": [
-      { "type": "keyboard", "key": "R" }
+      {
+        "type": "keyboard",
+        "key": "R"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "BACK"
+      }
     ]
   },
   "axes": {}

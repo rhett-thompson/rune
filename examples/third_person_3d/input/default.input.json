@@ -1,24 +1,176 @@
 {
   "$schema": "../../../schemas/input.schema.json",
   "actions": {
-    "save_checkpoint": [{ "type": "keyboard", "key": "F5" }],
-    "load_checkpoint": [{ "type": "keyboard", "key": "F9" }],
-    "interact": [{ "type": "keyboard", "key": "E" }],
-    "move_forward": [{ "type": "keyboard", "key": "W" }],
-    "move_back": [{ "type": "keyboard", "key": "S" }],
-    "move_left": [{ "type": "keyboard", "key": "A" }],
-    "move_right": [{ "type": "keyboard", "key": "D" }],
-    "jump": [{ "type": "keyboard", "key": "SPACE" }],
-    "sprint": [{ "type": "keyboard", "key": "LEFT_SHIFT" }],
-    "crouch": [{ "type": "keyboard", "key": "LEFT_CONTROL" }],
-    "orbit_camera": [{ "type": "mouse_button", "button": "LEFT" }],
-    "orbit_with_character": [{ "type": "mouse_button", "button": "RIGHT" }]
+    "save_checkpoint": [
+      {
+        "type": "keyboard",
+        "key": "F5"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "Y"
+      }
+    ],
+    "load_checkpoint": [
+      {
+        "type": "keyboard",
+        "key": "F9"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "BACK"
+      }
+    ],
+    "interact": [
+      {
+        "type": "keyboard",
+        "key": "E"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "X"
+      }
+    ],
+    "move_forward": [
+      {
+        "type": "keyboard",
+        "key": "W"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_UP"
+      }
+    ],
+    "move_back": [
+      {
+        "type": "keyboard",
+        "key": "S"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_DOWN"
+      }
+    ],
+    "move_left": [
+      {
+        "type": "keyboard",
+        "key": "A"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_LEFT"
+      }
+    ],
+    "move_right": [
+      {
+        "type": "keyboard",
+        "key": "D"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_RIGHT"
+      }
+    ],
+    "jump": [
+      {
+        "type": "keyboard",
+        "key": "SPACE"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "A"
+      }
+    ],
+    "sprint": [
+      {
+        "type": "keyboard",
+        "key": "LEFT_SHIFT"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "LEFT_TRIGGER"
+      }
+    ],
+    "crouch": [
+      {
+        "type": "keyboard",
+        "key": "LEFT_CONTROL"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "B"
+      }
+    ],
+    "orbit_camera": [
+      {
+        "type": "mouse_button",
+        "button": "LEFT"
+      }
+    ],
+    "orbit_with_character": [
+      {
+        "type": "mouse_button",
+        "button": "RIGHT"
+      }
+    ],
+    "zoom_in": [
+      {
+        "type": "gamepad_button",
+        "button": "RIGHT_BUMPER"
+      }
+    ],
+    "zoom_out": [
+      {
+        "type": "gamepad_button",
+        "button": "LEFT_BUMPER"
+      }
+    ]
   },
   "axes": {
-    "move_x": { "negative": "move_left", "positive": "move_right" },
-    "move_z": { "negative": "move_back", "positive": "move_forward" },
-    "look_x": { "type": "mouse_delta", "axis": "x" },
-    "look_y": { "type": "mouse_delta", "axis": "y" },
-    "zoom": { "type": "mouse_wheel", "scale": 1.0 }
+    "move_x": {
+      "negative": "move_left",
+      "positive": "move_right"
+    },
+    "move_z": {
+      "negative": "move_back",
+      "positive": "move_forward"
+    },
+    "look_x": {
+      "type": "mouse_delta",
+      "axis": "x"
+    },
+    "look_y": {
+      "type": "mouse_delta",
+      "axis": "y"
+    },
+    "zoom": {
+      "type": "mouse_wheel",
+      "scale": 1.0
+    },
+    "move_x_pad": {
+      "type": "gamepad_axis",
+      "axis": "LEFT_X",
+      "gamepad": 0,
+      "deadzone": 0.15
+    },
+    "move_z_pad": {
+      "type": "gamepad_axis",
+      "axis": "LEFT_Y",
+      "gamepad": 0,
+      "deadzone": 0.15,
+      "invert": true
+    },
+    "look_x_pad": {
+      "type": "gamepad_axis",
+      "axis": "RIGHT_X",
+      "gamepad": 0,
+      "deadzone": 0.15
+    },
+    "look_y_pad": {
+      "type": "gamepad_axis",
+      "axis": "RIGHT_Y",
+      "gamepad": 0,
+      "deadzone": 0.15
+    }
   }
 }

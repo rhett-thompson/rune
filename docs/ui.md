@@ -54,8 +54,8 @@ start :: proc(game: ^rune.Engine, world: ^ecs.World) {
 }
 
 ui_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
-    controls := ui.read_input(rune.input_state(game))
-    controls.blocked = console.is_open(rune.developer_console(game))
+    controls := ui.read_input(&interface, rune.input_state(game), game.frame_delta_time)
+    controls.blocked = controls.blocked || console.is_open(rune.developer_console(game))
     if menu_open || controls.blocked {input.capture(rune.input_state(game))}
 
     size := [2]f32{f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight())}
@@ -163,7 +163,12 @@ can be built sequentially. Render outside any active 2D/3D camera mode.
 `ui_previous`, `ui_accept`, `ui_cancel`, `ui_left`, and `ui_right`. Configure
 bindings in input JSON, or supply `ui.Inputs` directly for custom controllers,
 replays, or headless tests. `cancel` is an application menu action rather than
-an automatic library dismissal. No hardcoded gamepad bindings live in the UI.
+an automatic library dismissal. The context overload also polls the strongest
+left stick across pads 0–3. It emits one dominant direction at a time, with a
+0.6 threshold, 0.35-second initial delay, and 0.14-second repeat interval. Adjust
+`ctx.nav.threshold`, `delay`, and `repeat` to tune navigation; `ui.reset_focus`
+also resets repeat state. The one-argument overload reads only mapped actions,
+allowing applications to provide their own navigation policy.
 
 `input.capture` gates gameplay `action`, `is_down`, `pressed`, `released`, `strength`,
 and `axis` queries for the remainder of the frame. Sampling resets capture next

@@ -1,1 +1,41 @@
-{"actions":{"move_left":[{"type":"keyboard","key":"A"}],"move_right":[{"type":"keyboard","key":"D"}],"jump":[{"type":"keyboard","key":"SPACE"}]},"axes":{"move_x":{"negative":"move_left","positive":"move_right"}}}
+{
+  "$schema": "../../../schemas/input.schema.json",
+  "actions": {
+    "move_left": [
+      {
+        "type": "keyboard",
+        "key": "A"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_LEFT"
+      }
+    ],
+    "move_right": [
+      {
+        "type": "keyboard",
+        "key": "D"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_RIGHT"
+      }
+    ],
+    "jump": [
+      {
+        "type": "keyboard",
+        "key": "SPACE"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "A"
+      }
+    ]
+  },
+  "axes": {
+    "move_x": {
+      "negative": "move_left",
+      "positive": "move_right"
+    }
+  }
+}

@@ -18,3 +18,5 @@ odin run examples/tetris -o:none -linker:msvc -collection:rune=rune "-out:build/
 ```
 
 [All examples](../README.md)
+
+Controller: D-pad moves and soft-drops; Up or X rotates clockwise, Y counterclockwise; A hard-drops; tap Start pauses; Back restarts. Hold Start for one second to exit. Button names use Xbox layout.

@@ -100,3 +100,5 @@ odin run examples/first_person_3d -o:none -collection:rune=rune -linker:msvc -co
 ```
 
 [All examples](../README.md)
+
+Controller: Left stick or D-pad moves; right stick looks, A jumps, LT sprints, B crouches and R3 toggles cursor capture. Hold Start for one second to exit. Button names use Xbox layout.

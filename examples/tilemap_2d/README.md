@@ -15,3 +15,5 @@ odin run examples/tilemap_2d -o:none -linker:msvc -collection:rune=rune "-out:bu
 ```
 
 [All examples](../README.md)
+
+Controller: D-pad moves the player. Hold Start for one second to exit. Button names use Xbox layout.

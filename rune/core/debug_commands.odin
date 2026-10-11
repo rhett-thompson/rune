@@ -48,11 +48,43 @@ register_debug_commands :: proc(dev: ^console.Console) {
 	console.register(dev, "resume", "Resume simulation.", resume_command)
 	console.register(dev, "step", "Advance paused simulation: step [count, 1..600].", step_command)
 	console.register(dev, "input", "Override action: input <action> press|release|clear.", input_command)
+	console.register(dev, "pads", "List connected gamepads and live axis values.", pads_command)
+	console.register(dev, "quit", "Exit the active engine loop.", quit_command)
 	console.register(dev, "set", "Runtime edit: set <id> <Component.field> <JSON-value>.", set_command)
 	console.register(dev, "reload", "Reload the active scene from disk; discard runtime edits.", reload_command)
 	console.register(dev, "profile", "Sample CPU/frame timings: profile [frames, 1..600].", profile_command)
 	console.register(dev, "memory", "Known World/asset backing buffers and texture GPU estimates.", memory_command)
 	console.register(dev, "navmesh", "Show navigation surfaces: navmesh [on [entity-id]|off].", navmesh_command)
+}
+
+quit_command :: proc(dev: ^console.Console, arguments: string) {
+	engine, ok := command_engine(dev)
+	if !ok || !no_arguments(dev, arguments) {return}
+	request_exit(engine)
+	console.set_result(dev, struct {exit_requested: bool}{true})
+}
+
+Gamepad_Summary :: struct {
+	index: i32,
+	name: string,
+	axis_count: i32,
+	axes: []f32,
+}
+
+pads_command :: proc(dev: ^console.Console, arguments: string) {
+	_, ok := command_engine(dev)
+	if !ok || !no_arguments(dev, arguments) {return}
+	pads := make([dynamic]Gamepad_Summary, context.temp_allocator)
+	for pad: i32 = 0; pad < 4; pad += 1 {
+		if !rl.IsGamepadAvailable(pad) {continue}
+		axis_count := max(0, rl.GetGamepadAxisCount(pad))
+		axes := make([]f32, int(axis_count), context.temp_allocator)
+		for axis in 0..<axis_count {
+			axes[axis] = rl.GetGamepadAxisMovement(pad, rl.GamepadAxis(axis))
+		}
+		append(&pads, Gamepad_Summary{index=pad, name=string(rl.GetGamepadName(pad)), axis_count=axis_count, axes=axes})
+	}
+	console.set_result(dev, pads[:])
 }
 
 navmesh_command :: proc(dev: ^console.Console, arguments: string) {
@@ -103,6 +135,15 @@ memory_command :: proc(dev: ^console.Console, arguments: string) {
 bind_debug_console :: proc(engine: ^Engine, world: ^ecs.World) {
 	engine.console.user_data = engine
 	engine.debug.world = world
+}
+
+// A quit dispatched during begin_frame skips rendering, so acknowledge its
+// remote request before the loop releases the current frame's scratch memory.
+@(private)
+finish_exit_console :: proc(engine: ^Engine) {
+	if !engine.exit_requested {return}
+	engine.console.frame_metadata = debug_frame_metadata(engine)
+	console.finish_remote(&engine.console)
 }
 
 command_engine :: proc(dev: ^console.Console) -> (^Engine, bool) {

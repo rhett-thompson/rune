@@ -52,12 +52,16 @@ sample_controls :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	controls := rune.input_state(game)
 	min_distance := max(settings.min_distance, 0.5)
 	max_distance := max(settings.max_distance, min_distance)
-	camera_state.distance = clamp(camera_state.distance-input.axis(controls, "zoom")*max(settings.zoom_speed, 0),
+	pad_zoom := input.strength(controls, "zoom_in") - input.strength(controls, "zoom_out")
+	camera_state.distance = clamp(camera_state.distance-input.axis(controls, "zoom")*max(settings.zoom_speed, 0)-pad_zoom*8*game.delta_time,
 		min_distance, max_distance)
 	if input.is_down(controls, "orbit_camera") || input.is_down(controls, "orbit_with_character") {
 		camera_state.yaw -= input.axis(controls, "look_x")*settings.mouse_sensitivity
 		camera_state.pitch = clamp(camera_state.pitch+input.axis(controls, "look_y")*settings.mouse_sensitivity, -15, 75)
 	}
+	// Right-stick orbit is available without holding a mouse-drag action.
+	camera_state.yaw -= input.axis(controls, "look_x_pad")*180*game.delta_time
+	camera_state.pitch = clamp(camera_state.pitch+input.axis(controls, "look_y_pad")*120*game.delta_time, -15, 75)
 	submit_movement(game, world)
 }
 
@@ -73,7 +77,7 @@ submit_movement :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	yaw := camera_state.yaw*f32(math.PI/180)
 	forward := [2]f32{math.sin(yaw), math.cos(yaw)}
 	right := [2]f32{-forward[1], forward[0]}
-	direction := forward*input.axis(controls, "move_z")+right*input.axis(controls, "move_x")
+	direction := forward*clamp(input.axis(controls, "move_z")+input.axis(controls, "move_z_pad"), -1, 1)+right*clamp(input.axis(controls, "move_x")+input.axis(controls, "move_x_pad"), -1, 1)
 	ecs.character_controller_3d_move(world, player, direction, input.is_down(controls, "sprint"))
 	ecs.character_controller_3d_crouch(world, player, input.is_down(controls, "crouch"))
 	if !jump_press_sent && input.pressed(controls, "jump") {

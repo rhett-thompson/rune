@@ -2,6 +2,7 @@ package core
 
 import "core:strings"
 import "core:path/filepath"
+import "rune:pathutil"
 import "rune:console"
 import "rune:ecs"
 import "rune:save"
@@ -24,7 +25,7 @@ configure_saves :: proc(engine: ^Engine, options: save.Options) -> bool {
 	save.destroy(&engine.saves)
 	engine.saves = m
 	if engine.has_active_world {
-		absolute_path, _ := filepath.abs(engine.active_scene_path, context.temp_allocator)
+		absolute_path, _ := pathutil.absolute(engine.active_scene_path, context.temp_allocator)
 		return save.begin_scene(&engine.saves, &engine.active_world, absolute_path)
 	}
 	return true

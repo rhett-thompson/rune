@@ -88,6 +88,12 @@
     "move": {
       "negative": "move_left",
       "positive": "move_right"
+    },
+    "move_pad": {
+      "type": "gamepad_axis",
+      "axis": "LEFT_X",
+      "gamepad": 0,
+      "deadzone": 0.15
     }
   }
 }

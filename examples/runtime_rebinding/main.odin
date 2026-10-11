@@ -39,7 +39,7 @@ on_update :: proc(game: ^rune.Engine) {
 
 on_draw :: proc(game: ^rune.Engine) {
 	example_text.draw("Runtime Key Rebinding", 32, 32, 32, rl.DARKGRAY)
-	example_text.draw("Press R to switch the movement bindings.", 32, 80, 20, rl.GRAY)
+	example_text.draw("R / Pad X switches keyboard bindings. Pad D-pad always moves.", 32, 80, 20, rl.GRAY)
 	if using_arrow_keys {
 		example_text.draw("Current movement keys: Left / Right", 32, 112, 22, rl.MAROON)
 	} else {

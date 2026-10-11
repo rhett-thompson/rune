@@ -56,3 +56,5 @@ to a full cell. See the [navigation guide](../../docs/navigation-3d.md).
 The heightmap is an original procedural sample shipped under Rune's license.
 The procedural layer materials also ship under Rune's license. Sculpting, manually
 painted layer masks, streaming, and LOD are outside this example.
+
+Controller: Left stick or D-pad moves; right stick looks while cursor capture is active, A jumps, LT sprints, R3 toggles capture, X toggles the navigation overlay and Back resets. Hold Start for one second to exit. Button names use Xbox layout.

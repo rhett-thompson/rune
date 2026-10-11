@@ -75,7 +75,7 @@ draw_audio_components :: proc(game: ^rune.Engine, scene_world: ^ecs.World) {
 		example_text.draw("Listener: inactive", 24, 164, 22, rl.MAROON)
 	}
 	example_text.draw("Sphere moves away from and returns to the listener.", 24, 198, 22, rl.DARKBLUE)
-	example_text.draw("Left-click to play the spatial bell.", 24, 256, 18, rl.GRAY)
+	example_text.draw("Click / Pad A plays bell; X mute, Y fade, B restore.", 24, 256, 18, rl.GRAY)
 	if last_play_succeeded {
 		example_text.draw("Playing", 24, 282, 18, rl.DARKGREEN)
 	}

@@ -9,7 +9,7 @@ player: ecs.Entity
 
 control :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	controls := rune.input_state(game)
-	ecs.character_controller_2d_move(world, player, input.axis(controls, "move_x"))
+	ecs.character_controller_2d_move(world, player, clamp(input.axis(controls, "move_x") + input.axis(controls, "move_x_pad"), -1, 1))
 	if input.pressed(controls, "jump") {ecs.character_controller_2d_jump(world, player)}
 	if input.released(controls, "jump") {ecs.character_controller_2d_release_jump(world, player)}
 }

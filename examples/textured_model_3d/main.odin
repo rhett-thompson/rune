@@ -65,9 +65,9 @@ on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 		return
 	}
 	example_text.draw("Rune Textured Model 3D", 24, 24, 28, rl.RAYWHITE)
-	example_text.draw("Left-drag: orbit   Wheel: zoom   Space: switch model scene", 24, 60, 18, rl.LIGHTGRAY)
+	example_text.draw("Mouse / RB + RS orbit | Wheel / LT/RT zoom | Space / A scene", 24, 60, 18, rl.LIGHTGRAY)
 	if showing_crate {
-		example_text.draw("Tab: material view", 24, 94, 18, rl.RAYWHITE)
+		example_text.draw("Tab / Pad X: material view", 24, 94, 18, rl.RAYWHITE)
 		example_text.draw(material_view_name(material_view), 200, 94, 18, rl.RAYWHITE)
 	} else {
 		example_text.draw("Simple OBJ pyramid with a solid-color material", 24, 94, 18, rl.RAYWHITE)

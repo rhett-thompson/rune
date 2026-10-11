@@ -1,30 +1,215 @@
 {
   "$schema": "../../../schemas/input.schema.json",
   "actions": {
-    "stone": [{ "type": "keyboard", "key": "1" }],
-    "moss": [{ "type": "keyboard", "key": "2" }],
-    "metal": [{ "type": "keyboard", "key": "3" }],
-    "grass": [{ "type": "keyboard", "key": "4" }],
-    "granite": [{ "type": "keyboard", "key": "5" }],
-    "wood": [{ "type": "keyboard", "key": "6" }],
-    "sand": [{ "type": "keyboard", "key": "7" }],
-    "terracotta": [{ "type": "keyboard", "key": "8" }],
-    "snow": [{ "type": "keyboard", "key": "9" }],
-    "seed": [{ "type": "keyboard", "key": "N" }],
-    "scale_up": [{ "type": "keyboard", "key": "UP" }],
-    "scale_down": [{ "type": "keyboard", "key": "DOWN" }],
-    "detail": [{ "type": "keyboard", "key": "D" }],
-    "contrast_up": [{ "type": "keyboard", "key": "RIGHT" }],
-    "contrast_down": [{ "type": "keyboard", "key": "LEFT" }],
-    "bump": [{ "type": "keyboard", "key": "B" }],
-    "filter": [{ "type": "keyboard", "key": "F" }],
-    "resolution_down": [{ "type": "keyboard", "key": "Q" }],
-    "resolution_up": [{ "type": "keyboard", "key": "E" }],
-    "reset": [{ "type": "keyboard", "key": "R" }],
-    "orbit_camera": [{ "type": "mouse_button", "button": "LEFT" }]
+    "stone": [
+      {
+        "type": "keyboard",
+        "key": "1"
+      }
+    ],
+    "moss": [
+      {
+        "type": "keyboard",
+        "key": "2"
+      }
+    ],
+    "metal": [
+      {
+        "type": "keyboard",
+        "key": "3"
+      }
+    ],
+    "grass": [
+      {
+        "type": "keyboard",
+        "key": "4"
+      }
+    ],
+    "granite": [
+      {
+        "type": "keyboard",
+        "key": "5"
+      }
+    ],
+    "wood": [
+      {
+        "type": "keyboard",
+        "key": "6"
+      }
+    ],
+    "sand": [
+      {
+        "type": "keyboard",
+        "key": "7"
+      }
+    ],
+    "terracotta": [
+      {
+        "type": "keyboard",
+        "key": "8"
+      }
+    ],
+    "snow": [
+      {
+        "type": "keyboard",
+        "key": "9"
+      }
+    ],
+    "seed": [
+      {
+        "type": "keyboard",
+        "key": "N"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "X"
+      }
+    ],
+    "scale_up": [
+      {
+        "type": "keyboard",
+        "key": "UP"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_UP"
+      }
+    ],
+    "scale_down": [
+      {
+        "type": "keyboard",
+        "key": "DOWN"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_DOWN"
+      }
+    ],
+    "detail": [
+      {
+        "type": "keyboard",
+        "key": "D"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "LEFT_BUMPER"
+      }
+    ],
+    "contrast_up": [
+      {
+        "type": "keyboard",
+        "key": "RIGHT"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_RIGHT"
+      }
+    ],
+    "contrast_down": [
+      {
+        "type": "keyboard",
+        "key": "LEFT"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_LEFT"
+      }
+    ],
+    "bump": [
+      {
+        "type": "keyboard",
+        "key": "B"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "RIGHT_THUMB"
+      }
+    ],
+    "filter": [
+      {
+        "type": "keyboard",
+        "key": "F"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "Y"
+      }
+    ],
+    "resolution_down": [
+      {
+        "type": "keyboard",
+        "key": "Q"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "LEFT_TRIGGER"
+      }
+    ],
+    "resolution_up": [
+      {
+        "type": "keyboard",
+        "key": "E"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "RIGHT_TRIGGER"
+      }
+    ],
+    "reset": [
+      {
+        "type": "keyboard",
+        "key": "R"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "B"
+      }
+    ],
+    "orbit_camera": [
+      {
+        "type": "mouse_button",
+        "button": "LEFT"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "RIGHT_BUMPER"
+      }
+    ],
+    "preset_next": [
+      {
+        "type": "gamepad_button",
+        "button": "A"
+      }
+    ],
+    "preset_previous": [
+      {
+        "type": "gamepad_button",
+        "button": "LEFT_THUMB"
+      }
+    ]
   },
   "axes": {
-    "orbit_x": { "type": "mouse_delta", "axis": "x", "invert": true },
-    "orbit_y": { "type": "mouse_delta", "axis": "y" }
+    "orbit_x": {
+      "type": "mouse_delta",
+      "axis": "x",
+      "invert": true
+    },
+    "orbit_y": {
+      "type": "mouse_delta",
+      "axis": "y"
+    },
+    "orbit_x_pad": {
+      "type": "gamepad_axis",
+      "axis": "RIGHT_X",
+      "gamepad": 0,
+      "deadzone": 0.15,
+      "invert": true
+    },
+    "orbit_y_pad": {
+      "type": "gamepad_axis",
+      "axis": "RIGHT_Y",
+      "gamepad": 0,
+      "deadzone": 0.15
+    }
   }
 }

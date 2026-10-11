@@ -104,3 +104,5 @@ Use `set player CharacterController2D.dash_chain_count 5` to allow five dashes,
 same `set player CharacterController2D.` prefix). Ground/air permissions, gravity,
 window, and cooldown are all JSON settings documented in the
 [controller API](../../docs/character-controller-2d.md#dashes-and-chaining).
+
+Controller: Left stick or D-pad moves; A jumps, D-pad down crouches, Down + A drops through a platform; X dashes. Hold Start for one second to exit. Button names use Xbox layout.

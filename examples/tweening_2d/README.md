@@ -15,3 +15,5 @@ odin run examples/tweening_2d -o:none -linker:msvc -collection:rune=rune "-out:b
 ```
 
 [All examples](../README.md)
+
+Controller: A cycles easing. Hold Start for one second to exit. Button names use Xbox layout.

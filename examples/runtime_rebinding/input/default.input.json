@@ -1,33 +1,41 @@
 {
+  "$schema": "../../../schemas/input.schema.json",
   "actions": {
     "move_left": [
       {
         "type": "keyboard",
-        "key": "LEFT",
-        "gamepad": 0
+        "key": "LEFT"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_LEFT"
       }
     ],
     "move_right": [
       {
         "type": "keyboard",
-        "key": "RIGHT",
-        "gamepad": 0
+        "key": "RIGHT"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_RIGHT"
       }
     ],
     "toggle_bindings": [
       {
         "type": "keyboard",
-        "key": "R",
-        "gamepad": 0
+        "key": "R"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "X"
       }
     ]
   },
   "axes": {
     "move_x": {
       "negative": "move_left",
-      "positive": "move_right",
-      "scale": 0.00000000,
-      "invert": false
+      "positive": "move_right"
     }
   }
 }

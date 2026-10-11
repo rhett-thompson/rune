@@ -50,7 +50,7 @@ after_physics :: proc(game: ^rune.Engine, world: ^ecs.World) {
 
 draw_ui :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	example_text.draw("COLLIDER OFFSETS + CAPSULES", 32, 24, 26, rl.RAYWHITE)
-	example_text.draw("A / D: move   SPACE: jump   Backtick: console", 32, 63, 18, rl.LIGHTGRAY)
+	example_text.draw("A / D / D-pad move | Space / A jump | Backtick console", 32, 63, 18, rl.LIGHTGRAY)
 	example_text.draw("Green: collision outlines   White crosses: entity origins", 32, 92, 18, rl.LIGHTGRAY)
 	example_text.draw("Player origin is at its feet. Collider offset is [0, -32].", 32, 121, 18, rl.LIGHTGRAY)
 	for entity in ecs.query(world, ecs.Transform) {

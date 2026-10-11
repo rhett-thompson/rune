@@ -35,7 +35,7 @@ on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 
 	counters, _ := ecs.physics_3d_counters(world)
 	example_text.draw("Rolling balls", 24, 24, 28, rl.RAYWHITE)
-	example_text.draw("R: reset", 24, 60, 18, rl.LIGHTGRAY)
+	example_text.draw("R / Pad Back: reset", 24, 60, 18, rl.LIGHTGRAY)
 	example_text.draw(
 		fmt.ctprintf("%d bodies  |  %d contacts", counters.bodyCount, counters.contactCount),
 		24,

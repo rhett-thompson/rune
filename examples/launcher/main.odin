@@ -8,6 +8,7 @@ import "core:os"
 import "core:slice"
 import "core:unicode/utf8"
 import "rune:assets"
+import "rune:input"
 import rl "vendor:raylib"
 
 font_assets: assets.Asset_Manager
@@ -121,64 +122,47 @@ load_manifest :: proc() -> (Manifest, bool) {
 
 run_example :: proc(example: Example) -> (int, string) {
 	close_window()
-	for collection in example.collections {
-		if collection.name == "r3d" && !os.is_dir(fmt.tprintf("%s/r3d", collection.path)) {
-			message := "Missing r3d. Run: git submodule update --init --recursive"
-			fmt.eprintln(message)
-			return -1, message
+	args, parsed := parse_example_args(os.get_env("RUNE_EXAMPLE_ARGS", context.temp_allocator))
+	if !parsed {return -1, "RUNE_EXAMPLE_ARGS contains an unclosed quote."}
+	defer free_example_args(args)
+	prebuilt := prebuilt_mode(os.get_env("RUNE_EXAMPLES_PREBUILT", context.temp_allocator),
+		odin_on_path(os.get_env("PATH", context.temp_allocator)))
+	if prebuilt {
+		suffix :: ".exe" when ODIN_OS == .Windows else ""
+		binary := fmt.tprintf("build/%s%s", example.path, suffix)
+		if !os.exists(binary) {
+			fmt.eprintf("Missing prebuilt example: %s\n", binary)
+			return -1, "Missing prebuilt example. Build or stage this example first."
 		}
-	}
-	if os.is_dir("third_party/r3d-odin/r3d") {
-		preparation: []string
-		when ODIN_OS == .Windows {
-			preparation = {"cmd.exe", "/d", "/c", "tools\\prepare_r3d.bat"}
-		} else {
-			preparation = {"sh", "tools/prepare_r3d.sh"}
+		fmt.printf("Running %s...\n", example.name)
+	} else {
+		for collection in example.collections {
+			if collection.name == "r3d" && !os.is_dir(fmt.tprintf("%s/r3d", collection.path)) {
+				return -1, "Missing r3d. Run: git submodule update --init --recursive"
+			}
 		}
-		process, start_error := os.process_start(
-			{command = preparation, stdin = os.stdin, stdout = os.stdout, stderr = os.stderr},
-		)
-		if start_error != nil {return -1, "Could not prepare R3D. See terminal for details."}
-		state, wait_error := os.process_wait(process)
-		if wait_error != nil || state.exit_code != 0 {
-			return -1, "R3D preparation failed. See terminal for details."
+		if os.is_dir("third_party/r3d-odin/r3d") {
+			preparation := []string{"sh", "tools/prepare_r3d.sh"}
+			when ODIN_OS == .Windows {preparation = {"cmd.exe", "/d", "/c", "tools\\prepare_r3d.bat"}}
+			process, start_error := os.process_start({command = preparation, stdin = os.stdin, stdout = os.stdout, stderr = os.stderr})
+			if start_error != nil {return -1, "Could not prepare R3D. See terminal for details."}
+			state, wait_error := os.process_wait(process)
+			if wait_error != nil || state.exit_code != 0 {return -1, "R3D preparation failed. See terminal for details."}
 		}
+		if error := os.make_directory_all("build"); error != nil && error != .Exist {
+			return -1, "Could not create build directory. See terminal for details."
+		}
+		fmt.printf("Building and running %s...\n", example.name)
 	}
-	fmt.printf("Building and running %s...\n", example.name)
-
-	command := make([dynamic]string)
-	defer delete(command)
-	append(&command, "odin")
-	append(&command, "run")
-	append(&command, fmt.tprintf("examples/%s", example.path))
-	append(&command, "-o:none")
-	append(&command, "-collection:rune=rune")
-	output_suffix := ""
-	when ODIN_OS == .Windows {
-		output_suffix = ".exe"
-		// R3D/Assimp uses bundled /GL zlib; MSVC supports its LTCG objects.
-		append(&command, "-linker:msvc")
-	}
-	if error := os.make_directory_all("build"); error != nil {
-		fmt.eprintln("Could not create build directory: ", error)
-		return -1, "Could not create build directory. See terminal for details."
-	}
-	append(&command, fmt.tprintf("-out:build/%s%s", example.path, output_suffix))
-	for collection in example.collections {
-		append(&command, fmt.tprintf("-collection:%s=%s", collection.name, collection.path))
-	}
-	process, start_error := os.process_start(
-		{command = command[:], stdin = os.stdin, stdout = os.stdout, stderr = os.stderr},
-	)
+	command := example_command(example, prebuilt, args[:])
+	defer free_example_args(command)
+	process, start_error := os.process_start({command = command[:], stdin = os.stdin, stdout = os.stdout, stderr = os.stderr})
 	if start_error != nil {
-		fmt.eprintln("Could not start Odin. Make sure `odin` is on PATH: ", start_error)
-		return -1, "Could not start Odin. Make sure odin is on PATH."
+		fmt.eprintln("Could not start example: ", start_error)
+		return -1, "Could not start example. See terminal for details."
 	}
 	state, wait_error := os.process_wait(process)
-	if wait_error != nil {
-		fmt.eprintln("Could not wait for the example process: ", wait_error)
-		return -1, "Could not wait for the example process. See terminal for details."
-	}
+	if wait_error != nil {return -1, "Could not wait for the example process. See terminal for details."}
 	return state.exit_code, ""
 }
 
@@ -213,15 +197,35 @@ main :: proc() {
 	last_exit_code := 0
 	last_error := ""
 	has_run := false
+	nav: input.Nav_State
+	pad_actions: Pad_Action_State
 	open_window()
 
 	for !rl.WindowShouldClose() {
+		focused := rl.IsWindowFocused()
+		nav_edges: input.Nav_Edges
+		if focused {nav_edges = input.nav_update(&nav, rl.GetFrameTime())} else {nav = {}; pad_actions = {}}
+		a_down, b_down, a_pressed, b_pressed := false, false, false, false
+		for pad: i32 = 0; pad < 4; pad += 1 {
+			if !focused || !rl.IsGamepadAvailable(pad) {continue}
+			nav_edges.up = nav_edges.up || rl.IsGamepadButtonPressed(pad, .LEFT_FACE_UP)
+			nav_edges.down = nav_edges.down || rl.IsGamepadButtonPressed(pad, .LEFT_FACE_DOWN)
+			nav_edges.left = nav_edges.left || rl.IsGamepadButtonPressed(pad, .LEFT_FACE_LEFT)
+			nav_edges.right = nav_edges.right || rl.IsGamepadButtonPressed(pad, .LEFT_FACE_RIGHT)
+			a_down = a_down || rl.IsGamepadButtonDown(pad, .RIGHT_FACE_DOWN)
+			b_down = b_down || rl.IsGamepadButtonDown(pad, .RIGHT_FACE_RIGHT)
+			a_pressed = a_pressed || rl.IsGamepadButtonPressed(pad, .RIGHT_FACE_DOWN)
+			b_pressed = b_pressed || rl.IsGamepadButtonPressed(pad, .RIGHT_FACE_RIGHT)
+		}
+		pad_launch, pad_exit := false, false
+		if focused {pad_launch, pad_exit = pad_actions_update(&pad_actions, a_down, b_down, a_pressed, b_pressed)}
+		if pad_exit {break}
 		mouse := rl.GetMousePosition()
 		mouse_delta := rl.GetMouseDelta()
-		clicked := rl.IsMouseButtonPressed(.LEFT)
+		clicked := focused && rl.IsMouseButtonPressed(.LEFT)
 		next_category := active_category
-		if rl.IsKeyPressed(.RIGHT) {next_category = (active_category + 1) % len(categories)}
-		if rl.IsKeyPressed(.LEFT) {next_category = (active_category + len(categories) - 1) % len(categories)}
+		if (focused && rl.IsKeyPressed(.RIGHT)) || nav_edges.right {next_category = (active_category + 1) % len(categories)}
+		if (focused && rl.IsKeyPressed(.LEFT)) || nav_edges.left {next_category = (active_category + len(categories) - 1) % len(categories)}
 		for _, index in categories {
 			if clicked && rl.CheckCollisionPointRec(mouse, tab_bounds(index, len(categories))) {
 				next_category = index
@@ -235,10 +239,10 @@ main :: proc() {
 		visible_rows := (LIST_BOTTOM - LIST_TOP) / ROW_HEIGHT
 		max_scroll := max(0, len(filtered) - visible_rows)
 
-		if rl.IsKeyPressed(.DOWN) {
+		if (focused && rl.IsKeyPressed(.DOWN)) || nav_edges.down {
 			selected = min(selected + 1, len(filtered) - 1)
 		}
-		if rl.IsKeyPressed(.UP) {
+		if (focused && rl.IsKeyPressed(.UP)) || nav_edges.up {
 			selected = max(selected - 1, 0)
 		}
 		if selected < scroll {
@@ -247,13 +251,13 @@ main :: proc() {
 			scroll = selected - visible_rows + 1
 		}
 
-		wheel := int(rl.GetMouseWheelMove())
+		wheel := int(rl.GetMouseWheelMove()) if focused else 0
 		if wheel != 0 {
 			scroll = clamp(scroll - wheel, 0, max_scroll)
 			selected = clamp(selected, scroll, min(scroll + visible_rows - 1, len(filtered) - 1))
 		}
 
-		launch := rl.IsKeyPressed(.ENTER)
+		launch := (focused && rl.IsKeyPressed(.ENTER)) || pad_launch
 		for visible_index in 0 ..< visible_rows {
 			index := scroll + visible_index
 			if index >= len(filtered) {
@@ -265,7 +269,7 @@ main :: proc() {
 				width  = WINDOW_WIDTH - 72,
 				height = ROW_HEIGHT - 5,
 			}
-			if (mouse_delta.x != 0 || mouse_delta.y != 0 || clicked) && rl.CheckCollisionPointRec(mouse, row) {
+			if focused && (mouse_delta.x != 0 || mouse_delta.y != 0 || clicked) && rl.CheckCollisionPointRec(mouse, row) {
 				selected = index
 				if clicked {
 					launch = true
@@ -276,6 +280,8 @@ main :: proc() {
 		if launch {
 			last_exit_code, last_error = run_example(manifest.examples[filtered[selected]])
 			has_run = true
+			nav = {}
+			pad_actions = {}
 			open_window()
 		}
 
@@ -283,7 +289,7 @@ main :: proc() {
 		rl.ClearBackground(rl.Color{18, 22, 30, 255})
 		example_text.draw("Rune Examples", 36, 28, 32, rl.Color{239, 244, 255, 255})
 		example_text.draw(
-			"Choose a category, then press Enter or click an example to run it.",
+			"D-pad / stick: browse     A / Enter / click: run     B / Esc: exit",
 			36,
 			72,
 			18,
@@ -335,7 +341,7 @@ main :: proc() {
 				baseline, 14, {154, 164, 184, 255})
 		}
 
-		footer := "Left/Right: category     Up/Down or wheel: example     Enter: run"
+		footer := "Left/Right: category     Up/Down: example     A / Enter: run     B / Esc: exit"
 		if has_run {
 			footer = fmt.tprintf("Example exited with code %d", last_exit_code)
 			if last_error != "" {

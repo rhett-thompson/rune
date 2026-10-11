@@ -2,7 +2,14 @@
   "$schema": "../../../schemas/input.schema.json",
   "actions": {
     "change_scene": [
-      { "type": "mouse_button", "button": "LEFT" }
+      {
+        "type": "mouse_button",
+        "button": "LEFT"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "A"
+      }
     ]
   },
   "axes": {}

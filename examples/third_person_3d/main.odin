@@ -65,8 +65,8 @@ on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 
 on_draw_ui :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	example_text.draw("Rune Third Person Controller", 24, 24, 28, rl.RAYWHITE)
-	example_text.draw("WASD move | Space jump | Shift sprint | Ctrl crouch | Wheel zoom", 24, 60, 18, rl.RAYWHITE)
-	example_text.draw("Left-drag orbit | Right-drag orbit and face camera direction | F3 gizmos", 24, 86, 18, rl.LIGHTGRAY)
+	example_text.draw("WASD / LS move | Space / A jump | LT sprint | B crouch | LB/RB zoom", 24, 60, 18, rl.RAYWHITE)
+	example_text.draw("Mouse drag / RS orbit | X interact | Y save | Back load | F3 gizmos", 24, 86, 18, rl.LIGHTGRAY)
 	motor, _ := ecs.get_character_controller_3d_state(world, player)
 	example_text.draw(fmt.ctprintf("Grounded: %t   Crouched: %t   Stand blocked: %t   Camera blocked: %t",
 		motor.grounded, motor.crouched, motor.stand_blocked, camera_state.obstructed), 24, 112, 18, rl.LIGHTGRAY)

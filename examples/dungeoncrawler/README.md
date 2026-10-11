@@ -15,3 +15,5 @@ odin run examples/dungeoncrawler -o:none -linker:msvc -collection:rune=rune "-ou
 ```
 
 [All examples](../README.md)
+
+Controller: Left stick or D-pad moves; right stick turns; LT sprints, RT attacks and Back restarts. Hold Start for one second to exit. Button names use Xbox layout.

@@ -13,6 +13,7 @@ import "rune:console"
 import "rune:ecs"
 import "rune:gizmos"
 import "rune:input"
+import "rune:pathutil"
 import "rune:render"
 import "rune:scene"
 import "rune:save"
@@ -143,6 +144,8 @@ Engine :: struct {
 	scene_loop_active:  bool,
 	is_running:         bool,
 	exit_requested:     bool,
+	gamepad_exit_disabled: bool,
+	gamepad_exit_state: Gamepad_Exit_State,
 	fps_sample_started: f64,
 	fps_sample_frames:  u64,
 }
@@ -243,11 +246,15 @@ init :: proc(project_path: string) -> (Engine, bool) {
 	if len(input_path) > 0 {
 		input_path, _ = filepath.join({project_directory, input_path}, project_allocator(&project))
 	}
-	input_data, input_ok := input.load(input_path)
-	if !input_ok {
-		ecs.destroy_registry(&registry)
-		destroy_project(&project)
-		return {}, false
+	input_data: input.Input
+	if len(input_path) > 0 {
+		input_ok: bool
+		input_data, input_ok = input.load(input_path)
+		if !input_ok {
+			ecs.destroy_registry(&registry)
+			destroy_project(&project)
+			return {}, false
+		}
 	}
 
 	title, _ := strings.clone_to_cstring(project.window.title)
@@ -412,7 +419,7 @@ load_active_scene :: proc(engine: ^Engine, path: string) -> bool {
 	engine.active_world = world
 	engine.has_active_world = true
 	if engine.saves.initialized {
-		absolute_path, _ := filepath.abs(resolved_path, context.temp_allocator)
+		absolute_path, _ := pathutil.absolute(resolved_path, context.temp_allocator)
 		return save.begin_scene(&engine.saves, &engine.active_world, absolute_path)
 	}
 	return true
@@ -555,6 +562,7 @@ run_callbacks :: proc(engine: ^Engine, on_update: Update_Proc, on_draw: Draw_Pro
 			mem.dynamic_arena_reset(&frame_arena)
 		}
 		begin_frame(engine)
+		if engine.exit_requested {break}
 		if debug_simulation_tick(engine) {
 			started := rl.GetTime()
 			on_update(engine)
@@ -631,6 +639,7 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 			mem.dynamic_arena_reset(&frame_arena)
 		}
 		begin_frame(engine)
+		if engine.exit_requested {break}
 		if world == &engine.active_world {process_save_requests(engine)}
 		if len(engine.active_scene_path) > 0 &&
 		   reload_scene_if_changed(engine, world, engine.active_scene_path) {
@@ -804,7 +813,9 @@ begin_frame :: proc(engine: ^Engine) {
 	engine.debug.frame += 1
 	engine.debug.frame_started = rl.GetTime()
 	engine.debug.sample = {}
-	engine.delta_time = rl.GetFrameTime()
+	real_delta := rl.GetFrameTime()
+	update_gamepad_exit(engine, real_delta)
+	engine.delta_time = real_delta
 	if engine.delta_time > Max_Simulation_Delta {
 		engine.delta_time = Max_Simulation_Delta
 	}
@@ -858,6 +869,7 @@ begin_frame :: proc(engine: ^Engine) {
 	console_was_open := console.is_open(&engine.console)
 	console.update(&engine.console)
 	if console_was_open || console.is_open(&engine.console) {input.capture(&engine.input)}
+	finish_exit_console(engine)
 }
 
 // Escape belongs to the open console. raylib's desktop event polling resets

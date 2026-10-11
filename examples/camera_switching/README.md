@@ -18,3 +18,5 @@ odin run examples/camera_switching -o:none -collection:rune=rune -linker:msvc -c
 ```
 
 [All examples](../README.md)
+
+Controller: Hold D-pad left/up/right to select the wide/front/side camera. Hold Start for one second to exit. Button names use Xbox layout.

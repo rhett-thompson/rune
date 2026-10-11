@@ -28,6 +28,10 @@ display requirements, see
 
 Scene examples hot reload JSON when saved. Odin changes require a rebuild. Close
 the window to quit; the developer console is available with the backtick key.
+The launcher supports D-pad/stick navigation, A to run, and B to exit. Hold START
+for one second to exit any Rune example. Individual READMEs list controller
+bindings and pointer interactions; see [gamepad input](../docs/gamepads.md) and
+[Steam Deck staging](../docs/steam-deck.md) for setup and deployment.
 
 ## Basics
 

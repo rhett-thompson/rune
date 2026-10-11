@@ -24,7 +24,7 @@ draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	value, _ := ecs.get_skybox(world, sky)
 	rl.DrawRectangle(20,20,730,114,{12,22,34,210})
 	example_text.draw(fmt.ctprintf("SKYBOX / %v", value.mode), 36,32,26,rl.RAYWHITE)
-	example_text.draw("Left-drag: orbit   TAB: sky mode   Sun: automatic 60-second cycle",36,72,18,rl.RAYWHITE)
+	example_text.draw("Mouse / RB + RS orbit | Tab / A sky mode | LT/RT zoom",36,72,18,rl.RAYWHITE)
 	example_text.draw("Atmosphere: rotating sun and moon, with a dim blue night sky.",36,103,16,rl.RAYWHITE)
 }
 

@@ -53,6 +53,12 @@ OrbitCamera3D :: struct {
 	yaw_axis:          string,
 	pitch_axis:        string,
 	zoom_axis:         string,
+	pad_yaw_axis:      string,
+	pad_pitch_axis:    string,
+	zoom_in_action:    string,
+	zoom_out_action:   string,
+	pad_orbit_speed:   f32,
+	pad_zoom_speed:    f32,
 	pan_action:        string,
 	pan_x_axis:        string,
 	pan_y_axis:        string,
@@ -81,6 +87,12 @@ default_orbit_camera_3d :: proc() -> OrbitCamera3D {
 		yaw_axis = "orbit_x",
 		pitch_axis = "orbit_y",
 		zoom_axis = "zoom",
+		pad_yaw_axis = "orbit_x_pad",
+		pad_pitch_axis = "orbit_y_pad",
+		zoom_in_action = "zoom_in",
+		zoom_out_action = "zoom_out",
+		pad_orbit_speed = 180,
+		pad_zoom_speed = 8,
 		pan_x_axis = "pan_x",
 		pan_y_axis = "pan_y",
 		orbit_sensitivity = 0.35,
@@ -294,6 +306,22 @@ orbit_camera_3d_from_json :: proc(data: json.Value) -> (OrbitCamera3D, bool) {
 	   found {result.pitch_axis, ok = value.(json.String); if !ok {return {}, false}}
 	if value, found := object["zoom_axis"];
 	   found {result.zoom_axis, ok = value.(json.String); if !ok {return {}, false}}
+	if value, found := object["pad_yaw_axis"];
+	   found {result.pad_yaw_axis, ok = value.(json.String); if !ok {return {}, false}}
+	if value, found := object["pad_pitch_axis"];
+	   found {result.pad_pitch_axis, ok = value.(json.String); if !ok {return {}, false}}
+	if value, found := object["zoom_in_action"];
+	   found {result.zoom_in_action, ok = value.(json.String); if !ok {return {}, false}}
+	if value, found := object["zoom_out_action"];
+	   found {result.zoom_out_action, ok = value.(json.String); if !ok {return {}, false}}
+	if value, found := object["pad_orbit_speed"]; found {
+		result.pad_orbit_speed, ok = read_number(value)
+		if !ok || result.pad_orbit_speed < 0 || math.is_nan(result.pad_orbit_speed) || math.is_inf(result.pad_orbit_speed) {return {}, false}
+	}
+	if value, found := object["pad_zoom_speed"]; found {
+		result.pad_zoom_speed, ok = read_number(value)
+		if !ok || result.pad_zoom_speed < 0 || math.is_nan(result.pad_zoom_speed) || math.is_inf(result.pad_zoom_speed) {return {}, false}
+	}
 	if value, found := object["pan_action"];
 	   found {result.pan_action, ok = value.(json.String); if !ok {return {}, false}}
 	if value, found := object["pan_x_axis"];
@@ -316,6 +344,7 @@ update_orbit_camera_3d :: proc(
 ) -> Transform {
 	manual := len(orbit.manual_action) > 0 && input.is_down(controls, orbit.manual_action)
 	panning := len(orbit.pan_action) > 0 && input.is_down(controls, orbit.pan_action)
+	pad_dt := dt if dt > 0 && !math.is_nan(dt) && !math.is_inf(dt) else 0
 	if manual && !panning {
 		if len(orbit.yaw_axis) > 0 {
 			orbit.yaw -= input.axis(controls, orbit.yaw_axis) * orbit.orbit_sensitivity
@@ -323,12 +352,21 @@ update_orbit_camera_3d :: proc(
 		if len(orbit.pitch_axis) > 0 {
 			orbit.pitch += input.axis(controls, orbit.pitch_axis) * orbit.orbit_sensitivity
 		}
+		if len(orbit.pad_yaw_axis) > 0 {
+			orbit.yaw -= input.axis(controls, orbit.pad_yaw_axis) * orbit.pad_orbit_speed * pad_dt
+		}
+		if len(orbit.pad_pitch_axis) > 0 {
+			orbit.pitch += input.axis(controls, orbit.pad_pitch_axis) * orbit.pad_orbit_speed * pad_dt
+		}
 	} else if !panning && orbit.auto_yaw_speed != 0 {
 		orbit.yaw += orbit.auto_yaw_speed * dt
 	}
 	if len(orbit.zoom_axis) > 0 {
 		orbit.distance -= input.axis(controls, orbit.zoom_axis) * orbit.zoom_sensitivity
 	}
+	zoom_in := input.strength(controls, orbit.zoom_in_action) if len(orbit.zoom_in_action) > 0 else 0
+	zoom_out := input.strength(controls, orbit.zoom_out_action) if len(orbit.zoom_out_action) > 0 else 0
+	orbit.distance += (zoom_out - zoom_in) * orbit.pad_zoom_speed * pad_dt
 	orbit.pitch = clamp(orbit.pitch, orbit.min_pitch, orbit.max_pitch)
 	orbit.distance = clamp(orbit.distance, orbit.min_distance, orbit.max_distance)
 	for orbit.yaw >= 360 {orbit.yaw -= 360}

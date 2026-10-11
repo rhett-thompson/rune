@@ -59,7 +59,7 @@ ramp_command :: proc(c:^console.Console,args:string) {
 controls :: proc(game:^rune.Engine,world:^ecs.World) {
 	cube_preview=false
 	pointer_owned:=update_movement_panel(game,world)
-	if console.is_open(rune.developer_console(game)) || !rl.IsWindowFocused() {return}
+	if console.is_open(rune.developer_console(game)) || !rl.IsWindowFocused() || movement_menu_focused {return}
 	update_course_camera(game,world,pointer_owned)
 	if input.frame_action(rune.input_state(game),"place_mode").pressed {placing_cubes=!placing_cubes}
 	if input.frame_action(rune.input_state(game),"undo_cube").pressed {undo_cube(game,world)}
@@ -69,6 +69,9 @@ controls :: proc(game:^rune.Engine,world:^ecs.World) {
 	mesh,ready:=ecs.navigation_mesh_3d(world,mesh_entity)
 	if !ready {return}
 	agent,_:=ecs.find_entity_by_id(world,"agent")
+	if input.frame_action(rune.input_state(game),"navigate_platform").pressed {
+		if ecs.set_navigation_target_3d(world,agent,{7,2,3}) {destination={7,2,3};has_destination=true}
+	}
 	if input.frame_action(rune.input_state(game),"pause").pressed {rune.set_paused(game,!rune.is_paused(game))}
 	if input.frame_action(rune.input_state(game),"mesh").pressed {show_mesh=!show_mesh}
 	if input.frame_action(rune.input_state(game),"stop").pressed {ecs.stop_navigation_3d(world,agent);has_destination=false}
@@ -123,8 +126,8 @@ draw :: proc(game:^rune.Engine,world:^ecs.World) {
 	if game.gizmos.navmeshes {gizmos.draw_navmeshes_3d(world, game.gizmos.navmesh_entity)}
 	rl.EndMode3D()
 	example_text.draw("3D NAVIGATION",28,24,30,{225,235,245,255})
-	example_text.draw("Click a surface to move   B close / open ramp   M mesh   Space stop   P pause",28,66,19,{175,195,210,255})
-	example_text.draw("Right-drag orbit   Wheel zoom   Middle-drag pan   F focus agent   R reset view",28,94,17,{175,195,210,255})
+	example_text.draw("Click moves | Pad A upper platform | X ramp | Y mesh | B stop | Start pause",28,66,19,{175,195,210,255})
+	example_text.draw("Mouse / RB + RS orbit | LT/RT zoom | L3 / Tab movement menu | Back closes menu",28,94,17,{175,195,210,255})
 	example_text.draw(fmt.ctprintf("C %s   Left-click %s   Z undo cube   |   %d cubes", "finish placing" if placing_cubes else "place cubes", "place at preview" if placing_cubes else "move agent",placed_cube_count(world)),28,122,17,{235,195,135,255})
 	example_text.draw(fmt.ctprintf("Agent: %v    Path: %v    Ramp: %s%s",state.status,state.path_status,"Closed" if ramp_is_closed(mesh) else "Open","    PAUSED" if rune.is_paused(game) else ""),28,650,22,{225,235,245,255})
 	example_text.draw(fmt.ctprintf("Speed %.2f   Remaining %.2f",navigation.length_3d(state.actual_velocity),state.remaining_distance),28,620,18,{175,195,210,255})

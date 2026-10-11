@@ -4,7 +4,7 @@ import "core:encoding/json"
 import "core:fmt"
 import "core:mem"
 import "core:os"
-import "core:path/filepath"
+import "rune:pathutil"
 import rune "rune:core"
 import "rune:ecs"
 import "rune:scene"
@@ -54,7 +54,7 @@ validate_runtime_prefab_reload :: proc(registry: ^ecs.Component_Registry) {
 		delete(engine.scene_watches)
 	}
 	rune.watch_scene(&engine, scene_file)
-	absolute, error := filepath.abs(prefab_file)
+	absolute, error := pathutil.absolute(prefab_file)
 	assert(error == nil)
 	defer delete(absolute)
 	for index in 0 ..< 12 {

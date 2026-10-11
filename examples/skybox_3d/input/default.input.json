@@ -1,13 +1,61 @@
 {
   "$schema": "../../../schemas/input.schema.json",
   "actions": {
-    "sky_mode": [{"type": "keyboard", "key": "TAB"}],
+    "sky_mode": [
+      {
+        "type": "keyboard",
+        "key": "TAB"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "A"
+      }
+    ],
     "orbit_camera": [
-      { "type": "mouse_button", "button": "LEFT" }
+      {
+        "type": "mouse_button",
+        "button": "LEFT"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "RIGHT_BUMPER"
+      }
+    ],
+    "zoom_in": [
+      {
+        "type": "gamepad_button",
+        "button": "RIGHT_TRIGGER"
+      }
+    ],
+    "zoom_out": [
+      {
+        "type": "gamepad_button",
+        "button": "LEFT_TRIGGER"
+      }
     ]
   },
   "axes": {
-    "orbit_x": { "type": "mouse_delta", "axis": "x", "invert": true },
-    "orbit_y": { "type": "mouse_delta", "axis": "y" }
+    "orbit_x": {
+      "type": "mouse_delta",
+      "axis": "x",
+      "invert": true
+    },
+    "orbit_y": {
+      "type": "mouse_delta",
+      "axis": "y"
+    },
+    "orbit_x_pad": {
+      "type": "gamepad_axis",
+      "axis": "RIGHT_X",
+      "gamepad": 0,
+      "deadzone": 0.15,
+      "invert": true
+    },
+    "orbit_y_pad": {
+      "type": "gamepad_axis",
+      "axis": "RIGHT_Y",
+      "gamepad": 0,
+      "deadzone": 0.15
+    }
   }
 }

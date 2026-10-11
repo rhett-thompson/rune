@@ -1,13 +1,55 @@
 {
   "$schema": "../../../schemas/input.schema.json",
   "actions": {
-    "move_left": [{ "type": "keyboard", "key": "A" }],
-    "move_right": [{ "type": "keyboard", "key": "D" }],
-    "move_up": [{ "type": "keyboard", "key": "W" }],
-    "move_down": [{ "type": "keyboard", "key": "S" }]
+    "move_left": [
+      {
+        "type": "keyboard",
+        "key": "A"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_LEFT"
+      }
+    ],
+    "move_right": [
+      {
+        "type": "keyboard",
+        "key": "D"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_RIGHT"
+      }
+    ],
+    "move_up": [
+      {
+        "type": "keyboard",
+        "key": "W"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_UP"
+      }
+    ],
+    "move_down": [
+      {
+        "type": "keyboard",
+        "key": "S"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_DOWN"
+      }
+    ]
   },
   "axes": {
-    "move_x": { "negative": "move_left", "positive": "move_right" },
-    "move_y": { "negative": "move_up", "positive": "move_down" }
+    "move_x": {
+      "negative": "move_left",
+      "positive": "move_right"
+    },
+    "move_y": {
+      "negative": "move_up",
+      "positive": "move_down"
+    }
   }
 }

@@ -44,3 +44,5 @@ resolution, and sampling settings from the selected file.
 
 See [procedural material documentation](../../docs/procedural-materials.md)
 for every field, map precedence, and UV mapping behavior.
+
+Controller: A cycles presets forward and L3 backward; B resets, X changes seed, Y toggles filtering, LB cycles detail, R3 toggles bump. D-pad up/down changes scale and left/right contrast; LT/RT lowers/raises resolution. Hold RB with the right stick to orbit. Hold Start for one second to exit. Button names use Xbox layout.

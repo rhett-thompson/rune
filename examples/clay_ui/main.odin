@@ -30,8 +30,8 @@ shutdown :: proc(game: ^rune.Engine, world: ^ecs.World) { ui.destroy(&interface)
 ui_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if input.frame_action(rune.input_state(game), "fullscreen").pressed { rune.toggle_borderless(game) }
 	ui.set_font(&interface, example_text.font())
-	controls := ui.read_input(rune.input_state(game))
-	controls.blocked = console.is_open(rune.developer_console(game))
+	controls := ui.read_input(&interface, rune.input_state(game), game.frame_delta_time)
+	controls.blocked = console.is_open(rune.developer_console(game)) || !rl.IsWindowFocused()
 	was_open := menu_open
 	if controls.cancel && !controls.blocked {
 		menu_open = !menu_open
@@ -74,7 +74,7 @@ ui_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 		ui.label(&interface, fmt.tprintf("Master volume  %d%%", i32(volume * 100 + 0.5)), interface.style.text, 18)
 		if ui.slider(&interface, "volume", &volume, 0, 1) { audio.set_bus_volume(&game.audio.mixer, .master, volume) }
 		if ui.button(&interface, "quit", "Quit") { rune.request_exit(game) }
-		ui.label(&interface, "UP / DOWN  Navigate\nLEFT / RIGHT  Adjust     ENTER  Select", interface.style.muted, 14)
+		ui.label(&interface, "Arrows / stick / D-pad  Navigate\nLEFT / RIGHT  Adjust     ENTER / A  Select", interface.style.muted, 14)
 		ui.end_panel(&interface)
 	} else {
 		ui.panel(
@@ -91,7 +91,7 @@ ui_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 				cornerRadius = ui.corners(8),
 			},
 		)
-		ui.label(&interface, "ESC / gamepad B  Pause     A / D  Move", interface.style.text, 18)
+		ui.label(&interface, "ESC / gamepad B  Pause     A / D / left stick  Move", interface.style.text, 18)
 		ui.end_panel(&interface)
 	}
 	ui.end_panel(&interface)
@@ -103,7 +103,8 @@ update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	elapsed += game.delta_time
 	entity, _ := ecs.find_entity_by_id(world, "orb")
 	transform, _ := ecs.get_transform(world, entity)
-	transform.position[0] += input.axis(rune.input_state(game), "move") * 180 * game.delta_time
+	controls := rune.input_state(game)
+	transform.position[0] += clamp(input.axis(controls, "move") + input.axis(controls, "move_pad"), -1, 1) * 180 * game.delta_time
 	transform.position[1] = 230 + math.sin(elapsed) * 70
 	ecs.set_transform(world, entity, transform)
 }

@@ -15,3 +15,5 @@ odin run examples/scene_transition_2d -o:none -linker:msvc -collection:rune=rune
 ```
 
 [All examples](../README.md)
+
+Controller: A changes scene. Hold Start for one second to exit. Button names use Xbox layout.

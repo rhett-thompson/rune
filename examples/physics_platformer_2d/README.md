@@ -15,3 +15,5 @@ odin run examples/physics_platformer_2d -o:none -linker:msvc -collection:rune=ru
 ```
 
 [All examples](../README.md)
+
+Controller: Left stick or D-pad moves; A jumps (release early for a shorter jump). Hold Start for one second to exit. Button names use Xbox layout.

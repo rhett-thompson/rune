@@ -15,3 +15,5 @@ odin run examples/box3d_balls -o:none -linker:msvc -collection:rune=rune "-out:b
 ```
 
 [All examples](../README.md)
+
+Controller: Back resets the scene. Hold Start for one second to exit. Button names use Xbox layout.

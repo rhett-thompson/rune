@@ -4,6 +4,7 @@ import "core:testing"
 
 @(test)
 interaction_handles_scenes_without_targets_and_later_target_removal :: proc(t: ^testing.T) {
+	lock_native_physics_test(); defer unlock_native_physics_test()
 	w:=init(); defer destroy(&w)
 	r:=init_registry(); defer destroy_registry(&r)
 	testing.expect(t,register_builtin_components(&r))

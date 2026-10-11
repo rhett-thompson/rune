@@ -31,3 +31,5 @@ Art and sounds reuse the bundled CC0 Brackeys platformer pack; see
 `../assets/brackeys_platformer_assets/LICENSE & CREDITS.txt`. Typography uses the
 shared Inter font. See [the event API](../../docs/animation-events.md) for buffer
 lifetime, playback rules, and limits.
+
+Controller: D-pad moves; A attacks, Y cycles speed, tap Start pauses the animation and Back resets. Hold Start for one second to exit. Button names use Xbox layout.

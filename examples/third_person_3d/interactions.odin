@@ -71,7 +71,7 @@ activate_course_interaction :: proc(world:^ecs.World,target:ecs.Entity) -> strin
 draw_interaction_ui :: proc(world:^ecs.World) {
 	y:=rl.GetScreenHeight()-105
 	rl.DrawRectangle(16,y-12,rl.GetScreenWidth()-32,100,{19,26,38,225})
-	text:=cstring("Face a nearby object | E use / collect | Hold E to talk to the guide")
+	text:=cstring("Face a nearby object | E / X use / collect | Hold E / X to talk")
 	if value,found:=ecs.get(world,interaction.focus.entity,ecs.Interactable3D); found && value.enabled && ecs.is_enabled(world,interaction.focus.entity) {
 		camera_entity,camera,has_camera:=ecs.active_camera_3d(world)
 		camera_pose,has_pose:=ecs.get_transform(world,camera_entity)
@@ -87,7 +87,7 @@ draw_interaction_ui :: proc(world:^ecs.World) {
 				rl.DrawCircle(i32(point.x),i32(point.y),3,{255,225,125,255})
 			}
 		}
-		verb:="Hold E" if value.hold_seconds>0 else "E"
+		verb:="Hold E / X" if value.hold_seconds>0 else "E / X"
 		text=fmt.ctprintf("%s  -  %s",verb,value.prompt)
 		if value.hold_seconds>0 {
 			rl.DrawRectangle(24,y+30,250,5,{75,88,104,255})

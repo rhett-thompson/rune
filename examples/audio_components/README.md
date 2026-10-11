@@ -19,3 +19,5 @@ odin run examples/audio_components -o:none -collection:rune=rune -linker:msvc -c
 ```
 
 [All examples](../README.md)
+
+Controller: A plays the bell; X mutes sound effects, Y fades them and B restores them. Hold Start for one second to exit. Button names use Xbox layout.

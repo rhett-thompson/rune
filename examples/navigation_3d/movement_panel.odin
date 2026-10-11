@@ -5,6 +5,7 @@ import example_text "../shared/text"
 import "rune:console"
 import rune "rune:core"
 import "rune:ecs"
+import "rune:input"
 import "rune:ui"
 import rl "vendor:raylib"
 
@@ -13,11 +14,13 @@ movement_default_agent:ecs.NavAgent3D
 movement_default_motor:ecs.CharacterController3D
 movement_defaults_ready:bool
 movement_pointer_owned:bool
+movement_menu_focused:bool
 movement_panel_open:=true
 
 reset_movement_panel :: proc(world:^ecs.World) {
 	ui.reset_focus(&movement_ui)
 	movement_pointer_owned=false
+	movement_menu_focused=false
 	if movement_defaults_ready {return}
 	agent,found:=ecs.find_entity_by_id(world,"agent")
 	if !found {movement_defaults_ready=false;return}
@@ -45,8 +48,20 @@ movement_toggle :: proc(id,label:string,value:^bool) {
 update_movement_panel :: proc(game:^rune.Engine,world:^ecs.World) -> bool {
 	if movement_ui.native==nil {return false}
 	ui.set_font(&movement_ui,example_text.font())
-	controls:=ui.read_input(rune.input_state(game))
+	actions:=rune.input_state(game)
+	controls:=ui.read_input(&movement_ui,actions,game.frame_delta_time)
 	controls.blocked=console.is_open(rune.developer_console(game)) || !rl.IsWindowFocused()
+	if !controls.blocked && input.frame_action(actions,"ui_menu").pressed {
+		movement_menu_focused=!movement_menu_focused
+		ui.reset_focus(&movement_ui)
+	}
+	if controls.cancel || controls.blocked {
+		movement_menu_focused=false
+		ui.reset_focus(&movement_ui)
+	}
+	if !movement_menu_focused {
+		controls.next,controls.previous,controls.left,controls.right,controls.activate=false,false,false,false,false
+	}
 	was_active:=movement_ui.active_id!=0
 	if !ui.begin(&movement_ui,{f32(rl.GetScreenWidth()),f32(rl.GetScreenHeight())},controls,game.frame_delta_time) {return false}
 	agent,found:=ecs.find_entity_by_id(world,"agent")
@@ -65,7 +80,7 @@ update_movement_panel :: proc(game:^rune.Engine,world:^ecs.World) -> bool {
 	ui.label(&movement_ui,"Movement",movement_ui.style.text,22)
 	if ui.button(&movement_ui,"movement-visibility","Hide" if movement_panel_open else "Show") {movement_panel_open=!movement_panel_open}
 	ui.end_panel(&movement_ui)
-	if movement_panel_open {ui.label(&movement_ui,"Drag to tune, even while paused",movement_ui.style.muted,14)}
+	if movement_panel_open {ui.label(&movement_ui,"TAB / left stick click: focus menu\nBACK: return to scene",movement_ui.style.muted,14)}
 	if movement_panel_open && found && agent_ok && motor_ok {
 		before_config,before_motor:=config,motor
 		movement_slider("movement-speed","Speed","units/s",&config.speed,0,8,0.1)
@@ -111,7 +126,7 @@ update_movement_panel :: proc(game:^rune.Engine,world:^ecs.World) -> bool {
 	bounds,has_bounds:=ui.bounds(&movement_ui,"movement-panel")
 	hovered:=has_bounds && rl.CheckCollisionPointRec(controls.pointer,bounds)
 	buttons_down:=controls.pointer_down || rl.IsMouseButtonDown(.RIGHT) || rl.IsMouseButtonDown(.MIDDLE)
-	owned:=movement_pointer_owned || was_active || movement_ui.active_id!=0 || hovered
+	owned:=movement_menu_focused || controls.cancel || movement_pointer_owned || was_active || movement_ui.active_id!=0 || hovered
 	movement_pointer_owned=owned && buttons_down
 	return owned
 }

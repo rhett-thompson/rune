@@ -310,11 +310,15 @@ draw_tetris :: proc(engine: ^rune.Engine, scene_world: ^ecs.World) {
 		example_text.draw(control[1], i32(panel_x) + 90, y, 14, rl.LIGHTGRAY)
 	}
 
+	example_text.draw("PAD: D-PAD MOVE", i32(panel_x), 442, 13, rl.LIGHTGRAY)
+	example_text.draw("X/Y ROTATE, A DROP", i32(panel_x), 462, 13, rl.LIGHTGRAY)
+	example_text.draw("START PAUSE, BACK RESET", i32(panel_x), 482, 12, rl.LIGHTGRAY)
+
 	if rune.is_paused(engine) || game.game_over {
 		rl.DrawRectangle(BOARD_X, BOARD_Y + 225, BOARD_W * CELL, 110, {5, 8, 18, 235})
 		title: cstring = "PAUSED"
-		subtitle: cstring = "P TO CONTINUE"
-		if game.game_over { title, subtitle = "GAME OVER", "R TO RESTART" }
+		subtitle: cstring = "P / START TO CONTINUE"
+		if game.game_over { title, subtitle = "GAME OVER", "R / BACK TO RESTART" }
 		title_w := example_text.measure(title, 30)
 		subtitle_w := example_text.measure(subtitle, 16)
 		example_text.draw(title, BOARD_X + (BOARD_W * CELL - title_w) / 2, BOARD_Y + 245, 30, rl.RAYWHITE)

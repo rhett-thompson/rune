@@ -59,7 +59,7 @@ on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	example_text.draw("Runtime scene transition", 32, 28, 30, rl.RAYWHITE)
 	example_text.draw(scene_names[scene_index], 32, 72, 24, scene_colors[scene_index])
-	example_text.draw("Left-click to change scene", 32, 108, 18, rl.LIGHTGRAY)
+	example_text.draw("Click / Pad A changes scene", 32, 108, 18, rl.LIGHTGRAY)
 	if transition_state != .Idle {
 		alpha := tween.value_f32(&fade, 0, 1)
 		if transition_state == .Fading_From_Black { alpha = 1 - alpha }

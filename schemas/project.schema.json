@@ -3,12 +3,12 @@
   "$id": "project.schema.json",
   "title": "Rune project",
   "type": "object",
-  "required": ["name", "window", "input"],
+  "required": ["name", "window"],
   "properties": {
     "$schema": { "type": "string" },
     "name": { "type": "string", "minLength": 1 },
     "startup_scene": { "type": "string", "minLength": 1 },
-    "input": { "type": "string", "minLength": 1 },
+    "input": { "type": "string", "description": "Optional input mapping path. Omit or leave empty for projects without mapped input." },
     "background_color": { "$ref": "#/$defs/color" },
     "render_2d": {
       "type": "object",

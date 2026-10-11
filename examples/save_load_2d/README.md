@@ -31,3 +31,5 @@ completion failures appear in the on-screen status and developer console.
 and saves shared progress from a world resource through `before_save`. Both
 `start` and `on_save_restored` initialize that resource from save globals.
 Scene hot reload is disabled in this demo.
+
+Controller: D-pad moves; Y saves, X loads, A collects, B drops, LB damages; tap Start pauses and Back changes room. Hold Start for one second to exit. Button names use Xbox layout.

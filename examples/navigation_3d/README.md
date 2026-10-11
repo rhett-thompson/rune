@@ -110,3 +110,4 @@ the console inbox and is independent of the demo's M edge toggle and F3 gizmos.
 Run the demo's baking and ramp/reload regressions with
 `odin test examples/navigation_3d -o:none -collection:rune=rune` from the repository root.
 
+Controller: A routes to the upper platform, B stops the agent, X toggles the ramp, Y toggles the mesh, tap Start pauses. D-pad up focuses the agent, down resets the camera, left undoes a cube and right rebakes. Hold RB with the right stick to orbit; LT/RT zoom out/in. L3 / Tab focuses the movement panel for stick/D-pad navigation; Back releases menu focus. Selecting arbitrary destinations and placing cubes remain pointer authoring interactions. Hold Start for one second to exit. Button names use Xbox layout.

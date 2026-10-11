@@ -1,9 +1,36 @@
 {
   "$schema": "../../../schemas/input.schema.json",
   "actions": {
-    "burst": [{ "type": "keyboard", "key": "SPACE" }],
-    "toggle": [{ "type": "keyboard", "key": "E" }],
-    "clear": [{ "type": "keyboard", "key": "C" }]
+    "burst": [
+      {
+        "type": "keyboard",
+        "key": "SPACE"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "A"
+      }
+    ],
+    "toggle": [
+      {
+        "type": "keyboard",
+        "key": "E"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "X"
+      }
+    ],
+    "clear": [
+      {
+        "type": "keyboard",
+        "key": "C"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "B"
+      }
+    ]
   },
   "axes": {}
 }

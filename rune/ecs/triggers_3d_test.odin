@@ -4,6 +4,7 @@ import "core:testing"
 
 @(test)
 trigger_center_follows_scaled_rotated_ancestors :: proc(t:^testing.T) {
+	lock_native_physics_test(); defer unlock_native_physics_test()
 	w:=init(); defer destroy(&w)
 	r:=init_registry(); defer destroy_registry(&r)
 	testing.expect(t,register_builtin_components(&r))

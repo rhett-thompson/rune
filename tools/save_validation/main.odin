@@ -4,7 +4,7 @@ import "core:encoding/json"
 import "core:fmt"
 import "core:mem"
 import "core:os"
-import "core:path/filepath"
+import "rune:pathutil"
 import "core:strings"
 import rune "rune:core"
 import "rune:ecs"
@@ -60,7 +60,7 @@ main :: proc() {
 	// All writable fixtures stay under the repository's ignored build directory.
 	if err := os.make_directory_all("build/save-validation"); err != nil {assert(os.is_directory("build/save-validation"))}
 	game: rune.Engine
-	game.project_directory, _ = filepath.abs("tools/save_validation/fixtures")
+	game.project_directory, _ = pathutil.absolute("tools/save_validation/fixtures")
 	defer delete(game.project_directory)
 	game.registry = ecs.init_registry()
 	defer ecs.destroy_registry(&game.registry)

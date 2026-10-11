@@ -1,7 +1,7 @@
 {
   "odin_release": "dev-2026-10",
   "tested_odin_version": "dev-2026-10-nightly:84bc3fc",
-  "tested_platforms": ["windows-amd64"],
+  "tested_platforms": ["windows-amd64", "linux-amd64"],
   "target_platforms": ["windows-amd64", "linux-amd64"],
   "archives": {
     "windows-amd64": {

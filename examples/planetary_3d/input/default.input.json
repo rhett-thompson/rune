@@ -5,42 +5,70 @@
       {
         "type": "keyboard",
         "key": "W"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_UP"
       }
     ],
     "move_back": [
       {
         "type": "keyboard",
         "key": "S"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_DOWN"
       }
     ],
     "move_left": [
       {
         "type": "keyboard",
         "key": "A"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_LEFT"
       }
     ],
     "move_right": [
       {
         "type": "keyboard",
         "key": "D"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_RIGHT"
       }
     ],
     "jump": [
       {
         "type": "keyboard",
         "key": "SPACE"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "A"
       }
     ],
     "sprint": [
       {
         "type": "keyboard",
         "key": "LEFT_SHIFT"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "LEFT_TRIGGER"
       }
     ],
     "crouch": [
       {
         "type": "keyboard",
         "key": "LEFT_CONTROL"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "B"
       }
     ],
     "orbit_camera": [
@@ -59,6 +87,22 @@
       {
         "type": "keyboard",
         "key": "R"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "BACK"
+      }
+    ],
+    "zoom_in": [
+      {
+        "type": "gamepad_button",
+        "button": "RIGHT_BUMPER"
+      }
+    ],
+    "zoom_out": [
+      {
+        "type": "gamepad_button",
+        "button": "LEFT_BUMPER"
       }
     ]
   },
@@ -82,6 +126,31 @@
     "zoom": {
       "type": "mouse_wheel",
       "scale": 1.0
+    },
+    "move_x_pad": {
+      "type": "gamepad_axis",
+      "axis": "LEFT_X",
+      "gamepad": 0,
+      "deadzone": 0.15
+    },
+    "move_z_pad": {
+      "type": "gamepad_axis",
+      "axis": "LEFT_Y",
+      "gamepad": 0,
+      "deadzone": 0.15,
+      "invert": true
+    },
+    "look_x_pad": {
+      "type": "gamepad_axis",
+      "axis": "RIGHT_X",
+      "gamepad": 0,
+      "deadzone": 0.15
+    },
+    "look_y_pad": {
+      "type": "gamepad_axis",
+      "axis": "RIGHT_Y",
+      "gamepad": 0,
+      "deadzone": 0.15
     }
   }
 }

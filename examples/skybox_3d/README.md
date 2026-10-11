@@ -20,3 +20,5 @@ odin build examples/skybox_3d -o:none -collection:rune=rune -linker:msvc -collec
 
 On Linux use `-out:build/skybox_3d` and `./build/skybox_3d`.
 See [skybox authoring](../../docs/skybox.md) for image skies and runtime edits.
+
+Controller: Hold RB and move the right stick to orbit; LT/RT zoom out/in; A changes sky mode. Hold Start for one second to exit. Button names use Xbox layout.

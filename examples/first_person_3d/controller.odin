@@ -98,8 +98,8 @@ sample_controls :: proc(game:^rune.Engine,world:^ecs.World) {
 	}
 	settings,found:=ecs.get(world,player,First_Person_Settings)
 	if !found {return}
-	camera_yaw+=input.axis(controls,"look_x")*settings.mouse_sensitivity
-	camera_pitch=clamp(camera_pitch+input.axis(controls,"look_y")*settings.mouse_sensitivity,-89,89)
+	camera_yaw+=input.axis(controls,"look_x")*settings.mouse_sensitivity + input.axis(controls,"look_x_pad")*180*game.delta_time
+	camera_pitch=clamp(camera_pitch+input.axis(controls,"look_y")*settings.mouse_sensitivity + input.axis(controls,"look_y_pad")*120*game.delta_time,-89,89)
 	submit_movement(game,world)
 }
 
@@ -112,7 +112,7 @@ submit_movement :: proc(game:^rune.Engine,world:^ecs.World) {
 	// Yaw alone controls movement: looking up/down never changes walking speed.
 	forward:=[2]f32{math.sin(radians),math.cos(radians)}
 	right:=[2]f32{-forward[1],forward[0]}
-	direction:=forward*input.axis(controls,"move_z")+right*input.axis(controls,"move_x")
+	direction:=forward*clamp(input.axis(controls,"move_z")+input.axis(controls, "move_z_pad"), -1, 1)+right*clamp(input.axis(controls,"move_x")+input.axis(controls, "move_x_pad"), -1, 1)
 	ecs.character_controller_3d_move(world,player,direction,input.is_down(controls,"sprint"))
 	ecs.character_controller_3d_crouch(world,player,input.is_down(controls,"crouch"))
 	if !jump_press_sent && input.pressed(controls,"jump") {ecs.character_controller_3d_jump(world,player);jump_press_sent=true}

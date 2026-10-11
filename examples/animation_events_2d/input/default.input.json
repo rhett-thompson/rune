@@ -1,12 +1,71 @@
 {
   "$schema": "../../../schemas/input.schema.json",
   "actions": {
-    "left": [{"type": "keyboard", "key": "A"}],
-    "right": [{"type": "keyboard", "key": "D"}],
-    "attack": [{"type": "keyboard", "key": "SPACE"}],
-    "speed": [{"type": "keyboard", "key": "TAB"}],
-    "pause_animation": [{"type": "keyboard", "key": "P"}],
-    "reset": [{"type": "keyboard", "key": "R"}]
+    "left": [
+      {
+        "type": "keyboard",
+        "key": "A"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_LEFT"
+      }
+    ],
+    "right": [
+      {
+        "type": "keyboard",
+        "key": "D"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_RIGHT"
+      }
+    ],
+    "attack": [
+      {
+        "type": "keyboard",
+        "key": "SPACE"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "A"
+      }
+    ],
+    "speed": [
+      {
+        "type": "keyboard",
+        "key": "TAB"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "Y"
+      }
+    ],
+    "pause_animation": [
+      {
+        "type": "keyboard",
+        "key": "P"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "START"
+      }
+    ],
+    "reset": [
+      {
+        "type": "keyboard",
+        "key": "R"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "BACK"
+      }
+    ]
   },
-  "axes": {"move_x": {"negative": "left", "positive": "right"}}
+  "axes": {
+    "move_x": {
+      "negative": "left",
+      "positive": "right"
+    }
+  }
 }

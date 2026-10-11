@@ -122,9 +122,9 @@ update_pong :: proc(game: ^Pong_Game, engine: ^rune.Engine) {
 		if input.pressed(controls, "serve") { reset_match(game) }
 		return
 	}
-	move_paddle(&game.left, input.axis(controls, game.left.input_axis), engine.delta_time, game.arena)
+	move_paddle(&game.left, clamp(input.axis(controls, game.left.input_axis) + input.axis(controls, "left_move_pad"), -1, 1), engine.delta_time, game.arena)
 	if game.match.two_player {
-		move_paddle(&game.right, input.axis(controls, game.right.input_axis), engine.delta_time, game.arena)
+		move_paddle(&game.right, clamp(input.axis(controls, game.right.input_axis) + input.axis(controls, "right_move_pad"), -1, 1), engine.delta_time, game.arena)
 	} else {
 		target := game.ball.position.y
 		if game.match.serving { target = f32(game.arena.height) / 2 }
@@ -212,10 +212,10 @@ draw_pong :: proc(game: ^Pong_Game) {
 			"LEFT PLAYER WINS" if game.match.left_score > game.match.right_score else ("RIGHT PLAYER WINS" if game.match.two_player else "COMPUTER WINS")
 		rl.DrawRectangle(0, a.height / 2 - 66, a.width, 132, color(a.background_color))
 		center_text(winner, a.width, a.height / 2 - 45, 34, text)
-		center_text("SPACE: NEW MATCH", a.width, a.height / 2 + 8, 20, muted)
-	} else if game.match.serving { center_text("PRESS SPACE TO SERVE", a.width, a.height / 2 - 12, 22, muted) }
-	mode := "1 PLAYER  |  W/S TO MOVE" if !game.match.two_player else "2 PLAYERS  |  W/S + UP/DOWN"
+		center_text("SPACE / A: NEW MATCH", a.width, a.height / 2 + 8, 20, muted)
+	} else if game.match.serving { center_text("PRESS SPACE / A TO SERVE", a.width, a.height / 2 - 12, 22, muted) }
+	mode := "1 PLAYER | W/S OR LEFT STICK" if !game.match.two_player else "2 PLAYERS | KEYS OR PAD 0 / PAD 1"
 	center_text(mode, a.width, a.height - 39, 16, muted)
-	example_text.draw("P: CHANGE PLAYERS", 22, a.height - 37, 14, muted)
-	example_text.draw("R: RESTART", a.width - 112, a.height - 37, 14, muted)
+	example_text.draw("P / START: PLAYERS", 22, a.height - 37, 14, muted)
+	example_text.draw("R / BACK: RESET", a.width - 112, a.height - 37, 14, muted)
 }

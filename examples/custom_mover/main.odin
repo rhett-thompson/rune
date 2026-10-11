@@ -16,7 +16,7 @@ on_update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 
 on_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	example_text.draw("Custom Mover", 32, 32, 28, rl.DARKGRAY)
-	example_text.draw("A / D or Left / Right to move", 32, 72, 18, rl.GRAY)
+	example_text.draw("A / D, arrows or Pad D-pad left/right to move", 32, 72, 18, rl.GRAY)
 }
 
 main :: proc() {

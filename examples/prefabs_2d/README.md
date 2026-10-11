@@ -15,3 +15,5 @@ odin run examples/prefabs_2d -o:none -linker:msvc -collection:rune=rune "-out:bu
 ```
 
 [All examples](../README.md)
+
+Controller: This showcase runs automatically; no gameplay actions are required. Hold Start for one second to exit. Button names use Xbox layout.

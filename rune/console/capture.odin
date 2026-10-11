@@ -3,6 +3,7 @@ package console
 import "core:fmt"
 import "core:os"
 import "core:path/filepath"
+import "rune:pathutil"
 import "core:strings"
 import "core:time"
 import rl "vendor:raylib"
@@ -49,7 +50,7 @@ finish_frame :: proc(console: ^Console) {
 				path_c, _ := strings.clone_to_cstring(path, context.temp_allocator)
 				if rl.ExportImage(frame, path_c) {
 					info(console, fmt.tprintf("Captured frame: %s", path))
-					absolute_path, _ := filepath.abs(path, context.temp_allocator)
+					absolute_path, _ := pathutil.absolute(path, context.temp_allocator)
 					set_result(console, struct {
 						path: string,
 						width, height: i32,

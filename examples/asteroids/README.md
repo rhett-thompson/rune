@@ -19,3 +19,5 @@ odin run examples/asteroids -o:none -linker:msvc -collection:rune=rune "-out:bui
 ```
 
 [All examples](../README.md)
+
+Controller: Left stick or D-pad turns; A thrusts, RT fires and Back restarts. Hold Start for one second to exit. Button names use Xbox layout.

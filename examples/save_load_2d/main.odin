@@ -87,8 +87,8 @@ update :: proc(game: ^rune.Engine, world: ^ecs.World) {
 draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	room := "ROOM A" if strings.has_suffix(game.active_scene_path,"room_a.scene.json") else "ROOM B"
 	rl.DrawText(fmt.ctprintf("%s  /  CHECKPOINT SAVES",room),30,24,28,{225,235,250,255})
-	rl.DrawText("WASD move   H lose health   E collect chest   Space drop coin",30,70,19,{180,195,215,255})
-	rl.DrawText("F5 save   F9 load   Tab change room   P pause",30,98,19,{180,195,215,255})
+	rl.DrawText("WASD / D-pad move | H / LB hurt | E / A collect | Space / B drop",30,70,19,{180,195,215,255})
+	rl.DrawText("F5 / Y save | F9 / X load | Tab / Back room | P / Start pause",30,98,19,{180,195,215,255})
 	player, _ := ecs.find_entity_by_id(world,"player")
 	health, _ := ecs.get(world,player,Health)
 	progress, found := ecs.resource(world,Progress)

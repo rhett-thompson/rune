@@ -15,3 +15,5 @@ odin run examples/particles_2d -o:none -linker:msvc -collection:rune=rune "-out:
 ```
 
 [All examples](../README.md)
+
+Controller: A emits a burst, X toggles the emitter, B clears particles. Hold Start for one second to exit. Button names use Xbox layout.

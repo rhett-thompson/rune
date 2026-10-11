@@ -99,7 +99,7 @@ draw_background :: proc(game: ^rune.Engine, world: ^ecs.World) {
 
 draw :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	example_text.draw("Animation events", 36, 24, 30, rl.RAYWHITE)
-	example_text.draw("A/D: walk   Space: roll strike   Tab: speed   P: pause clip   R: reset target", 36, 70, 18, rl.LIGHTGRAY)
+	example_text.draw("A/D / D-pad walk | Space / A strike | Tab / Y speed | Start pause | Back reset", 36, 70, 18, rl.LIGHTGRAY)
 	example_text.draw(fmt.ctprintf("Speed %.1fx  |  %s  |  Footsteps %d  |  Hits %d", speeds[speed_index], "paused" if paused else "playing", steps, hits), 36, 110, 20, rl.RAYWHITE)
 	stats, _ := ecs.get(world, target, TrainingTarget)
 	example_text.draw(fmt.ctprintf("Target: %d / 100", stats.health), 575, 205, 20, rl.GOLD)

@@ -2,15 +2,38 @@
   "$schema": "../../../schemas/input.schema.json",
   "actions": {
     "move_left": [
-      { "type": "keyboard", "key": "A" },
-      { "type": "keyboard", "key": "LEFT" }
+      {
+        "type": "keyboard",
+        "key": "A"
+      },
+      {
+        "type": "keyboard",
+        "key": "LEFT"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_LEFT"
+      }
     ],
     "move_right": [
-      { "type": "keyboard", "key": "D" },
-      { "type": "keyboard", "key": "RIGHT" }
+      {
+        "type": "keyboard",
+        "key": "D"
+      },
+      {
+        "type": "keyboard",
+        "key": "RIGHT"
+      },
+      {
+        "type": "gamepad_button",
+        "button": "DPAD_RIGHT"
+      }
     ]
   },
   "axes": {
-    "move_x": { "negative": "move_left", "positive": "move_right" }
+    "move_x": {
+      "negative": "move_left",
+      "positive": "move_right"
+    }
   }
 }

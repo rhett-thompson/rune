@@ -15,3 +15,5 @@ odin run examples/runtime_rebinding -o:none -linker:msvc -collection:rune=rune "
 ```
 
 [All examples](../README.md)
+
+Controller: D-pad left/right moves; X switches and saves keyboard bindings. Controller bindings remain available after each save. Hold Start for one second to exit. Button names use Xbox layout.
