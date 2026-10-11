@@ -11,8 +11,8 @@ Height_Fog_Uniforms :: struct {
 	lower_params,upper_params:[4]f32,
 }
 
-height_fog_uniforms :: proc(world:^ecs.World,camera:ecs.Entity) -> Height_Fog_Uniforms {
-	profile,found:=ecs.active_post_processing(world,camera)
+height_fog_uniforms :: proc(world:^ecs.World,camera:ecs.Entity,override:^ecs.PostProcessing=nil) -> Height_Fog_Uniforms {
+	profile,found:=scene_post_processing(world,camera,override)
 	if !found {return {}}
 	lower,upper:=profile.height_fog,profile.upper_height_fog
 	if !lower.enabled {lower.density=0}
@@ -27,8 +27,8 @@ height_fog_uniforms :: proc(world:^ecs.World,camera:ecs.Entity) -> Height_Fog_Un
 	return uniforms
 }
 
-prepare_height_fog :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.Asset_Manager, camera: ecs.Entity) -> bool {
-	uniforms:=height_fog_uniforms(world,camera)
+prepare_height_fog :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.Asset_Manager, camera: ecs.Entity, override: ^ecs.PostProcessing = nil) -> bool {
+	uniforms:=height_fog_uniforms(world,camera,override)
 	if uniforms.lower_params[1]<=0 && uniforms.upper_params[1]<=0 {return false}
 	if !ctx.height_fog_attempted {
 		ctx.height_fog_attempted = true

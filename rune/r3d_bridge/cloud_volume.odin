@@ -61,7 +61,7 @@ load_cloud_noise :: proc() -> rl.Texture2D {
 	return texture
 }
 
-prepare_cloud_volumes :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.Asset_Manager, camera: rl.Camera3D, camera_entity:ecs.Entity) {
+prepare_cloud_volumes :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.Asset_Manager, camera: rl.Camera3D, camera_entity:ecs.Entity, override:^ecs.PostProcessing=nil) {
 	if ctx.cloud_volumes_disabled {return}
 	c:=&ctx.cloud_volumes
 	if c.generation!=world.generation {
@@ -87,7 +87,7 @@ prepare_cloud_volumes :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets
 	if c.shader==nil || c.noise.id==0 {return}
 	c.camera=camera
 	when PRE_TRANSPARENCY_SHADERS_SUPPORTED {
-		c.fog=height_fog_uniforms(world,camera_entity)
+		c.fog=height_fog_uniforms(world,camera_entity,override)
 	}
 	c.light={0.4,0.8,0.3}
 	strongest:f32

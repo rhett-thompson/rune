@@ -259,6 +259,27 @@ Games that never activate a profile retain direct `r3d.GetEnvironment()` control
 While a profile is active, set its component fields instead of editing the same
 r3d settings directly.
 
+Games can apply user graphics preferences without changing authored scene
+components by passing a complete borrowed profile for one draw:
+
+```odin
+profile, found := ecs.active_post_processing(world, camera)
+if found {
+    profile.ssgi.enabled = false
+    view := r3d_bridge.Scene3D_Settings{post_processing_override=&profile}
+    r3d_bridge.draw_scene_ex(&bridge, world, manager, view)
+}
+```
+
+`post_processing_override` is read only during `draw_scene_ex`; Rune does not
+retain the pointer or modify the profile. Nil retains normal camera/global
+selection. A nonnil profile replaces the complete selected profile for native
+effects, anti-aliasing, film grain, height fog (including clouds), and light shafts. Disabled or
+invalid overrides suppress profile effects for that draw and use the captured
+baseline, without falling back to an authored profile. Removing the override
+resumes normal selection and baseline restoration. The caller owns the profile
+and must keep its values and borrowed strings alive for the duration of the draw.
+
 r3d still has global rendering state. These are settings selected for Rune's
 active view, not isolated renderer instances. Auto exposure uses r3d's single
 temporal history; use it on one continuous scene render path.

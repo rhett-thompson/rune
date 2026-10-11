@@ -5,6 +5,15 @@ import r3d "r3d:r3d"
 import "rune:ecs"
 import rl "vendor:raylib"
 
+// A borrowed override replaces the complete selected profile without changing
+// ECS state. Disabling it suppresses all profiles for the draw; nil keeps the
+// ordinary camera/global selection rules.
+scene_post_processing :: proc(world: ^ecs.World, camera: ecs.Entity, override: ^ecs.PostProcessing = nil) -> (ecs.PostProcessing, bool) {
+	if override != nil {return override^, override.enabled && ecs.post_processing_valid(override^)}
+	if world == nil {return {}, false}
+	return ecs.active_post_processing(world, camera)
+}
+
 // A fixed pixel cap changes its world-space reach and close-range attenuation
 // when the lens changes. Scale that cap by the same projection factor as the
 // unbounded SSAO radius, so both quantities keep their ratio at a fixed depth.
@@ -122,8 +131,8 @@ post_processing_environment :: proc(base: r3d.Environment, value: ecs.PostProces
 // Save the game-owned baseline only while a Rune profile owns these fields.
 // Removing/disabling the last profile restores it; old code-only games remain
 // free to configure r3d directly. Global r3d state is not a per-camera renderer.
-apply_post_processing :: proc(ctx: ^Context, world: ^ecs.World, camera: ecs.Entity) {
-	value, found := ecs.active_post_processing(world, camera)
+apply_post_processing :: proc(ctx: ^Context, world: ^ecs.World, camera: ecs.Entity, override: ^ecs.PostProcessing = nil) {
+	value, found := scene_post_processing(world, camera, override)
 	if !found {
 		if ctx.post_processing_active {
 			env := r3d.GetEnvironment()

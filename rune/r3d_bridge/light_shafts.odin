@@ -18,8 +18,8 @@ light_shaft_source :: proc(world:^ecs.World,id:string) -> ([3]f32,bool) {
 	return position,ecs.physics_query_vector_valid(position)
 }
 
-prepare_light_shafts :: proc(ctx:^Context,world:^ecs.World,manager:^assets.Asset_Manager,camera_entity:ecs.Entity,camera:rl.Camera3D) -> bool {
-	profile,found:=ecs.active_post_processing(world,camera_entity)
+prepare_light_shafts :: proc(ctx:^Context,world:^ecs.World,manager:^assets.Asset_Manager,camera_entity:ecs.Entity,camera:rl.Camera3D,override:^ecs.PostProcessing=nil) -> bool {
+	profile,found:=scene_post_processing(world,camera_entity,override)
 	if !found || !profile.light_shafts.enabled || profile.light_shafts.intensity<=0 {return false}
 	v:=profile.light_shafts
 	position,valid:=light_shaft_source(world,v.source)

@@ -7,8 +7,8 @@ import "rune:ecs"
 import r3d "r3d:r3d"
 import rl "vendor:raylib"
 
-prepare_film_grain :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.Asset_Manager, camera: ecs.Entity) -> bool {
-	profile,found:=ecs.active_post_processing(world,camera)
+prepare_film_grain :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.Asset_Manager, camera: ecs.Entity, override: ^ecs.PostProcessing = nil) -> bool {
+	profile,found:=scene_post_processing(world,camera,override)
 	if !found || !profile.film_grain.enabled || profile.film_grain.intensity<=0 {return false}
 	if !ctx.film_grain_attempted {
 		ctx.film_grain_attempted=true

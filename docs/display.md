@@ -146,6 +146,13 @@ odin build tools/resolution_validation -linker:msvc -collection:rune=rune "-out:
   render targets only when dimensions change. Set `bridge.match_framebuffer =
   false` after initialization to retain a custom internal rendering resolution.
   Camera field of view remains unchanged.
+- `r3d_bridge.set_render_scale(&bridge, 0.75)` requests internal rendering at
+  75% of the physical framebuffer dimensions while keeping native window/UI
+  resolution. Accepted scales are 0.5–1.0; the initialized default is 1.0.
+  Dimensions are rounded to pixels and applied on the next scene draw only
+  when they change. Empty/minimized framebuffers retain existing targets.
+  Scale has no effect while `match_framebuffer` is false. Reapply the desired
+  scale when constructing a new bridge after renderer shutdown.
 - 2D camera zoom remains game-owned. Resizing normally reveals more world.
   The optional `render_2d` canvas selects a fixed reference resolution; DPI alone
   does not select a policy.

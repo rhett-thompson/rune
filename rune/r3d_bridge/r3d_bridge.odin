@@ -10,6 +10,10 @@ import rl "vendor:raylib"
 
 Scene3D_Settings :: struct {
 	particle_batches: []Particle3D_Batch,
+	// Borrowed complete profile for this draw. Nil selects the active ECS profile.
+	// This does not edit any authored component; disabled/invalid overrides disable
+	// profile effects for this draw instead of falling back to the ECS profile.
+	post_processing_override: ^ecs.PostProcessing,
 	// Optional widest perspective lens for stable scene sampling. Present a
 	// centered crop at the active camera's visible FOV; zero uses that FOV directly.
 	sampling_fovy: f32,
@@ -94,6 +98,9 @@ Context :: struct {
 	light_shafts_attempted: bool,
 	// Follow the window framebuffer by default; disable for a fixed internal resolution.
 	match_framebuffer: bool,
+	// Internal resolution relative to the physical framebuffer; defaults to one.
+	// Used only when match_framebuffer is true. Change through set_render_scale.
+	render_scale: f32,
 	root:             string,
 	cube:             r3d.Mesh,
 	cube_no_shadow:   r3d.Mesh,
@@ -129,6 +136,7 @@ init :: proc(root: string, width, height: i32) -> (Context, bool) {
 		static_groups = make(map[ecs.Entity]Static_Draw_Group),
 		terrain_layers = make(map[string]Terrain_Layer_Asset),
 		match_framebuffer = true,
+		render_scale = 1,
 		terrains = make(map[ecs.Entity]Terrain_Cache),
 		cube             = r3d.GenMeshCube(1, 1, 1),
 		cube_no_shadow   = r3d.GenMeshCube(1, 1, 1),
@@ -231,7 +239,8 @@ draw_scene_ex :: proc(
 	if !ctx.initialized {return false}
 	prepare_gpu_timing(ctx)
 	if ctx.match_framebuffer {
-		width, height := rl.GetRenderWidth(), rl.GetRenderHeight()
+		size := scaled_framebuffer_dimensions({rl.GetRenderWidth(), rl.GetRenderHeight()}, ctx.render_scale)
+		width, height := size[0], size[1]
 		current_width, current_height: i32
 		r3d.GetResolution(&current_width, &current_height)
 		if width > 0 && height > 0 && (width != current_width || height != current_height) {
@@ -242,7 +251,7 @@ draw_scene_ex :: proc(
 	prepare_static_meshes(ctx,world)
 	prepare_animations(ctx, world, asset_manager, 0, false)
 	entity, camera_component, found := ecs.active_camera_3d(world)
-	apply_post_processing(ctx, world, entity)
+	apply_post_processing(ctx, world, entity, settings.post_processing_override)
 	if !found {release_skybox(ctx); return false}
 	camera,has_transform:=scene_camera_3d(world,entity,camera_component)
 	if !has_transform {release_skybox(ctx); return false}
@@ -274,7 +283,7 @@ draw_scene_ex :: proc(
 	} else {
 		r3d.Begin(camera)
 	}
-	prepare_cloud_volumes(ctx,world,asset_manager,camera,entity)
+	prepare_cloud_volumes(ctx,world,asset_manager,camera,entity,settings.post_processing_override)
 	static_started:=rl.GetTime()
 	draw_static_meshes(ctx,world,asset_manager,camera)
 	ctx.frame_stats.static_cpu_ms=(rl.GetTime()-static_started)*1000
@@ -293,10 +302,10 @@ draw_scene_ex :: proc(
 	chain: [3]^r3d.ScreenShader
 	count: i32
 	if prepare_moon_disk(ctx) {chain[count] = ctx.skybox.moon_shader; count += 1}
-	if prepare_light_shafts(ctx,world,asset_manager,entity,camera) {chain[count]=ctx.light_shafts_shader; count+=1}
-	if prepare_height_fog(ctx, world, asset_manager, entity) {chain[count] = ctx.height_fog_shader; count += 1}
+	if prepare_light_shafts(ctx,world,asset_manager,entity,camera,settings.post_processing_override) {chain[count]=ctx.light_shafts_shader; count+=1}
+	if prepare_height_fog(ctx, world, asset_manager, entity, settings.post_processing_override) {chain[count] = ctx.height_fog_shader; count += 1}
 	if count > 0 {set_pre_transparency_shader_chain(raw_data(chain[:]),count)}
-	grain_enabled:=prepare_film_grain(ctx,world,asset_manager,entity)
+	grain_enabled:=prepare_film_grain(ctx,world,asset_manager,entity,settings.post_processing_override)
 	if grain_enabled {r3d.SetScreenShaderChain(.FINAL, &ctx.film_grain_shader, 1)}
 	backend_started:=rl.GetTime()
 	gpu_slot:=begin_gpu_timing(ctx)
