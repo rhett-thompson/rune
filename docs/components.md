@@ -1,9 +1,9 @@
 # Built-in component reference
 
-This reference covers all **48 components** registered by
+This reference covers all **49 components** registered by
 [`ecs.register_builtin_components`](../rune/ecs/registry.odin). Field names are
-the scene/prefab JSON names. Coverage and JSON defaults were checked against the
-registry, schemas, and live ECS parsing/serialization on 2026-09-16.
+the scene/prefab JSON names. Field coverage and JSON defaults follow the
+registry, schemas, and component decoders/default helpers.
 
 ## Using components
 
@@ -58,7 +58,7 @@ state preservation and [checkpoint saves](save-load.md) for opt-in persistence.
 
 - **Spatial data and lifetime:** [Transform](#transform), [Orbit](#orbit), [Rotator](#rotator), [Lifetime](#lifetime).
 - **2D rendering and animation:** [SpriteRenderer](#spriterenderer), [SpriteAnimator](#spriteanimator), [ShapeRenderer2D](#shaperenderer2d), [TextRenderer](#textrenderer), [TilemapRenderer](#tilemaprenderer), [ParticleEmitter2D](#particleemitter2d).
-- **3D rendering and environment:** [MeshRenderer](#meshrenderer), [SphereRenderer](#sphererenderer), [ModelRenderer](#modelrenderer), [ModelAnimator](#modelanimator), [Terrain](#terrain), [AmbientLight](#ambientlight), [DirectionalLight](#directionallight), [PointLight](#pointlight), [SpotLight](#spotlight), [Skybox](#skybox), [PostProcessing](#postprocessing).
+- **3D rendering and environment:** [MeshRenderer](#meshrenderer), [SphereRenderer](#sphererenderer), [ModelRenderer](#modelrenderer), [ModelAnimator](#modelanimator), [Terrain](#terrain), [AmbientLight](#ambientlight), [DirectionalLight](#directionallight), [PointLight](#pointlight), [SpotLight](#spotlight), [Skybox](#skybox), [CloudVolume](#cloudvolume), [PostProcessing](#postprocessing).
 - **Cameras:** [Camera2D](#camera2d), [CameraFollow2D](#camerafollow2d), [Camera3D](#camera3d), [OrbitCamera3D](#orbitcamera3d).
 - **2D physics and movement:** [RigidBody2D](#rigidbody2d), [BoxCollider2D](#boxcollider2d), [CircleCollider2D](#circlecollider2d), [CapsuleCollider2D](#capsulecollider2d), [PolygonCollider2D](#polygoncollider2d), [SegmentCollider2D](#segmentcollider2d), [CharacterController2D](#charactercontroller2d), [TilemapCollider](#tilemapcollider), [TopDownController](#topdowncontroller).
 - **3D physics and movement:** [RigidBody3D](#rigidbody3d), [BoxCollider](#boxcollider), [SphereCollider](#spherecollider), [CharacterController](#charactercontroller), [CharacterController3D](#charactercontroller3d).
@@ -415,6 +415,24 @@ Renders a 3D background through r3d; no `Transform` is required and it does not 
 | `procedural.sun_size` | number; ≤ 180; > 0 | `1.5` | Sun angular size in degrees. |
 | `procedural.sun_curve` | number; ≥ 0.01; ≤ 1 | `0.15` | Shape of the sun disk/halo transition. |
 | `procedural.sun_energy` | number; ≥ 0 | `1` | Sun brightness multiplier. |
+
+### CloudVolume
+
+Renders a noise-eroded ellipsoidal participating medium through the optional r3d bridge. Requires `Transform` with positive XYZ scale giving the full dimensions; rotation and parent transforms apply. It creates no collision, casts no shadows, and needs no `MeshRenderer` or material file. Disabled entities stop drawing. Initialize typed values with `ecs.default_cloud_volume()`.
+
+Opaque scene depth clips cloud rays, including views from inside a volume. Overlapping volumes use transparent draw ordering; their densities do not merge. Opacity comes from density and path length, with both color alpha channels reserved. Animate `noise_offset` from the game's simulation clock to move the density pattern reproducibly.
+
+[Guide / example](cloud-volumes.md) · [Implementation](../rune/ecs/cloud_volume.odin)
+
+| Field | Type / constraints | JSON default | Meaning |
+| --- | --- | --- | --- |
+| `color` | 4-item array of integer; ≥ 0; ≤ 255 | `[218, 230, 242, 255]` | Lit RGB tint; alpha is reserved. |
+| `shadow_color` | 4-item array of integer; ≥ 0; ≤ 255 | `[90, 112, 140, 255]` | RGB tint in dense or internally shadowed regions; alpha is reserved. |
+| `density` | number; ≥ 0; ≤ 10 | `0.035` | Extinction per world unit; zero hides the volume. |
+| `noise_scale` | number; ≥ 0.01 | `90` | World units per repeating 3D noise tile. |
+| `coverage` | number; ≥ 0; ≤ 1 | `0.55` | Noise erosion control; higher values fill more of the ellipsoid. |
+| `noise_offset` | 3-item array of number | `[0, 0, 0]` | World-space offset applied when sampling the density noise. |
+| `steps` | integer; ≥ 8; ≤ 96 | `32` | Ray-marching sample count; higher values trade cost for smoothness. |
 
 ### PostProcessing
 

@@ -24,7 +24,7 @@ The checked-in VS Code settings associate each Rune JSON filename pattern with
 its schema automatically. Custom Odin component blocks remain valid, although
 their game-specific fields are not completed by the built-in schemas.
 
-See the [built-in component reference](docs/components.md) for all 48 components,
+See the [built-in component reference](docs/components.md) for all 49 components,
 their JSON fields and defaults, dependencies, runtime behavior, and linked guides.
 
 ## Current capabilities
@@ -371,10 +371,12 @@ output and an `ok` flag. Custom game loops should call `console.update` before
 updates and `console.finish_frame` after scene drawing but before `console.draw`
 and `EndDrawing`, as both engine-owned loops already do.
 
-The overlay handles text entry, but it does not automatically suppress project
-input actions. A gameplay system that needs exclusive controls should check
-`console.is_open(rune.developer_console(game))` and skip its input handling
-while the console is open.
+The engine-owned loops capture project input while the console is open,
+including its opening and closing frames. Gameplay action queries return an
+empty state and axes return zero. Raw raylib input remains available, so systems
+reading it directly must handle console focus themselves. Custom loops should
+call `input.capture` after input and console updates whenever the console was or
+is open that frame.
 
 Runtime asset failures are written to stderr and copied into this console. The
 message identifies the asset type, load or reload operation, source material or
@@ -1291,9 +1293,10 @@ Scenes provide light data with JSON components:
 }
 ```
 
-r3d owns the active light budget and shading path. `PointLight` and
-`SpotLight` positions come from the entity `Transform`; `SpotLight.direction`
-points from the light toward the center of its cone.
+r3d owns the active light budget and shading path. `PointLight` and `SpotLight`
+positions come from the entity's composed world transform, including ancestor
+translation, rotation, and scale. `SpotLight.direction` points from the light
+toward the center of its cone.
 
 Runtime geometry installed with `ecs.set_static_mesh` can use a `MeshRenderer`
 with `primitive: "static"` for materials, fallback color, and shadow control.
