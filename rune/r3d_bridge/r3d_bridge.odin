@@ -879,7 +879,7 @@ load_albedo_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.Albed
 		rl.Color{data.base_color[0], data.base_color[1], data.base_color[2], data.base_color[3]},
 	)
 	if !rl.IsTextureValid(result.texture) {return {}, false}
-	assets.configure_texture(&result.texture, data.filter, data.mipmaps)
+	assets.configure_texture(&result.texture, data.filter, data.mipmaps, data.wrap)
 	return result, true
 }
 
@@ -889,7 +889,7 @@ load_normal_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.Norma
 	defer delete(cpath)
 	result := r3d.LoadNormalMap(cpath, data.normal_scale)
 	if !rl.IsTextureValid(result.texture) {return {}, false}
-	assets.configure_texture(&result.texture, data.filter, data.mipmaps)
+	assets.configure_texture(&result.texture, data.filter, data.mipmaps, data.wrap)
 	return result, true
 }
 
@@ -908,7 +908,7 @@ load_emission_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.Emi
 		data.emission_energy,
 	)
 	if !rl.IsTextureValid(result.texture) {return {}, false}
-	assets.configure_texture(&result.texture, data.filter, data.mipmaps)
+	assets.configure_texture(&result.texture, data.filter, data.mipmaps, data.wrap)
 	return result, true
 }
 
@@ -918,7 +918,7 @@ load_orm_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.OrmMap, 
 	defer delete(cpath)
 	result := r3d.LoadOrmMap(cpath, data.ao_strength, data.roughness, data.metallic, data.specular)
 	if !rl.IsTextureValid(result.texture) {return {}, false}
-	assets.configure_texture(&result.texture, data.filter, data.mipmaps)
+	assets.configure_texture(&result.texture, data.filter, data.mipmaps, data.wrap)
 	return result, true
 }
 

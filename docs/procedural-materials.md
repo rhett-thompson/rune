@@ -50,7 +50,9 @@ normal-map strength. Roughness varies from
 `roughness * (1 - roughness_variation)` to `roughness`, according to the noise.
 The generated ORM map has white AO and metallic channels, preserving the
 material's scalar AO and metallic controls. The usual texture filter and
-mipmap settings apply.
+mipmap settings apply. The top-level `wrap` accepts `clamp`, `repeat`, or
+`mirror_repeat`. Omitting it preserves file-map clamp and generated-map repeat
+defaults; an explicit value applies to every material map.
 
 ### Retro sampling
 

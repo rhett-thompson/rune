@@ -1259,6 +1259,11 @@ the normal choice for 3D models viewed at oblique angles. Use `"filter":
 high-frequency texture still shimmers in motion, use a small positive
 `lod_bias` value to sample a softer mip level.
 
+Set `"wrap": "repeat"` for seamless textures that tile or scroll outside UV
+0..1. `clamp` extends the edge texels; `mirror_repeat` alternates reflected
+tiles. The setting applies to albedo, normal, emission, and ORM maps. Omitting
+it preserves existing defaults: file maps clamp and procedural maps repeat.
+
 Use PNG, BMP, GIF, QOI, or DDS texture files. The project validator reports
 other extensions before the game reaches runtime.
 

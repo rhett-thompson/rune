@@ -50,7 +50,7 @@ procedural_texture :: proc(image: rl.Image, data: assets.Material_Data, is_color
 		texture = rl.LoadTextureFromImage(image)
 	}
 	if !rl.IsTextureValid(texture) {return {}, false}
-	assets.configure_texture(&texture, data.filter, data.mipmaps)
 	rl.SetTextureWrap(texture, .REPEAT)
+	assets.configure_texture(&texture, data.filter, data.mipmaps, data.wrap)
 	return texture, true
 }

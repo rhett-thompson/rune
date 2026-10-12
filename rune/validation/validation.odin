@@ -818,6 +818,12 @@ validate_material :: proc(report: ^Report, material_path, project_directory: str
 			add(report, material_path, "$.lod_bias", "must be a number from 0 through 4")
 		}
 	}
+	if wrap_value, found := material["wrap"]; found {
+		wrap, wrap_ok := wrap_value.(json.String)
+		if !wrap_ok || !assets.is_texture_wrap_name(wrap) {
+			add(report, material_path, "$.wrap", "must be one of clamp, repeat, mirror_repeat")
+		}
+	}
 	material_unit_fields := [6]string {
 		"roughness",
 		"metallic",

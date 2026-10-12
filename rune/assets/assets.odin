@@ -41,6 +41,8 @@ Material_Data :: struct {
 	ao_texture:        string,
 	height_texture:    string,
 	filter:            string,
+	// Empty preserves the loader's wrap: file maps clamp, generated maps repeat.
+	wrap:              string,
 	mipmaps:           bool,
 	lod_bias:          f32,
 	lighting:          bool,
@@ -303,11 +305,12 @@ texture :: proc(
 	return loaded, true
 }
 
-configure_texture :: proc(texture: ^rl.Texture2D, filter: string, mipmaps: bool) {
+configure_texture :: proc(texture: ^rl.Texture2D, filter: string, mipmaps: bool, wrap := "") {
 	if mipmaps && texture.mipmaps <= 1 {
 		rl.GenTextureMipmaps(texture)
 	}
 	apply_texture_filter(texture^, filter, mipmaps)
+	if len(wrap) > 0 {rl.SetTextureWrap(texture^, texture_wrap_from_name(wrap))}
 }
 
 material_texture :: proc(
@@ -316,6 +319,7 @@ material_texture :: proc(
 	mipmaps: bool,
 	source_path := "",
 	field := "texture",
+	wrap := "",
 ) -> (
 	rl.Texture2D,
 	bool,
@@ -328,6 +332,7 @@ material_texture :: proc(
 		manager.textures[path] = asset
 	}
 	apply_texture_filter(asset.texture, filter, mipmaps)
+	if len(wrap) > 0 {rl.SetTextureWrap(asset.texture, texture_wrap_from_name(wrap))}
 	return asset.texture, true
 }
 
@@ -348,6 +353,7 @@ material_orm_texture :: proc(
 			data.mipmaps,
 			material_path,
 			"$.orm",
+			data.wrap,
 		)
 	}
 	if len(data.ao_texture) == 0 &&
@@ -380,6 +386,7 @@ generated_orm_key :: proc(manager: ^Asset_Manager, data: Material_Data) -> u64 {
 	result = hash_value(result, data.roughness)
 	result = hash_value(result, data.metallic)
 	result = hash_string(result, data.filter)
+	result = hash_string(result, data.wrap)
 	result = hash_value(result, data.mipmaps)
 	return result
 }
@@ -466,7 +473,7 @@ generate_orm_texture :: proc(
 	}
 	texture := rl.LoadTextureFromImage(orm_image)
 	if !rl.IsTextureValid(texture) {return {}, false}
-	configure_texture(&texture, data.filter, data.mipmaps)
+	configure_texture(&texture, data.filter, data.mipmaps, data.wrap)
 	return texture, true
 }
 
@@ -728,6 +735,7 @@ material_data_signature :: proc(data: Material_Data) -> u64 {
 	result = hash_string(result, data.ao_texture)
 	result = hash_string(result, data.height_texture)
 	result = hash_string(result, data.filter)
+	result = hash_string(result, data.wrap)
 	result = hash_value(result, data.mipmaps)
 	result = hash_value(result, data.lod_bias)
 	result = hash_value(result, data.lighting)
@@ -868,6 +876,10 @@ load_material_data :: proc(full_path: string) -> (Material_Data, bool) {
 		result.filter, ok = value.(json.String)
 		if !ok || !is_texture_filter_name(result.filter) {return {}, false}
 	}
+	if value, found := object["wrap"]; found {
+		result.wrap, ok = value.(json.String)
+		if !ok || !is_texture_wrap_name(result.wrap) {return {}, false}
+	}
 	if value, found := object["mipmaps"]; found {
 		result.mipmaps, ok = value.(json.Boolean)
 		if !ok {return {}, false}
@@ -958,6 +970,7 @@ clone_material_data :: proc(data: Material_Data) -> Material_Data {
 	result.ao_texture = clone_asset_string(data.ao_texture)
 	result.height_texture = clone_asset_string(data.height_texture)
 	result.filter = clone_asset_string(data.filter)
+	result.wrap = clone_asset_string(data.wrap)
 	result.transparency = clone_asset_string(data.transparency)
 	result.blend = clone_asset_string(data.blend)
 	result.cull = clone_asset_string(data.cull)
@@ -977,6 +990,7 @@ destroy_material_data :: proc(data: ^Material_Data) {
 	delete(data.ao_texture)
 	delete(data.height_texture)
 	delete(data.filter)
+	delete(data.wrap)
 	delete(data.transparency)
 	delete(data.blend)
 	delete(data.cull)
@@ -999,6 +1013,16 @@ read_color :: proc(data: json.Value, result: ^[4]u8) -> bool {
 		result[index] = u8(number)
 	}
 	return true
+}
+
+is_texture_wrap_name :: proc(name: string) -> bool {
+	return name == "clamp" || name == "repeat" || name == "mirror_repeat"
+}
+
+texture_wrap_from_name :: proc(name: string) -> rl.TextureWrap {
+	if name == "repeat" {return .REPEAT}
+	if name == "mirror_repeat" {return .MIRROR_REPEAT}
+	return .CLAMP
 }
 
 is_texture_filter_name :: proc(name: string) -> bool {

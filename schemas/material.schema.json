@@ -128,6 +128,11 @@
       "enum": ["point", "bilinear", "trilinear", "anisotropic_4x", "anisotropic_8x", "anisotropic_16x"],
       "default": "anisotropic_8x"
     },
+    "wrap": {
+      "type": "string",
+      "description": "Addressing outside UV 0..1 for material maps. Omitted preserves file-map clamp and generated-map repeat defaults. Use repeat for seamless scrolling or tiled textures.",
+      "enum": ["clamp", "repeat", "mirror_repeat"]
+    },
     "mipmaps": {
       "type": "boolean",
       "description": "Generate mipmaps before applying the texture filter.",
