@@ -31,6 +31,15 @@ Color and shadow_color use RGB bytes, with alpha reserved. Coverage controls
 noise erosion; noise_scale is the world-space repetition wavelength. Steps
 from 8 to 96 trade cost for smoothness; 24–32 suit distant banks. Set
 noise_offset from the game's simulation clock to animate density reproducibly.
+`detail_offset` is an additional world-space shift of the fine noise octave;
+animate it independently to billow and evolve the outline while the broad
+density pattern drifts slowly. `detail_strength` blends the fine octave from
+zero to one, defaulting to the previous 0.28 contribution. Its zero offset and
+default strength retain existing content's appearance. Both offsets are finite
+XYZ vectors. No engine clock is hidden in the renderer, so paused simulation
+and restored phases reproduce the same density. Keep offsets bounded before
+converting a long-running double-precision simulation clock to floats, for
+example by deriving smooth oscillating offsets from that clock.
 
 The renderer clips rays against an analytic ellipsoid and opaque scene depth,
 integrates Beer–Lambert opacity, and approximates directional lighting with a
@@ -39,6 +48,11 @@ It supports views from inside a volume. It shares one generated, filtered
 3D-noise slice atlas and one shader program, with independent uniform aliases
 per entity. Aliases are released on removal or world generation changes;
 shutdown frees the shared GPU resources. Disabled entities stop drawing.
+Independent fine-octave movement adds two uniforms without adding noise
+samples, march steps, textures, or draw calls. Each detailed density sample
+retains two atlas noise samples (four filtered texture fetches); the coarse
+light probe retains one (two fetches). March jitter is fixed in screen space,
+with no changing random phase or temporal history to ghost moving clouds.
 
 On Windows/Linux AMD64, the bridge renders the
 [moon disk](skybox.md#night-sky-and-optional-moon),
@@ -85,7 +99,14 @@ done
 Runtime checks require a graphics context; Linux needs a desktop or
 [Xvfb](linux.md). Omit `--runtime` for data-only checks. Cloud validation covers
 opacity, foreground occlusion, a solid object inside a cloud, views inside a
-volume, zero density, and alias cleanup. It also checks nearby clouds against
+volume, zero density, and alias cleanup. Fine-noise checks hold the cloud bounds,
+camera, and broad noise phase fixed while changing only `detail_offset`, then
+check repeatability, small phase steps, the fine tile seam, zero fine strength,
+opaque clipping, and inside-volume views. They save
+`build/cloud-motion-validation.json` and three phase captures. The fixed
+20–32-step budget and unchanged noise sample count are separate from measured
+GPU times, which depend on screen coverage and density along each ray.
+It also checks nearby clouds against
 thick distant height fog, changes in the opaque background distance, fogged
 foreground solids, and both height-fog layers, saving
 `build/cloud-height-fog-validation.png`. The other checks cover moon/fog

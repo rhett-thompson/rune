@@ -12,6 +12,8 @@
     "noise_scale": {"type": "number", "minimum": 0.01, "default": 90, "description": "World units per repeating 3D noise tile."},
     "coverage": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.55},
     "noise_offset": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "default": [0,0,0]},
+    "detail_offset": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "default": [0,0,0], "description": "Additional world-space fine-octave shift, independent of the broad noise offset."},
+    "detail_strength": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.28, "description": "Fine-octave contribution to density; default retains existing cloud appearance."},
     "steps": {"type": "integer", "minimum": 8, "maximum": 96, "default": 32}
   },
   "$defs": {

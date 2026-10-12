@@ -108,9 +108,18 @@ text_input :: proc(ui: ^Context, id: string, field: ^Text_Field, enabled: bool =
 	}
 	background:=ui.style.surface
 	if !enabled {background=ui.style.disabled} else if field.active {background=ui.style.pressed} else if key==ui.hovered_id {background=ui.style.hover}
+	scroll:=clay.GetScrollContainerData({id=key})
+	child_offset:[2]f32
+	if scroll.found && scroll.scrollPosition!=nil {
+		if field.active {scroll.scrollPosition^[0]=0} // Active fields expose the caret using the slice below.
+		child_offset[0]=scroll.scrollPosition^[0]
+	}
 	panel(ui,id,{layout={sizing={width=grow({}),height=fixed(ui.style.height)},padding=padding(8),childAlignment={y=.Center}},
-		backgroundColor=background,cornerRadius=corners(ui.style.radius),clip={horizontal=true,vertical=true},
+		backgroundColor=background,cornerRadius=corners(ui.style.radius),clip={horizontal=true,vertical=true,childOffset=child_offset},
 		border={color=ui.style.accent,width=clay.BorderOutside(2 if enabled && key==ui.focus_id && !ui.inputs.blocked else 0)}})
+	// A single-line field clips both axes but only owns horizontal wheel input.
+	// Register its viewport for per-axis routing without creating scrollbar UI.
+	append(&ui.scroll_panels,Scroll_Panel_Frame{key,ui.depth,true,false})
 	// Keep the caret end visible for paths longer than the field's width. Text is
 	// clipped by the panel; the complete value remains in caller-owned storage.
 	start:=0

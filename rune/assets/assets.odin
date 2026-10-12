@@ -28,6 +28,9 @@ Font_Asset :: struct {
 
 Material_Data :: struct {
 	procedural:        Procedural_Material,
+	// Project-relative r3d surface hook. Opt into Rune's seconds-valued u_time.
+	surface_shader:    string,
+	surface_shader_time: bool,
 	base_color:        [4]u8,
 	texture:           string,
 	normal:            string,
@@ -684,7 +687,8 @@ refresh_models :: proc(manager: ^Asset_Manager) {
 }
 
 watch_material_textures :: proc(manager: ^Asset_Manager, data: Material_Data) {
-	paths := [8]string {
+	paths := [9]string {
+		data.surface_shader,
 		data.texture,
 		data.normal,
 		data.emission,
@@ -713,6 +717,8 @@ clear_generated_orm_textures :: proc(manager: ^Asset_Manager) {
 
 material_data_signature :: proc(data: Material_Data) -> u64 {
 	result := hash_value(0xcbf29ce484222325, data.base_color)
+	result = hash_string(result, data.surface_shader)
+	result = hash_value(result, data.surface_shader_time)
 	result = hash_string(result, data.texture)
 	result = hash_string(result, data.normal)
 	result = hash_string(result, data.emission)
@@ -789,6 +795,14 @@ load_material_data :: proc(full_path: string) -> (Material_Data, bool) {
 	if !ok {return {}, false}
 	result := Material_Data {
 		base_color = {255, 255, 255, 255},
+	}
+	if value, found := object["surface_shader"]; found {
+		result.surface_shader, ok = value.(json.String)
+		if !ok || len(result.surface_shader) == 0 {return {}, false}
+	}
+	if value, found := object["surface_shader_time"]; found {
+		result.surface_shader_time, ok = value.(json.Boolean)
+		if !ok {return {}, false}
 	}
 	if value, found := object["procedural"]; found {
 		result.procedural, ok, _ = procedural_material_from_json(value)
@@ -934,6 +948,7 @@ load_material_data :: proc(full_path: string) -> (Material_Data, bool) {
 
 clone_material_data :: proc(data: Material_Data) -> Material_Data {
 	result := data
+	result.surface_shader = clone_asset_string(data.surface_shader)
 	result.texture = clone_asset_string(data.texture)
 	result.normal = clone_asset_string(data.normal)
 	result.emission = clone_asset_string(data.emission)
@@ -952,6 +967,7 @@ clone_material_data :: proc(data: Material_Data) -> Material_Data {
 
 destroy_material_data :: proc(data: ^Material_Data) {
 	if data == nil {return}
+	delete(data.surface_shader)
 	delete(data.texture)
 	delete(data.normal)
 	delete(data.emission)

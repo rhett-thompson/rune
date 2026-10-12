@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "relay.schema.json",
+  "title": "Rune relay startup configuration",
+  "description": "Optional settings for the standalone Rune relay. TCP carries control messages; negotiated UDP carries realtime data on the same endpoint. Omitted properties retain built-in defaults; command-line settings override file settings. The relay validates numeric endpoints and max_rooms <= max_connections both when loading the file and after command-line overrides, before listening.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "listen": {
+      "type": "string",
+      "minLength": 1,
+      "default": "127.0.0.1:7777",
+      "description": "Numeric IPv4:port or bracketed [IPv6]:port endpoint. The relay validates the address and port range 0..65535; port 0 chooses a free port.",
+      "examples": ["127.0.0.1:7777", "0.0.0.0:7777", "[::1]:7777"]
+    },
+    "max_connections": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4096,
+      "default": 128,
+      "description": "Maximum simultaneous TCP connections, including clients outside rooms."
+    },
+    "max_rooms": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4096,
+      "default": 64,
+      "description": "Maximum simultaneous rooms. Must not exceed max_connections in the file's settings with omitted defaults applied, and again after command-line overrides."
+    },
+    "timeout_seconds": {
+      "type": "integer",
+      "minimum": 5,
+      "maximum": 3600,
+      "default": 30,
+      "description": "Idle time in seconds before disconnecting a connection."
+    },
+    "packets_per_second": {
+      "type": "integer",
+      "minimum": 8,
+      "maximum": 10000,
+      "default": 256,
+      "description": "Combined per-connection TCP frame and authenticated UDP datagram limit, including control messages and binding heartbeats."
+    },
+    "udp_enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Listen for authenticated, negotiated UDP realtime data on the same address and port as TCP. Clients using TCP only remain supported."
+    },
+    "run_seconds": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 86400,
+      "description": "Stop after this many seconds. Omit to run indefinitely; fractional seconds are allowed."
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "$schema": "schemas/relay.schema.json",
+  "listen": "127.0.0.1:7777",
+  "max_connections": 128,
+  "max_rooms": 64,
+  "timeout_seconds": 30,
+  "packets_per_second": 256,
+  "udp_enabled": true
+}

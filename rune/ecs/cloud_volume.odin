@@ -8,16 +8,22 @@ CloudVolume :: struct {
 	color, shadow_color: [4]u8,
 	density, noise_scale, coverage: f32,
 	noise_offset: [3]f32,
+	// Additional world-space shift of the fine octave. Animate independently
+	// from noise_offset to evolve density without moving the volume bounds.
+	detail_offset: [3]f32,
+	detail_strength: f32,
 	steps: i32,
 }
 
 default_cloud_volume :: proc() -> CloudVolume {
-	return {color={218,230,242,255},shadow_color={90,112,140,255},density=0.035,noise_scale=90,coverage=0.55,steps=32}
+	return {color={218,230,242,255},shadow_color={90,112,140,255},density=0.035,noise_scale=90,coverage=0.55,detail_strength=0.28,steps=32}
 }
 
 cloud_volume_valid :: proc(v: CloudVolume) -> bool {
 	return finite_nonnegative(v.density) && v.density<=10 && finite_nonnegative(v.noise_scale) && v.noise_scale>=0.01 &&
-		finite_nonnegative(v.coverage) && v.coverage<=1 && physics_query_vector_valid(v.noise_offset) && v.steps>=8 && v.steps<=96
+		finite_nonnegative(v.coverage) && v.coverage<=1 && physics_query_vector_valid(v.noise_offset) &&
+		physics_query_vector_valid(v.detail_offset) && finite_nonnegative(v.detail_strength) && v.detail_strength<=1 &&
+		v.steps>=8 && v.steps<=96
 }
 
 cloud_volume_from_json :: proc(data: json.Value) -> (CloudVolume,bool) {

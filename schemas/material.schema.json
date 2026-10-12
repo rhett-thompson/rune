@@ -5,6 +5,16 @@
   "type": "object",
   "properties": {
     "$schema": { "type": "string" },
+    "surface_shader": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Project-relative r3d surface hook GLSL. Define void fragment() and/or void vertex(). The bridge owns the compiled shader and reloads it when its source changes."
+    },
+    "surface_shader_time": {
+      "type": "boolean",
+      "default": false,
+      "description": "Supply float u_time in elapsed seconds to surface_shader each draw. Scene3D_Settings can override this clock for pausing and deterministic captures."
+    },
     "procedural": {
       "type": "object",
       "description": "Generate seamless UV-space noise maps at load time. File textures override their corresponding generated maps. Save this file to regenerate through material hot reload.",

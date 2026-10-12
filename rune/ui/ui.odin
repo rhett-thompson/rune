@@ -31,6 +31,7 @@ Style :: struct {
 	text, muted, surface, hover, pressed, accent, disabled: Color,
 	font_size: u16,
 	height, radius: f32,
+	scroll_step: f32, // Pixels per wheel notch; invalid values use the default.
 }
 
 default_style :: proc() -> Style {
@@ -38,7 +39,7 @@ default_style :: proc() -> Style {
 		text = {235, 241, 250, 255}, muted = {147, 163, 188, 255},
 		surface = {34, 45, 64, 255}, hover = {47, 64, 87, 255},
 		pressed = {23, 111, 109, 255}, accent = {93, 225, 189, 255},
-		disabled = {65, 72, 86, 255}, font_size = 20, height = 46, radius = 6,
+		disabled = {65, 72, 86, 255}, font_size = 20, height = 46, radius = 6, scroll_step = 60,
 	}
 }
 
@@ -59,6 +60,11 @@ Context :: struct {
 	commands: clay.ClayArray(clay.RenderCommand),
 	previous_context: ^clay.Context,
 	widgets, previous_widgets: [dynamic]u32,
+	scroll_panels, previous_scroll_panels: [dynamic]Scroll_Panel_Frame,
+	scroll_stack: [dynamic]int,
+	scroll_drag_id, scroll_hover_id: u32,
+	scroll_drag_axis: int,
+	scroll_drag_offset: f32,
 	focus_id, active_id, clicked_id, hovered_id: u32,
 	inputs: Inputs,
 	nav: input.Nav_State,
@@ -84,6 +90,9 @@ init :: proc(ui: ^Context, font := rl.Font{}, measure: Measure_Proc = nil) -> bo
 	mem.dynamic_arena_init(&ui.scratch)
 	ui.widgets = make([dynamic]u32, 0, 16)
 	ui.previous_widgets = make([dynamic]u32, 0, 16)
+	ui.scroll_panels = make([dynamic]Scroll_Panel_Frame, 0, 4)
+	ui.previous_scroll_panels = make([dynamic]Scroll_Panel_Frame, 0, 4)
+	ui.scroll_stack = make([dynamic]int, 0, 4)
 	previous := clay.GetCurrentContext()
 	defer clay.SetCurrentContext(previous)
 	size := clay.MinMemorySize()
@@ -104,6 +113,7 @@ destroy :: proc(ui: ^Context) {
 	if ui.native_memory != nil {mem.free(ui.native_memory, ui.allocator)}
 	delete(ui.widgets)
 	delete(ui.previous_widgets)
+	delete(ui.scroll_panels); delete(ui.previous_scroll_panels); delete(ui.scroll_stack)
 	mem.dynamic_arena_destroy(&ui.scratch)
 	ui^ = {}
 }
@@ -134,17 +144,19 @@ begin :: proc(ui: ^Context, dimensions: [2]f32, inputs: Inputs, dt: f32) -> bool
 	ui.inputs = inputs
 	clay.SetLayoutDimensions({dimensions[0], dimensions[1]})
 	clay.SetPointerState(inputs.pointer, inputs.pointer_down && !inputs.blocked)
-	clay.UpdateScrollContainers(false, inputs.scroll if !inputs.blocked else {},
+	scroll_owned := scroll_bars_input(ui)
+	clay.UpdateScrollContainers(false, scroll_wheel_for_clay(inputs.scroll, ui.style.scroll_step) if !inputs.blocked && !scroll_owned else {},
 		clamp(dt, 0, 0.1) if !math.is_nan(dt) else 0)
 	ui.hovered_id, ui.clicked_id = 0, 0
 	if !inputs.blocked {
-		for id in ui.previous_widgets {if clay.PointerOver({id = id}) {ui.hovered_id = id}}
+		if !scroll_owned {for id in ui.previous_widgets {if clay.PointerOver({id = id}) {ui.hovered_id = id}}}
 		if inputs.pointer != ui.last_pointer && ui.hovered_id != 0 {ui.focus_id = ui.hovered_id}
-		if inputs.pointer_down && !ui.last_down {
+		if scroll_owned {ui.active_id = 0}
+		if !scroll_owned && inputs.pointer_down && !ui.last_down {
 			ui.active_id = ui.hovered_id
 			if ui.hovered_id != 0 {ui.focus_id = ui.hovered_id}
 		}
-		if !inputs.pointer_down && ui.last_down {
+		if !scroll_owned && !inputs.pointer_down && ui.last_down {
 			if ui.active_id == ui.hovered_id {ui.clicked_id = ui.active_id}
 			ui.active_id = 0
 		}
@@ -162,6 +174,7 @@ begin :: proc(ui: ^Context, dimensions: [2]f32, inputs: Inputs, dt: f32) -> bool
 	ui.last_pointer, ui.last_down = inputs.pointer, inputs.pointer_down
 	mem.dynamic_arena_reset(&ui.scratch)
 	resize(&ui.widgets, 0)
+	resize(&ui.scroll_panels, 0); resize(&ui.scroll_stack, 0)
 	ui.building = true
 	active_context = ui
 	ui.depth = 0
@@ -186,6 +199,7 @@ finish :: proc(ui: ^Context) -> bool {
 	for id in ui.widgets {if id == ui.active_id {found = true; break}}
 	if !found {ui.active_id = 0}
 	ui.widgets, ui.previous_widgets = ui.previous_widgets, ui.widgets
+	ui.scroll_panels, ui.previous_scroll_panels = ui.previous_scroll_panels, ui.scroll_panels
 	ui.ready = ui.error_length == 0
 	return ui.ready
 }
@@ -202,20 +216,19 @@ panel :: proc(ui: ^Context, id: string, declaration: Element) {
 end_panel :: proc(ui: ^Context) {
 	assert(ui.building)
 	if ui.depth <= 0 {record_error(ui, "ui.end_panel without ui.panel"); return}
+	if len(ui.scroll_stack)>0 && ui.scroll_panels[ui.scroll_stack[len(ui.scroll_stack)-1]].depth==ui.depth {
+		close_scroll_panel(ui); return
+	}
 	clay._CloseElement()
 	ui.depth -= 1
 }
 
-// Open a clipped panel using Clay's persisted scroll position. Close it with
-// end_panel. Mouse-wheel deltas supplied to begin update the previous layout.
+// Open a clipped viewport with automatic scrollbars in reserved edge gutters.
+// Close it with end_panel. Wheel inputs are notches, scaled by style.scroll_step.
 scroll_panel :: proc(ui: ^Context, id: string, declaration: Element,
 	horizontal: bool = false, vertical: bool = true) {
 	assert(ui.building)
-	config := declaration
-	config.clip.horizontal, config.clip.vertical = horizontal, vertical
-	data := clay.GetScrollContainerData(clay.ID(id))
-	if data.found {config.clip.childOffset = data.scrollPosition^}
-	panel(ui, id, config)
+	open_scroll_panel(ui,id,declaration,horizontal,vertical)
 }
 
 label :: proc(ui: ^Context, text: string, color: Color, size: u16 = 0) {
@@ -289,6 +302,7 @@ focused :: proc(ui: ^Context, id: string) -> bool {return ui.focus_id == clay.ID
 
 reset_focus :: proc(ui: ^Context) {
 	ui.focus_id, ui.active_id = 0, 0
+	ui.scroll_drag_id, ui.scroll_hover_id = 0, 0
 	ui.nav.direction, ui.nav.remaining = .None, 0
 }
 

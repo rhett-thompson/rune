@@ -1,8 +1,9 @@
 # Steam Deck examples
 
 Rune supplies controller bindings, a controller-operated launcher, and a Linux
-staging helper. The staging tree contains all 39 examples listed in
-`examples/examples.json`, their resources, native library notices, and the launcher.
+staging helper. The staging tree contains all examples listed in
+`examples/examples.json`, their resources, native library notices, the launcher,
+and the standalone relay with its JSON configuration and schema.
 Odin, Python, Git, and the R3D source checkout are build-machine dependencies;
 they are not needed to run the staged examples. Linux graphics/audio system
 libraries and a working desktop session are still required.
@@ -61,6 +62,16 @@ directly. D-pad or left stick moves through examples and categories; A launches
 the selection and B closes the launcher. Hold START for one second to close a
 Rune example and return to the launcher. Example READMEs list their controls and
 any interactions that still need a mouse or keyboard.
+
+Select **Relay Arena** in the **2D** tab for a local multiplayer test. The launcher
+starts the included relay and opens two game windows with a host and guest
+already connected. Close both windows to stop that relay and return to the
+launcher. The staged `rune_relay.json` supplies server settings; the launcher
+chooses an available loopback port for each test.
+
+The two Relay Arena games use separate console inboxes. To inspect the host,
+run `./console.sh --directory ./console/relay-host --command status --json`;
+use `./console/relay-guest` as the directory to inspect the guest.
 
 ## Upload to a Deck
 
@@ -123,6 +134,7 @@ graphics driver, compiler, and source revision, then check:
 4. Every example loads its resources and input mappings.
 5. Jump, trigger actions, free look, orbit, and zoom work in their examples.
 6. Both multiplayer pads control their own player; tanks retain turret aim.
+   Relay Arena opens two connected windows and stops its relay after both close.
 7. Holding START closes examples; taps preserve normal Start actions.
 8. Save/load/rebinding preserve controller mappings and schema pointers.
 9. Audio, resize/fullscreen, focus loss, and rendering are acceptable.

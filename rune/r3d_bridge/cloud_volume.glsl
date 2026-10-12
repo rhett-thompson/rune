@@ -8,6 +8,8 @@ uniform vec3 u_light;
 uniform vec3 u_color;
 uniform vec3 u_shadow;
 uniform vec3 u_offset;
+uniform vec3 u_detail_offset;
+uniform float u_detail_strength;
 uniform vec3 u_settings; // extinction, noise wavelength, coverage
 uniform int u_steps;
 uniform vec3 u_fog_color;
@@ -32,7 +34,9 @@ float cloudDensity(vec3 position, bool detail) {
     if(radius>=1.0) return 0.0;
     vec3 p=(position+u_offset)/u_settings.y;
     float noise=cloudNoise(p);
-    if(detail) noise=noise*0.72+cloudNoise(p*2.07+vec3(0.13,0.37,0.61))*0.28;
+    // Independently advected fine density changes the outline while the broad
+    // field and ellipsoid remain stable. This uses the same two noise samples.
+    if(detail) noise=mix(noise,cloudNoise(p*2.07+u_detail_offset/u_settings.y+vec3(0.13,0.37,0.61)),u_detail_strength);
     // Erode the ellipsoid with 3D noise; all six bounds fade to empty space.
     float field=noise + u_settings.z - 0.72 - radius*0.38;
     return smoothstep(0.0,0.23,field)*(1.0-smoothstep(0.65,1.0,radius));

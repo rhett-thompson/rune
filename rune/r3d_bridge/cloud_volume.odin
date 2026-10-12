@@ -123,6 +123,8 @@ draw_cloud_volume :: proc(ctx: ^Context, world: ^ecs.World, entity: ecs.Entity, 
 	r3d.SetSurfaceShaderUniform(shader,"u_color",&color)
 	r3d.SetSurfaceShaderUniform(shader,"u_shadow",&shadow)
 	r3d.SetSurfaceShaderUniform(shader,"u_offset",&v.noise_offset)
+	r3d.SetSurfaceShaderUniform(shader,"u_detail_offset",&v.detail_offset)
+	r3d.SetSurfaceShaderUniform(shader,"u_detail_strength",&v.detail_strength)
 	r3d.SetSurfaceShaderUniform(shader,"u_settings",&settings)
 	r3d.SetSurfaceShaderUniform(shader,"u_steps",&v.steps)
 	r3d.SetSurfaceShaderUniform(shader,"u_fog_color",&c.fog.lower_color)

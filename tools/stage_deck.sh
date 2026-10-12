@@ -71,8 +71,11 @@ if not audit_only:
     (destination / "build").mkdir()
     def build_example(example):
         name = example["path"]
-        command = [compiler, "build", f"examples/{name}", "-o:speed", "-define:RAYLIB_SHARED=false",
-                   "-collection:rune=rune", f"-out:{destination / 'build' / name}"]
+        source = example.get("source", f"examples/{name}")
+        command = [compiler, "build", source, "-o:speed", "-collection:rune=rune",
+                   f"-out:{destination / 'build' / name}"]
+        if example.get("graphics", True):
+            command.append("-define:RAYLIB_SHARED=false")
         command.extend(f"-collection:{item['name']}={item['path']}" for item in example.get("collections", []))
         if linker_flags:
             command.append(f"-extra-linker-flags:{linker_flags}")
@@ -82,7 +85,8 @@ if not audit_only:
     failures = []
     with ThreadPoolExecutor(max_workers=jobs) as executor:
         futures = {executor.submit(build_example, example): example["path"]
-                   for example in [*examples, {"path": "launcher"}]}
+                   for example in [*examples, {"path": "launcher"},
+                                   {"path": "rune_relay", "source": "rune_relay", "graphics": False}]}
         for future in as_completed(futures):
             name = futures[future]
             try:
@@ -101,8 +105,12 @@ if not audit_only:
     (destination / "console").mkdir()
     (destination / "tools").mkdir()
     shutil.copy2(root / "tools/console.sh", destination / "tools/console.sh")
-    for name in ("LICENSE", "THIRD_PARTY.md", "README.md", "toolchain.json"):
+    for name in ("LICENSE", "THIRD_PARTY.md", "README.md", "toolchain.json", "rune_relay.json"):
         shutil.copy2(root / name, destination / name)
+    (destination / "schemas").mkdir()
+    shutil.copy2(root / "schemas/relay.schema.json", destination / "schemas/relay.schema.json")
+    (destination / "rune_relay").mkdir()
+    shutil.copy2(root / "rune_relay/README.md", destination / "rune_relay/README.md")
     shutil.copytree(root / "docs", destination / "docs")
     licenses = destination / "licenses"
     licenses.mkdir()
@@ -140,7 +148,7 @@ exec sh ./tools/console.sh --directory ./console "$@"
         (destination / name).chmod(0o755)
 
 records = []
-for name in [*names, "launcher"]:
+for name in [*names, "launcher", "rune_relay"]:
     binary = destination / "build" / name
     header = subprocess.check_output(["readelf", "-h", str(binary)], text=True)
     if "Advanced Micro Devices X86-64" not in header or "ELF64" not in header:
@@ -157,5 +165,5 @@ for name in [*names, "launcher"]:
     print(f"Audited {name}: GLIBC_{records[-1]['glibc_max']}")
 report = {"audited_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(), "ceiling": "2.39", "binaries": records}
 (destination / "glibc-audit.json").write_text(json.dumps(report, indent=2) + "\n")
-print(f"{'Audited' if audit_only else 'Staged'} {len(names)} examples + launcher at {destination}. Hardware validation remains separate.")
+print(f"{'Audited' if audit_only else 'Staged'} {len(names)} examples + launcher + relay at {destination}. Hardware validation remains separate.")
 PY

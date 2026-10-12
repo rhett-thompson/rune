@@ -93,6 +93,10 @@ the loaded `$schema` and emits type-specific JSON, without unrelated zero
 fields. Integral axis scales are saved as integers. The
 [runtime-rebinding example](../examples/runtime_rebinding/README.md) demonstrates it.
 
+For arbitrary keyboard/mouse/gamepad slots, owned menu drafts, atomic live
+configuration replacement, and canonical capture names, see
+[Input rebinding](input-rebinding.md).
+
 The console's `pads` command reports connected pad indexes, names, axis counts,
 and live axes. `quit` requests immediate exit and acknowledges remote requests
 before closing. In a running game's file-console inbox:

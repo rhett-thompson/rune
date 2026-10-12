@@ -60,6 +60,7 @@ bindings and pointer interactions; see [gamepad input](../docs/gamepads.md) and
 | [Particles 2D](particles_2d/README.md) | A fountain, smoke, and a burst. |
 | [Clay UI](clay_ui/README.md) | A pause menu with focus and volume. |
 | [Runtime Rebinding](runtime_rebinding/README.md) | Change and save movement keys. |
+| [Relay Arena](relay_multiplayer/README.md) | Host/join menu, room codes, and host-authoritative two-player replication through a self-hosted relay. |
 
 ## 3D
 
@@ -91,6 +92,18 @@ bindings and pointer interactions; see [gamepad input](../docs/gamepads.md) and
 | [Tanks](tanks/README.md) | Tank battles with ricocheting shells. |
 | [Tetris](tetris/README.md) | Falling blocks and line clearing. |
 | [Dungeon Crawler](dungeoncrawler/README.md) | Explore rooms and fight monsters. |
+
+## Networking
+
+| Example | What it covers |
+| --- | --- |
+| [Relay Arena](relay_multiplayer/README.md) | Two Rune windows, a self-hosted relay, guest input, stable entity IDs, and host-authoritative player positions. |
+
+Select Relay Arena in the launcher's 2D tab to start a local relay server and
+two game windows. The first hosts a room and the second joins it automatically.
+Move with WASD or the arrow keys; both windows show the same players. Close both
+windows to stop the relay and return to the launcher. Its guide also includes
+manual relay setup, the host/join menu, and scripted headless checks.
 
 ## Maintaining examples
 

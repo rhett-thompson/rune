@@ -420,7 +420,7 @@ Renders a 3D background through r3d; no `Transform` is required and it does not 
 
 Renders a noise-eroded ellipsoidal participating medium through the optional r3d bridge. Requires `Transform` with positive XYZ scale giving the full dimensions; rotation and parent transforms apply. It creates no collision, casts no shadows, and needs no `MeshRenderer` or material file. Disabled entities stop drawing. Initialize typed values with `ecs.default_cloud_volume()`.
 
-Opaque scene depth clips cloud rays, including views from inside a volume. Overlapping volumes use transparent draw ordering; their densities do not merge. Opacity comes from density and path length, with both color alpha channels reserved. Animate `noise_offset` from the game's simulation clock to move the density pattern reproducibly.
+Opaque scene depth clips cloud rays, including views from inside a volume. Overlapping volumes use transparent draw ordering; their densities do not merge. Opacity comes from density and path length, with both color alpha channels reserved. Animate `noise_offset` from the game's simulation clock to move the density pattern reproducibly; independently animate `detail_offset` to evolve the fine density without adding noise samples or moving the bounds.
 
 [Guide / example](cloud-volumes.md) · [Implementation](../rune/ecs/cloud_volume.odin)
 
@@ -432,6 +432,8 @@ Opaque scene depth clips cloud rays, including views from inside a volume. Overl
 | `noise_scale` | number; ≥ 0.01 | `90` | World units per repeating 3D noise tile. |
 | `coverage` | number; ≥ 0; ≤ 1 | `0.55` | Noise erosion control; higher values fill more of the ellipsoid. |
 | `noise_offset` | 3-item array of number | `[0, 0, 0]` | World-space offset applied when sampling the density noise. |
+| `detail_offset` | 3-item array of finite number | `[0, 0, 0]` | Additional world-space fine-octave shift, independent of the broad noise offset. |
+| `detail_strength` | number; ≥ 0; ≤ 1 | `0.28` | Fine-octave contribution to density; default retains existing cloud appearance. |
 | `steps` | integer; ≥ 8; ≤ 96 | `32` | Ray-marching sample count; higher values trade cost for smoothness. |
 
 ### PostProcessing

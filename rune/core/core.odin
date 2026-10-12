@@ -857,7 +857,9 @@ begin_frame :: proc(engine: ^Engine) {
 		assets.refresh_tilesets(&engine.assets)
 	}
 	flush_asset_diagnostics(engine)
-	if rl.IsKeyPressed(.F3) {
+	// This runs before update resets frame capture. Respect a UI that captured
+	// the preceding frame, as well as the console's current focus.
+	if !console.is_open(&engine.console) && !engine.input.captured && rl.IsKeyPressed(.F3) {
 		engine.gizmos.enabled = !engine.gizmos.enabled
 		if engine.gizmos.enabled {
 			console.info(&engine.console, "Gizmos enabled")

@@ -11,7 +11,7 @@ Max_Line_Length :: 192
 Max_Line_Highlights :: 64
 Max_Input_Length :: 256
 Max_History :: 16
-Max_Commands :: 64
+Max_Commands :: 128
 Max_Name_Length :: 48
 
 Log_Level :: enum {

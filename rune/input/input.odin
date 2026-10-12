@@ -4,6 +4,7 @@ import "core:encoding/json"
 import "core:math"
 import "core:mem"
 import "core:os"
+import "core:reflect"
 import "core:strings"
 import rl "vendor:raylib"
 
@@ -387,6 +388,9 @@ key_from_name :: proc(name: string) -> Key_Result {
 	case "RIGHT_CONTROL", "RIGHT_CTRL":
 		return {.RIGHT_CONTROL, true}
 	}
+	// Retain legacy aliases above while allowing capture/rebinding of all
+	// raylib keyboard keys, including punctuation, keypad and navigation keys.
+	if key,valid:=reflect.enum_from_name(rl.KeyboardKey,upper); valid && key!=.KEY_NULL {return {key,true}}
 	return {}
 }
 
@@ -426,6 +430,8 @@ button_from_name :: proc(name: string) -> Button_Result {
 		return {.MIDDLE_LEFT, true}
 	case "START":
 		return {.MIDDLE_RIGHT, true}
+	case "GUIDE":
+		return {.MIDDLE, true}
 	case "LEFT_THUMB":
 		return {.LEFT_THUMB, true}
 	case "RIGHT_THUMB":

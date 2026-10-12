@@ -25,6 +25,20 @@ normal-mapped forward shading, and a custom circle surface shader. Texture,
 material, and custom-shader loading are checked so fallback rendering cannot
 silently satisfy these cases.
 
+Pass `range=64` after the output directory to compare the same 13 checks with
+a shorter directional shadow range:
+
+```powershell
+./build/shadow-render-probe.exe build/shadow-render-range64 range=64
+```
+
+The argument accepts finite values from 4 to 1000 scene units. Omission retains
+the default range of 180. It changes the final 13 cases, including when `broad`
+is also supplied; the older diagnostic sweep cases retain their own ranges.
+The actual range is recorded in each result. Camera positions stay unchanged,
+so very short ranges can legitimately fade fixture shadows out and fail the
+contrast assertions.
+
 Each pair writes PNGs and numerical measurements in `results.json`. A pixel
 is counted as visibly shadowed when its luminance drops by more than 10 out
 of 255. The lit wall reference samples 425 fixed world positions above the

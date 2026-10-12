@@ -154,6 +154,7 @@ run_example :: proc(example: Example) -> (int, string) {
 		}
 		fmt.printf("Building and running %s...\n", example.name)
 	}
+	if example.path == "relay_multiplayer" {return run_relay_session(example, prebuilt, args[:])}
 	command := example_command(example, prebuilt, args[:])
 	defer free_example_args(command)
 	process, start_error := os.process_start({command = command[:], stdin = os.stdin, stdout = os.stdout, stderr = os.stderr})

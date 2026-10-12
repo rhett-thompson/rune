@@ -29,6 +29,8 @@ their JSON fields and defaults, dependencies, runtime behavior, and linked guide
 
 ## Current capabilities
 
+- [Self-hosted networking](docs/networking.md): the standalone [Rune Relay application](rune_relay/README.md), reliable room controls, and authenticated UDP gameplay. Try the [Relay Arena example](examples/relay_multiplayer/README.md) for a two-player Rune scene with host-authoritative movement, prediction, stable entity IDs, and replicated positions.
+
 - [Shadow profiles](docs/shadows.md): reusable per-light shadow settings, overrides, update policies, hot reload, and global disabling.
 
 - [Procedural materials](docs/procedural-materials.md): seamless noise-generated color, bump, and roughness maps with seed, scale, detail, and color controls. Try [Procedural Materials 3D](examples/procedural_material_3d/README.md).
@@ -190,6 +192,11 @@ remains an independent Odin program and can still be run directly with its
 usual `odin run examples/<name> -o:none -collection:rune=rune` command. Launcher
 entries and descriptions live in `examples/examples.json`. See the
 [example guide](examples/README.md) for a learning order, controls, and files to edit.
+
+Selecting **Relay Arena** in the **2D** tab starts a local relay server and
+two game windows, with the host and guest connected automatically. Close both
+windows to stop the relay and return to the launcher. In prebuilt mode, stage
+both `build/rune_relay` and `build/relay_multiplayer` (`.exe` on Windows).
 
 `RUNE_EXAMPLE_ARGS` forwards arguments to examples in both build and prebuilt
 modes. Quotes group paths containing spaces, for example
@@ -1227,6 +1234,9 @@ with the entity `Transform` through the active `Camera3D`:
 Material files are project-relative JSON assets. `base_color` tints primitives
 and models; `albedo` applies a diffuse texture; `normal` applies a tangent-space
 normal map; and scalar `roughness`/`metallic` values map into r3d materials.
+Optional [`surface_shader` hooks](docs/surface-shaders.md) animate or customize
+these surfaces inside the usual r3d lighting pipeline; `surface_shader_time`
+supplies a controllable `u_time` clock in seconds.
 The older `texture` field remains an alias for `albedo`:
 
 ```json

@@ -1,0 +1,33 @@
+{
+  "$schema": "../../../schemas/input.schema.json",
+  "actions": {
+    "ui_accept": [
+      {"type": "keyboard", "key": "ENTER"},
+      {"type": "gamepad_button", "button": "A"}
+    ],
+    "ui_cancel": [
+      {"type": "keyboard", "key": "ESCAPE"},
+      {"type": "gamepad_button", "button": "B"}
+    ],
+    "move_left": [
+      {"type": "keyboard", "key": "A"},
+      {"type": "keyboard", "key": "LEFT"}
+    ],
+    "move_right": [
+      {"type": "keyboard", "key": "D"},
+      {"type": "keyboard", "key": "RIGHT"}
+    ],
+    "move_up": [
+      {"type": "keyboard", "key": "W"},
+      {"type": "keyboard", "key": "UP"}
+    ],
+    "move_down": [
+      {"type": "keyboard", "key": "S"},
+      {"type": "keyboard", "key": "DOWN"}
+    ]
+  },
+  "axes": {
+    "move_horizontal": {"negative": "move_left", "positive": "move_right"},
+    "move_vertical": {"negative": "move_up", "positive": "move_down"}
+  }
+}

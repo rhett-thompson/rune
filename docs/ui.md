@@ -124,11 +124,12 @@ the simulation pause condition, then call `ui.draw` during drawing.
 | API | Behavior |
 | --- | --- |
 | `ui.panel(ctx, id, declaration)` / `ui.end_panel(ctx)` | Open/close a Clay layout element. Balance every pair. |
-| `ui.scroll_panel(ctx, id, declaration, horizontal = false, vertical = true)` | Open a clipped panel using Clay's scroll position; close with `end_panel`. |
+| `ui.scroll_panel(ctx, id, declaration, horizontal = false, vertical = true)` | Open a clipped viewport with automatic draggable scrollbars; close with `end_panel`. |
 | `ui.label(ctx, text, color, size = 0)` | Wrapped text; zero size uses the context style. |
 | `ui.button(ctx, id, text, enabled = true)` | True on pointer release inside the pressed button or focused accept. |
 | `ui.slider(ctx, id, &value, min, max, step = 0.05, enabled = true)` | A bar slider; returns true when value changes. Left/right uses `step`; pointer dragging is continuous. |
 | `ui.text_input(ctx, id, &field, enabled = true)` | Single-line UTF-8 field; returns `changed`, `committed`, and `canceled`. Click or focused accept activates editing. |
+| `ui.text_area(ctx, id, &area, enabled = true, height = 160)` | Multiline UTF-8 editing with both scrollbars; Enter inserts a newline, Ctrl+Enter commits, Escape cancels. |
 | `ui.image(ctx, id, texture, size, tint)` | A borrowed texture stretched to a rectangle. |
 | `ui.focused(ctx, id)` / `ui.reset_focus(ctx)` | Inspect focus or reset it to the first enabled control on the next build. |
 | `ui.bounds(ctx, id)` | Bounds and a found flag from the last completed layout, for tools/tests. |
@@ -151,6 +152,25 @@ field uses accent text; the caret is shown while editing. Applications should
 gate their own raw keyboard shortcuts while `field.active`, and use
 `Inputs.blocked` when a console or another modal owns input. Text fields read
 raylib's character queue only while active and unblocked.
+
+`ui.Text_Area` provides separate caller-owned storage for up to **8192 UTF-8
+bytes**, including newlines and tabs. Use `ui.text_area_set`, `text_area_text`,
+`text_area_insert`, `text_area_delete`, and `text_area_move` to initialize/read
+or edit it. Set/paste normalizes Windows CRLF and carriage returns to LF;
+invalid UTF-8, unsupported controls, and overcapacity replacements are rejected
+atomically. Single-line `Text_Field` behavior and capacity stay the same.
+
+Click or focused accept starts editing. Enter inserts a paragraph; Ctrl+Enter,
+controller/custom accept, or transferring focus commits, while Escape cancels so the application can
+restore its saved value. Left/right move across whole Unicode characters;
+up/down preserve the column across lines. Home/End move within a line, and
+Ctrl+Home/End reach the document edges. Shift extends the selection; Ctrl+A
+selects everything, and Ctrl+C/V/X, Backspace, and Delete work on the selected
+range. `cursor` and `anchor` are byte offsets on UTF-8 boundaries. Tabs remain in
+the value and display at four-column stops. Explicit lines use horizontal and
+vertical scrolling rather than soft wrapping. Cursor movement reveals the caret;
+wheel scrolling leaves it at the chosen viewport. Only visible lines are built,
+so thousands of empty lines do not exhaust Clay's element budget.
 
 Hit testing uses the previous completed Clay layout, as with Clay's normal
 immediate-mode interaction model. A newly shown control needs one completed
@@ -203,8 +223,26 @@ The examples share [Inter](../examples/assets/fonts/README.md), including their
 HUD text, scene text, and the Clay menu.
 
 For scroll panels, use `ui.scroll_panel` with a constrained viewport height/width
-and declare its children normally. The wrapper applies Clay's stored scroll
-position and the wheel deltas passed to `begin`. Keyboard focus does not yet
+and declare its children normally. Each enabled axis reserves a 16-pixel edge
+gutter; a track and proportional thumb appear when content overflows. Drag the
+thumb or click the track to center the thumb at that position. Dragging continues
+outside the track and clamps at either end. Gutters participate in normal layout,
+so ancestor clipping applies to their drawing and pointer hits. The original
+panel ID still identifies the clipped viewport in `ui.bounds` and Clay scroll
+queries. As with other widgets, overflow and interaction use the last completed
+layout; a new panel needs one layout before its scrollbar appears.
+
+`Inputs.scroll` contains wheel notches. `ctx.style.scroll_step` controls pixels
+per notch and defaults to 60; nonpositive or nonfinite values use that default.
+Wheel movement works over either content or a scrollbar and clamps to the content
+range. Each axis uses the deepest hovered viewport with overflow on that axis;
+vertical wheel input over a single-line text field scrolls its surrounding panel,
+while horizontal input can scroll the field. Fitting nested panels pass wheel
+input to an overflowing ancestor. `Inputs.blocked` disables wheel, track clicks, and dragging and cancels an
+active drag. `ui.reset_focus` also cancels dragging. Scrollbar presses and releases
+are consumed before buttons or sliders, without changing keyboard focus.
+
+The wrapper applies Clay's stored scroll position. Keyboard focus does not yet
 automatically scroll a control into view. Direct Clay access is available through the vendored Odin package;
 do not call its `BeginLayout`/`EndLayout` inside a Rune-owned layout. The renderer
 intersects nested scissors and restores the outer clip after each inner one.

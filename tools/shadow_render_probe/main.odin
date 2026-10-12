@@ -2,7 +2,9 @@ package main
 
 import "core:encoding/json"
 import "core:fmt"
+import "core:math"
 import "core:os"
+import "core:strconv"
 import "core:strings"
 import "rune:assets"
 import "rune:ecs"
@@ -63,9 +65,18 @@ main :: proc() {
 	if len(os.args)>1 {Output=os.args[1]}
 	broad:=false
 	map_size:i32=4096
+	final_range:f32=180
 	if len(os.args)>2 {for argument in os.args[2:] {
 		if argument=="broad" {broad=true}
 		if argument=="8192" {map_size=8192}
+		if strings.has_prefix(argument,"range=") {
+			value,valid:=strconv.parse_f32(argument[len("range="):])
+			if !valid || math.is_nan(value) || math.is_inf(value) || value<4 || value>1000 {
+				fmt.eprintln("range must be a finite number from 4 to 1000 scene units")
+				os.exit(1)
+			}
+			final_range=value
+		}
 	}}
 	assert(os.make_directory(Output)==nil || os.is_dir(Output))
 	rl.SetConfigFlags({.WINDOW_HIDDEN})
@@ -149,6 +160,7 @@ main :: proc() {
 	for input in cases {
 		if !broad && !strings.has_prefix(input.label,"final-") {continue}
 		result:=input
+		if strings.has_prefix(result.label,"final-") {result.range=final_range}
 		shadow_point:=[3]f32{0.8,0.01,-4.5}
 		lit_point:=[3]f32{-8,0.01,-4.5}
 		if result.caster_height<4 {

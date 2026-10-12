@@ -695,6 +695,17 @@ validate_component_assets :: proc(
 validate_material :: proc(report: ^Report, material_path, project_directory: string) {
 	material, ok := read_json_object(material_path, report)
 	if !ok {return}
+	if value, found := material["surface_shader"]; found {
+		shader, valid := value.(json.String)
+		if !valid || shader == "" {
+			add(report, material_path, "$.surface_shader", "must be a non-empty surface shader path")
+		} else if project_directory != "" && !file_exists(path_from(report, project_directory, shader)) {
+			add(report, material_path, "$.surface_shader", fmt.tprint("referenced surface shader does not exist: ", shader))
+		}
+	}
+	if value, found := material["surface_shader_time"]; found {
+		if _, valid := value.(json.Boolean); !valid {add(report, material_path, "$.surface_shader_time", "must be a boolean")}
+	}
 	if value, found := material["procedural"]; found {
 		_, valid, field := assets.procedural_material_from_json(value)
 		if !valid {

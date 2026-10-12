@@ -10,6 +10,10 @@ import rl "vendor:raylib"
 
 Scene3D_Settings :: struct {
 	particle_batches: []Particle3D_Batch,
+	// By default time-enabled material shaders follow raylib's elapsed seconds.
+	// An explicit override supports a paused simulation or reproducible captures.
+	material_time: f32,
+	material_time_override: bool,
 	// Borrowed complete profile for this draw. Nil selects the active ECS profile.
 	// This does not edit any authored component; disabled/invalid overrides disable
 	// profile effects for this draw instead of falling back to the ECS profile.
@@ -45,6 +49,8 @@ R3D_Material_Asset :: struct {
 	owns_emission:  bool,
 	owns_normal:    bool,
 	owns_orm:       bool,
+	owns_shader:    bool,
+	shader_time:    bool,
 }
 
 Context :: struct {
@@ -308,6 +314,7 @@ draw_scene_ex :: proc(
 	grain_enabled:=prepare_film_grain(ctx,world,asset_manager,entity,settings.post_processing_override)
 	if grain_enabled {r3d.SetScreenShaderChain(.FINAL, &ctx.film_grain_shader, 1)}
 	backend_started:=rl.GetTime()
+	update_material_shader_time(ctx, settings, backend_started)
 	gpu_slot:=begin_gpu_timing(ctx)
 	r3d.End()
 	end_gpu_timing(ctx,gpu_slot)
@@ -693,15 +700,27 @@ material_from_data :: proc(
 	ctx.frame_stats.material_hashes+=1
 	signature := material_signature(data)
 	asset_revision := assets.material_asset_revision(asset_manager)
+	previous: R3D_Material_Asset
+	has_previous := false
 	if len(path) > 0 {
 		if cached, found := ctx.r3d_materials[path]; found {
 			if cached.signature == signature && cached.asset_revision == asset_revision {
 				cached.authored=false; ctx.r3d_materials[path]=cached
 				return cached.material
 			}
-			unload_owned_material_maps(cached)
+			previous, has_previous = cached, true
 		}
 	}
+	shader, shader_ok := load_material_surface_shader(ctx, asset_manager, path, data, has_previous)
+	if !shader_ok && has_previous && previous.owns_shader {
+		// Keep the last working material after a shader edit fails. Record the
+		// attempted revision so the compiler retries only after another asset edit.
+		previous.signature, previous.asset_revision = signature, asset_revision
+		previous.authored = false
+		ctx.r3d_materials[path] = previous
+		return previous.material
+	}
+	if has_previous {unload_owned_material_maps(previous)}
 
 	material := r3d.GetDefaultMaterial()
 	material.albedo.color = rl.Color {
@@ -713,7 +732,10 @@ material_from_data :: proc(
 	asset := R3D_Material_Asset {
 		signature      = signature,
 		asset_revision = asset_revision,
+		owns_shader    = shader != nil,
+		shader_time    = shader != nil && data.surface_shader_time,
 	}
+	material.shader = shader
 	if asset_manager != nil && len(data.texture) > 0 {
 		if albedo, loaded := load_albedo_map(ctx, data); loaded {
 			material.albedo = albedo
@@ -901,6 +923,7 @@ load_orm_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.OrmMap, 
 }
 
 unload_owned_material_maps :: proc(asset: R3D_Material_Asset) {
+	if asset.owns_shader {r3d.UnloadSurfaceShader(asset.material.shader)}
 	if asset.owns_albedo {
 		r3d.UnloadAlbedoMap(asset.material.albedo)
 	}

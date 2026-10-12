@@ -1,0 +1,15 @@
+{
+  "$schema": "../../../schemas/scene.schema.json",
+  "name": "Relay Arena",
+  "entities": [
+    {
+      "id": "camera",
+      "components": {
+        "Transform": {},
+        "Camera2D": {
+          "active": true
+        }
+      }
+    }
+  ]
+}

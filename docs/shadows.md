@@ -93,6 +93,20 @@ changing scene geometry or the camera's directional-shadow coverage:
 r3d_bridge.request_shadow_update(renderer, entity)
 ```
 
+`DirectionalLight.range` controls directional shadow coverage through R3D's
+public `SetLightRange` API; it does not limit the sun's illumination distance.
+Reducing this range dedicates the same map to nearby geometry. The backend
+already fades directional shadows between 75% and 100% of the range, measured
+along camera view depth, and fades at the last 5% of the map's projected bounds.
+For example, a range of 64 keeps the distance fade between 48 and 64 scene units.
+This is a view-depth fade, so turning toward a receiver can change its shadow
+strength even when the shadow map projection remains unchanged.
+
+R3D exposes no independent fade start/end, custom directional projection or
+bounds, cascade controls, or explicit shadow center. Setting a directional
+light's position does not move its shadow coverage. The projection also retains
+the backend's fixed 100-unit depth extension toward potential casters.
+
 On Windows/Linux AMD64, the bridge fits directional shadows around the camera
 position with enough coverage for the far-plane corners in every orientation.
 Turning the camera leaves the shadow matrix and caster clipping volume unchanged,
@@ -101,6 +115,13 @@ Camera movement, FOV, aspect ratio, light direction, and shadow range changes
 still alter the fit when the map refreshes. The shadow volume remains finite;
 map size, distance fading, and texel snapping retain the backend's behavior.
 See the [native patch and rebuild instructions](../third_party/r3d-shadows/README.md).
+
+The fitted radius is `range * sqrt(1 + tan(fovy / 2)^2 * (1 + aspect^2))`,
+with a square projected span of twice that radius. At 70 degrees and 16:9, a
+4096-pixel map covers about 628 units for range 180 (0.153 units per texel),
+or 223 units for range 64 (0.054 units per texel). Wider FOVs and aspect ratios
+spread the fixed map over a larger area. Camera movement remains texel-snapped;
+FOV/aspect changes can still change sampling density.
 
 On those targets, directional surface comparisons follow the receiver plane
 at each sampled texel center. This suppresses grazing-angle stripes without
@@ -120,6 +141,9 @@ tuning a wide-range point light. Verify both flat receivers and real caster
 shadows at the intended distances.
 
 Changing map update frequency does not reduce the number of enabled maps or
-their sampling cost. The bundled r3d backend fixes resolution at 2048² for
-point/spot lights and 4096² for directional lights; profiles therefore do not
-expose map resolution. Disabling shadows retains native map memory for reuse.
+their sampling cost. R3D defaults to 2048² for point/spot lights and 4096² for
+directional lights. Its public `SetHint` API can change each light type's shared
+resolution through `SHADOW_OMNI_SIZE`, `SHADOW_SPOT_SIZE`, and `SHADOW_DIR_SIZE`,
+provided the hints are set before `r3d_bridge.init` calls `R3D_Init`. There is no
+per-light resolution control, so shadow profiles do not expose map resolution.
+Disabling shadows retains native map memory for reuse.
