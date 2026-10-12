@@ -16,9 +16,9 @@ default_transform :: proc() -> Transform {
 	return Transform{scale = {1, 1, 1}}
 }
 
-// Child offsets inherit parent scale and then rotation. Euler angles retain
-// additive composition, which is exact for rotations about a shared axis;
-// arbitrary mixed-axis rotations and shear are not represented by Transform.
+// Child offsets inherit parent scale and then rotation. Orientations compose
+// exactly through quaternions and remain stored as Euler degrees. Transform
+// retains componentwise scale; shear from rotated nonuniform scale is omitted.
 compose_transform_3d :: proc(parent, local: Transform) -> Transform {
 	offset := local.position * parent.scale
 	if parent.rotation != ([3]f32{}) {
@@ -28,7 +28,7 @@ compose_transform_3d :: proc(parent, local: Transform) -> Transform {
 	}
 	return Transform{
 		position = parent.position + offset,
-		rotation = parent.rotation + local.rotation,
+		rotation = compose_rotation_3d(parent.rotation, local.rotation),
 		scale = parent.scale * local.scale,
 	}
 }

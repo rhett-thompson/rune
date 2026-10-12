@@ -74,8 +74,12 @@ Local position, Euler rotation in degrees, and scale. 2D rendering uses X/Y and 
 
 In 3D, child offsets inherit parent scale and then parent rotation. Rendering,
 scene picking, terrain, and runtime static geometry share this composition.
-Euler angles compose additively, which is exact for rotations about a shared
-axis; arbitrary mixed-axis rotation composition and shear remain approximate.
+Orientations compose through quaternions, applying the child's local rotation
+before the parent's rotation, and remain stored as Euler degrees. Equivalent
+Euler representations can differ. Scale still multiplies componentwise; shear
+from rotated nonuniform scale remains approximate. `ecs.compose_rotation_3d`
+composes orientations in this order, and `ecs.relative_rotation_3d` removes a
+parent orientation from a world orientation. Both take and return degrees.
 
 [Guide / example](../README.md#scene-owned-rendering) · [Implementation](../rune/ecs/transform.odin)
 

@@ -127,6 +127,7 @@ the simulation pause condition, then call `ui.draw` during drawing.
 | `ui.scroll_panel(ctx, id, declaration, horizontal = false, vertical = true)` | Open a clipped viewport with automatic draggable scrollbars; close with `end_panel`. |
 | `ui.label(ctx, text, color, size = 0)` | Wrapped text; zero size uses the context style. |
 | `ui.button(ctx, id, text, enabled = true)` | True on pointer release inside the pressed button or focused accept. |
+| `ui.dropdown(ctx, id, &state, &selected, options, enabled = true, height = 240)` | Floating, scrollable option picker; returns true when the zero-based selection changes. |
 | `ui.slider(ctx, id, &value, min, max, step = 0.05, enabled = true)` | A bar slider; returns true when value changes. Left/right uses `step`; pointer dragging is continuous. |
 | `ui.text_input(ctx, id, &field, enabled = true)` | Single-line UTF-8 field; returns `changed`, `committed`, and `canceled`. Click or focused accept activates editing. |
 | `ui.text_area(ctx, id, &area, enabled = true, height = 160)` | Multiline UTF-8 editing with both scrollbars; Enter inserts a newline, Ctrl+Enter commits, Escape cancels. |
@@ -140,6 +141,22 @@ pointer does not override keyboard focus. Disabled controls cannot activate and
 are skipped in navigation. A press captures its widget until release; releasing
 outside a button cancels its activation. Sliders keep dragging outside their
 bounds and clamp to their range.
+
+`ui.Dropdown` is caller-owned interaction state; initialize it to `{}` and keep
+the selected `int` and `[]string` options in application storage. The control
+borrows options only during layout. A valid selection displays its option; an
+invalid index displays "Select..." until a choice is committed. Empty or disabled
+pickers cannot open and leave the selected value untouched.
+
+Click or focused accept opens a floating list anchored to the trigger. The list
+matches its width, opens above when space below is limited, and has a bounded
+scroll viewport. Up/Down, Tab, and mapped gamepad navigation move within the
+options and reveal the focused row; Enter/A commits. Cancel or a click outside
+closes without changing selection. Opening, choosing, and dismissal consume the
+input so an action underneath cannot also activate. Declare the dropdown before
+other controls in its menu so it can capture their keyboard input. Its popup does
+not change surrounding layout. Use `ui.read_input(ctx, actions, dt)` to include
+the ordinary stick-repeat navigation as well as mapped keyboard/D-pad input.
 
 `ui.Text_Field` is caller-owned, allocation-free storage for up to 1024 UTF-8
 bytes. Initialize or replace its value with `ui.text_field_set(&field, text)`;
@@ -267,7 +284,9 @@ odin build tools/ui_validation -linker:msvc -collection:rune=rune "-out:build/ui
 Headless checks cover the native ABI/layout, resizing, focus traversal, disabled
 widgets, clicks and canceled clicks, dragging, bounded memory, context ownership,
 input capture, UI input while paused, and independent pause/step controls.
+Headless dropdown tests also cover pointer and keyboard selection, focus and
+scroll reveal, dismissal ownership, disabled/empty state, and floating placement.
 `--runtime` adds hidden-window pixel checks for rendering and nested clipping.
 The main validation script discovers this validator and builds the example with
-`--all-examples`. Text entry, dropdowns, accessibility APIs, automatic directional
+`--all-examples`. Accessibility APIs, automatic directional
 spatial navigation, and a UI editor are outside this first integration.

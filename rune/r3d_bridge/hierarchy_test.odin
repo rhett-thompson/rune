@@ -14,7 +14,11 @@ hierarchy_offsets_inherit_scale_then_rotation :: proc(t: ^testing.T) {
 		// composition helper, including order under nonuniform parent scale.
 		expected := rl.Vector3Transform(local.position, detail_transform(parent))
 		for axis in 0..<3 {testing.expect(t,abs(pose.position[axis]-expected[axis])<0.001)}
-		testing.expect(t,pose.rotation==parent.rotation+local.rotation)
+		for direction in ([3][3]f32{{1,0,0},{0,1,0},{0,0,1}}) {
+			expected_direction:=rl.Vector3RotateByQuaternion(rl.Vector3RotateByQuaternion(direction,rotation_quaternion(local)),rotation_quaternion(parent))
+			actual_direction:=rl.Vector3RotateByQuaternion(direction,rotation_quaternion(pose))
+			testing.expect(t,rl.Vector3Length(actual_direction-expected_direction)<0.001,"mixed-axis orientation applies the local turn before the parent turn")
+		}
 		testing.expect(t,pose.scale==[3]f32{1,6,12})
 	}
 }
