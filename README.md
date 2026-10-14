@@ -141,6 +141,16 @@ Run the complete headless validation suite and representative builds on Windows 
 On Linux, use `sh tools/validate.sh --all-examples`. The helpers have matching
 arguments and propagate failures to the calling shell.
 
+For individual builds, checks, or tests, `tools/odin.bat`, `tools/odin.sh`, and
+`tools/odin.ps1` serialize compiler commands through a shared temporary-file
+lock. Pass the usual Odin arguments to the batch or shell wrapper; PowerShell
+uses `./tools/odin.ps1 -OdinArguments @('build', 'examples/hello_world', '-o:none',
+'-collection:rune=rune', '-linker:msvc', '-out:build/hello_world.exe')`. Windows uses built-in
+file locking; Linux requires `flock` from util-linux. Compile interactive
+programs with `build`, then launch the executable after the wrapper returns so
+compiler memory and the lock are released before play. Direct Odin commands
+bypass the lock.
+
 This compiles all registered examples and the launcher, runs the validators, and checks
 the project files. Omit `--all-examples` for representative builds only. The
 compiler's vendor packages supply raylib, Box2D, and Box3D; the recursive submodule
@@ -909,8 +919,10 @@ share the player's `max_voices` limit. The runtime honors `play_on_start` and
 restarts looping sounds.
 Music formats use streamed playback. Audio files are not timestamp-polled for
 hot reload; changing a player's sound path or clip list replaces its cache when serviced.
-Spatial players use listener-relative distance attenuation and world-X panning as an
-initial simple mixer; orientation-aware 3D audio can replace this later.
+Spatial players use world-space distance attenuation and listener-relative
+stereo panning. A camera listener uses its explicit view direction and up;
+standalone listeners use their composed Transform orientation. See
+[spatial audio](docs/audio-mixer.md) for distance ranges and playback behavior.
 
 ```json
 "AudioListener": { "active": true }

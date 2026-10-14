@@ -10,6 +10,19 @@ Camera_Shake :: struct {
 	duration:  f32,
 }
 
+// Sample a bounded {yaw, pitch} offset in degrees at an elapsed time in seconds.
+// Callers can vary amplitude without restarting the waveform. Invalid settings
+// return zero, and the offset starts from zero.
+camera_shake_sample :: proc(amplitude: f32, time: f64) -> [2]f32 {
+	if amplitude <= 0 || time < 0 ||
+	   math.is_nan(amplitude) || math.is_inf(amplitude) ||
+	   math.is_nan(time) || math.is_inf(time) {return {}}
+	return {
+		f32(f64(amplitude) * math.sin(time * (2 * math.PI * 18))),
+		f32(f64(amplitude) * math.sin(time * (2 * math.PI * 23))),
+	}
+}
+
 // Amplitude is the maximum offset on either axis, in degrees; duration is in
 // seconds. Retriggering replaces the previous effect. Nonpositive or nonfinite
 // settings clear it, and the initial offset is zero.
@@ -43,8 +56,5 @@ camera_shake_update :: proc(state: ^Camera_Shake, dt: f32) -> [2]f32 {
 	}
 	remaining := 1 - state.time / f64(state.duration)
 	amplitude := f64(state.amplitude) * remaining * remaining
-	return {
-		f32(amplitude * math.sin(state.time * (2 * math.PI * 18))),
-		f32(amplitude * math.sin(state.time * (2 * math.PI * 23))),
-	}
+	return camera_shake_sample(f32(amplitude), state.time)
 }

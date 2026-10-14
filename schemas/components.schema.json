@@ -990,6 +990,17 @@
       "type": "object",
       "properties": {
         "size": { "$ref": "#/$defs/vec3", "default": [1, 1, 1] },
+        "additional_boxes": {
+          "type": ["array", "null"], "maxItems": 32, "default": [],
+          "description": "Local boxes on the same body, sharing material, sensor status and layers. Offsets and dimensions inherit owner scale and rotation.",
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "properties": {
+              "offset": { "$ref": "#/$defs/vec3", "default": [0, 0, 0] },
+              "size": { "type": "array", "items": { "type": "number", "exclusiveMinimum": 0 }, "minItems": 3, "maxItems": 3, "default": [1, 1, 1] }
+            }
+          }
+        },
         "is_static": { "type": "boolean", "default": true },
         "is_sensor": { "type": "boolean", "default": false },
         "friction": { "type": "number", "minimum": 0, "default": 0.6 },
@@ -1071,6 +1082,7 @@
         "random_pitch": { "type": "number", "minimum": 0, "default": 0 },
         "max_voices": { "type": "integer", "minimum": 1, "default": 4 },
         "looping": { "type": "boolean", "default": false },
+        "fade_out_on_stop": { "type": "number", "minimum": 0, "default": 0, "description": "Linear fade-out duration in seconds when stopped; zero stops immediately." },
         "play_on_start": { "type": "boolean", "default": false },
         "spatial": { "type": "boolean", "default": false },
         "min_distance": { "type": "number", "minimum": 0, "default": 1 },

@@ -759,6 +759,7 @@ Box3D body configuration, normally paired with `Transform` and `BoxCollider` or 
 | Field | Type / constraints | JSON default | Meaning |
 | --- | --- | --- | --- |
 | `size` | 3-item array of number | `[1, 1, 1]` | Full dimensions in local units. |
+| `additional_boxes` | Array of up to 32 objects | `[]` | Extra local boxes on the same physical body. Each uses `offset` (default `[0,0,0]`) and positive `size` (default `[1,1,1]`), transformed by the entity scale and rotation. Material, sensor status, and layers are shared. |
 | `is_static` | boolean | `true` | Static-collider participation; native motion is owned by RigidBody3D when present. |
 | `is_sensor` | boolean | `false` | Report overlaps without solid collision response. |
 | `friction` | number; ≥ 0 | `0.6` | Nonnegative surface friction. |
@@ -768,6 +769,20 @@ Box3D body configuration, normally paired with `Transform` and `BoxCollider` or 
 | `physics_material.friction` | number; ≥ 0 | Inherit top-level `friction` | Nonnegative surface friction. |
 | `physics_material.restitution` | number; ≥ 0 | Inherit top-level `restitution` | Nonnegative bounce coefficient. |
 | `physics_material.rolling_resistance` | number; ≥ 0 | Inherit top-level `rolling_resistance` | Nonnegative rolling resistance. |
+
+For example, a moving platform can include solid rails without child rigid bodies:
+
+```json
+"BoxCollider": {
+  "size": [6, 0.5, 6],
+  "additional_boxes": [
+    {"offset": [-2.9, 1.25, 0], "size": [0.2, 2, 6]},
+    {"offset": [2.9, 1.25, 0], "size": [0.2, 2, 6]}
+  ]
+}
+```
+
+Pair this collider with `RigidBody3D` of type `kinematic` to move every box together. A capsule standing on any box retains the same support entity. Odin uses `ecs.BoxCollider_Box` entries; `ecs.add` and `ecs.set` copy the input slice, while `ecs.get` returns borrowed read-only storage.
 
 ### SphereCollider
 
@@ -954,7 +969,7 @@ A query-only box/sphere zone on an entity with `Transform`; it never blocks move
 
 ### AudioListener
 
-Selects the scene audio reference point, normally on a camera entity with a transform. The listener uses its composed world position, including parent rotation and scale. Sharing a camera is a convention, not a requirement. Keep one active listener. Entity activation also affects selection.
+Selects the scene audio reference point, normally on a camera entity with a transform. The listener uses its composed world position, including parent rotation and scale. Stereo right follows Camera3D target/up when present, otherwise the composed Transform orientation. Sharing a camera is a convention, not a requirement. Keep one active listener. Entity activation also affects selection.
 
 [Guide / example](../README.md#audio-component-data) · [Implementation](../rune/ecs/audio.odin)
 
@@ -994,6 +1009,7 @@ The following fields belong to each named instance. Use
 | `random_pitch` | number; ≥ 0 | `0` | Uniform per-play variation around pitch. |
 | `max_voices` | integer; ≥ 1 | `4` | Maximum simultaneous buffered voices for this instance. |
 | `looping` | boolean | `false` | Loop playback. |
+| `fade_out_on_stop` | finite number; ≥ 0 | `0` | Fade to silence over this many seconds when stopped; zero stops immediately. |
 | `play_on_start` | boolean | `false` | Start when the scene audio is initialized. |
 | `spatial` | boolean | `false` | Attenuate using listener/emitter positions. |
 | `min_distance` | number; ≥ 0 | `1` | Distance before attenuation begins. |

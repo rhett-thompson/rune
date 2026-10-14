@@ -32,7 +32,11 @@ collect_navigation_geometry_3d :: proc(world:^World,project_root:string) -> (geo
 		// Box3D boxes/spheres currently use the entity's own Transform, whereas
 		// terrain uses the accumulated hierarchy. Match actual collision here.
 		if box,found:=world.box_colliders[entity];found && !box.is_sensor && (has_body || box.is_static) {
-			if !navigation.append_bake_box_3d(&geometry,box.size,t.position,t.rotation,t.scale) {return geometry,"invalid static box geometry"}
+			for index in 0..=len(box.additional_boxes) {
+				part:=box_collider_box(box,index)
+				pose:=box_collider_box_transform(t,part)
+				if !navigation.append_bake_box_3d(&geometry,part.size,pose.position,pose.rotation,pose.scale) {return geometry,"invalid static box geometry"}
+			}
 		}
 		if sphere,found:=world.sphere_colliders[entity];found && !sphere.is_sensor && (has_body || sphere.is_static) {
 			if !navigation.bake_transform_valid_3d(t.position,t.rotation,t.scale) {return geometry,"invalid static sphere transform"}

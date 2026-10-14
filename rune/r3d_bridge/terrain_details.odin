@@ -1,6 +1,7 @@
 package r3d_bridge
 
 import "core:math/linalg"
+import "core:math"
 import "rune:assets"
 import "rune:ecs"
 import "rune:terrain"
@@ -18,6 +19,9 @@ Terrain_Detail_Batch :: struct {
 	view: Terrain_Detail_View,
 	view_ready: bool,
 	cached_visible_count: i32,
+	// Conservative movement radius around view.camera in which selection and
+	// distance-faded scales cannot change. No per-instance cache is added.
+	camera_reuse_radius: f32,
 }
 
 // Only values affecting instance streams belong in this key. Descriptor edits
@@ -60,50 +64,82 @@ detail_transform :: proc(t:ecs.Transform) -> rl.Matrix {
 		rl.QuaternionToMatrix(rotation_quaternion(t))*rl.MatrixScale(t.scale[0],t.scale[1],t.scale[2])
 }
 
-// Returns true only when visibility/streams were rebuilt. A stationary view can
-// submit the existing GPU buffer, including after disabling/re-enabling terrain.
+// Returns true only when packed instance streams change. Camera motion inside
+// the cached safe region does no candidate scan or GPU upload. A scan outside
+// that region still retains streams when the exact selection/scales are equal.
 upload_visible_details :: proc(batch:^Terrain_Detail_Batch,detail:terrain.Detail,t:ecs.Transform,camera:[3]f32) -> bool {
 	view:=Terrain_Detail_View{transform=t,camera=camera,draw_distance=detail.draw_distance,
 		grass=detail.kind=="grass",align_to_normal=detail.align_to_normal}
-	if batch.view_ready && batch.view==view {
-		batch.visible_count=batch.cached_visible_count
-		return false
+	previous:=batch.view
+	previous.camera=camera
+	static_unchanged:=batch.view_ready && previous==view
+	if static_unchanged {
+		movement:=camera-batch.view.camera
+		if camera==batch.view.camera || len(batch.instances)==0 ||
+		   (batch.camera_reuse_radius>0 && linalg.dot(movement,movement)<batch.camera_reuse_radius*batch.camera_reuse_radius) {
+			batch.visible_count=batch.cached_visible_count
+			return false
+		}
 	}
+	previous_count:=batch.cached_visible_count
+	changed:=!static_unchanged
 	batch.view=view; batch.view_ready=true
 	batch.visible_count=0
-	batch.cached_visible_count=0
-	if len(batch.instances)==0 {return true}
+	batch.camera_reuse_radius=0
+	if len(batch.instances)==0 {batch.cached_visible_count=0; return changed || previous_count!=0}
 	transform:=detail_transform(t)
 	terrain_rotation:=rotation_quaternion(t)
+	// The triangle inequality guarantees that moving less than the nearest
+	// boundary distance cannot change any root's inside/outside classification.
+	// Built-in grass has a second boundary where smooth fading starts.
+	reuse_radius:=math.inf_f32(1)
+	fade_start:=detail.draw_distance*0.8
 	for instance in batch.instances {
 		world:=rl.Vector3Transform(instance.position,transform)
 		delta:=world-camera
 		distance_squared:=linalg.dot(delta,delta)
+		distance:=math.sqrt(distance_squared)
+		reuse_radius=min(reuse_radius,abs(distance-detail.draw_distance))
+		if view.grass {
+			reuse_radius=min(reuse_radius,abs(distance-fade_start))
+			// Every moving view changes the scales of roots already in the fade
+			// band, so those batches keep exact per-root distance evaluation.
+			if distance>=fade_start && distance_squared<detail.draw_distance*detail.draw_distance {reuse_radius=0}
+		}
 		if distance_squared>=detail.draw_distance*detail.draw_distance {continue}
 		i:=int(batch.visible_count)
 		// R3D applies its mesh transform BEFORE the instance rotation/scale.
 		// Upload world-space roots and draw with an identity mesh transform so
 		// random rotation and distance fading can never move a root off terrain.
-		batch.positions[i]=world
-		rotation:=rl.QuaternionFromAxisAngle({0,1,0},instance.yaw)
-		if detail.align_to_normal {
-			// Inverse scale keeps the surface normal correct on stretched terrain.
-			normal:=linalg.normalize(instance.normal/t.scale)
-			rotation=rl.QuaternionFromVector3ToVector3({0,1,0},normal)*rotation
+		if !static_unchanged || i>=int(previous_count) || batch.positions[i]!=world {
+			changed=true
+			batch.positions[i]=world
+			rotation:=rl.QuaternionFromAxisAngle({0,1,0},instance.yaw)
+			if detail.align_to_normal {
+				// Inverse scale keeps the surface normal correct on stretched terrain.
+				normal:=linalg.normalize(instance.normal/t.scale)
+				rotation=rl.QuaternionFromVector3ToVector3({0,1,0},normal)*rotation
+			}
+			batch.rotations[i]=terrain_rotation*rotation
+			shade:=u8(instance.shade*255)
+			batch.colors[i]={shade,shade,shade,255}
 		}
-		batch.rotations[i]=terrain_rotation*rotation
 		scale:=instance.scale
-		if detail.kind=="grass" {
+		if view.grass {
 			// Reduce distant tufts smoothly while keeping their base on the surface.
-			fade:=clamp((detail.draw_distance-rl.Vector3Length(delta))/(detail.draw_distance*0.2),0,1)
+			fade:=clamp((detail.draw_distance-distance)/(detail.draw_distance*0.2),0,1)
 			scale*=fade
 		}
-		batch.scales[i]=t.scale*scale
-		shade:=u8(instance.shade*255)
-		batch.colors[i]={shade,shade,shade,255}
+		world_scale:=t.scale*scale
+		if !static_unchanged || batch.scales[i]!=world_scale {batch.scales[i]=world_scale; changed=true}
 		batch.visible_count+=1
 	}
+	// Leave a small numerical margin and use a strict movement bound: roots on
+	// the culling boundary are excluded exactly as in the original draw path.
+	batch.camera_reuse_radius=max(f32(0),reuse_radius-max(f32(0.0001),detail.draw_distance*0.00001))
 	batch.cached_visible_count=batch.visible_count
+	changed=changed || batch.visible_count!=previous_count
+	if !changed {return false}
 	if batch.visible_count==0 {return true}
 	r3d.UploadInstances(batch.buffer,{.POSITION},0,batch.visible_count,raw_data(batch.positions),true)
 	r3d.UploadInstances(batch.buffer,{.ROTATION},0,batch.visible_count,raw_data(batch.rotations),true)

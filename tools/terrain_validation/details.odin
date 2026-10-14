@@ -80,6 +80,11 @@ validate_detail_rendering :: proc(ctx:^bridge.Context,manager:^assets.Asset_Mana
 	terrain_pose,_:=ecs.get_transform(&w,e)
 	camera_pose,_:=ecs.get_transform(&w,camera)
 	validate_detail_staging(&cache.details[0],rules[0],terrain_pose,camera_pose.position)
+	validate_model_detail_camera_reuse(&cache.details[3],rules[3],terrain_pose,camera_pose.position)
+	validate_model_detail_walk_frames(ctx,&w,manager,e,camera)
+	data,_,has_data:=ecs.terrain_runtime(&w,e); assert(has_data)
+	validate_model_detail_zero_root_boundary(data,rules[3])
+	validate_dense_model_detail_walk(data,rules[3],terrain_pose)
 	view,_:=ecs.get_camera_3d(&w,camera)
 	turned_view:=view; turned_view.target[0]+=1
 	assert(ecs.set_camera_3d(&w,camera,turned_view)); render_frame(ctx,&w,manager)
@@ -121,7 +126,130 @@ validate_detail_rendering :: proc(ctx:^bridge.Context,manager:^assets.Asset_Mana
 	other:=ecs.init(); defer ecs.destroy(&other)
 	rl.BeginDrawing(); bridge.draw_scene(ctx,&other,manager); rl.EndDrawing()
 	assert(len(ctx.terrains)==0,"world replacement releases detail caches")
-	fmt.println("PASS instanced details, unchanged-view reuse, allocation-free staging, activation, distance culling, reload and cleanup")
+	fmt.println("PASS instanced details, walking/head-bob reuse, exact distance transitions, allocation-free staging, activation, reload and cleanup")
+}
+
+// An independent root-distance oracle checks the packed order and scales through
+// cached, partial, empty and transformed views. No tolerance expands visibility.
+validate_detail_visibility :: proc(batch:^bridge.Terrain_Detail_Batch,detail:terrain.Detail,t:ecs.Transform,camera:[3]f32) {
+	transform:=bridge.detail_transform(t)
+	count:=0
+	for instance in batch.instances {
+		world:=rl.Vector3Transform(rl.Vector3(instance.position),transform)
+		delta:=world-rl.Vector3(camera)
+		distance_squared:=delta[0]*delta[0]+delta[1]*delta[1]+delta[2]*delta[2]
+		if distance_squared>=detail.draw_distance*detail.draw_distance {continue}
+		assert(count<int(batch.visible_count),"visibility cannot omit an in-range root")
+		assert(rl.Vector3Distance(batch.positions[count],world)<0.00001,"packed instances preserve source order and transformed root positions")
+		scale:=instance.scale
+		if detail.kind=="grass" {scale*=clamp((detail.draw_distance-math.sqrt(distance_squared))/(detail.draw_distance*0.2),0,1)}
+		assert(rl.Vector3Distance(batch.scales[count],rl.Vector3(t.scale*scale))<0.00001,"cached scales preserve exact grass fading and terrain scale")
+		count+=1
+	}
+	assert(count==int(batch.visible_count),"out-of-range roots remain excluded from the packed stream")
+}
+
+validate_model_detail_camera_reuse :: proc(batch:^bridge.Terrain_Detail_Batch,detail:terrain.Detail,t:ecs.Transform,camera:[3]f32) {
+	assert(detail.kind=="model" && len(batch.instances)==32 && batch.visible_count==32)
+	positions:[32]rl.Vector3; rotations:[32]rl.Quaternion; scales:[32]rl.Vector3; colors:[32]rl.Color
+	copy(positions[:],batch.positions); copy(rotations[:],batch.rotations); copy(scales[:],batch.scales); copy(colors[:],batch.colors)
+	anchor:=batch.view.camera
+	assert(batch.camera_reuse_radius>1,"fully in-range model details have a conservative walking region")
+	tracker:mem.Tracking_Allocator
+	mem.tracking_allocator_init(&tracker,context.allocator); defer mem.tracking_allocator_destroy(&tracker)
+	context.allocator=mem.tracking_allocator(&tracker); context.temp_allocator=context.allocator
+	for step in 0..<32 {
+		phase:=f32(step)*0.3
+		walking:=camera+[3]f32{f32(step)*0.12,math.sin(phase)*0.025,math.cos(phase)*0.1}
+		assert(!bridge.upload_visible_details(batch,detail,t,walking),"walking and head bob retain fully visible custom-model GPU streams")
+		assert(batch.view.camera==anchor,"safe walking skips the candidate scan instead of just avoiding its upload")
+		validate_detail_visibility(batch,detail,t,walking)
+		for instance in 0..<32 {
+			assert(batch.positions[instance]==positions[instance] && batch.rotations[instance]==rotations[instance] && batch.scales[instance]==scales[instance] && batch.colors[instance]==colors[instance],"stable visibility retains every existing instance stream")
+		}
+	}
+	// Leave the first reuse region while keeping every root in range. The exact
+	// fallback updates its anchor without sending unchanged data to the GPU.
+	outside:=[3]f32{80,0,0}
+	assert(rl.Vector3Distance(rl.Vector3(anchor),rl.Vector3(outside))>batch.camera_reuse_radius)
+	assert(!bridge.upload_visible_details(batch,detail,t,outside) && batch.visible_count==32,"an exact scan with unchanged selection also skips GPU uploads")
+	assert(batch.view.camera==outside,"an unchanged fallback scan refreshes its conservative camera anchor")
+	validate_detail_visibility(batch,detail,t,outside)
+	partial:=[3]f32{100,0,0}
+	assert(bridge.upload_visible_details(batch,detail,t,partial) && batch.visible_count>0 && batch.visible_count<32,"crossing the culling boundary rebuilds a genuinely partial selection")
+	validate_detail_visibility(batch,detail,t,partial)
+	assert(!bridge.upload_visible_details(batch,detail,t,partial+[3]f32{0,0.0001,0}),"head bob that preserves a partial selection keeps its GPU data too")
+	validate_detail_visibility(batch,detail,t,partial+[3]f32{0,0.0001,0})
+	boundary:=rl.Vector3Transform(rl.Vector3(batch.instances[0].position),bridge.detail_transform(t))+rl.Vector3{detail.draw_distance,0,0}
+	bridge.upload_visible_details(batch,detail,t,boundary)
+	validate_detail_visibility(batch,detail,t,boundary)
+	far:=[3]f32{1000,1000,1000}
+	assert(bridge.upload_visible_details(batch,detail,t,far) && batch.visible_count==0,"leaving the visible population produces an empty selection")
+	assert(!bridge.upload_visible_details(batch,detail,t,far+[3]f32{1,-0.02,0.6}) && batch.visible_count==0,"walking outside the draw radius retains the empty cache")
+	assert(bridge.upload_visible_details(batch,detail,t,camera) && batch.visible_count==32,"returning from an empty cache restores all visible roots")
+	validate_detail_visibility(batch,detail,t,camera)
+	moved:=t; moved.position+={3,2,-1}; moved.rotation={12,37,-7}; moved.scale={1.4,0.8,1.1}
+	assert(bridge.upload_visible_details(batch,detail,moved,camera),"translation, rotation and scale invalidate world-space model streams")
+	validate_detail_visibility(batch,detail,moved,camera)
+	aligned:=detail; aligned.align_to_normal=!detail.align_to_normal
+	assert(bridge.upload_visible_details(batch,aligned,moved,camera),"surface alignment invalidates instance rotations")
+	assert(bridge.upload_visible_details(batch,detail,t,camera),"restore the original model streams before later rendered checks")
+	assert(tracker.total_allocation_count==0,"walking, partial culling and transformed model views allocate no heap or scratch storage")
+	fmt.println("PASS custom-model walking/head-bob reuse, unchanged fallback, exact radius boundary, partial/empty transitions and transforms")
+}
+
+validate_model_detail_walk_frames :: proc(ctx:^bridge.Context,w:^ecs.World,manager:^assets.Asset_Manager,e,camera:ecs.Entity) {
+	pose,_:=ecs.get_transform(w,camera)
+	defer {assert(ecs.set_transform(w,camera,pose)); render_frame(ctx,w,manager)}
+	for step in 0..<4 {
+		walking:=pose; walking.position+={f32(step+1)*0.15,math.sin(f32(step))*0.025,0}
+		assert(ecs.set_transform(w,camera,walking)); render_frame(ctx,w,manager)
+		assert(ctx.frame_stats.terrain_detail_rebuilds==1 && ctx.frame_stats.terrain_detail_uploads==1,"rendered walking updates fading grass but retains full-range tree, rock and custom-model streams")
+		cache:=ctx.terrains[e]
+		data,_,found:=ecs.terrain_runtime(w,e); assert(found)
+		terrain_pose,_:=ecs.get_transform(w,e)
+		for &batch,index in cache.details {validate_detail_visibility(&batch,data.description.details[index],terrain_pose,walking.position)}
+	}
+}
+
+validate_model_detail_zero_root_boundary :: proc(data:terrain.Data,detail:terrain.Detail) {
+	one:=detail; one.count=1; one.draw_distance=100
+	description:=data.description; description.details=[]terrain.Detail{one}
+	cache:bridge.Terrain_Cache
+	assert(bridge.prepare_detail_batches(&cache,{description=description,heights=data.heights}))
+	defer bridge.release_terrain_cache(&cache)
+	batch:=&cache.details[0]
+	// Origin coincides with the freshly zeroed staging position, but this new
+	// visible slot still needs its quaternion, scale and color initialized.
+	batch.instances[0]={position={},normal={0,1,0},yaw=0.7,scale=1.2,shade=0.91}
+	transform:=ecs.default_transform()
+	assert(bridge.upload_visible_details(batch,one,transform,{100,0,0}) && batch.visible_count==0)
+	assert(bridge.upload_visible_details(batch,one,transform,{99.99,0,0}) && batch.visible_count==1,"a root entering from the draw boundary creates a real visible instance")
+	assert(batch.positions[0]==rl.Vector3{} && batch.rotations[0]!=rl.Quaternion{} && batch.scales[0]==rl.Vector3{1.2,1.2,1.2} && batch.colors[0].a==255 && batch.colors[0].r>0,"new origin roots initialize every GPU stream despite matching a zero stored position")
+	assert(bridge.upload_visible_details(batch,one,transform,{100,0,0}) && batch.visible_count==0,"moving exactly to draw_distance excludes the previously visible root")
+	assert(!bridge.upload_visible_details(batch,one,transform,{100.01,0,0}) && batch.visible_count==0,"an unchanged empty selection avoids uploading after its exact boundary scan")
+	fmt.println("PASS newly visible origin streams and strict draw-distance boundary equality")
+}
+
+// Representative dense model population, measured around only its preparation
+// path. Report CPU cost without a hardware-dependent timing pass/fail threshold.
+validate_dense_model_detail_walk :: proc(data:terrain.Data,detail:terrain.Detail,t:ecs.Transform) {
+	dense:=detail; dense.count=42000
+	description:=data.description; description.details=[]terrain.Detail{dense}
+	cache:bridge.Terrain_Cache
+	assert(bridge.prepare_detail_batches(&cache,{description=description,heights=data.heights}))
+	defer bridge.release_terrain_cache(&cache)
+	batch:=&cache.details[0]
+	anchor:=[3]f32{0,1.6,0}
+	assert(bridge.upload_visible_details(batch,dense,t,anchor) && batch.visible_count==42000)
+	started:=rl.GetTime()
+	for step in 0..<120 {
+		phase:=f32(step)*0.25
+		camera:=[3]f32{-4+f32(step)*0.1,1.6+math.sin(phase)*0.025,4+math.cos(phase)*0.1}
+		assert(!bridge.upload_visible_details(batch,dense,t,camera),"dense walking population does not rebuild or upload stable model streams")
+		assert(batch.view.camera==anchor && batch.visible_count==42000,"dense walking stays in the constant-time cached region")
+	}
+	fmt.printf("PASS 42,000 model details / 120 walking views: %.3f ms preparation CPU, zero rebuilds/uploads after warm-up\n",(rl.GetTime()-started)*1000)
 }
 
 // Track both Odin allocators around just the detail preparation path: renderer

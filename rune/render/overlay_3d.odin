@@ -3,8 +3,8 @@ package render
 import rl "vendor:raylib"
 import "vendor:raylib/rlgl"
 
-// A transparent 3D layer with its own color/depth attachments. Call after the
-// world/reference canvas has been presented, before drawing the HUD.
+// A transparent 3D layer with its own color/depth attachments. Present it after
+// the world, or finish it without presenting for scene-color composition.
 Overlay3D :: struct {
 	target: rl.RenderTexture2D,
 	active: bool,
@@ -59,16 +59,21 @@ begin_overlay_3d :: proc(layer: ^Overlay3D, camera: rl.Camera3D,
 	rl.BeginMode3D(camera)
 	layer.active=true
 	active_overlay_3d=layer
+	begin_overlay_3d_alpha_blend()
 	return true
+}
+
+// Store premultiplied RGB with ordinary coverage alpha. Raylib's default alpha
+// blend uses SRC_ALPHA for alpha too, which would square transparent coverage.
+@(private)
+begin_overlay_3d_alpha_blend :: proc() {
+	rlgl.SetBlendFactorsSeparate(0x0302,0x0303,1,0x0303,0x8006,0x8006)
+	rl.BeginBlendMode(.CUSTOM_SEPARATE)
 }
 
 end_overlay_3d :: proc(layer: ^Overlay3D,
                        destination: rl.Rectangle = {}, glow: Overlay3D_Glow = {}) {
-	if layer==nil || !layer.active || active_overlay_3d!=layer {return}
-	rl.EndMode3D()
-	rl.EndTextureMode()
-	layer.active=false
-	active_overlay_3d=nil
+	if !finish_overlay_3d(layer) {return}
 	destination:=destination
 	if destination.width==0 && destination.height==0 {destination={0,0,f32(rl.GetScreenWidth()),f32(rl.GetScreenHeight())}}
 	if glow.strength>0 {
@@ -94,13 +99,29 @@ end_overlay_3d :: proc(layer: ^Overlay3D,
 		rl.EndBlendMode()
 		return
 	}
+	// The render target already contains premultiplied color.
+	rl.BeginBlendMode(.ALPHA_PREMULTIPLY)
 	rl.DrawTexturePro(layer.target.texture,{0,0,f32(layer.target.texture.width),-f32(layer.target.texture.height)},destination,{},0,rl.WHITE)
+	rl.EndBlendMode()
+}
+
+// End the isolated pass without presenting it. The color texture remains owned
+// by the layer and may be borrowed until its next draw, resize, or destruction.
+finish_overlay_3d :: proc(layer: ^Overlay3D) -> bool {
+	if layer==nil || !layer.active || active_overlay_3d!=layer {return false}
+	rl.EndMode3D()
+	rl.EndBlendMode()
+	rl.EndTextureMode()
+	layer.active=false
+	active_overlay_3d=nil
+	return true
 }
 
 destroy_overlay_3d :: proc(layer: ^Overlay3D) {
 	if layer==nil {return}
 	if layer.active {
 		rl.EndMode3D()
+		rl.EndBlendMode()
 		rl.EndTextureMode()
 		if active_overlay_3d==layer {active_overlay_3d=nil}
 	}

@@ -10,7 +10,11 @@ import "vendor:raylib/rlgl"
 // Overlay3D). Preserve model depth; translucent particles do not write depth.
 draw_particles_3d :: proc(live: []particles.Particle3D) {
 	if len(live)==0 {return}
-	rl.BeginBlendMode(.ADDITIVE)
+	if active_overlay_3d!=nil {
+		// Additive foreground light must not create coverage that hides the world.
+		rlgl.SetBlendFactorsSeparate(0x0302,1,0,1,0x8006,0x8006)
+		rl.BeginBlendMode(.CUSTOM_SEPARATE)
+	} else {rl.BeginBlendMode(.ADDITIVE)}
 	rlgl.DisableDepthMask()
 	for p in live {
 		size,color:=particles.appearance_3d(p)
@@ -20,6 +24,7 @@ draw_particles_3d :: proc(live: []particles.Particle3D) {
 	rlgl.DrawRenderBatchActive()
 	rlgl.EnableDepthMask()
 	rl.EndBlendMode()
+	if active_overlay_3d!=nil {begin_overlay_3d_alpha_blend()}
 }
 
 // Called inside the active Camera2D and the ordinary sorted 2D draw pipeline.

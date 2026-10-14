@@ -368,12 +368,16 @@ play_audio :: proc(
 	return audio.play(&engine.audio, world, entity, instance_name)
 }
 
-stop_audio :: proc(engine: ^Engine, entity: ecs.Entity, instance_name: string) -> bool {
-	return audio.stop(&engine.audio, entity, instance_name)
+stop_audio :: proc(engine: ^Engine, entity: ecs.Entity, instance_name: string, fade_seconds: f32 = -1) -> bool {
+	return audio.stop(&engine.audio, entity, instance_name, fade_seconds)
 }
 
 audio_is_playing :: proc(engine: ^Engine, entity: ecs.Entity, instance_name: string) -> bool {
 	return audio.is_playing(&engine.audio, entity, instance_name)
+}
+
+audio_is_stopping :: proc(engine: ^Engine, entity: ecs.Entity, instance_name: string) -> bool {
+	return audio.is_stopping(&engine.audio, entity, instance_name)
 }
 
 // register_system appends a game system to the deterministic lifecycle order.

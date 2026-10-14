@@ -3,6 +3,30 @@ package render
 import "core:testing"
 
 @(test)
+camera_shake_sample_scales_and_stays_bounded :: proc(t: ^testing.T) {
+	testing.expect(t, camera_shake_sample(0.8, 0) == [2]f32{}, "sample starts from zero")
+	low := camera_shake_sample(0.25, 0.0375)
+	high := camera_shake_sample(0.5, 0.0375)
+	testing.expect(t, low != [2]f32{} && high == low * 2, "amplitude scales the same elapsed-time waveform")
+	for tick in 0..<256 {
+		offset := camera_shake_sample(0.8, f64(tick) / 1024)
+		testing.expect(t, abs(offset[0]) <= 0.8 && abs(offset[1]) <= 0.8, "sample stays within the configured amplitude")
+	}
+}
+
+@(test)
+camera_shake_sample_rejects_invalid_settings :: proc(t: ^testing.T) {
+	nan := transmute(f32)u32(0x7fc00000)
+	infinity := transmute(f32)u32(0x7f800000)
+	for amplitude in ([4]f32{0, -1, nan, infinity}) {
+		testing.expect(t, camera_shake_sample(amplitude, 0.0375) == [2]f32{}, "invalid amplitude returns zero")
+	}
+	for time in ([3]f64{-1, f64(nan), f64(infinity)}) {
+		testing.expect(t, camera_shake_sample(0.8, time) == [2]f32{}, "invalid elapsed time returns zero")
+	}
+}
+
+@(test)
 camera_shake_uses_elapsed_time_and_expires :: proc(t: ^testing.T) {
 	coarse, fine: Camera_Shake
 	camera_shake_start(&coarse, 0.8, 0.25)

@@ -33,6 +33,7 @@ AudioPlayer :: struct {
 	random_pitch:  f32,
 	max_voices:    i32,
 	looping:       bool,
+	fade_out_on_stop: f32, // Seconds; zero stops immediately.
 	spatial:       bool,
 	min_distance:  f32,
 	max_distance:  f32,
@@ -112,6 +113,10 @@ audio_player_from_json :: proc(data: json.Value) -> (AudioPlayer, bool) {
 	}
 	if value, found := object["looping"];
 	   found {result.looping, ok = value.(json.Boolean); if !ok {return {}, false}}
+	if value, found := object["fade_out_on_stop"]; found {
+		result.fade_out_on_stop, ok = read_number(value)
+		if !ok || !finite_nonnegative(result.fade_out_on_stop) {return {}, false}
+	}
 	if value, found := object["spatial"];
 	   found {result.spatial, ok = value.(json.Boolean); if !ok {return {}, false}}
 	if value, found := object["min_distance"]; found {

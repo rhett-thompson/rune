@@ -52,6 +52,14 @@ The capsule itself is not returned by physics ray/overlap queries and does not
 produce native contact/sensor events or collide with other query-only characters.
 Use its runtime state for grounding and support information.
 
+To test a projectile segment against a query-only character, use
+`ecs.character_controller_3d_raycast(world, entity, origin, translation, padding)`.
+It respects the current capsule height and gravity frame, reports starting
+overlap at fraction zero, and accepts optional nonnegative radius padding.
+Compare its hit fraction with `physics_3d_raycast`, or
+`physics_3d_sphere_cast(world, origin, translation, radius, filter)` for a finite
+projectile, to let nearer world geometry block the shot.
+
 ## Controls and timing
 
 ```odin

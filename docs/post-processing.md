@@ -4,6 +4,10 @@ Rune's optional r3d bridge renders a `PostProcessing` component from scene JSON,
 prefabs, or Odin. The core ECS and project validator do not depend on r3d.
 The profile controls 3D rendering; sprites, debug overlays, and HUD drawn after
 `r3d_bridge.draw_scene_ex` are outside its effects.
+Camera-local foreground models can join the HDR scene through
+`Scene3D_Settings.scene_overlay`, retaining their isolated depth while receiving
+bloom, exposure, output conversion and final screen effects. See
+[3D overlays](overlays-3d.md) for capture and composition.
 
 ## Scene authoring
 

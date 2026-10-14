@@ -119,7 +119,7 @@ on first emission; use a persistent allocator, not a frame scratch allocator.
 
 The 2D implementation supports world-space circles and textured quads,
 with linear size/color fades. Particle collision, arbitrary curves, local-space
-simulation, 3D billboards, and GPU simulation can be added as needed.
+simulation, and GPU simulation can be added as needed.
 
 ## Code-owned 3D bursts
 
@@ -161,6 +161,29 @@ lit material with black base color, white emission color, and HDR emission energ
 (for example 8). Birth colors tint emission and lifetime alpha fades radiance.
 The batch slices are borrowed only during the draw and are never retained.
 Particles do not collide with geometry during their motion.
+
+For softly lit floating particles, set a batch's `shape=.Billboard` and
+`blend=.Alpha`. The bridge draws camera-facing unit quads scaled to the particle
+diameters, using a generated radial alpha mask instead of the material's albedo
+texture. Material albedo color, lighting, and roughness still apply; particle
+color multiplies the material color and particle alpha controls opacity. Use a
+nonemissive material for dust, pollen, or snow. Billboards share the HDR scene,
+depth testing, and final effects, without writing depth or casting shadows.
+
+```odin
+ambient := r3d_bridge.Particle3D_Batch{
+    particles=motes[:], material="assets/ambient.material.json",
+    shape=.Billboard, blend=.Alpha,
+}
+```
+
+Each billboard batch uses one instanced draw, with alpha instances sorted from
+back to front along the camera's view. Reusable CPU/GPU storage belongs to the
+bridge context and grows only when the submitted particle or batch count exceeds
+its previous capacity. The radial texture is created once and released at bridge
+shutdown. Empty and invisible particles submit no draw; rendering never changes
+the borrowed simulation. The default `.Sphere` and `.Additive` behavior remains
+suitable for existing glowing bursts.
 
 For raylib-only 3D passes, including `render.Overlay3D`, call
 `render.draw_particles_3d(pool.particles[:pool.count])` inside the active 3D mode.

@@ -1,6 +1,7 @@
 package audio
 
 import "core:math"
+import "core:math/linalg"
 import "core:mem"
 import "core:path/filepath"
 import "core:strings"
@@ -29,6 +30,10 @@ Audio_Instance :: struct {
 	streaming:            bool,
 	path:                 string,
 	started:              bool,
+	stop_requested:       bool,
+	stop_fading:          bool,
+	fade_out_on_stop:     f32,
+	stop_fade_duration, stop_fade_elapsed: f32,
 	settings_initialized: bool,
 	volume, pitch, pan:   f32,
 	volume_offset:        f32,
@@ -103,9 +108,15 @@ update :: proc(system: ^Audio_System, world: ^ecs.World, dt: f32 = 0) {
 		current, instance_exists := system.instances[key]
 		// Deferred players load only when explicitly played.
 		if !instance_exists && !player.play_on_start {continue}
-		if !ensure_instance(system, key, player, !instance_exists || (player.play_on_start && !current.started)) {continue}
+		if !ensure_instance(system, key, player, !instance_exists || (player.play_on_start && !current.started && !current.stop_requested)) {continue}
 		instance := system.instances[key]
-		starting := player.play_on_start && !instance.started
+		instance.fade_out_on_stop = player.fade_out_on_stop
+		if instance.stop_fading && dt > 0 && !math.is_nan(dt) && !math.is_inf(dt) {
+			instance.stop_fade_elapsed = min(instance.stop_fade_duration, instance.stop_fade_elapsed+dt)
+			if instance.stop_fade_elapsed >= instance.stop_fade_duration {stop_instance(&instance)}
+		}
+		system.instances[key] = instance
+		starting := player.play_on_start && !instance.started && !instance.stop_requested
 		restarting :=
 			!instance.streaming &&
 			player.looping &&
@@ -152,8 +163,14 @@ play :: proc(
 	if !found || !ensure_instance(system, key, player, true) {return false}
 	listener_entity, _, listener_found := ecs.active_audio_listener(world)
 	instance := system.instances[key]
+	instance.fade_out_on_stop = player.fade_out_on_stop
+	instance.stop_requested, instance.stop_fading = false, false
+	instance.stop_fade_duration, instance.stop_fade_elapsed = 0, 0
+	instance.settings_initialized = false
+	system.instances[key] = instance
 	if !instance.streaming && !player.looping {
 		play_one_shot(system, world, key, player, listener_entity, listener_found)
+		apply_settings(system, world, key, player, listener_entity, listener_found)
 		return true
 	}
 	randomize_settings(system, key, player)
@@ -165,24 +182,50 @@ play :: proc(
 	return true
 }
 
-stop :: proc(system: ^Audio_System, entity: ecs.Entity, instance_name: string) -> bool {
-	if !system.available {return false}
+// Negative one uses the configured duration; zero forces an immediate stop.
+// Repeated requests leave an in-progress fade's remaining time unchanged.
+stop :: proc(system: ^Audio_System, entity: ecs.Entity, instance_name: string, fade_seconds: f32 = -1) -> bool {
+	if !system.available || math.is_nan(fade_seconds) || math.is_inf(fade_seconds) || (fade_seconds < 0 && fade_seconds != -1) {return false}
 	key := ecs.Component_Instance {
 		entity = entity,
 		name   = instance_name,
 	}
 	instance, found := system.instances[key]
 	if !found {return false}
-	if instance.streaming {
-		rl.StopMusicStream(instance.music)
+	duration := instance.fade_out_on_stop if fade_seconds == -1 else fade_seconds
+	if duration > 0 && !instance.suspended && is_playing(system,entity,instance_name) {
+		if instance.stop_fading {return true}
+		instance.stop_requested, instance.stop_fading = true, true
+		instance.stop_fade_duration, instance.stop_fade_elapsed = duration, 0
 	} else {
+		stop_instance(&instance)
+	}
+	system.instances[key] = instance
+	return true
+}
+
+stop_instance :: proc(instance: ^Audio_Instance) {
+	if instance.streaming {rl.StopMusicStream(instance.music)}
+	else {
 		rl.StopSound(instance.sound)
 		for &voice in instance.voices {rl.StopSound(voice.sound); voice.suspended = false}
 	}
 	instance.resume_stream, instance.resume_sound = false, false
-	instance.started = false
-	system.instances[key] = instance
-	return true
+	instance.started, instance.stop_fading = false, false
+	instance.stop_requested = true
+	instance.stop_fade_duration, instance.stop_fade_elapsed = 0, 0
+	instance.settings_initialized = false
+}
+
+stop_fade_gain :: proc(instance: Audio_Instance) -> f32 {
+	if !instance.stop_requested {return 1}
+	if !instance.stop_fading {return 0}
+	return clamp(1-instance.stop_fade_elapsed/instance.stop_fade_duration,0,1)
+}
+
+is_stopping :: proc(system: ^Audio_System, entity: ecs.Entity, instance_name: string) -> bool {
+	instance, found := system.instances[ecs.Component_Instance{entity=entity,name=instance_name}]
+	return system.available && found && instance.stop_fading
 }
 
 is_playing :: proc(system: ^Audio_System, entity: ecs.Entity, instance_name: string) -> bool {
@@ -292,7 +335,7 @@ apply_settings :: proc(
 ) {
 	instance := system.instances[key]
 	spatial_gain, pan := spatial_factors(world,key.entity,player,listener_entity,listener_found)
-	gain := spatial_gain*bus_gain(&system.mixer,player.bus)
+	gain := spatial_gain*bus_gain(&system.mixer,player.bus)*stop_fade_gain(instance)
 	volume := max(0, player.volume + instance.volume_offset)*gain
 	pitch := max(0.01, player.pitch + instance.pitch_offset)
 	if !instance.streaming && !player.looping {
@@ -415,21 +458,36 @@ spatial_factors :: proc(
 	f32,
 ) {
 	gain: f32 = 1
-	pan: f32 = 0.5
+	// raylib 6 uses signed stereo pan: -1 left, 0 center, +1 right.
+	pan: f32 = 0
 	if player.spatial && listener_found {
 		if ecs.has_component_data(world, listener_entity, "Transform") &&
 		   ecs.has_component_data(world, entity, "Transform") {
 			listener_transform := ecs.world_transform_3d(world, listener_entity)
 			player_transform := ecs.world_transform_3d(world, entity)
-			dx := player_transform.position[0] - listener_transform.position[0]
-			dy := player_transform.position[1] - listener_transform.position[1]
-			dz := player_transform.position[2] - listener_transform.position[2]
-			distance := f32(math.sqrt(f64(dx * dx + dy * dy + dz * dz)))
+			offset := player_transform.position - listener_transform.position
+			distance := linalg.length(offset)
 			gain = attenuation(distance, player.min_distance, player.max_distance)
-			if player.max_distance > 0 {pan = clamp(0.5 + 0.5 * dx / player.max_distance, 0, 1)}
+			if distance > 0 {
+				right := listener_right(world, listener_entity, listener_transform)
+				pan = clamp(linalg.dot(offset / distance, right), -1, 1)
+			}
 		}
 	}
 	return gain, pan
+}
+
+// Camera3D target/up are explicit world-space vectors, independent of its
+// Transform rotation. Standalone listeners use their composed local +X axis.
+listener_right :: proc(world: ^ecs.World, entity: ecs.Entity, transform: ecs.Transform) -> [3]f32 {
+	if camera, found := ecs.get_camera_3d(world, entity); found {
+		right := linalg.cross(camera.target - transform.position, camera.up)
+		length := linalg.length(right)
+		if length > 0.000001 && !math.is_nan(length) && !math.is_inf(length) {return right / length}
+	}
+	rotation := transform.rotation * f32(math.PI / 180)
+	orientation := linalg.quaternion_from_pitch_yaw_roll(rotation[0], rotation[1], rotation[2])
+	return linalg.quaternion_mul_vector3(orientation, [3]f32{1, 0, 0})
 }
 
 attenuation :: proc(distance, min_distance, max_distance: f32) -> f32 {

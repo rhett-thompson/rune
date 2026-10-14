@@ -216,13 +216,20 @@ is measured from the camera in world units (default 60 for grass, 250 otherwise)
 Grass shrinks smoothly through the last 20% of that distance; other details are
 culled at the limit. Terrain supports at most 32 detail definitions, 100,000
 candidates per definition, and 250,000 candidates total. Increase counts with
-care: moving the camera or terrain scans the detail positions again, and dense
-shadow-casting geometry has a rendering cost. Unchanged camera positions and
-terrain transforms reuse visibility and GPU instance streams. Camera rotation
-alone does not change this distance-based selection. CPU staging arrays are
+care: dense shadow-casting geometry has a rendering cost. Cached visibility
+includes a conservative camera movement radius derived from each root's distance
+to the culling boundary. Moving inside that radius reuses instance streams without
+scanning or uploading them; fully in-range model/tree/rock batches can therefore
+reuse the same buffers while walking. Outside that radius, exact root selection
+is checked again, and unchanged selections still avoid GPU uploads and repeated
+rotation/color construction. Terrain transforms and successful descriptor edits
+invalidate the cache. Built-in grass also respects the fade-start boundary;
+batches with visible fading grass continue evaluating distance-dependent scales
+as the camera moves. Camera rotation alone does not change this distance-based
+selection. CPU staging arrays are
 retained with each batch and included in the renderer's cache memory estimate.
-`Context.frame_stats.terrain_detail_rebuilds` counts batches whose visibility
-was rebuilt; `terrain_detail_uploads` counts nonempty batches whose four instance
+`Context.frame_stats.terrain_detail_rebuilds` counts batches whose packed instance
+data changed; `terrain_detail_uploads` counts nonempty batches whose four instance
 streams were uploaded that frame.
 
 These details are decorative: they do not create colliders, navigation obstacles,

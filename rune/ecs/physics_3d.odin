@@ -1,6 +1,7 @@
 package ecs
 
 import "core:encoding/json"
+import "core:math/linalg"
 import b3 "vendor:box3d"
 
 RigidBody3D :: struct {
@@ -237,6 +238,16 @@ sync_bodies_from_box3d :: proc(world: ^World) {
 		velocity := b3.Body_GetLinearVelocity(native)
 		angular_velocity := b3.Body_GetAngularVelocity(native)
 		transform.position = {f32(position.x), f32(position.y), f32(position.z)}
+		rotation := b3.Body_GetRotation(native)
+		authored_rotation := transform_rotation_quat(transform)
+		if b3.DotQuat(rotation, authored_rotation) < 0 {rotation = -rotation}
+		rotation_delta := rotation - authored_rotation
+		// Preserve equivalent authored Euler values until physics changes the
+		// orientation. Quaternion conversion roundoff must not rewrite idle poses.
+		if b3.DotQuat(rotation_delta, rotation_delta) > 1.0e-10 {
+			z, y, x := linalg.euler_angles_zyx_from_quaternion(rotation)
+			transform.rotation = [3]f32{x, y, z} / Radians_Per_Degree
+		}
 		body.velocity = {velocity.x, velocity.y, velocity.z}
 		body.angular_velocity = {angular_velocity.x, angular_velocity.y, angular_velocity.z}
 		if world.transforms[entity] != transform {record_component_change(world, entity, "Transform", .Changed)}
@@ -298,13 +309,18 @@ create_box3d_box_shape :: proc(
 		collider.rolling_resistance,
 	)
 	def.isSensor = collider.is_sensor
-	box := b3.MakeBoxHull(
-		collider.size[0] * transform.scale[0] * 0.5,
-		collider.size[1] * transform.scale[1] * 0.5,
-		collider.size[2] * transform.scale[2] * 0.5,
-	)
-	id := b3.CreateHullShape(body, def, &box.base)
-	world.physics_3d.shapes[b3.StoreShapeId(id)] = {entity, "BoxCollider"}
+	for index in 0..=len(collider.additional_boxes) {
+		part:=box_collider_box(collider,index)
+		offset:=part.offset*transform.scale
+		box := b3.MakeOffsetBoxHull(
+			part.size[0] * abs(transform.scale[0]) * 0.5,
+			part.size[1] * abs(transform.scale[1]) * 0.5,
+			part.size[2] * abs(transform.scale[2]) * 0.5,
+			{offset[0],offset[1],offset[2]},
+		)
+		id := b3.CreateHullShape(body, def, &box.base)
+		world.physics_3d.shapes[b3.StoreShapeId(id)] = {entity, "BoxCollider"}
+	}
 }
 
 create_box3d_sphere_shape :: proc(

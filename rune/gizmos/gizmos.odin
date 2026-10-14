@@ -265,16 +265,17 @@ draw_physics_3d :: proc(world: ^ecs.World) {
 		transform, has_transform := ecs.get_transform(world, entity)
 		collider, has_collider := ecs.get_box_collider(world, entity)
 		if !has_transform || !has_collider {continue}
-		half := rl.Vector3 {
-			collider.size[0] * abs_f32(transform.scale[0]) * 0.5,
-			collider.size[1] * abs_f32(transform.scale[1]) * 0.5,
-			collider.size[2] * abs_f32(transform.scale[2]) * 0.5,
+		for index in 0..=len(collider.additional_boxes) {
+			part:=ecs.box_collider_box(collider,index)
+			pose:=ecs.box_collider_box_transform(transform,part)
+			half := rl.Vector3 {
+				part.size[0] * abs_f32(pose.scale[0]) * 0.5,
+				part.size[1] * abs_f32(pose.scale[1]) * 0.5,
+				part.size[2] * abs_f32(pose.scale[2]) * 0.5,
+			}
+			box := rl.BoundingBox {min=pose.position-half,max=pose.position+half}
+			rl.DrawBoundingBox(box, rl.LIME if collider.is_static else rl.YELLOW)
 		}
-		box := rl.BoundingBox {
-			min = transform.position - half,
-			max = transform.position + half,
-		}
-		rl.DrawBoundingBox(box, rl.LIME if collider.is_static else rl.YELLOW)
 	}
 	for entity in ecs.entities_with_component(world, "SphereCollider") {
 		transform, has_transform := ecs.get_transform(world, entity)

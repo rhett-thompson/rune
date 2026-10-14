@@ -10,6 +10,11 @@ import rl "vendor:raylib"
 
 Scene3D_Settings :: struct {
 	particle_batches: []Particle3D_Batch,
+	// Render borrowed camera-local color/emission textures before the scene pass.
+	// They join scene HDR color before bloom, output conversion and final effects,
+	// retaining their own depth instead of replacing the world depth buffer.
+	scene_overlay: Scene_Overlay_Draw,
+	scene_overlay_data: rawptr,
 	// By default time-enabled material shaders follow raylib's elapsed seconds.
 	// An explicit override supports a paused simulation or reproducible captures.
 	material_time: f32,
@@ -57,6 +62,7 @@ Context :: struct {
 	instancing_enabled: bool,
 	prop_batches: map[Prop_Batch_Key]Prop_Batch,
 	prop_buffer_pool: [dynamic]r3d.InstanceBuffer,
+	particle_billboards: Particle_Billboard_Renderer,
 	prop_sources: map[ecs.Entity]Prop_Source,
 	prop_source_manager: ^assets.Asset_Manager,
 	prop_material_revision: u64,
@@ -100,6 +106,8 @@ Context :: struct {
 	height_fog_attempted:     bool,
 	film_grain_shader: ^r3d.ScreenShader,
 	film_grain_attempted: bool,
+	scene_overlay_shader: ^r3d.ScreenShader,
+	scene_overlay_attempted: bool,
 	light_shafts_shader: ^r3d.ScreenShader,
 	light_shafts_attempted: bool,
 	// Follow the window framebuffer by default; disable for a fixed internal resolution.
@@ -175,6 +183,7 @@ shutdown :: proc(ctx: ^Context) {
 	release_gpu_timing(ctx)
 	release_render_cache(ctx)
 	release_prop_buffer_pool(ctx)
+	release_particle_billboards(ctx)
 	release_static_meshes(ctx)
 	delete(ctx.static_meshes)
 	delete(ctx.static_nodes)
@@ -193,6 +202,9 @@ shutdown :: proc(ctx: ^Context) {
 	if ctx.film_grain_shader!=nil {r3d.UnloadScreenShader(ctx.film_grain_shader)}
 	ctx.film_grain_shader=nil
 	ctx.film_grain_attempted=false
+	if ctx.scene_overlay_shader!=nil {r3d.UnloadScreenShader(ctx.scene_overlay_shader)}
+	ctx.scene_overlay_shader=nil
+	ctx.scene_overlay_attempted=false
 	if ctx.light_shafts_shader!=nil {r3d.UnloadScreenShader(ctx.light_shafts_shader)}
 	ctx.light_shafts_shader=nil
 	ctx.light_shafts_attempted=false
@@ -283,6 +295,9 @@ draw_scene_ex :: proc(
 	apply_skybox(ctx, world, asset_manager, entity)
 	apply_ambient(world)
 	create_scene_lights(ctx, world, asset_manager)
+	// Raylib texture modes must finish before R3D begins its own render session.
+	// The callback may use a separate lens and depth buffer for foreground models.
+	overlay_enabled:=prepare_scene_overlay(ctx,asset_manager,settings,viewport,sampling_projection)
 
 	if sampling_projection {
 		r3d.BeginPro({camera=r3d.CameraFromRL(camera),viewport=viewport})
@@ -302,7 +317,7 @@ draw_scene_ex :: proc(
 	} else {
 		draw_cached_entities(ctx,world,asset_manager)
 	}
-	draw_particles_3d(ctx,asset_manager,settings.particle_batches)
+	draw_particles_3d(ctx,asset_manager,settings.particle_batches,camera)
 	// Fog the opaque background before alpha clouds. Their own ray samples
 	// integrate height fog only up to the sample, never to the sky behind them.
 	chain: [3]^r3d.ScreenShader
@@ -313,6 +328,18 @@ draw_scene_ex :: proc(
 	if count > 0 {set_pre_transparency_shader_chain(raw_data(chain[:]),count)}
 	grain_enabled:=prepare_film_grain(ctx,world,asset_manager,entity,settings.post_processing_override)
 	if grain_enabled {r3d.SetScreenShaderChain(.FINAL, &ctx.film_grain_shader, 1)}
+	if overlay_enabled {
+		when PRE_TRANSPARENCY_SHADERS_SUPPORTED {
+			r3d.SetScreenShaderChain(.SCENE, &ctx.scene_overlay_shader, 1)
+		} else {
+			// Other targets keep atmosphere in R3D's scene stage. Compose after
+			// those effects instead of replacing the compatibility chain.
+			scene_chain: [4]^r3d.ScreenShader
+			copy(scene_chain[:count],chain[:count])
+			scene_chain[count]=ctx.scene_overlay_shader
+			r3d.SetScreenShaderChain(.SCENE,raw_data(scene_chain[:]),count+1)
+		}
+	}
 	backend_started:=rl.GetTime()
 	update_material_shader_time(ctx, settings, backend_started)
 	gpu_slot:=begin_gpu_timing(ctx)
@@ -321,6 +348,7 @@ draw_scene_ex :: proc(
 	ctx.frame_stats.backend_cpu_ms=(rl.GetTime()-backend_started)*1000
 	if count > 0 {set_pre_transparency_shader_chain(nil,0)}
 	if grain_enabled {r3d.SetScreenShaderChain(.FINAL, nil, 0)}
+	if overlay_enabled {r3d.SetScreenShaderChain(.SCENE, nil, 0)}
 	draw_debug_overlays(world, visible_camera, settings)
 	ctx.frame_stats.scene_cpu_ms=(rl.GetTime()-started)*1000
 	return true
@@ -982,16 +1010,17 @@ draw_collision_debug :: proc(world: ^ecs.World) {
 		collider, has_collider := ecs.get_box_collider(world, entity)
 		transform, has_transform := ecs.get_transform(world, entity)
 		if !has_collider || !has_transform {continue}
-		half := [3]f32 {
-			collider.size[0] * transform.scale[0] * 0.5,
-			collider.size[1] * transform.scale[1] * 0.5,
-			collider.size[2] * transform.scale[2] * 0.5,
+		for index in 0..=len(collider.additional_boxes) {
+			part:=ecs.box_collider_box(collider,index)
+			pose:=ecs.box_collider_box_transform(transform,part)
+			half := [3]f32 {
+				part.size[0] * abs(pose.scale[0]) * 0.5,
+				part.size[1] * abs(pose.scale[1]) * 0.5,
+				part.size[2] * abs(pose.scale[2]) * 0.5,
+			}
+			box := rl.BoundingBox {min=pose.position-half,max=pose.position+half}
+			rl.DrawBoundingBox(box, rl.LIME if collider.is_static else rl.YELLOW)
 		}
-		box := rl.BoundingBox {
-			min = transform.position - half,
-			max = transform.position + half,
-		}
-		rl.DrawBoundingBox(box, rl.LIME if collider.is_static else rl.YELLOW)
 	}
 	for entity in ecs.entities_with_component(world, "SphereCollider") {
 		collider, has_collider := ecs.get_sphere_collider(world, entity)

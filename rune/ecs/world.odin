@@ -334,6 +334,7 @@ destroy :: proc(world: ^World) {
 	delete(world.one_way_contacts_2d)
 	delete(world.rigid_bodies_3d)
 	delete(world.box3d_bodies)
+	for _,collider in world.box_colliders {delete(collider.additional_boxes)}
 	delete(world.box_colliders)
 	delete(world.sphere_colliders)
 	delete(world.character_controllers_3d)
@@ -846,7 +847,7 @@ remove_component :: proc(world: ^World, entity: Entity, name: string) -> bool {
 	if name == "CircleCollider2D" {delete_key(&world.circle_colliders_2d, entity)}
 	if name ==
 	   "RigidBody3D" {delete_key(&world.rigid_bodies_3d, entity); delete_key(&world.box3d_bodies, entity)}
-	if name == "BoxCollider" {delete_key(&world.box_colliders, entity)}
+	if name == "BoxCollider" {delete(world.box_colliders[entity].additional_boxes); delete_key(&world.box_colliders, entity)}
 	if name == "SphereCollider" {delete_key(&world.sphere_colliders, entity)}
 	if name == "CharacterController" {delete_key(&world.character_controllers, entity)}
 	if name == "Orbit" {delete_key(&world.orbits, entity)}

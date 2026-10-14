@@ -7,6 +7,18 @@ values index a caller-provided RGBA palette. `fill_box` fills half-open bounds.
 same color index. Solid/solid boundaries are omitted. The caller owns the
 returned `Mesh`; release it with `geometry.destroy_mesh`.
 
+`geometry.encode_mesh(mesh)` returns owned `[]u8` and an error string;
+`geometry.decode_mesh(bytes)` returns an owned `Mesh` and an error string.
+An empty error means success. These functions use a portable RGMS v1 binary
+stream with explicit little-endian 32-bit position/normal components, RGBA
+colors, and triangle indices. A checksum catches payload corruption. Decoding
+checks version, exact length, count limits, finite coordinates, normals,
+indices, and degenerate triangles before returning data. Empty meshes are
+supported for optional collision or decoration channels. Delete encoded bytes
+with `delete` and decoded meshes with `destroy_mesh`. Games can embed the
+streams in their own baked-level containers; source fingerprints, materials,
+chunk layout, placement, and other game metadata belong to that container.
+
 `append_tube(&mesh, points, radius, sides=8, color={255,255,255,255})` adds a
 capped circular tube along a caller-sampled `[][3]f32` path. Side rings follow
 averaged path tangents and retain smooth normals; endpoint caps have separate

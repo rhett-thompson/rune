@@ -28,8 +28,14 @@ previous fade starting at the current value; setting volume cancels a fade.
 
 Spatial audio measures XYZ distance between the emitter and listener's composed
 3D world positions, including ancestor translation, rotation, and scale. The
-distance settings are world units. Pan uses their world X separation; it does
-not rotate with the camera. Both entities require their own `Transform`.
+distance settings are world units. Gain is full through `min_distance`, then
+falls linearly to silence at `max_distance`. Stereo pan follows the source's
+direction relative to the listener: a listener with `Camera3D` uses that
+camera's world-space `target` and `up`; a standalone listener uses its composed
+Transform's local +X axis as right. Turning or rolling the camera updates pan
+for every active voice. Nonspatial players stay centered and unattenuated.
+Both entities require their own `Transform`. This is stereo positioning and
+distance falloff; it does not add geometry occlusion or HRTF processing.
 
 Changes affect buffered sounds, all overlapping aliases, looping sounds, and
 streaming music on the next audio update. A newly played sound uses the current
@@ -46,6 +52,42 @@ automatic ducking, or track scheduler.
 The Audio Components example demonstrates SFX controls: M toggles mute, F fades
 out over two seconds, R restores volume, and left-click plays the bell. The Clay
 example's volume slider controls the master bus.
+
+## Fade out on stop
+
+Set `AudioPlayer.fade_out_on_stop` to fade a named player's active playback to
+silence before stopping it. The duration is seconds, must be finite and
+nonnegative, and defaults to `0` for an immediate stop.
+
+```json
+"AudioPlayer": {
+  "motor": { "sound": "assets/motor.ogg", "looping": true,
+             "fade_out_on_stop": 0.5 }
+}
+```
+
+```odin
+rune.stop_audio(&game, entity, "motor") // Use the component's duration.
+rune.stop_audio(&game, entity, "motor", 1.0) // Override this stop to one second.
+rune.stop_audio(&game, entity, "motor", 0) // Stop immediately.
+```
+
+The optional duration on `rune.stop_audio` and `audio.stop` defaults to `-1`,
+which uses the configured duration. A finite nonnegative override applies only
+to that stop and leaves the component unchanged. Other negative or nonfinite
+durations are rejected.
+
+`rune.audio_is_stopping` / `audio.is_stopping` report a pending fade. Playback
+remains active until the fade finishes; an explicit play cancels the fade.
+
+The linear fade applies to the streaming channel and every active buffered
+voice, independently of bus fades and distance attenuation. It advances using
+frame time passed to `audio.update`, including while gameplay is paused. Repeated
+stop calls leave an existing fade's deadline unchanged. An explicit play cancels
+the pending stop and starts playback at the normal player gain. Removing the
+player or shutting down the audio system still releases playback immediately.
+An explicit stop also suppresses `play_on_start` from automatically restarting
+the player until another explicit play or a source configuration change.
 
 ```powershell
 # Windows PowerShell; on Linux omit .exe and -linker:msvc, and use ./build/...

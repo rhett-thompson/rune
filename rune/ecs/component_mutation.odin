@@ -60,6 +60,11 @@ component_value_valid :: proc(value: $T) -> bool {
 	} else when T == BoxCollider || T == BoxCollider2D {
 		for size in value.size {if !(size > 0) || math.is_inf(size) {return false}}
 		when T == BoxCollider {
+			if len(value.additional_boxes)>MAX_ADDITIONAL_COLLIDER_BOXES {return false}
+			for box in value.additional_boxes {
+				if !physics_query_vector_valid(box.offset) {return false}
+				for size in box.size {if !(size>0) || math.is_inf(size) {return false}}
+			}
 			return finite_nonnegative(value.friction) && finite_nonnegative(value.restitution) && finite_nonnegative(value.rolling_resistance)
 		}
 	} else when T == SphereCollider || T == CircleCollider2D {
@@ -76,6 +81,7 @@ component_value_valid :: proc(value: $T) -> bool {
 		for clip in value.clips {if clip == "" {return false}}
 		return (value.sound != "" || len(value.clips) > 0) && finite_nonnegative(value.volume) && value.pitch > 0 && !math.is_inf(value.pitch) &&
 		       finite_nonnegative(value.random_volume) && finite_nonnegative(value.random_pitch) && value.max_voices >= 1 &&
+		       finite_nonnegative(value.fade_out_on_stop) &&
 		       finite_nonnegative(value.min_distance) && value.max_distance >= value.min_distance && !math.is_inf(value.max_distance)
 	} else when T == CharacterController {
 		return value.radius > 0 && value.height > 0 && value.eye_height > 0 && value.eye_height <= value.height &&
@@ -122,6 +128,14 @@ commit_component_value :: proc(
 		if !existed || !polygon_colliders_equal_2d(previous, value) {physics_2d_remove_entity(world, entity)}
 		if existed {delete(previous.vertices)}
 	}
+	when T == BoxCollider {
+		// Clone before releasing previous storage: callers may reuse a getter's
+		// borrowed slice while changing scalar settings.
+		stored_value.additional_boxes=make([]BoxCollider_Box,len(value.additional_boxes))
+		copy(stored_value.additional_boxes,value.additional_boxes)
+		if !existed || !box_colliders_equal(previous,value) {physics_3d_remove_entity(world,entity)}
+		if existed {delete(previous.additional_boxes)}
+	}
 	when T == CharacterController2D {
 		if !existed {physics_2d_remove_entity(world,entity)}
 		if !existed || previous != value {character_controller_2d_reset_state(world,entity,preserve_posture=true)}
@@ -142,7 +156,7 @@ commit_component_value :: proc(
 		physics_3d_body_edited(world, entity, previous, value)
 	} else when T == BoxCollider2D || T == CircleCollider2D || T == CapsuleCollider2D || T == SegmentCollider2D {
 		if !existed || previous != value {physics_2d_remove_entity(world, entity)}
-	} else when T == BoxCollider || T == SphereCollider {
+	} else when T == SphereCollider {
 		if !existed || previous != value {physics_3d_remove_entity(world, entity)}
 	} else when T == ModelAnimator {
 		stored_value.clip = retain_scene_string(world, value.clip)

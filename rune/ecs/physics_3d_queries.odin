@@ -53,6 +53,22 @@ physics_3d_raycast :: proc(
 	return query.hit, query.found
 }
 
+// Sweep a sphere over a bounded translation. The hit fraction is travel of its
+// centre; the returned point lies on the closest contacted solid surface.
+physics_3d_sphere_cast :: proc(world: ^World, origin, translation: [3]f32, radius: f32, filter := Default_Physics_Query_Filter) -> (Raycast_Hit_3D, bool) {
+	if world==nil || !physics_query_vector_valid(origin) || !physics_query_vector_valid(translation) ||
+	   translation==([3]f32{}) || !finite_nonnegative(radius) || filter.layers==0 {return {},false}
+	if radius==0 {return physics_3d_raycast(world,origin,translation,filter)}
+	ensure_box3d_world(world)
+	if world.physics_3d.needs_sync || len(world.terrains)>0 || len(world.static_meshes)>0 {sync_bodies_to_box3d(world)}
+	point:b3.Vec3
+	proxy:=b3.ShapeProxy{points=&point,count=1,radius=radius}
+	query:=Physics_Query_3D{caller_context=context,world=world,filter=filter}
+	_ = b3.World_CastShape(world.box3d_world,{origin[0],origin[1],origin[2]},proxy,
+		{translation[0],translation[1],translation[2]},{categoryBits=filter.layers,maskBits=filter.layers},physics_3d_ray_result,&query)
+	return query.hit,query.found
+}
+
 physics_3d_ray_result :: proc "c" (
 	shape: b3.ShapeId,
 	point: b3.Pos,
