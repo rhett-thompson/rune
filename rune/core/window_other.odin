@@ -6,8 +6,6 @@ import rl "vendor:raylib"
 // These symbols are provided by raylib's bundled desktop GLFW backend. Query
 // native window units rather than guessing from DPI (Wayland/macOS differ).
 foreign {
-	glfwGetCurrentContext :: proc "c" () -> rawptr ---
-	glfwGetWindowSize :: proc "c" (window: rawptr, width, height: ^i32) ---
 	glfwGetMonitors :: proc "c" (count: ^i32) -> [^]rawptr ---
 	glfwGetMonitorWorkarea :: proc "c" (monitor: rawptr, x,y,width,height: ^i32) ---
 	glfwGetWindowFrameSize :: proc "c" (window: rawptr, left,top,right,bottom: ^i32) ---

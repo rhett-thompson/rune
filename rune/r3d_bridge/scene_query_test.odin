@@ -7,6 +7,90 @@ import "rune:geometry"
 import rl "vendor:raylib"
 
 @(test)
+scene_query_cached_model_bounds_follow_rendered_nonuniform_hierarchy :: proc(t:^testing.T) {
+	w:=ecs.init(); defer ecs.destroy(&w)
+	r:=ecs.init_registry(); defer ecs.destroy_registry(&r); ecs.register_builtin_components(&r)
+	bridge:=Context{models=make(map[string]Model_Asset)}; defer delete(bridge.models)
+	bridge.models["fixture.obj"]={model={meshCount=1,aabb={{-1,-0.25,-0.5},{1,0.75,0.5}}}}
+	root:=ecs.create_entity(&w); ecs.add(&w,&r,root,ecs.Transform{position={10,0,0},rotation={0,90,0},scale={2,1,1}})
+	child:=ecs.create_entity(&w); ecs.set_parent(&w,child,root)
+	ecs.add(&w,&r,child,ecs.Transform{position={1,2,0},rotation={0,-45,0},scale={1,1,4}})
+	testing.expect(t,ecs.add(&w,&r,child,ecs.ModelRenderer{model="fixture.obj"}))
+	// Composed pose is (10,2,-2), yaw 45, scale (2,1,4). The
+	// model's front-face centre and outward normal are known in world space.
+	s:=f32(math.SQRT_TWO*0.5)
+	front:=[3]f32{10-f32(math.SQRT_TWO),2.25,-2-f32(math.SQRT_TWO)}
+	normal:=[3]f32{-s,0,-s}
+	origin:=front+normal*3
+	hit,ok:=scene_raycast(&w,origin,-normal*10,bridge=&bridge)
+	testing.expect(t,ok && hit.entity==child && abs(hit.distance-3)<0.001 && rl.Vector3Length(hit.point-front)<0.001,"cached model AABB follows the same composed hierarchy as its renderer without a collider or GPU")
+	testing.expect(t,abs(rl.Vector3Length(hit.normal)-1)<0.001 && rl.Vector3Length(hit.normal-normal)<0.001,"nonuniform model scale preserves unit world-space surface normals")
+	_,ok=scene_raycast(&w,origin,-normal*2.9,bridge=&bridge)
+	testing.expect(t,!ok,"imported model picking respects the world-space segment limit")
+	back,back_ok:=scene_raycast(&w,origin-normal*10,normal*10,bridge=&bridge)
+	testing.expect(t,back_ok && abs(back.distance-3)<0.001 && rl.Vector3Length(back.normal+normal)<0.001,"cached model surfaces can be inspected from both sides")
+	low,high,bounded:=scene_projected_bounds(&w,root,{10,0,0},{7,0,0},bridge=&bridge)
+	extent:=f32(2*math.SQRT_TWO)
+	testing.expect(t,bounded && abs(low+extent)<0.001 && abs(high-extent)<0.001,"model support projects its rotated local bounds rather than a world-axis-aligned box")
+	low,high,bounded=scene_projected_bounds(&w,root,{0,1,0},{0,5,0},bridge=&bridge)
+	testing.expect(t,bounded && abs(low-0.75)<0.001 && abs(high-1.75)<0.001,"asymmetric model bounds retain their local centre and the caller's projection origin")
+}
+
+@(test)
+scene_query_cached_models_preserve_occlusion_ignores_and_activation :: proc(t:^testing.T) {
+	w:=ecs.init(); defer ecs.destroy(&w)
+	r:=ecs.init_registry(); defer ecs.destroy_registry(&r); ecs.register_builtin_components(&r)
+	bridge:=Context{models=make(map[string]Model_Asset)}; defer delete(bridge.models)
+	bridge.models["fixture.obj"]={model={meshCount=1,aabb={{-2,-0.5,-0.2},{0.25,0.5,0.2}}}}
+	root:=ecs.create_entity(&w); ecs.add(&w,&r,root,ecs.Transform{position={0,0,4},scale={1,1,1}})
+	child:=ecs.create_entity(&w); ecs.set_parent(&w,child,root)
+	ecs.add(&w,&r,child,ecs.Transform{position={0,0,1},scale={1,1,1}}); ecs.add(&w,&r,child,ecs.ModelRenderer{model="fixture.obj"})
+	far:=ecs.create_entity(&w); ecs.add(&w,&r,far,ecs.Transform{position={0,0,9},scale={1,1,1}}); ecs.add(&w,&r,far,ecs.MeshRenderer{primitive="cube"})
+	hit,ok:=scene_raycast(&w,{},{0,0,20},bridge=&bridge)
+	testing.expect(t,ok && hit.entity==child && abs(hit.distance-4.8)<0.001,"model bounds occlude farther primitives")
+	hit,ok=scene_raycast(&w,{},{0,0,20},child,&bridge)
+	testing.expect(t,ok && hit.entity==far,"exact ignore can skip an imported model")
+	roots:=[1]ecs.Entity{root}
+	hit,ok=scene_raycast(&w,{},{0,0,20},bridge=&bridge,ignored_subtrees=roots[:])
+	testing.expect(t,ok && hit.entity==far,"subtree ignore excludes model descendants")
+	hit,ok=scene_raycast(&w,{-1,0,0},{0,0,20},bridge=&bridge)
+	testing.expect(t,ok && hit.entity==child,"asymmetric imported bounds remain pickable outside a unit cube")
+	_,ok=scene_raycast(&w,{0.75,0,0},{0,0,20},bridge=&bridge)
+	testing.expect(t,!ok,"a model does not invent a centred unit-box footprint")
+	ecs.set_enabled(&w,root,false)
+	hit,ok=scene_raycast(&w,{},{0,0,20},bridge=&bridge)
+	testing.expect(t,ok && hit.entity==far,"disabled model ancestors do not occlude visible geometry")
+	_,_,disabled_support:=scene_projected_bounds(&w,root,{},{1,0,0},bridge=&bridge)
+	testing.expect(t,!disabled_support,"disabled imported subtrees do not contribute support")
+	low,high,bounded:=scene_projected_bounds(&w,root,{},{1,0,0},include_disabled=true,bridge=&bridge)
+	testing.expect(t,bounded && abs(low+2)<0.001 && abs(high-0.25)<0.001,"source bounds remain measurable when explicitly including disabled models")
+	ecs.set_enabled(&w,root,true); ecs.set_enabled(&w,child,false)
+	_,_,bounded=scene_projected_bounds(&w,root,{},{1,0,0},bridge=&bridge)
+	testing.expect(t,!bounded,"local model activation also controls support")
+}
+
+@(test)
+scene_queries_do_not_invent_imported_bounds_without_a_matching_cache :: proc(t:^testing.T) {
+	w:=ecs.init(); defer ecs.destroy(&w)
+	r:=ecs.init_registry(); defer ecs.destroy_registry(&r); ecs.register_builtin_components(&r)
+	bridge:=Context{models=make(map[string]Model_Asset)}; defer delete(bridge.models)
+	e:=ecs.create_entity(&w); ecs.add(&w,&r,e,ecs.Transform{position={0,0,5},scale={1,1,1}}); ecs.add(&w,&r,e,ecs.ModelRenderer{model="fixture.obj"})
+	_,ok:=scene_raycast(&w,{},{0,0,10}); testing.expect(t,!ok,"a context-free query does not load an imported asset")
+	_,_,bounded:=scene_projected_bounds(&w,e,{},{1,0,0}); testing.expect(t,!bounded)
+	bridge.models["other.obj"]={model={meshCount=1,aabb={{-1,-1,-1},{1,1,1}}}}
+	_,ok=scene_raycast(&w,{},{0,0,10},bridge=&bridge); testing.expect(t,!ok,"unrelated cached models do not supply geometry")
+	_,_,bounded=scene_projected_bounds(&w,e,{},{1,0,0},bridge=&bridge); testing.expect(t,!bounded)
+	bridge.models["fixture.obj"]={model={meshCount=1,aabb={{-1,-1,-1},{1,1,1}}}}
+	hit:Scene_Ray_Hit
+	hit,ok=scene_raycast(&w,{},{0,0,10},bridge=&bridge); testing.expect(t,ok && abs(hit.distance-4)<0.001)
+	bridge.models["fixture.obj"]={model={meshCount=1,aabb={{-1,-1,1},{1,1,2}}}}
+	hit,ok=scene_raycast(&w,{},{0,0,10},bridge=&bridge); testing.expect(t,ok && abs(hit.distance-6)<0.001,"replacement cache bounds are used on the next query")
+	bridge.models["fixture.obj"]={model={meshCount=1,aabb={{1,0,0},{-1,1,1}}}}
+	_,ok=scene_raycast(&w,{},{0,0,10},bridge=&bridge); testing.expect(t,!ok,"invalid cached extents cannot produce a hit")
+	_,_,bounded=scene_projected_bounds(&w,e,{},{1,0,0},bridge=&bridge); testing.expect(t,!bounded)
+}
+
+@(test)
 scene_query_picks_render_only_primitives_with_hierarchy_and_occlusion :: proc(t: ^testing.T) {
 	w:=ecs.init(); defer ecs.destroy(&w)
 	r:=ecs.init_registry(); defer ecs.destroy_registry(&r); ecs.register_builtin_components(&r)

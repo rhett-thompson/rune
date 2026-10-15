@@ -32,10 +32,25 @@ scene_query_in_subtree :: proc(world:^ecs.World,entity,root:ecs.Entity) -> bool 
 	return false
 }
 
+// Query already imported assets only. The cached local AABB is a conservative
+// static-model surface; queries never import models or create GPU resources.
+scene_query_model_bounds :: proc(world:^ecs.World,entity:ecs.Entity,bridge:^Context) -> (rl.BoundingBox,bool) {
+	if bridge==nil {return {},false}
+	renderer,has_model:=ecs.get_model_renderer(world,entity)
+	if !has_model {return {},false}
+	asset,cached:=bridge.models[renderer.model]
+	if !cached || asset.model.meshCount<=0 {return {},false}
+	bounds:=asset.model.aabb
+	if !scene_query_vector_valid(bounds.min) || !scene_query_vector_valid(bounds.max) {return {},false}
+	for axis in 0..<3 {if bounds.min[axis]>bounds.max[axis] {return {},false}}
+	return bounds,true
+}
+
 // Picks visible cube/plane/quad/sphere primitives and runtime static meshes,
 // including render-only meshes. Shader transparency and volumes are not tested.
 // Translation is a complete world-space segment. No GPU context is required;
-// an optional bridge context supplies cached static-mesh bounds.
+// an optional bridge context supplies cached static-mesh and ModelRenderer
+// bounds. Imported models use their local AABB, not animated/skinned triangles.
 // ignore remains exact; ignored_subtrees excludes each root and its descendants.
 scene_raycast :: proc(world: ^ecs.World, origin, translation: [3]f32, ignore: ecs.Entity=0, bridge: ^Context=nil, ignored_subtrees:[]ecs.Entity=nil) -> (Scene_Ray_Hit,bool) {
 	if world==nil {return {},false}
@@ -50,7 +65,8 @@ scene_raycast :: proc(world: ^ecs.World, origin, translation: [3]f32, ignore: ec
 		for root in ignored_subtrees {if scene_query_in_subtree(world,entity,root) {excluded=true; break}}
 		if excluded {continue}
 		mesh,has_mesh:=ecs.get_mesh_renderer(world,entity); sphere,has_sphere:=ecs.get_sphere_renderer(world,entity)
-		if !has_mesh && !has_sphere {continue}
+		model_bounds,has_model:=scene_query_model_bounds(world,entity,bridge)
+		if !has_mesh && !has_sphere && !has_model {continue}
 		pose,valid:=ecs.terrain_transform(world,entity); if !valid {continue}
 		pose_matrix:=rl.MatrixTranslate(pose.position[0],pose.position[1],pose.position[2])*rl.QuaternionToMatrix(rotation_quaternion(pose))*rl.MatrixScale(pose.scale[0],pose.scale[1],pose.scale[2])
 		inverse:=rl.MatrixInvert(pose_matrix)
@@ -85,6 +101,10 @@ scene_raycast :: proc(world: ^ecs.World, origin, translation: [3]f32, ignore: ec
 			sphere_hit:=rl.GetRayCollisionSphere(local_ray,{},sphere.radius)
 			if sphere_hit.hit && (!hit.hit || sphere_hit.distance<hit.distance) {hit=sphere_hit}
 		}
+		if has_model {
+			model_hit:=rl.GetRayCollisionBox(local_ray,model_bounds)
+			if model_hit.hit && (!hit.hit || model_hit.distance<hit.distance) {hit=model_hit}
+		}
 		if !hit.hit {continue}
 		point:=rl.Vector3Transform(hit.point,pose_matrix)
 		delta:=point-ray.position
@@ -99,17 +119,20 @@ scene_raycast :: proc(world: ^ecs.World, origin, translation: [3]f32, ignore: ec
 	return result,found
 }
 
-// Exact directional extents of supported rendered geometry in this subtree.
+// Directional extents of supported rendered geometry in this subtree.
 // Direction is normalized; distances are world units relative to origin.
 // This uses the same composed TRS as rendering and requires no GPU context.
 // include_disabled allows authoring tools to measure hidden source geometry.
-scene_projected_bounds :: proc(world:^ecs.World,root:ecs.Entity,origin,direction:[3]f32,include_disabled:bool=false) -> (minimum,maximum:f32,found:bool) {
+// Primitive/static mesh support is exact. Imported models require a bridge
+// with a cached asset and conservatively project its local AABB corners.
+scene_projected_bounds :: proc(world:^ecs.World,root:ecs.Entity,origin,direction:[3]f32,include_disabled:bool=false,bridge:^Context=nil) -> (minimum,maximum:f32,found:bool) {
 	if world==nil || !ecs.is_alive(world,root) || !scene_query_vector_valid(origin) {return 0,0,false}
 	axis,valid:=scene_query_unit(direction); if !valid {return 0,0,false}
 	for entity in world.entities {
 		if !scene_query_in_subtree(world,entity,root) || (!include_disabled && !ecs.is_enabled(world,entity)) {continue}
 		mesh,has_mesh:=ecs.get_mesh_renderer(world,entity); sphere,has_sphere:=ecs.get_sphere_renderer(world,entity)
-		if !has_mesh && !has_sphere {continue}
+		model_bounds,has_model:=scene_query_model_bounds(world,entity,bridge)
+		if !has_mesh && !has_sphere && !has_model {continue}
 		pose,pose_ok:=ecs.terrain_transform(world,entity); if !pose_ok {continue}
 		rotation:=rotation_quaternion(pose)
 		transform:=rl.MatrixTranslate(pose.position[0],pose.position[1],pose.position[2])*rl.QuaternionToMatrix(rotation)*rl.MatrixScale(pose.scale[0],pose.scale[1],pose.scale[2])
@@ -144,6 +167,15 @@ scene_projected_bounds :: proc(world:^ecs.World,root:ecs.Entity,origin,direction
 			center:=rl.Vector3DotProduct(pose.position-origin,axis)
 			if !found {minimum,maximum,found=center-radius,center+radius,true}
 			else {minimum=min(minimum,center-radius); maximum=max(maximum,center+radius)}
+		}
+		if has_model {
+			for i in 0..<8 {
+				corner:=[3]f32{model_bounds.max[0] if i&1!=0 else model_bounds.min[0],model_bounds.max[1] if i&2!=0 else model_bounds.min[1],model_bounds.max[2] if i&4!=0 else model_bounds.min[2]}
+				point:=rl.Vector3Transform(corner,transform)
+				projection:=rl.Vector3DotProduct(point-origin,axis)
+				if !found {minimum,maximum,found=projection,projection,true}
+				else {minimum=min(minimum,projection); maximum=max(maximum,projection)}
+			}
 		}
 	}
 	return

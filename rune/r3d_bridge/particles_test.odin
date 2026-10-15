@@ -1,5 +1,6 @@
 package r3d_bridge
 
+import "core:math"
 import "core:testing"
 import "rune:particles"
 import r3d "r3d:r3d"
@@ -16,6 +17,37 @@ particle_default_spheres_preserve_additive_radiance_fading :: proc(t: ^testing.T
 	testing.expect(t,abs(faded.emission.energy-f32(4.015686))<0.00001,"existing sphere burst alpha still fades HDR emission")
 	alpha:=particle_sphere_material(base,{128,220,255,128},.Alpha)
 	testing.expect(t,alpha.albedo.color==rl.Color{40,103,200,21} && alpha.emission.energy==8,"alpha blending retains full radiance and carries opacity in alpha")
+}
+
+@(test)
+particle_batches_override_emission_without_changing_authored_material :: proc(t: ^testing.T) {
+	base:=r3d.Material{albedo={color={80,120,200,42}},emission={color={255,128,60,255},energy=8}}
+	default_material:=particle_batch_material(base,{})
+	testing.expect(t,default_material.emission.energy==8,"zero-valued batches preserve authored emission for existing bursts")
+	disabled:=particle_batch_material(base,{emission_energy=3})
+	testing.expect(t,disabled.emission.energy==8,"supplying energy alone does not enable the override")
+	for shape in Particle3D_Shape {
+		batch:=Particle3D_Batch{shape=shape,emission_energy=2.5,emission_energy_override=true}
+		material:=particle_batch_material(base,batch)
+		testing.expect(t,material.emission.energy==2.5,"both particle shapes accept absolute emission energy")
+		testing.expect(t,material.emission.color==base.emission.color && material.albedo.color==base.albedo.color,"overrides retain authored colors")
+		faded:=particle_sphere_material(material,{255,255,255,128},.Additive)
+		testing.expect(t,abs(faded.emission.energy-f32(2.5*128/255))<0.00001,"sphere lifetime fades still apply after the override")
+	}
+	testing.expect(t,base.emission.energy==8,"batch overrides never change the cached material or other effects")
+}
+
+@(test)
+particle_emission_override_accepts_zero_and_rejects_nonfinite_energy :: proc(t: ^testing.T) {
+	base:=r3d.Material{emission={energy=8}}
+	for energy in ([3]f32{0,-1,-100}) {
+		material:=particle_batch_material(base,{emission_energy=energy,emission_energy_override=true})
+		testing.expect(t,material.emission.energy==0,"zero disables emission and negative energies clamp to zero")
+	}
+	for energy in ([3]f32{math.nan_f32(),math.inf_f32(1),math.inf_f32(-1)}) {
+		material:=particle_batch_material(base,{emission_energy=energy,emission_energy_override=true})
+		testing.expect(t,material.emission.energy==8,"invalid override values preserve the authored energy")
+	}
 }
 
 @(test)

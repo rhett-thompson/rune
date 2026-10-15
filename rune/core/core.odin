@@ -358,7 +358,7 @@ draw_gizmos :: proc(engine: ^Engine, world: ^ecs.World) {
 
 // AudioPlayer is repeatable, so playback commands address an entity and its
 // stable component instance name.
-// The engine owns the audio device and per-entity raylib sound instances.
+// The engine owns per-entity sound instances and the audio device if it opened it.
 play_audio :: proc(
 	engine: ^Engine,
 	world: ^ecs.World,

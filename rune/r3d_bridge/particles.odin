@@ -13,6 +13,10 @@ Particle3D_Batch :: struct {
 	material: string,
 	shape: Particle3D_Shape,
 	blend: Particle3D_Blend,
+	// Optional absolute HDR energy, applied only to this draw's material copy.
+	// Disabled by default so existing effects retain their authored emission.
+	emission_energy: f32,
+	emission_energy_override: bool,
 }
 
 Particle3D_Shape :: enum {Sphere, Billboard}
@@ -44,7 +48,7 @@ Particle_Billboard_Renderer :: struct {
 draw_particles_3d :: proc(ctx: ^Context, manager: ^assets.Asset_Manager, batches: []Particle3D_Batch, camera: rl.Camera3D={}) {
 	for batch, index in batches {
 		if len(batch.particles)==0 {continue}
-		base:=material_from_path(ctx,manager,batch.material,{255,255,255,255})
+		base:=particle_batch_material(material_from_path(ctx,manager,batch.material,{255,255,255,255}),batch)
 		base.transparencyMode=.ALPHA
 		base.blendMode=.ADDITIVE if batch.blend==.Additive else .MIX
 		if batch.shape==.Billboard {
@@ -61,6 +65,14 @@ draw_particles_3d :: proc(ctx: ^Context, manager: ^assets.Asset_Manager, batches
 			ctx.frame_stats.prop_draws+=1
 		}
 	}
+}
+
+particle_batch_material :: proc(base: r3d.Material, batch: Particle3D_Batch) -> r3d.Material {
+	material:=base
+	if batch.emission_energy_override && !math.is_nan(batch.emission_energy) && !math.is_inf(batch.emission_energy) {
+		material.emission.energy=max(f32(0),batch.emission_energy)
+	}
+	return material
 }
 
 particle_sphere_material :: proc(base: r3d.Material, color: [4]u8, blend: Particle3D_Blend) -> r3d.Material {

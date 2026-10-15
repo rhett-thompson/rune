@@ -185,6 +185,14 @@ shutdown. Empty and invisible particles submit no draw; rendering never changes
 the borrowed simulation. The default `.Sphere` and `.Additive` behavior remains
 suitable for existing glowing bursts.
 
+To adjust a batch's self-illumination at runtime, set
+`emission_energy_override=true` and `emission_energy` to an absolute HDR energy.
+This works for both shapes and changes a local material copy for that draw;
+authored material colors and other batches are preserved. Zero disables emission,
+negative values clamp to zero, and nonfinite values retain the authored energy.
+Leaving the override disabled preserves the material's energy, including for a
+zero-valued batch. Particle alpha and sphere radiance fades still apply.
+
 For raylib-only 3D passes, including `render.Overlay3D`, call
 `render.draw_particles_3d(pool.particles[:pool.count])` inside the active 3D mode.
 It draws additive spheres using birth colors and lifetime fading, respects model

@@ -53,6 +53,18 @@ The Audio Components example demonstrates SFX controls: M toggles mute, F fades
 out over two seconds, R restores volume, and left-click plays the bell. The Clay
 example's volume slider controls the master bus.
 
+## Audio device lifetime
+
+`audio.init` opens raylib's process-wide audio device only when it is not already
+ready. `Audio_System.owns_device` is true only when that system successfully
+opened the device; an existing device is borrowed. `audio.shutdown` releases the
+system's playback resources and closes the device only when the system owns it.
+Failed initialization leaves both `available` and `owns_device` false.
+
+Keep the device owner alive until all borrowing audio systems have shut down.
+The Engine owns its audio system for its full lifetime, including scene changes
+and quickloads; game code using that device should leave it open until shutdown.
+
 ## Fade out on stop
 
 Set `AudioPlayer.fade_out_on_stop` to fade a named player's active playback to

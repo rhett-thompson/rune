@@ -50,19 +50,24 @@ Audio_System :: struct {
 	retained_strings: map[string]string,
 	arena:            ^mem.Dynamic_Arena,
 	available:        bool,
+	owns_device:      bool,
 }
 
 init :: proc(project_root: string) -> Audio_System {
 	arena, _ := mem.new(mem.Dynamic_Arena)
 	assert(arena != nil)
 	mem.dynamic_arena_init(arena)
-	rl.InitAudioDevice()
+	// raylib's device is process-wide; reuse a device opened by another owner.
+	opened_device := !rl.IsAudioDeviceReady()
+	if opened_device {rl.InitAudioDevice()}
+	available := rl.IsAudioDeviceReady()
 	system := Audio_System {
 		mixer            = default_mixer(),
 		instances        = make(map[ecs.Component_Instance]Audio_Instance),
 		retained_strings = make(map[string]string),
 		arena            = arena,
-		available        = rl.IsAudioDeviceReady(),
+		available        = available,
+		owns_device      = opened_device && available,
 	}
 	system.root = retain_string(&system, project_root)
 	return system
@@ -75,7 +80,7 @@ shutdown :: proc(system: ^Audio_System) {
 	}
 	delete(system.instances)
 	delete(system.retained_strings)
-	if system.available && rl.IsAudioDeviceReady() {rl.CloseAudioDevice()}
+	if system.owns_device && rl.IsAudioDeviceReady() {rl.CloseAudioDevice()}
 	if system.arena != nil {
 		mem.dynamic_arena_destroy(system.arena)
 		mem.free(system.arena)

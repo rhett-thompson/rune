@@ -3,6 +3,15 @@ package core
 import "rune:console"
 import rl "vendor:raylib"
 
+// Use raylib's bundled desktop GLFW backend for native window geometry.
+foreign {
+	glfwGetCurrentContext :: proc "c" () -> rawptr ---
+	glfwGetWindowMonitor :: proc "c" (window: rawptr) -> rawptr ---
+	glfwGetWindowPos :: proc "c" (window: rawptr, x, y: ^i32) ---
+	glfwGetWindowSize :: proc "c" (window: rawptr, width, height: ^i32) ---
+	glfwSetWindowMonitor :: proc "c" (window, monitor: rawptr, x, y, width, height, refresh_rate: i32) ---
+}
+
 Window_Mode :: enum {Windowed, Borderless, Fullscreen}
 
 Window_State :: struct {
@@ -78,13 +87,28 @@ set_window_mode :: proc(engine: ^Engine, mode: Window_Mode) -> bool {
 	switch mode {
 	case .Windowed:
 		if engine.window.maximized {rl.MaximizeWindow()}
-	case .Borderless: rl.ToggleBorderlessWindowed()
+	case .Borderless:
+		rl.ToggleBorderlessWindowed()
+		detach_borderless_monitor()
 	case .Fullscreen: rl.ToggleFullscreen()
 	}
 	// GLFW monitor changes can reset the swap interval, including borderless
 	// transitions where raylib does not restore it. Force the requested state.
 	apply_vsync(vsync)
 	return window_mode() == mode
+}
+
+@(private)
+detach_borderless_monitor :: proc() {
+	// raylib 6 attaches borderless windows to a GLFW monitor, giving them
+	// fullscreen ownership and always-on-top behavior on Windows. Detach while
+	// retaining raylib's borderless flag, decorations and native monitor bounds.
+	window := glfwGetCurrentContext()
+	if window == nil || glfwGetWindowMonitor(window) == nil {return}
+	x, y, width, height: i32
+	glfwGetWindowPos(window, &x, &y)
+	glfwGetWindowSize(window, &width, &height)
+	glfwSetWindowMonitor(window, nil, x, y, width, height, -1) // GLFW_DONT_CARE
 }
 
 @(private)

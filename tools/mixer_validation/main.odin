@@ -39,6 +39,7 @@ main :: proc() {
 }
 
 runtime_test :: proc() {
+	audio_device_lifecycle_test()
 	registry := ecs.init_registry()
 	defer ecs.destroy_registry(&registry)
 	assert(ecs.register_builtin_components(&registry))
@@ -67,6 +68,41 @@ runtime_test :: proc() {
 	assert(ecs.remove_component_instance(&world,entity,"AudioPlayer","bell"))
 	audio.update(&system,&world,0.5)
 	assert(len(system.instances)==0)
+}
+
+audio_device_lifecycle_test :: proc() {
+	assert(!rl.IsAudioDeviceReady(), "lifecycle validation starts without an audio device")
+	owner := audio.init(".")
+	defer audio.shutdown(&owner)
+	assert(owner.available && owner.owns_device && rl.IsAudioDeviceReady(), "Rune opens and owns a fresh audio device")
+	borrower := audio.init(".")
+	defer audio.shutdown(&borrower)
+	assert(borrower.available && !borrower.owns_device, "a second audio system borrows the open device")
+	audio.shutdown(&borrower)
+	assert(rl.IsAudioDeviceReady(), "borrower shutdown leaves the owner's device open")
+	audio.shutdown(&borrower)
+	assert(rl.IsAudioDeviceReady(), "repeated borrower shutdown leaves the owner's device open")
+	audio.shutdown(&owner)
+	assert(!rl.IsAudioDeviceReady(), "owner shutdown closes its audio device")
+
+	owner = audio.init(".")
+	assert(owner.available && owner.owns_device && rl.IsAudioDeviceReady(), "Rune can reopen audio after owner shutdown")
+	audio.shutdown(&owner)
+	assert(!rl.IsAudioDeviceReady())
+
+	rl.InitAudioDevice()
+	defer if rl.IsAudioDeviceReady() {rl.CloseAudioDevice()}
+	assert(rl.IsAudioDeviceReady(), "audio device required for runtime validation")
+	external_borrower := audio.init(".")
+	defer audio.shutdown(&external_borrower)
+	assert(external_borrower.available && !external_borrower.owns_device, "Rune borrows an externally initialized device")
+	audio.shutdown(&external_borrower)
+	assert(rl.IsAudioDeviceReady(), "Rune shutdown preserves an externally owned device")
+	audio.shutdown(&external_borrower)
+	assert(rl.IsAudioDeviceReady(), "repeated Rune shutdown preserves an externally owned device")
+	rl.CloseAudioDevice()
+	assert(!rl.IsAudioDeviceReady())
+	fmt.println("Audio device lifecycle: owned init, borrowing, shutdown and reinitialization passed")
 }
 
 clip_configuration_test :: proc() {

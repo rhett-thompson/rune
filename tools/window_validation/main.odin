@@ -7,7 +7,42 @@ import rune "rune:core"
 import "rune:ui"
 import rl "vendor:raylib"
 
+// These symbols use raylib's bundled desktop GLFW backend. A borderless
+// window must remain a normal desktop window rather than own a monitor.
+foreign {
+	glfwGetCurrentContext :: proc "c" () -> rawptr ---
+	glfwGetWindowMonitor :: proc "c" (window: rawptr) -> rawptr ---
+}
+
+when ODIN_OS == .Windows {
+	// Reuse raylib's User32 linkage; importing User32 separately can resolve
+	// CloseWindow to Win32's function instead of raylib's implementation.
+	@(default_calling_convention = "system")
+	foreign {
+		GetWindowLongW :: proc(handle: rawptr, index: i32) -> i32 ---
+	}
+}
+
 fixture :: "build/window-validation.project.json"
+
+validate_borderless_native_state :: proc(game: ^rune.Engine) {
+	assert(rune.window_mode() == .Borderless)
+	assert(glfwGetWindowMonitor(glfwGetCurrentContext()) == nil,"borderless remains detached from the monitor so desktop application switching works")
+	assert(!rl.IsWindowState({.WINDOW_TOPMOST}),"borderless does not force the window above other applications")
+	when ODIN_OS == .Windows {
+		assert(GetWindowLongW(rl.GetWindowHandle(), -20) & 0x8 == 0,"borderless native window is not WS_EX_TOPMOST")
+	}
+	before := rune.window_metrics()
+	position := rl.GetWindowPosition()
+	assert(rune.set_window_mode(game, .Borderless),"setting borderless repeatedly succeeds")
+	after := rune.window_metrics()
+	assert(after.screen == before.screen && after.framebuffer == before.framebuffer,"setting borderless repeatedly keeps the dimensions")
+	assert(rl.GetWindowPosition() == position,"setting borderless repeatedly keeps the desktop position")
+	assert(glfwGetWindowMonitor(glfwGetCurrentContext()) == nil,"setting borderless repeatedly keeps the monitor detached")
+	when ODIN_OS == .Windows {
+		assert(GetWindowLongW(rl.GetWindowHandle(), -20) & 0x8 == 0,"setting borderless repeatedly keeps the native window below other focused applications")
+	}
+}
 
 write_project :: proc(settings: string) {
 	assert(os.write_entire_file(fixture, fmt.tprint(
@@ -171,6 +206,7 @@ validate_runtime :: proc() {
 		present(&ctx)
 		metrics := rune.window_metrics()
 		assert(rune.window_mode()==mode)
+		if mode == .Borderless {validate_borderless_native_state(&game)}
 		assert(metrics.vsync == active_vsync && game.window.target_fps == active_target_fps,"window mode changes preserve active frame pacing")
 		assert(game.project.window.vsync && game.project.window.target_fps == 144,"window mode changes preserve project startup settings")
 		assert(metrics.framebuffer[0]>0 && metrics.framebuffer[1]>0)
@@ -212,6 +248,7 @@ validate_startup_mode :: proc(mode: rune.Window_Mode) {
 	assert(ok)
 	defer rune.shutdown(&game)
 	assert(rune.window_mode()==mode && rune.window_metrics().high_dpi==(mode!=.Windowed),"startup settings applied")
+	if mode == .Borderless {validate_borderless_native_state(&game)}
 	assert(rune.set_window_mode(&game,.Windowed))
 }
 

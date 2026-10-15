@@ -20,6 +20,8 @@ An explicit `high_dpi: false` opts out. This applies to game rendering as well a
 
 `mode` accepts `windowed`, `borderless`, or `fullscreen`. Borderless fills the
 current monitor at its desktop resolution and retains DPI-aware coordinates.
+It uses a normal undecorated window without exclusive monitor ownership or
+always-on-top behavior, so Alt+Tab and other application switching remain available.
 Exclusive fullscreen uses raylib's native fullscreen behavior: on Windows it
 uses physical pixel drawing coordinates and reports DPI 1. Prefer borderless
 for a fullscreen game with the same UI sizing as a window. Games using exclusive
