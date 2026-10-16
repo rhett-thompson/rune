@@ -10,6 +10,10 @@ Path_Options_3D :: struct {
 }
 Default_Path_Options_3D :: Path_Options_3D{radius=0.3,height=1.8,max_slope=45,max_projection=1}
 default_path_options_3d :: proc() -> Path_Options_3D {return Default_Path_Options_3D}
+path_options_valid_3d :: proc(options:Path_Options_3D) -> bool {
+	return finite_3d(options.radius) && finite_3d(options.height) && options.radius>=0 && options.height>0 &&
+		finite_3d(options.max_projection) && options.max_projection>=0 && finite_3d(options.max_slope) && options.max_slope>=0 && options.max_slope<89
+}
 Path_3D :: struct {
 	status: Path_Status_3D,
 	// Includes every surface crossing; points[i] to points[i+1] follows triangles[i].
@@ -130,14 +134,13 @@ smooth_corridor_3d :: proc(mesh:^Mesh_3D,path:^Path_3D) {
 // A* selects connected triangles, then a funnel straightens their corridor.
 // Consecutive points lie in one convex triangle, including on ramps.
 // Returned arrays belong to allocator. No partial paths are reported complete.
-find_path_3d :: proc(mesh: ^Mesh_3D,start,goal: [3]f32,options := Default_Path_Options_3D,allocator := context.allocator) -> Path_3D {
-	if !finite_3d(options.radius) || !finite_3d(options.height) || options.radius<0 || options.height<=0 ||
-	   !finite_3d(options.max_projection) || options.max_projection<0 || !finite_3d(options.max_slope) || options.max_slope<0 || options.max_slope>=89 ||
+find_path_3d :: proc(mesh: ^Mesh_3D,start,goal: [3]f32,options := Default_Path_Options_3D,allocator := context.allocator,preparation:^Clearance_Preparation_3D=nil) -> Path_3D {
+	if !path_options_valid_3d(options) ||
 	   !finite_point_3d(start) || !finite_point_3d(goal) {return {status=.Invalid}}
 	if options.height>mesh.agent_height+1e-6 {return {status=.Insufficient_Clearance}}
 	// The surface may already include a base inset. Wider agents apply only
 	// their additional radius at query time, sharing the same mesh storage.
-	if options.radius>mesh.agent_radius+1e-6 {return find_clearance_path_3d(mesh,start,goal,options,allocator)}
+	if options.radius>mesh.agent_radius+1e-6 {return find_clearance_path_3d(mesh,start,goal,options,allocator,preparation)}
 	s,si,start_ok := project_point_3d(mesh,start,options.max_projection,options.max_slope)
 	if !start_ok {return {status=.Start_Off_Mesh}}
 	g,gi,goal_ok := project_point_3d(mesh,goal,options.max_projection,options.max_slope)

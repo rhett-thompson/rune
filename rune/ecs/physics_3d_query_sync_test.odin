@@ -71,6 +71,47 @@ physics_3d_queries_sync_mesh_batches_once_and_follow_hierarchy_edits :: proc(t:^
 }
 
 @(test)
+physics_3d_queries_ignore_unrelated_transform_updates :: proc(t:^testing.T) {
+	lock_native_physics_test();defer unlock_native_physics_test()
+	for is_terrain in ([2]bool{false,true}) {
+		w:=init();defer destroy(&w)
+		r:=init_registry();defer destroy_registry(&r);assert(register_builtin_components(&r))
+		parent:=create_entity(&w);assert(add(&w,&r,parent,default_transform()))
+		e:=physics_query_sync_surface(&w,&r,parent,is_terrain)
+		visual:=create_entity(&w)
+		assert(add(&w,&r,visual,default_transform()) && set_parent(&w,visual,e))
+		moving:=create_entity(&w)
+		assert(add(&w,&r,moving,Transform{position={20,2,0},scale={1,1,1}}))
+		assert(add(&w,&r,moving,BoxCollider{size={0.2,0.2,0.2}}))
+		assert(add(&w,&r,moving,RigidBody3D{body_type="kinematic",velocity={6,0,0},gravity_scale=0}))
+		physics_query_sync_expect_surface(t,&w,e)
+		count:=w.physics_3d.sync_count
+		for entity in ([2]Entity{visual,moving}) {
+			pose,_:=get_transform(&w,entity);pose.position.x+=1;pose.rotation.y+=30
+			if entity==visual {pose.scale={0.1,0.2,4}}
+			assert(set_transform(&w,entity,pose))
+			testing.expect(t,!w.physics_3d.needs_sync,"visual descendants and unrelated body poses do not invalidate mesh collision")
+			physics_query_sync_expect_surface(t,&w,e)
+			testing.expect(t,w.physics_3d.sync_count==count,"queries reuse mesh collision after unrelated transform edits")
+			if entity==moving {
+				hit,found:=physics_3d_raycast(&w,pose.position+[3]f32{0,1,0},{0,-2,0})
+				testing.expect(t,found && hit.entity==moving,"the unrelated body's edited native pose remains current without a full synchronization")
+			}
+		}
+		physics_3d_update(&w,Physics3D_Fixed_Delta)
+		count=w.physics_3d.sync_count
+		testing.expect(t,!w.physics_3d.needs_sync,"simulated unrelated bodies do not invalidate mesh collision")
+		physics_query_sync_expect_surface(t,&w,e)
+		testing.expect(t,w.physics_3d.sync_count==count,"queries after unrelated simulation need no additional synchronization")
+		pose,_:=get_transform(&w,parent);pose.position.y=2
+		assert(set_transform(&w,parent,pose))
+		testing.expect(t,w.physics_3d.needs_sync,"an actual mesh ancestor still invalidates composed collision")
+		physics_query_sync_expect_surface(t,&w,e)
+		testing.expect(t,w.physics_3d.sync_count==count+1,"the ancestor change synchronizes its new collision pose once")
+	}
+}
+
+@(test)
 physics_3d_queries_follow_simulated_mesh_ancestors :: proc(t:^testing.T) {
 	lock_native_physics_test();defer unlock_native_physics_test()
 	for is_terrain in ([2]bool{false,true}) {

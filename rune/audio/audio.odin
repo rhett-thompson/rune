@@ -3,7 +3,6 @@ package audio
 import "core:math"
 import "core:math/linalg"
 import "core:mem"
-import "core:path/filepath"
 import "core:strings"
 import "rune:ecs"
 import rl "vendor:raylib"
@@ -267,33 +266,20 @@ ensure_instance :: proc(system: ^Audio_System, key: ecs.Component_Instance, play
 	path := select_clip(player)
 	if found && instance.path == path {return true}
 	streaming := is_streaming_path(path)
-	if found && !instance.streaming && !streaming {
+	if found && !streaming {
 		if sound, cached := instance.sources[path]; cached {
-			rl.StopSound(instance.sound) // A looping source restarts; aliases remain independent.
+			if instance.streaming {
+				rl.UnloadMusicStream(instance.music)
+				instance.music={}; instance.streaming=false
+			} else {rl.StopSound(instance.sound)} // Aliases remain independent.
 			instance.sound, instance.path = sound, retain_string(system, path)
 			instance.settings_initialized = false
 			system.instances[key] = instance
 			return true
 		}
 	}
-	full_path := path
-	joined_path: string
-	defer if len(joined_path) > 0 {delete(joined_path)}
-	if !filepath.is_abs(full_path) {
-		joined_path, _ = filepath.join({system.root, path})
-		full_path = joined_path
-	}
-	path_cstring, _ := strings.clone_to_cstring(full_path)
-	defer delete(path_cstring)
-	music: rl.Music
-	sound: rl.Sound
-	if streaming {
-		music = rl.LoadMusicStream(path_cstring)
-		if !rl.IsMusicValid(music) {return false}
-	} else {
-		sound = rl.LoadSound(path_cstring)
-		if !rl.IsSoundValid(sound) {return false}
-	}
+	sound,music,loaded := load_source(system,path)
+	if !loaded {return false}
 	// Streams remain a single playback channel. Buffered clips share a source
 	// cache and a bounded alias pool, so selecting a new clip never cuts a tail.
 	if found && (instance.streaming || streaming) {
@@ -518,16 +504,13 @@ play_instance :: proc(instance: Audio_Instance) {
 }
 
 unload_instance :: proc(instance: Audio_Instance) {
-	if instance.streaming {
-		if rl.IsMusicValid(instance.music) {rl.UnloadMusicStream(instance.music)}
-	} else {
-		for voice in instance.voices {
-			if rl.IsSoundValid(voice.sound) {rl.UnloadSoundAlias(voice.sound)}
-		}
-		delete(instance.voices)
-		for _, sound in instance.sources {rl.UnloadSound(sound)}
-		delete(instance.sources)
+	if rl.IsMusicValid(instance.music) {rl.UnloadMusicStream(instance.music)}
+	for voice in instance.voices {
+		if rl.IsSoundValid(voice.sound) {rl.UnloadSoundAlias(voice.sound)}
 	}
+	delete(instance.voices)
+	for _, sound in instance.sources {rl.UnloadSound(sound)}
+	delete(instance.sources)
 	delete(instance.configured_clips)
 }
 

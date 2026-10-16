@@ -118,6 +118,18 @@ ensure_box3d_world :: proc(world: ^World) {
 	world.box3d_world = b3.CreateWorld(def)
 }
 
+@(private)
+physics_3d_transform_affects_mesh :: proc(world: ^World, entity: Entity) -> bool {
+	if terrain,found:=world.terrains[entity]; found && terrain.collision {return true}
+	if mesh,found:=world.static_meshes[entity]; found && mesh.mesh!=nil {return true}
+	// Reuse the hierarchy index so an ordinary moving leaf checks only itself,
+	// while ancestor edits still invalidate every composed collision beneath it.
+	for child in child_entities(world,entity) {
+		if physics_3d_transform_affects_mesh(world,child) {return true}
+	}
+	return false
+}
+
 physics_3d_transform_edited :: proc(world: ^World, entity: Entity, previous, value: Transform) {
 	if _, terrain := world.terrains[entity]; terrain {
 		// Terrain bodies use the composed hierarchy pose, not this local pose.
@@ -126,7 +138,11 @@ physics_3d_transform_edited :: proc(world: ^World, entity: Entity, previous, val
 	}
 	if previous.position != value.position || previous.scale != value.scale {delete_key(&world.character_controller_states_3d, entity)}
 	if previous.scale != value.scale {
-		physics_3d_remove_entity(world, entity)
+		// Primitive shapes bake the entity scale. Mesh shapes rebuild from their
+		// composed pose during synchronization; visual-only scale has no body.
+		_,has_box:=world.box_colliders[entity]
+		_,has_sphere:=world.sphere_colliders[entity]
+		if has_box || has_sphere {physics_3d_remove_entity(world, entity)}
 		return
 	}
 	if native, found := physics_3d_native_body(world, entity); found {
@@ -356,8 +372,8 @@ box3d_body_type :: proc(body_type: string) -> b3.BodyType {
 }
 
 transform_rotation_quat :: proc(transform: Transform) -> b3.Quat {
-	x := b3.MakeQuatFromAxisAngle({1, 0, 0}, transform.rotation[0] * Radians_Per_Degree)
-	y := b3.MakeQuatFromAxisAngle({0, 1, 0}, transform.rotation[1] * Radians_Per_Degree)
-	z := b3.MakeQuatFromAxisAngle({0, 0, 1}, transform.rotation[2] * Radians_Per_Degree)
-	return b3.NormalizeQuat(b3.MulQuat(b3.MulQuat(z, y), x))
+	// Match rendered transforms and navigation geometry. Box3D's approximate
+	// axis-angle trigonometry visibly displaces shapes far from their owner.
+	radians := transform.rotation * Radians_Per_Degree
+	return b3.NormalizeQuat(linalg.quaternion_from_pitch_yaw_roll(radians[0], radians[1], radians[2]))
 }

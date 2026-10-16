@@ -7,13 +7,6 @@ import rune "rune:core"
 import "rune:ui"
 import rl "vendor:raylib"
 
-// These symbols use raylib's bundled desktop GLFW backend. A borderless
-// window must remain a normal desktop window rather than own a monitor.
-foreign {
-	glfwGetCurrentContext :: proc "c" () -> rawptr ---
-	glfwGetWindowMonitor :: proc "c" (window: rawptr) -> rawptr ---
-}
-
 when ODIN_OS == .Windows {
 	// Reuse raylib's User32 linkage; importing User32 separately can resolve
 	// CloseWindow to Win32's function instead of raylib's implementation.
@@ -25,23 +18,30 @@ when ODIN_OS == .Windows {
 
 fixture :: "build/window-validation.project.json"
 
-validate_borderless_native_state :: proc(game: ^rune.Engine) {
+validate_borderless_window_flags :: proc() {
 	assert(rune.window_mode() == .Borderless)
-	assert(glfwGetWindowMonitor(glfwGetCurrentContext()) == nil,"borderless remains detached from the monitor so desktop application switching works")
+	assert(rl.IsWindowState({.WINDOW_UNDECORATED}),"borderless removes desktop window decorations")
+	assert(!rl.IsWindowFullscreen() && !rl.IsWindowState({.BORDERLESS_WINDOWED_MODE}),"borderless uses an ordinary desktop window without raylib fullscreen monitor ownership")
 	assert(!rl.IsWindowState({.WINDOW_TOPMOST}),"borderless does not force the window above other applications")
 	when ODIN_OS == .Windows {
+		assert(GetWindowLongW(rl.GetWindowHandle(), -16) & 0x00c40000 == 0,"borderless native window has no caption or resizing frame")
 		assert(GetWindowLongW(rl.GetWindowHandle(), -20) & 0x8 == 0,"borderless native window is not WS_EX_TOPMOST")
 	}
+}
+
+validate_borderless_native_state :: proc(game: ^rune.Engine) {
+	validate_borderless_window_flags()
 	before := rune.window_metrics()
 	position := rl.GetWindowPosition()
+	target_fps := game.window.target_fps
 	assert(rune.set_window_mode(game, .Borderless),"setting borderless repeatedly succeeds")
 	after := rune.window_metrics()
 	assert(after.screen == before.screen && after.framebuffer == before.framebuffer,"setting borderless repeatedly keeps the dimensions")
+	assert(after.dpi == before.dpi && after.high_dpi == before.high_dpi,"setting borderless repeatedly keeps DPI settings")
+	assert(after.resizable == before.resizable && after.vsync == before.vsync,"setting borderless repeatedly keeps resize and V-Sync settings")
+	assert(game.window.target_fps == target_fps,"setting borderless repeatedly keeps the software frame cap")
 	assert(rl.GetWindowPosition() == position,"setting borderless repeatedly keeps the desktop position")
-	assert(glfwGetWindowMonitor(glfwGetCurrentContext()) == nil,"setting borderless repeatedly keeps the monitor detached")
-	when ODIN_OS == .Windows {
-		assert(GetWindowLongW(rl.GetWindowHandle(), -20) & 0x8 == 0,"setting borderless repeatedly keeps the native window below other focused applications")
-	}
+	validate_borderless_window_flags()
 }
 
 write_project :: proc(settings: string) {
@@ -159,8 +159,9 @@ layout :: proc(ctx: ^ui.Context, controls: ui.Inputs) -> bool {
 	return clicked
 }
 
-present :: proc(ctx: ^ui.Context) {
+present :: proc(ctx: ^ui.Context, game: ^rune.Engine = nil) {
 	for _ in 0..<3 {
+		if game != nil {rune.begin_frame(game)}
 		rl.BeginDrawing()
 		rl.ClearBackground(rl.BLACK)
 		// Oversized content clipped in logical drawing coordinates.
@@ -169,7 +170,73 @@ present :: proc(ctx: ^ui.Context) {
 		rl.EndScissorMode()
 		assert(ui.draw(ctx))
 		rl.EndDrawing()
+		// X11 window-manager resize events arrive asynchronously. Give each
+		// presentation a desktop event turn even when V-Sync and the cap are off.
+		rl.WaitTime(0.01)
 	}
+}
+
+wait_for_window_size :: proc(ctx: ^ui.Context, expected_screen, expected_framebuffer: [2]i32, game: ^rune.Engine = nil) {
+	// Desktop compositors can deliver resize events several frames after a
+	// request. Keep the assertion bounded while waiting for the native result.
+	for _ in 0..<30 {
+		metrics := rune.window_metrics()
+		if metrics.screen == expected_screen && metrics.framebuffer == expected_framebuffer {
+			// The callback can run in EndDrawing after that frame was rendered.
+			// Present at the settled dimensions before checking captured pixels.
+			layout(ctx,{})
+			present(ctx,game)
+			return
+		}
+		present(ctx,game)
+	}
+}
+
+validate_restored_position :: proc(expected: rl.Vector2) {
+	actual := rl.GetWindowPosition()
+	when ODIN_OS == .Linux {
+		// X11 WMs can add a decoration-frame offset to a restored position.
+		// This also occurs with raylib's original borderless implementation.
+		assert(math.abs(actual.x-expected.x) <= 32 && math.abs(actual.y-expected.y) <= 64,"restore desktop position within the window-manager decoration frame")
+	} else {
+		assert(actual == expected,"restore desktop position")
+	}
+}
+
+validate_maximized_roundtrip :: proc(game: ^rune.Engine, ctx: ^ui.Context) {
+	original := rune.window_metrics()
+	position := rl.GetWindowPosition()
+	rl.MaximizeWindow()
+	previous := original
+	stable_frames := 0
+	for _ in 0..<30 {
+		present(ctx,game)
+		metrics := rune.window_metrics()
+		if metrics.screen == previous.screen && metrics.framebuffer == previous.framebuffer {stable_frames += 1} else {stable_frames = 0}
+		if stable_frames >= 3 && metrics.framebuffer != original.framebuffer {break}
+		previous = metrics
+	}
+	if !rl.IsWindowMaximized() || rune.window_metrics().framebuffer == original.framebuffer {
+		rl.RestoreWindow()
+		wait_for_window_size(ctx,original.screen,original.framebuffer,game)
+		fmt.println("Maximized window roundtrip skipped: desktop backend did not maximize the window")
+		return
+	}
+	maximized := rune.window_metrics()
+	assert(rune.set_window_mode(game, .Borderless))
+	present(ctx,game)
+	validate_borderless_native_state(game)
+	assert(rune.set_window_mode(game, .Windowed))
+	wait_for_window_size(ctx,maximized.screen,maximized.framebuffer,game)
+	assert(rl.IsWindowMaximized(),"leaving borderless restores a maximized window")
+	restored := rune.window_metrics()
+	assert(restored.screen == maximized.screen && restored.framebuffer == maximized.framebuffer,fmt.tprint("maximized roundtrip restores the desktop dimensions: ",restored," expected: ",maximized))
+	assert(restored.dpi == maximized.dpi && restored.vsync == maximized.vsync,"maximized roundtrip preserves DPI and V-Sync")
+	rl.RestoreWindow()
+	wait_for_window_size(ctx,original.screen,original.framebuffer,game)
+	restored = rune.window_metrics()
+	assert(restored.screen == original.screen && restored.framebuffer == original.framebuffer,"restoring after a maximized roundtrip keeps normal dimensions")
+	validate_restored_position(position)
 }
 
 validate_runtime :: proc() {
@@ -189,6 +256,7 @@ validate_runtime :: proc() {
 	present(&ctx)
 	original := rune.window_metrics()
 	position := rl.GetWindowPosition()
+	windowed_position := position
 	for mode, i in ([]rune.Window_Mode{.Borderless,.Borderless,.Windowed,.Borderless,.Fullscreen,.Windowed,.Fullscreen,.Borderless,.Windowed}) {
 		if i == 3 {
 			active_vsync = true
@@ -204,7 +272,19 @@ validate_runtime :: proc() {
 		assert(rune.set_window_mode(&game,mode))
 		layout(&ctx,{})
 		present(&ctx)
+		if mode == .Windowed {
+			wait_for_window_size(&ctx,original.screen,original.framebuffer)
+		} else {
+			when ODIN_OS != .Darwin {
+				monitor := rl.GetCurrentMonitor()
+				framebuffer := [2]i32{rl.GetMonitorWidth(monitor),rl.GetMonitorHeight(monitor)}
+				dpi := rl.GetWindowScaleDPI()
+				screen := [2]i32{i32(f32(framebuffer[0])/dpi.x),i32(f32(framebuffer[1])/dpi.y)}
+				wait_for_window_size(&ctx,screen,framebuffer)
+			}
+		}
 		metrics := rune.window_metrics()
+		fmt.println("Window mode metrics:",metrics,"saved native size:",game.window.size,"position:",rl.GetWindowPosition())
 		assert(rune.window_mode()==mode)
 		if mode == .Borderless {validate_borderless_native_state(&game)}
 		assert(metrics.vsync == active_vsync && game.window.target_fps == active_target_fps,"window mode changes preserve active frame pacing")
@@ -212,19 +292,44 @@ validate_runtime :: proc() {
 		assert(metrics.framebuffer[0]>0 && metrics.framebuffer[1]>0)
 		if mode != .Windowed {
 			monitor := rl.GetCurrentMonitor()
-			assert(metrics.framebuffer == [2]i32{rl.GetMonitorWidth(monitor),rl.GetMonitorHeight(monitor)},"fullscreen framebuffer fills the current monitor")
+			monitor_size := [2]i32{rl.GetMonitorWidth(monitor),rl.GetMonitorHeight(monitor)}
+			when ODIN_OS == .Darwin {
+				if mode == .Borderless {assert(metrics.screen == monitor_size,"borderless fills the monitor in Cocoa points")}
+			} else {
+				assert(metrics.framebuffer == monitor_size,fmt.tprint("fullscreen framebuffer fills the current monitor: ",metrics," monitor: ",monitor_size))
+			}
 		}
 		if mode==.Windowed {
-			assert(metrics.screen==original.screen && metrics.framebuffer==original.framebuffer,"restore window dimensions without accumulating DPI scale")
-			assert(rl.GetWindowPosition()==position,"restore desktop position")
+			assert(metrics.screen==original.screen && metrics.framebuffer==original.framebuffer,fmt.tprint("restore window dimensions without accumulating DPI scale: ",metrics," original: ",original))
+			assert(metrics.dpi==original.dpi && metrics.high_dpi==original.high_dpi,"restore window DPI settings")
+			assert(metrics.resizable==original.resizable && !rl.IsWindowState({.WINDOW_UNDECORATED}),"restore window decorations and resize settings")
+			validate_restored_position(windowed_position)
+			windowed_position = rl.GetWindowPosition()
 		}
-		capture := rl.LoadImageFromScreen()
-		sx := f32(capture.width)/f32(metrics.screen[0])
-		sy := f32(capture.height)/f32(metrics.screen[1])
-		assert(rl.GetImageColor(capture,i32(270*sx),i32(40*sy))==rl.RED,"DPI scissor inside")
-		assert(rl.GetImageColor(capture,i32(310*sx),i32(40*sy))==rl.BLACK,"DPI scissor outside")
-		rl.UnloadImage(capture)
+		inside, outside := false, false
+		for _ in 0..<30 {
+			capture := rl.LoadImageFromScreen()
+			sx := f32(capture.width)/f32(metrics.screen[0])
+			sy := f32(capture.height)/f32(metrics.screen[1])
+			inside = rl.GetImageColor(capture,i32(270*sx),i32(40*sy)) == rl.RED
+			outside = rl.GetImageColor(capture,i32(310*sx),i32(40*sy)) == rl.BLACK
+			rl.UnloadImage(capture)
+			if inside && outside {break}
+			// A compositor can recreate the swap buffers after a monitor-mode
+			// change even when the reported framebuffer dimensions stay equal.
+			present(&ctx,&game)
+		}
+		assert(inside,"DPI scissor inside")
+		assert(outside,"DPI scissor outside")
 	}
+	// Queue an opposite resize before the first resize has reached X11's
+	// framebuffer callback. The final request must still restore the window.
+	assert(rune.set_window_mode(&game,.Borderless))
+	assert(rune.set_window_mode(&game,.Windowed))
+	wait_for_window_size(&ctx,original.screen,original.framebuffer)
+	metrics := rune.window_metrics()
+	assert(metrics.screen == original.screen && metrics.framebuffer == original.framebuffer,"rapid mode changes preserve the final requested window size")
+	validate_maximized_roundtrip(&game,&ctx)
 	// Validate actual raylib mouse conversion against the Clay button bounds.
 	box, found := ui.bounds(&ctx,"button")
 	assert(found)
@@ -252,6 +357,23 @@ validate_startup_mode :: proc(mode: rune.Window_Mode) {
 	assert(rune.set_window_mode(&game,.Windowed))
 }
 
+validate_borderless_shutdown_reset :: proc() {
+	write_project(`{"width":640,"height":480,"mode":"borderless"}`)
+	game, ok := rune.init(fixture)
+	assert(ok)
+	defer rune.shutdown(&game)
+	validate_borderless_native_state(&game)
+	rune.shutdown(&game)
+	assert(!rl.IsWindowReady())
+	write_project(`{"width":640,"height":480,"mode":"windowed"}`)
+	game, ok = rune.init(fixture)
+	assert(ok)
+	assert(rune.window_mode() == .Windowed && !rl.IsWindowFullscreen(),"a new engine starts windowed after closing in borderless")
+	assert(!rl.IsWindowState({.WINDOW_UNDECORATED}) && !rl.IsWindowState({.BORDERLESS_WINDOWED_MODE}),"a new engine clears retained borderless window flags")
+	assert(!rl.IsWindowState({.WINDOW_TOPMOST}),"a new windowed engine remains below other focused applications")
+	fmt.println("Window startup: closing in borderless does not affect the next windowed engine")
+}
+
 main :: proc() {
 	defer os.remove(fixture)
 	validate_settings()
@@ -259,6 +381,7 @@ main :: proc() {
 		switch arg {
 		case "--runtime":
 			validate_frame_pacing_runtime()
+			validate_borderless_shutdown_reset()
 			validate_runtime()
 		case "--frame-pacing-runtime": validate_frame_pacing_runtime()
 		case "--startup-windowed": validate_startup_mode(.Windowed)

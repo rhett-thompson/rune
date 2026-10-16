@@ -81,6 +81,9 @@ for package in tools/*; do
     esac
 done
 
+# Native window handling must also link with raylib's private GLFW symbols hidden.
+build window_validation_shared tools/window_validation -collection:r3d=third_party/r3d-odin -define:RAYLIB_SHARED=true
+
 build rune_relay rune_relay
 
 # Validator names are repository directory names without spaces.

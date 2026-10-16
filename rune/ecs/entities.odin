@@ -90,10 +90,11 @@ record_component_change :: proc(
 	name: string,
 	kind: Component_Change_Kind,
 ) {
-	// Mesh collision uses composed poses, so changing any ancestor can move
-	// its bodies. This also covers transforms written by native simulation and
-	// character motors. Query batches only need one sync between such changes.
-	if name == "Transform" && (len(world.terrains)>0 || len(world.static_meshes)>0) {
+	// Only mesh collision uses composed poses. Unrelated moving bodies and
+	// visual effects already update their own native pose, or have no collision.
+	if name == "Transform" && !world.physics_3d.needs_sync &&
+	   (len(world.terrains)>0 || len(world.static_meshes)>0) &&
+	   physics_3d_transform_affects_mesh(world,entity) {
 		world.physics_3d.needs_sync = true
 	}
 	owned_name := retain_scene_string(world, name)

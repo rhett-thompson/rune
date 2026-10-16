@@ -26,7 +26,9 @@ native_window_size :: proc() -> [2]i32 {
 
 // Include window decorations and the taskbar when fitting the initial window.
 @(private)
-fit_window_to_monitor :: proc() {
+fit_window_to_monitor :: proc() -> (size: [2]i32, position: rl.Vector2) {
+	size = native_window_size()
+	position = rl.GetWindowPosition()
 	handle := rl.GetWindowHandle()
 	monitor := MonitorFromWindow(handle, 2) // MONITOR_DEFAULTTONEAREST
 	info := Monitor_Info{cbSize = size_of(Monitor_Info)}
@@ -39,6 +41,9 @@ fit_window_to_monitor :: proc() {
 	width := min(client.right, max(1, work.right-work.left-border_x-32))
 	height := min(client.bottom, max(1, work.bottom-work.top-border_y-32))
 	if width != client.right || height != client.bottom {rl.SetWindowSize(width, height)}
-	rl.SetWindowPosition(work.left+(work.right-work.left-width-border_x)/2,
-		work.top+(work.bottom-work.top-height-border_y)/2)
+	size = {width, height}
+	position = {f32(work.left+(work.right-work.left-width-border_x)/2),
+		f32(work.top+(work.bottom-work.top-height-border_y)/2)}
+	rl.SetWindowPosition(i32(position.x), i32(position.y))
+	return
 }

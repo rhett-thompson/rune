@@ -35,6 +35,13 @@ Character_Controller_State_3D :: struct {
 	sprint_requested, crouch_requested: bool,
 	jump_requested, jump_release_requested, jump_cut_available, jump_buffer_released: bool,
 	coyote_remaining, jump_buffer_remaining: f32,
+	// A transient tangent velocity override; games own the trigger and cooldown.
+	dashing: bool,
+	dash_direction: [3]f32,
+	dash_speed, dash_remaining: f32,
+	// Ordinary motor velocity evolves independently, so a finished burst cannot
+	// leak dash momentum into walking or air control.
+	dash_resume_velocity: [3]f32,
 }
 
 default_character_controller_3d :: proc() -> CharacterController3D {

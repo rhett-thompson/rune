@@ -3,15 +3,6 @@ package core
 import "rune:console"
 import rl "vendor:raylib"
 
-// Use raylib's bundled desktop GLFW backend for native window geometry.
-foreign {
-	glfwGetCurrentContext :: proc "c" () -> rawptr ---
-	glfwGetWindowMonitor :: proc "c" (window: rawptr) -> rawptr ---
-	glfwGetWindowPos :: proc "c" (window: rawptr, x, y: ^i32) ---
-	glfwGetWindowSize :: proc "c" (window: rawptr, width, height: ^i32) ---
-	glfwSetWindowMonitor :: proc "c" (window, monitor: rawptr, x, y, width, height, refresh_rate: i32) ---
-}
-
 Window_Mode :: enum {Windowed, Borderless, Fullscreen}
 
 Window_State :: struct {
@@ -20,6 +11,8 @@ Window_State :: struct {
 	position: rl.Vector2,
 	maximized: bool,
 	saved: bool,
+	geometry_pending_until: f64,
+	pending_maximize: bool,
 	// Runtime frame cap; project.window retains the startup settings.
 	target_fps: i32,
 }
@@ -54,7 +47,7 @@ window_mode_name :: proc(mode: Window_Mode) -> string {
 
 window_mode :: proc() -> Window_Mode {
 	if rl.IsWindowFullscreen() {return .Fullscreen}
-	if rl.IsWindowState({.BORDERLESS_WINDOWED_MODE}) {return .Borderless}
+	if rl.IsWindowState({.WINDOW_UNDECORATED}) || rl.IsWindowState({.BORDERLESS_WINDOWED_MODE}) {return .Borderless}
 	return .Windowed
 }
 
@@ -64,51 +57,102 @@ set_window_mode :: proc(engine: ^Engine, mode: Window_Mode) -> bool {
 	if engine == nil || !rl.IsWindowReady() || window_mode_name(mode) == "" {return false}
 	previous := window_mode()
 	if previous == mode {return true}
+	monitor := rl.GetCurrentMonitor()
+	monitor_size := [2]i32{rl.GetMonitorWidth(monitor), rl.GetMonitorHeight(monitor)}
+	if mode == .Borderless && (monitor_size[0] <= 0 || monitor_size[1] <= 0) {return false}
 	vsync := rl.IsWindowState({.VSYNC_HINT})
 	if previous == .Windowed {
-		engine.window.maximized = rl.IsWindowMaximized()
-		if engine.window.maximized {rl.RestoreWindow()}
-		engine.window.size = native_window_size()
-		engine.window.position = rl.GetWindowPosition()
-		engine.window.saved = true
+		engine.window.maximized = rl.IsWindowMaximized() || engine.window.pending_maximize
+		if engine.window.maximized {
+			// Unmaximizing is asynchronous on X11. Keep the normal geometry
+			// remembered before maximization rather than capturing its old size.
+			rl.RestoreWindow()
+		} else {
+			remember_windowed_geometry(engine)
+		}
 	}
+	engine.window.pending_maximize = false
 	// Route through windowed so raylib's shared previous-window slot cannot
 	// accidentally remember a fullscreen size as the normal window size.
 	if rl.IsWindowFullscreen() {rl.ToggleFullscreen()}
 	if rl.IsWindowState({.BORDERLESS_WINDOWED_MODE}) {rl.ToggleBorderlessWindowed()}
+	rl.ClearWindowState({.WINDOW_UNDECORATED})
 	if previous != .Windowed && engine.window.saved {
-		// raylib's setter writes its screen size even if the native size is
-		// unchanged. In that case no resize callback runs to divide by DPI.
-		if native_window_size() != engine.window.size {
-			rl.SetWindowSize(engine.window.size[0], engine.window.size[1])
-		}
+		resize_native_window(engine.window.size)
 		rl.SetWindowPosition(i32(engine.window.position.x), i32(engine.window.position.y))
 	}
 	switch mode {
 	case .Windowed:
-		if engine.window.maximized {rl.MaximizeWindow()}
+		engine.window.geometry_pending_until = rl.GetTime()+1
+		if engine.window.maximized {
+			when ODIN_OS == .Windows {rl.MaximizeWindow()} else {
+				// Let the WM restore decorations and normal bounds before asking
+				// it to calculate the maximized client area on a later frame.
+				engine.window.pending_maximize = true
+			}
+		}
 	case .Borderless:
-		rl.ToggleBorderlessWindowed()
-		detach_borderless_monitor()
+		// raylib 6's borderless toggle attaches a fullscreen monitor. Use a
+		// normal undecorated window so desktop switching stays available, with
+		// the same exported API for both static and shared raylib builds.
+		rl.SetWindowState({.WINDOW_UNDECORATED})
+		position := rl.GetMonitorPosition(monitor)
+		rl.SetWindowPosition(i32(position.x), i32(position.y))
+		resize_native_window(monitor_size)
 	case .Fullscreen: rl.ToggleFullscreen()
 	}
-	// GLFW monitor changes can reset the swap interval, including borderless
-	// transitions where raylib does not restore it. Force the requested state.
+	// Monitor changes can reset the swap interval. Force the requested state.
 	apply_vsync(vsync)
 	return window_mode() == mode
 }
 
 @(private)
-detach_borderless_monitor :: proc() {
-	// raylib 6 attaches borderless windows to a GLFW monitor, giving them
-	// fullscreen ownership and always-on-top behavior on Windows. Detach while
-	// retaining raylib's borderless flag, decorations and native monitor bounds.
-	window := glfwGetCurrentContext()
-	if window == nil || glfwGetWindowMonitor(window) == nil {return}
-	x, y, width, height: i32
-	glfwGetWindowPos(window, &x, &y)
-	glfwGetWindowSize(window, &width, &height)
-	glfwSetWindowMonitor(window, nil, x, y, width, height, -1) // GLFW_DONT_CARE
+update_window_state :: proc(engine: ^Engine) {
+	if engine.window.pending_maximize && rl.IsWindowReady() && window_mode() == .Windowed {
+		if (rl.IsWindowResized() && native_window_size() == engine.window.size) ||
+		   rl.GetTime() >= engine.window.geometry_pending_until {
+			engine.window.pending_maximize = false
+			rl.MaximizeWindow()
+		}
+		return
+	}
+	remember_windowed_geometry(engine)
+}
+
+@(private)
+remember_windowed_geometry :: proc(engine: ^Engine) {
+	if !rl.IsWindowReady() || window_mode() != .Windowed || rl.IsWindowMaximized() || rl.IsWindowMinimized() {return}
+	size := native_window_size()
+	// Wait for the requested resize event before replacing the normal bounds
+	// with framebuffer data. A WM that constrains the request can settle at
+	// its own size; release the pending state after a bounded interval.
+	if rl.GetTime() < engine.window.geometry_pending_until &&
+	   (!rl.IsWindowResized() || size != engine.window.size) {return}
+	engine.window.geometry_pending_until = 0
+	engine.window.size = size
+	engine.window.position = rl.GetWindowPosition()
+	engine.window.saved = true
+}
+
+@(private)
+resize_native_window :: proc(size: [2]i32) {
+	when ODIN_OS == .Windows {
+		// Avoid overwriting logical DPI dimensions when an unchanged native
+		// size would not produce a resize callback to correct them.
+		if native_window_size() == size {return}
+	}
+	// X11 framebuffer getters can still describe a previous, queued resize.
+	// Always send the latest requested size so rapid mode changes restore it.
+	rl.SetWindowSize(size[0], size[1])
+}
+
+@(private)
+reset_window_mode :: proc() {
+	// raylib retains window flags after CloseWindow. Start each Engine in a
+	// decorated window before fitting it and applying the requested mode.
+	if rl.IsWindowFullscreen() {rl.ToggleFullscreen()}
+	if rl.IsWindowState({.BORDERLESS_WINDOWED_MODE}) {rl.ToggleBorderlessWindowed()}
+	rl.ClearWindowState({.WINDOW_UNDECORATED})
 }
 
 @(private)

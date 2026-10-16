@@ -43,6 +43,9 @@ set "projectValidatorBuilt=0"
 type nul >"build\validate-built.tmp"
 type nul >"build\validate-failures.log"
 for /d %%D in ("tools\*") do if exist "%%D\main.odin" call :build "%%~nxD" "%%D"
+rem Native window handling must link with raylib's private GLFW symbols hidden.
+odin build tools/window_validation -collection:rune=rune -collection:r3d=third_party/r3d-odin -define:RAYLIB_SHARED=true -out:build/window_validation_shared.exe -linker:msvc
+if errorlevel 1 (call :fail "build window_validation_shared") else echo PASS build window_validation_shared
 call :build rune_relay rune_relay
 for /f "usebackq delims=" %%N in ("build\validate-built.tmp") do call :run_validator "%%N"
 for %%N in (console ecs audio core geometry render r3d_bridge save input ui network replication navigation pathutil) do call :test_rune "%%N"

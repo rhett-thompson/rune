@@ -48,18 +48,31 @@ box_collider_additional_boxes_scale_rotate_and_rebuild_with_the_owner :: proc(t:
 	e:=create_entity(&w)
 	pose:=Transform{position={7,0,11},rotation={0,90,0},scale={2,1,1}}
 	assert(add(&w,&r,e,pose))
-	parts:=[1]BoxCollider_Box{{offset={2,1,0},size={0.2,1,1}}}
+	parts:=[1]BoxCollider_Box{{offset={2,14.7,0},size={0.2,1,1}}}
 	assert(add(&w,&r,e,BoxCollider{size={1,0.1,1},is_static=true,additional_boxes=parts[:]}))
-	center:=box_collider_box_transform(pose,parts[0]).position
-	axis:=compose_transform_3d(Transform{rotation=pose.rotation,scale={1,1,1}},Transform{position={1,0,0},scale={1,1,1}}).position
-	hit,found:=physics_3d_raycast(&w,center-axis*2,axis*4)
-	testing.expect(t,found && hit.entity==e && hit.component=="BoxCollider" && abs(hit.fraction-0.45)<0.001,"local offsets and dimensions follow nonuniform scale and owner rotation")
-	geometry,error:=collect_navigation_geometry_3d(&w,"."); defer navigation.destroy_bake_geometry_3d(&geometry)
-	testing.expect(t,error=="" && len(geometry.vertices)==16,"static navigation bakes every box on the owner")
+	center,axis:[3]f32
+	for rotation in ([3][3]f32{{0,90,0},{15,37,-12},{-22,64,17}}) {
+		pose.rotation=rotation; assert(set_transform(&w,e,pose))
+		center=box_collider_box_transform(pose,parts[0]).position
+		axis=compose_transform_3d(Transform{rotation=pose.rotation,scale={1,1,1}},Transform{position={1,0,0},scale={1,1,1}}).position
+		hit,found:=physics_3d_raycast(&w,center-axis*2,axis*4)
+		testing.expect(t,found && hit.entity==e && hit.component=="BoxCollider" && abs(hit.fraction-0.45)<0.0001,"local offsets and dimensions match composed transforms even far from an arbitrarily rotated owner")
+		geometry,error:=collect_navigation_geometry_3d(&w,".")
+		testing.expect(t,error=="" && len(geometry.vertices)==16,"static navigation bakes every box on the owner")
+		if len(geometry.vertices)==16 {
+			// The second box's -X face is the visible plane crossed by the ray.
+			face:=(geometry.vertices[8]+geometry.vertices[11]+geometry.vertices[12]+geometry.vertices[15])*0.25
+			expected:=center-axis*(parts[0].size[0]*pose.scale[0]*0.5)
+			for coordinate,index in expected {
+				testing.expect(t,found && abs(hit.point[index]-coordinate)<0.0005 && abs(face[index]-coordinate)<0.0005,"native hits, rendered transforms and baked navigation share the same offset box face")
+			}
+		}
+		navigation.destroy_bake_geometry_3d(&geometry)
+	}
 	collider,_:=get_box_collider(&w,e)
 	collider.additional_boxes=nil
 	assert(set_box_collider(&w,e,collider))
-	_,found=physics_3d_raycast(&w,center-axis*2,axis*4)
+	_,found:=physics_3d_raycast(&w,center-axis*2,axis*4)
 	testing.expect(t,!found,"editing compound geometry removes stale native shapes")
 	counters,valid:=physics_3d_counters(&w)
 	testing.expect(t,valid && counters.bodyCount==1 && counters.shapeCount==1)

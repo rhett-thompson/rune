@@ -19,6 +19,14 @@ passed. The blank project, all 39 examples, and the launcher built successfully.
 A separate hidden Clay UI runtime check passed through WSLg. Windows full-suite
 validation and focused checks for the latest changes also passed.
 
+Focused window verification on 2026-10-16 used the same pinned compiler with
+static and shared raylib on Ubuntu 24.04 WSLg/X11. The window runtime validator
+passed mode transitions, rapid switching, geometry/maximized restoration,
+frame pacing, drawing/scissor pixels, and pointer checks. Shared builds also
+passed all three startup modes and linked Hello World and the blank template.
+This is software-rendered WSLg coverage; the native-desktop status below still
+applies. See [display settings](display.md) for the window API and test commands.
+
 The [Deck staging helper](steam-deck.md) built all 39 optimized static examples
 and the launcher. All 40 binaries require at most `GLIBC_2.38` and resolved their
 system libraries without the isolated build environment. This verifies builds,

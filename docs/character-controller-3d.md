@@ -129,6 +129,21 @@ and jumps between gravity wells. Cameras and visuals remain game-owned.
 
 ### Ground and air movement
 
+`ecs.character_controller_3d_dash(world, entity, direction, speed, duration)`
+starts a finite world-space tangent burst. Direction is projected onto runtime
+up and frozen when triggered. The ordinary capsule sweeps, steps, slope limits,
+support carry, gravity, and jumps remain active. An active burst rejects another
+request; free motion rejects bursts. Games own the input trigger, cooldown, and
+whether a burst is allowed from the ground or air.
+
+The runtime state exposes `dashing`, `dash_direction`, `dash_speed`, and
+`dash_remaining`. The last partial fixed step consumes only the remaining burst
+time, then resumes ordinary movement without retaining dash-speed momentum.
+`ecs.character_controller_3d_cancel_dash(world, entity)` immediately clears the
+burst and tangent momentum, preserving vertical motion. Also send zero ordinary
+movement when a menu blocks input. Teleport, disable, removal, and free-motion
+mode changes clear bursts automatically.
+
 Ground movement approaches the requested speed using `acceleration`, or
 `braking` when the input is zero. `air_acceleration` controls adjustment in the
 air; zero preserves horizontal momentum. Sprint multiplies normal speed;

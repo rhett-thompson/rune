@@ -118,3 +118,105 @@ shared_mesh_agent_projection_respects_radius_and_headroom :: proc(t:^testing.T) 
 	path:=find_path_3d(&mesh,{3,0,3},{9,0,9},options);defer destroy_path_3d(&path)
 	testing.expect(t,path.status==.Insufficient_Clearance,"unsupported headroom stays a separate failure")
 }
+
+@(test)
+clearance_boundary_blocks_preserve_height_rounding :: proc(t:^testing.T) {
+	// Keep the exact same-layer addition order at a float32 rounding boundary.
+	edge:=Clearance_Edge_3D{a={0,3.0536952018737793,0},b={1,3.0536952018737793,0}}
+	q:=Clearance_Query_3D{radius=1,vertical_range=1.2599999904632568,
+		edges=make([dynamic]Clearance_Edge_3D,context.temp_allocator)}
+	append(&q.edges,edge)
+	q.edge_bounds=[]Clearance_Bounds_3D{{edge.a,edge.b}}
+	q.edge_blocks=clearance_bounds_blocks_3d(q.edge_bounds,context.temp_allocator)
+	a:=[3]f32{0.25,1.793695092201233,-0.25}
+	b:=[3]f32{0.75,1.793695092201233,0.25}
+	testing.expect(t,clearance_same_layer_3d(&q,a,b,edge),"the exact predicate includes this boundary height")
+	testing.expect(t,!clearance_leg_edges_allowed_3d(&q,a,b,q.edges[:]),"the unfiltered boundary blocks the crossing")
+	testing.expect(t,!clearance_leg_allowed_3d(&q,a,b),"the broadphase retains the boundary at the same rounded height")
+}
+
+clearance_test_project_surface_unfiltered_3d :: proc(q:^Clearance_Query_3D,p:[3]f32,max_distance:f32) -> ([3]f32,i32,bool) {
+	best:=max_distance;result:[3]f32;index:i32=-1
+	for _,i in q.mesh.triangles {
+		if !q.component[i] {continue}
+		candidate:=closest_triangle_3d(q.mesh,i32(i),p);distance:=distance_3d(candidate,p)
+		if distance<=best && (index<0 || distance<best-1e-6) {best=distance;result=candidate;index=i32(i)}
+	}
+	return result,index,index>=0
+}
+
+@(test)
+clearance_projection_bounds_preserve_full_scan_results :: proc(t:^testing.T) {
+	keep:=make([]bool,10*8,context.temp_allocator)
+	for z in 0..<8 {for x in 0..<10 {keep[z*10+x]=!(x>=4 && x<6 && z>=3 && z<5)}}
+	heights:=make([]f32,11*9,context.temp_allocator)
+	for z in 0..=8 {for x in 0..=10 {heights[z*11+x]=max(0,f32(x)-5)*0.4}}
+	mesh,error:=clearance_test_grid_3d(10,8,keep,heights)
+	if !testing.expect(t,error=="",error) {return};defer destroy_mesh_3d(&mesh)
+	q:=clearance_query_3d(&mesh,clearance_test_options_3d(1.2),0)
+	for z in -1..=9 {for x in -1..=11 {for y in ([]f32{-0.3,0,1.5,3}) {
+		p:=[3]f32{f32(x)+0.23,y,f32(z)+0.17}
+		for max_distance in ([]f32{0,0.3,2}) {
+			actual,index,ok:=clearance_project_surface_3d(&q,p,max_distance)
+			expected,expected_index,expected_ok:=clearance_test_project_surface_unfiltered_3d(&q,p,max_distance)
+			testing.expect(t,ok==expected_ok && index==expected_index && actual==expected,"bounds preserve closest point and triangle tie-breaking")
+		}
+	}}}
+	// The existing inside-triangle area tolerance admits points outside the
+	// geometric AABB of a skinny triangle. Those projections must still match.
+	skinny,skinny_error:=build_mesh_3d({version=1,agent_radius=0.34,agent_height=2,
+		vertices=[][3]f32{{0,0,0},{0.00001,0,0},{0,0,1}},triangles=[][3]i32{{0,1,2}}})
+	if !testing.expect(t,skinny_error=="",skinny_error) {return};defer destroy_mesh_3d(&skinny)
+	skinny_q:=clearance_query_3d(&skinny,clearance_test_options_3d(1.2),0)
+	for p in ([][3]f32{{0,0,-0.5},{0,0,1.5},{0,0.2,-0.5}}) {
+		actual,index,ok:=clearance_project_surface_3d(&skinny_q,p,0.3)
+		expected,expected_index,expected_ok:=clearance_test_project_surface_unfiltered_3d(&skinny_q,p,0.3)
+		testing.expect(t,ok==expected_ok && index==expected_index && actual==expected,"skinny triangle tolerance remains inside conservative bounds")
+	}
+}
+
+@(test)
+clearance_triangle_candidates_match_all_boundaries :: proc(t:^testing.T) {
+	keep:=make([]bool,16*12,context.temp_allocator)
+	for z in 0..<12 {for x in 0..<16 {keep[z*16+x]=!(x>=6 && x<10 && z>=5 && z<7)}}
+	heights:=make([]f32,17*13,context.temp_allocator)
+	for z in 0..=12 {for x in 0..=16 {heights[z*17+x]=max(0,f32(x)-8)*0.3}}
+	mesh,error:=clearance_test_grid_3d(16,12,keep,heights)
+	if !testing.expect(t,error=="",error) {return};defer destroy_mesh_3d(&mesh)
+	for &triangle in mesh.triangles {
+		if triangle.center.x>2 && triangle.center.x<3 && triangle.center.z>2 && triangle.center.z<3 {triangle.blocked=true}
+	}
+	q:=clearance_query_3d(&mesh,clearance_test_options_3d(1.2),0)
+	empty_candidates:=false
+	for triangle,index in mesh.triangles {
+		if !q.component[index] {continue}
+		i:=i32(index)
+		local:=clearance_triangle_edges_3d(&q,i)
+		if len(local)==0 {empty_candidates=true}
+		a,b,c:=mesh.vertices[triangle.vertices[0]],mesh.vertices[triangle.vertices[1]],mesh.vertices[triangle.vertices[2]]
+		samples:=[5][3]f32{a,b,c,triangle.center,(a+b)*0.5}
+		for p in samples {
+			testing.expect(t,clearance_point_allowed_3d(&q,p,i)==clearance_point_allowed_3d(&q,p),"local point clearance matches all connected boundaries")
+			for other in samples {
+				expected:=clearance_leg_edges_allowed_3d(&q,p,other,q.edges[:])
+				testing.expect(t,clearance_leg_allowed_3d(&q,p,other,i)==expected,"local leg clearance matches an unfiltered boundary scan")
+				testing.expect(t,clearance_leg_allowed_3d(&q,p,other)==expected,"boundary blocks match an unfiltered boundary scan")
+			}
+		}
+		for edge in 0..<3 {
+			u,v:=mesh.vertices[triangle.vertices[edge]],mesh.vertices[triangle.vertices[(edge+1)%3]]
+			actual:=clearance_edge_intervals_3d(&q,u,v,i)
+			expected:=clearance_edge_intervals_3d(&q,u,v)
+			if testing.expect(t,len(actual)==len(expected),"local portal clipping preserves every usable interval") {
+				for interval,k in actual {testing.expect(t,interval==expected[k],"local portal intervals match exactly")}
+			}
+		}
+	}
+	testing.expect(t,empty_candidates,"interior triangles can cache an empty boundary list")
+	// Smoothing checks longer legs across multiple triangles and ramp levels.
+	probes:=[][3]f32{{1.2,0,1.2},{14.8,2.04,10.8},{4,0,9},{12,1.2,3},{8,0,6},{1,4,11}}
+	for p in probes {for other in probes {
+		expected:=clearance_leg_edges_allowed_3d(&q,p,other,q.edges[:])
+		testing.expect(t,clearance_leg_allowed_3d(&q,p,other)==expected,"long-leg boundary blocks match an unfiltered boundary scan")
+	}}
+}

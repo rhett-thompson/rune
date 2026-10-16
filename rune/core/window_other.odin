@@ -3,35 +3,49 @@ package core
 
 import rl "vendor:raylib"
 
-// These symbols are provided by raylib's bundled desktop GLFW backend. Query
-// native window units rather than guessing from DPI (Wayland/macOS differ).
-foreign {
-	glfwGetMonitors :: proc "c" (count: ^i32) -> [^]rawptr ---
-	glfwGetMonitorWorkarea :: proc "c" (monitor: rawptr, x,y,width,height: ^i32) ---
-	glfwGetWindowFrameSize :: proc "c" (window: rawptr, left,top,right,bottom: ^i32) ---
-}
-
 @(private)
 native_window_size :: proc() -> [2]i32 {
-	size: [2]i32
-	glfwGetWindowSize(glfwGetCurrentContext(), &size[0], &size[1])
-	return size
+	when ODIN_OS == .Darwin {
+		// Cocoa window sizes use points, while the framebuffer uses pixels.
+		return {rl.GetScreenWidth(), rl.GetScreenHeight()}
+	} else {
+		// The supported Linux toolchain uses X11, whose native client size is
+		// the framebuffer size. Query outside render-texture drawing, as the
+		// public render getters otherwise describe the bound render texture.
+		return {rl.GetRenderWidth(), rl.GetRenderHeight()}
+	}
 }
 
-// Match the work area in native desktop units; Wayland may ignore positioning.
 @(private)
-fit_window_to_monitor :: proc() {
+native_monitor_workarea :: proc(monitor: i32) -> (position: rl.Vector2, size: [2]i32) {
+	position = rl.GetMonitorPosition(monitor)
+	size = {rl.GetMonitorWidth(monitor), rl.GetMonitorHeight(monitor)}
+	when ODIN_OS == .Linux {
+		return linux_monitor_workarea(position, size)
+	} else {
+		// raylib has no public work-area getter. Other desktop platforms use
+		// monitor bounds and leave a margin for window decorations.
+		return
+	}
+}
+
+// Use exported raylib APIs and the desktop work area where it is available.
+@(private)
+fit_window_to_monitor :: proc() -> (size: [2]i32, position: rl.Vector2) {
+	if !rl.IsWindowReady() {return}
+	size = native_window_size()
+	position = rl.GetWindowPosition()
 	index := rl.GetCurrentMonitor()
-	count: i32
-	monitors := glfwGetMonitors(&count)
-	if monitors == nil || index < 0 || index >= count {return}
-	size := native_window_size()
-	x,y,width,height,left,top,right,bottom: i32
-	glfwGetMonitorWorkarea(monitors[index],&x,&y,&width,&height)
-	glfwGetWindowFrameSize(glfwGetCurrentContext(),&left,&top,&right,&bottom)
-	if width <= 0 || height <= 0 {return}
+	if index < 0 || index >= rl.GetMonitorCount() {return}
+	work_position, work_size := native_monitor_workarea(index)
+	if work_size[0] <= 0 || work_size[1] <= 0 {return}
+
 	previous := size
-	size = {min(size[0], max(1,width-left-right-32)), min(size[1],max(1,height-top-bottom-32))}
+	// Reserve space on each edge; public raylib does not expose frame extents.
+	margin :: 32
+	size = {min(size[0], max(1, work_size[0]-2*margin)), min(size[1], max(1, work_size[1]-2*margin))}
 	if size != previous {rl.SetWindowSize(size[0], size[1])}
-	rl.SetWindowPosition(x+(width-size[0]-left-right)/2+left,y+(height-size[1]-top-bottom)/2+top)
+	position = {work_position.x+f32((work_size[0]-size[0])/2), work_position.y+f32((work_size[1]-size[1])/2)}
+	rl.SetWindowPosition(i32(position.x), i32(position.y))
+	return
 }

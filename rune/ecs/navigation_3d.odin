@@ -67,7 +67,12 @@ Nav_Mesh_Runtime_3D :: struct {
 	source:string,
 	asset_revision,revision:u64,
 	borrowed:bool,
+	clearance_preparations:[Navigation_Clearance_Cache_Limit_3D]^navigation.Clearance_Preparation_3D,
+	clearance_preparation_count:int,
 }
+// Bound retained preparation memory even if callers vary agent settings or
+// visit many disconnected components. Excess queries use ordinary scratch.
+Navigation_Clearance_Cache_Limit_3D :: 4
 Navigation_Runtime_3D :: struct {
 	meshes:map[Entity]Nav_Mesh_Runtime_3D,
 	agents:map[Entity]Nav_Agent_Runtime_3D,
@@ -85,6 +90,7 @@ remove_navigation_agent_3d :: proc(world:^World,entity:Entity) {
 }
 remove_navigation_mesh_3d :: proc(world:^World,entity:Entity) {
 	if runtime,found:=world.navigation_3d.meshes[entity]; found {
+		destroy_navigation_preparations_3d(&runtime)
 		if !runtime.borrowed {navigation.destroy_mesh_3d(&runtime.mesh)}
 		delete(runtime.source); delete_key(&world.navigation_3d.meshes,entity)
 	}
@@ -92,6 +98,7 @@ remove_navigation_mesh_3d :: proc(world:^World,entity:Entity) {
 destroy_navigation_3d :: proc(world:^World) {
 	for _,&runtime in world.navigation_3d.agents {navigation.destroy_path_3d(&runtime.path)}
 	for _,&runtime in world.navigation_3d.meshes {
+		destroy_navigation_preparations_3d(&runtime)
 		if !runtime.borrowed {navigation.destroy_mesh_3d(&runtime.mesh)}
 		delete(runtime.source)
 	}
@@ -158,10 +165,58 @@ set_navigation_triangle_blocked_3d :: proc(world:^World,mesh_entity:Entity,trian
 	runtime,found:=world.navigation_3d.meshes[mesh_entity]
 	if !found || triangle<0 || int(triangle)>=len(runtime.mesh.triangles) {return false}
 	if runtime.mesh.triangles[triangle].blocked==blocked {return true}
+	destroy_navigation_preparations_3d(&runtime)
 	runtime.mesh.triangles[triangle].blocked=blocked
 	world.navigation_3d.revision+=1; runtime.revision=world.navigation_3d.revision
 	world.navigation_3d.meshes[mesh_entity]=runtime
 	return true
+}
+
+destroy_navigation_preparations_3d :: proc(runtime:^Nav_Mesh_Runtime_3D) {
+	for preparation in runtime.clearance_preparations {navigation.destroy_clearance_preparation_3d(preparation)}
+	runtime.clearance_preparations={};runtime.clearance_preparation_count=0
+}
+
+navigation_clearance_preparation_3d :: proc(world:^World,mesh_entity:Entity,mesh:^navigation.Mesh_3D,start:[3]f32,options:navigation.Path_Options_3D) -> ^navigation.Clearance_Preparation_3D {
+	if !navigation.path_options_valid_3d(options) || options.height>mesh.agent_height+1e-6 || options.radius<=mesh.agent_radius+1e-6 {return nil}
+	_,triangle,ok:=navigation.project_point_3d(mesh,start,options.max_projection,options.max_slope)
+	if !ok {return nil}
+	runtime,found:=world.navigation_3d.meshes[mesh_entity]
+	if !found {return nil}
+	for preparation in runtime.clearance_preparations {
+		if navigation.clearance_preparation_matches_3d(preparation,mesh,options,triangle) {return preparation}
+	}
+	if runtime.clearance_preparation_count>=len(runtime.clearance_preparations) {return nil}
+	preparation:=navigation.create_clearance_preparation_3d(mesh^,options,triangle)
+	if preparation==nil {return nil}
+	runtime.clearance_preparations[runtime.clearance_preparation_count]=preparation
+	runtime.clearance_preparation_count+=1
+	world.navigation_3d.meshes[mesh_entity]=runtime
+	return preparation
+}
+
+// Prewarm the connected component for this agent during loading or spawning.
+// Returns false if unavailable, invalid, or the bounded cache is already full;
+// find_navigation_path_3d still works without a retained preparation.
+prepare_navigation_path_3d :: proc(world:^World,mesh_entity:Entity,start:[3]f32,options:=navigation.Default_Path_Options_3D) -> bool {
+	mesh,ready:=navigation_mesh_3d(world,mesh_entity)
+	if !ready || !navigation.path_options_valid_3d(options) || options.height>mesh.agent_height+1e-6 {return false}
+	if options.radius<=mesh.agent_radius+1e-6 {
+		_,_,ok:=navigation.project_point_3d(&mesh,start,options.max_projection,options.max_slope)
+		return ok
+	}
+	return navigation_clearance_preparation_3d(world,mesh_entity,&mesh,start,options)!=nil
+}
+
+// Reuses world-owned immutable preparation; returned paths belong to allocator.
+// Revisioned mesh mutations release preparation before another query can run.
+find_navigation_path_3d :: proc(world:^World,mesh_entity:Entity,start,goal:[3]f32,options:=navigation.Default_Path_Options_3D,allocator:=context.allocator) -> navigation.Path_3D {
+	mesh,ready:=navigation_mesh_3d(world,mesh_entity)
+	if !ready {return {status=.Invalid}}
+	if !navigation.path_options_valid_3d(options) || !navigation.finite_point_3d(start) || !navigation.finite_point_3d(goal) {return {status=.Invalid}}
+	if options.height>mesh.agent_height+1e-6 {return {status=.Insufficient_Clearance}}
+	preparation:=navigation_clearance_preparation_3d(world,mesh_entity,&mesh,start,options)
+	return navigation.find_path_3d(&mesh,start,goal,options,allocator,preparation)
 }
 set_navigation_target_3d :: proc(world:^World,entity:Entity,target:[3]f32) -> bool {
 	if !is_alive(world,entity) || !has_component_data(world,entity,"NavAgent3D") || !navigation.finite_point_3d(target) {return false}
@@ -226,7 +281,7 @@ update_navigation_3d :: proc(world:^World,dt:f32) {
 		runtime.repath_remaining-=dt
 		if runtime.repath_remaining<=0 || runtime.revision!=mesh_revision || runtime.mesh!=mesh_entity || runtime.config_version!=config_version {
 			navigation.destroy_path_3d(&runtime.path)
-			runtime.path=navigation.find_path_3d(&mesh,transform.position,runtime.state.target,
+			runtime.path=find_navigation_path_3d(world,mesh_entity,transform.position,runtime.state.target,
 				{radius=config.radius,height=config.height,max_slope=config.max_slope,max_projection=config.max_projection})
 			runtime.state.path=runtime.path.points; runtime.state.path_status=runtime.path.status; runtime.state.next_point=0
 			// The projected start anchors the query. A motor already owns its

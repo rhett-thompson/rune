@@ -266,7 +266,8 @@ init :: proc(project_path: string) -> (Engine, bool) {
 	if project.window.vsync {flags += {.VSYNC_HINT}}
 	rl.SetConfigFlags(flags)
 	rl.InitWindow(project.window.width, project.window.height, title)
-	fit_window_to_monitor()
+	reset_window_mode()
+	initial_window_size, initial_window_position := fit_window_to_monitor()
 	// SetConfigFlags ORs flags retained after CloseWindow. Apply both states so
 	// a later engine with V-Sync off cannot inherit prior synchronization.
 	apply_vsync(project.window.vsync)
@@ -288,7 +289,11 @@ init :: proc(project_path: string) -> (Engine, bool) {
 	engine := Engine {
 			project = project,
 			project_directory = project_directory,
-			window = Window_State{target_fps = project.window.target_fps},
+			window = Window_State{
+				size = initial_window_size, position = initial_window_position,
+				saved = true, geometry_pending_until = rl.GetTime()+1,
+				target_fps = project.window.target_fps,
+			},
 			registry = registry,
 			assets = asset_manager,
 			audio = audio_system,
@@ -359,6 +364,10 @@ draw_gizmos :: proc(engine: ^Engine, world: ^ecs.World) {
 // AudioPlayer is repeatable, so playback commands address an entity and its
 // stable component instance name.
 // The engine owns per-entity sound instances and the audio device if it opened it.
+preload_audio :: proc(engine: ^Engine, world: ^ecs.World, entity: ecs.Entity, instance_name: string) -> bool {
+	return audio.preload(&engine.audio,world,entity,instance_name)
+}
+
 play_audio :: proc(
 	engine: ^Engine,
 	world: ^ecs.World,
@@ -814,6 +823,7 @@ update_orbit_cameras_3d :: proc(engine: ^Engine, world: ^ecs.World) {
 }
 
 begin_frame :: proc(engine: ^Engine) {
+	update_window_state(engine)
 	engine.debug.frame += 1
 	engine.debug.frame_started = rl.GetTime()
 	engine.debug.sample = {}

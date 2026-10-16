@@ -38,6 +38,9 @@ runtime_navigation_surface_borrows_geometry_and_leaves_owner_alive :: proc(t:^te
 	bound,found:=navigation_mesh_3d(&w,e)
 	testing.expect(t,found && raw_data(bound.vertices)==raw_data(mesh.vertices) && raw_data(bound.triangles)==raw_data(mesh.triangles),
 		"binding retains the same geometry without copying")
+	options:=navigation.Path_Options_3D{radius=0.2,height=1,max_slope=30,max_projection=1}
+	testing.expect(t,prepare_navigation_path_3d(&w,e,{1,0,1},options) && w.navigation_3d.meshes[e].clearance_preparation_count==1,
+		"preparation also borrows stack-backed arrays without transferring ownership")
 	revision,revision_ready:=navigation_mesh_revision_3d(&w,e)
 	testing.expect(t,revision_ready && revision>0)
 	sync_navigation_3d(&w,nil)
@@ -45,6 +48,7 @@ runtime_navigation_surface_borrows_geometry_and_leaves_owner_alive :: proc(t:^te
 	testing.expect(t,set_navigation_triangle_blocked_3d(&w,e,0,true))
 	blocked_revision,blocked_ready:=navigation_mesh_revision_3d(&w,e)
 	testing.expect(t,triangles[0].blocked && blocked_ready && blocked_revision>revision,"blocking affects owner flags and invalidates routes")
+	testing.expect(t,w.navigation_3d.meshes[e].clearance_preparation_count==0,"blocking clears stack-backed preparation without freeing its geometry")
 	assert(clear_navigation_mesh_3d(&w,e))
 	_,ready=navigation_mesh_3d(&w,e)
 	testing.expect(t,!ready && vertices[2]==([3]f32{4,0,0}) && triangles[0].blocked,"clear removes only the borrowed binding")

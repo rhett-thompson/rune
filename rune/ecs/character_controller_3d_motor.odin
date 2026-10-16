@@ -76,6 +76,7 @@ character_controllers_3d_step :: proc(world:^World,dt:f32) {
 		up := state.up
 		if character_length_3d(up) < 0.0001 {up={0,1,0}}
 		query.up=up
+		if state.dashing {state.velocity=state.dash_resume_velocity}
 		state.previous_position=position
 		if !state.active {state.height=config.height;state.active=true}
 		state.stepped,state.stand_blocked=false,false
@@ -176,11 +177,26 @@ character_controllers_3d_step :: proc(world:^World,dt:f32) {
 			state.jump_cut_available=false
 		}
 		state.jump_release_requested=false
-		start := position
-		translation := state.velocity*dt
-		position=character_slide_3d(&query,position,translation,config.radius,state.height)
-		if state.grounded && !jumped {
-			position,state.stepped=character_try_step_3d(&query,start,translation,position,config,state.height,min_up)
+		ordinary_velocity:=state.velocity
+		dash_time:f32
+		if state.dashing {
+			dash_time=min(dt,state.dash_remaining)
+			state.velocity=character_dash_velocity_3d(&state,ordinary_velocity,up)
+		}
+		// Sweep the burst and any remainder separately. A duration shorter than
+		// this step travels only speed*duration, then resumes ordinary movement.
+		for slice in 0..<2 {
+			slice_time:=dash_time if slice==0 else dt-dash_time
+			if slice_time<=0 {continue}
+			velocity:=state.velocity if slice==0 else ordinary_velocity
+			start:=position
+			translation:=velocity*slice_time
+			position=character_slide_3d(&query,position,translation,config.radius,state.height)
+			if state.grounded && !jumped {
+				stepped:bool
+				position,stepped=character_try_step_3d(&query,start,translation,position,config,state.height,min_up)
+				state.stepped=state.stepped || stepped
+			}
 		}
 		// Preserve vertical velocity on slopes but cancel a jump at a ceiling.
 		character_collect_planes_3d(&query,position,config.radius,state.height)
@@ -190,6 +206,7 @@ character_controllers_3d_step :: proc(world:^World,dt:f32) {
 			normal:=character_array_3d(plane.plane.normal)
 			if character_dot_3d(normal,up) < -0.1 && character_dot_3d(state.velocity,up) > 0 {
 				state.velocity-=up*character_dot_3d(state.velocity,up)
+				ordinary_velocity-=up*max(0,character_dot_3d(ordinary_velocity,up))
 			}
 		}
 		if !jumped && (state.grounded || character_dot_3d(state.velocity,up) <= 0) {
@@ -201,15 +218,27 @@ character_controllers_3d_step :: proc(world:^World,dt:f32) {
 				surface_speed:=character_length_3d(state.velocity) if moving_on_ground else
 					character_length_3d(state.velocity-up*character_dot_3d(state.velocity,up))
 				state.velocity=character_ground_velocity_3d(state.velocity,hit.normal,up,surface_speed)
+				ordinary_speed:=character_length_3d(ordinary_velocity) if moving_on_ground else
+					character_length_3d(ordinary_velocity-up*character_dot_3d(ordinary_velocity,up))
+				ordinary_velocity=character_ground_velocity_3d(ordinary_velocity,hit.normal,up,ordinary_speed)
 				state.inherited_velocity={}
 				character_support_3d(world,&state,hit,position)
 			} else if state.grounded {
 				state.velocity+=state.support_velocity
+				ordinary_velocity+=state.support_velocity
 				state.inherited_velocity=state.support_velocity
 			}
 			state.grounded=grounded
 		}
 		if !state.grounded {state.support_entity=0;state.ground_normal={}}
+		if state.dashing {
+			state.dash_remaining=max(0,state.dash_remaining-dt)
+			state.dash_resume_velocity=ordinary_velocity
+			if state.dash_remaining<=0.000001 {
+				state.velocity=ordinary_velocity
+				character_dash_clear_3d(&state)
+			}
+		}
 		pose.position=position
 		// Simulation writes bypass authored teleport/reset notifications.
 		if world.transforms[entity] != pose {record_component_change(world,entity,"Transform",.Changed)}

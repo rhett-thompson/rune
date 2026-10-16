@@ -223,6 +223,7 @@ main :: proc() {
 	defer audio.shutdown(&system)
 	assert(system.available, "audio device required for stop fade validation")
 	rl.SetMasterVolume(0) // Keep engine gains measurable while native playback is silent.
+	preload_test(&system,&world,&registry)
 	loop_test(&system, &world, entity)
 	voice_test(&system, &world, entity)
 	stream_test(&system, &world, entity)
@@ -231,5 +232,5 @@ main :: proc() {
 	ecs.destroy_entity(&world, entity)
 	audio.update(&system, &world, 1)
 	assert(len(system.instances) == 0, "destroy releases stopped audio resources")
-	fmt.println("Audio stop fade: configuration, loops, aliases, MP3, overrides, repeated stops, autoplay, replay, mixer, and suspension passed")
+	fmt.println("Audio preload and stop fade: configuration, variants, voices, MP3, reload, loops, overrides, autoplay, replay, mixer, and suspension passed")
 }

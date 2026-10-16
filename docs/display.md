@@ -22,6 +22,9 @@ An explicit `high_dpi: false` opts out. This applies to game rendering as well a
 current monitor at its desktop resolution and retains DPI-aware coordinates.
 It uses a normal undecorated window without exclusive monitor ownership or
 always-on-top behavior, so Alt+Tab and other application switching remain available.
+Window modes support static raylib and `-define:RAYLIB_SHARED=true` builds using
+exported raylib APIs. Rune's borderless mode uses `WINDOW_UNDECORATED`; query it
+with `rune.window_mode()`. Raylib's `BORDERLESS_WINDOWED_MODE` flag stays clear.
 Exclusive fullscreen uses raylib's native fullscreen behavior: on Windows it
 uses physical pixel drawing coordinates and reports DPI 1. Prefer borderless
 for a fullscreen game with the same UI sizing as a window. Games using exclusive
@@ -45,9 +48,13 @@ can repeat displayed frames.
 
 The initial window is centered and fitted to the available desktop. Windows
 uses the monitor work area, accounting for taskbars and window decorations.
-Other desktop platforms query the bundled GLFW backend's work area. Window size and
+Linux uses the desktop's X11 work area when available, with a 32-pixel margin on
+each edge for decorations. If no work area is available, and on other desktop
+platforms, Rune fits to the monitor bounds with the same margin. Wayland
+compositors can control window placement. Window size and requested desktop
 position are retained across runtime mode switches, including maximized state;
-they are not persisted across application launches.
+desktop window managers may adjust the final decorated position. These settings
+are not persisted across application launches.
 
 ## Code and console
 
@@ -65,7 +72,9 @@ display := rune.window_metrics()
 
 Setters return success, and setting the current mode does nothing. Use the Rune
 setters consistently so the engine can retain the normal window geometry.
-These calls do not rewrite `project.json`.
+Rune's frame loop completes asynchronous desktop operations such as restoring
+a maximized window. Custom loops should call `rune.begin_frame(&game)` before
+their update and draw work. These calls do not rewrite `project.json`.
 
 `rune.set_vsync(&game, enabled: bool) -> bool` and
 `rune.set_target_fps(&game, fps: i32) -> bool` also return success. Call them
@@ -161,8 +170,9 @@ odin build tools/resolution_validation -linker:msvc -collection:rune=rune "-out:
 - Font atlases remain asset-owned. For smooth text use a TrueType font loaded at
   the desired physical text size; DPI support cannot add detail to bitmap fonts.
 
-Runtime checks are validated on Windows at 200% DPI. Multi-monitor DPI moves,
-macOS, and Linux require testing on those configurations.
+Earlier runtime checks passed on Windows at 200% DPI. On 2026-10-16, static and
+shared raylib window checks also passed on Windows and Ubuntu WSLg/X11 at 100%
+scaling. Multi-monitor DPI moves, native Wayland, and macOS still require testing.
 
 ```powershell
 # Windows PowerShell; on Linux omit .exe and -linker:msvc, and use ./build/...
@@ -176,6 +186,12 @@ odin build tools/window_validation -linker:msvc -collection:rune=rune "-out:buil
 & "./build/window_validation$exe" --startup-borderless
 & "./build/window_validation$exe" --startup-fullscreen
 ```
+
+The validation helpers also compile this validator with
+`-define:RAYLIB_SHARED=true` to check shared-library linkage. To run that variant
+on Windows, place the toolchain's matching `raylib.dll` beside the executable or
+on `PATH`; on Linux, make its `vendor/raylib/linux` directory available through
+`LD_LIBRARY_PATH` if it is not already on the loader's search path.
 
 `--frame-pacing-runtime` hides windows after startup, checks independent V-Sync
 and cap settings, measures the native software limiter, and exercises engine
