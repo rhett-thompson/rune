@@ -458,8 +458,8 @@ validate_components :: proc(
 		}
 		if name == "NavMesh3D" {
 			config,valid:=ecs.nav_component_3d_from_json(value,ecs.NavMesh3D)
-			if !valid {add(report,file,field_path(path,name),"NavMesh3D requires an asset path")}
-			else if project_directory!="" {
+			if !valid {add(report,file,field_path(path,name),"NavMesh3D requires either an asset path or runtime=true")}
+			else if !config.runtime && project_directory!="" {
 				mesh,error:=navigation.load_mesh_3d(path_from(report,project_directory,config.asset))
 				if error!="" {add(report,file,field_path(field_path(path,name),"asset"),error)} else {navigation.destroy_mesh_3d(&mesh)}
 			}

@@ -13,7 +13,7 @@ component_value_valid :: proc(value: $T) -> bool {
 	when T == CloudVolume {return cloud_volume_valid(value)}
 	when T == Trigger3D {return trigger_3d_valid(value)}
 	when T == Interactable3D || T == Interactor3D {return interaction_component_3d_valid(value)}
-	when T == NavMesh3D {return value.asset!=""}
+	when T == NavMesh3D {return (value.runtime && value.asset=="") || (!value.runtime && value.asset!="")}
 	when T == NavAgent3D {return nav_agent_3d_valid(value)}
 	when T == BoxCollider2D || T == CircleCollider2D || T == CapsuleCollider2D || T == SegmentCollider2D {
 		if !physics_query_vector_valid(value.offset) {return false}

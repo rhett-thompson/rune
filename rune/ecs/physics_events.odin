@@ -25,6 +25,8 @@ Physics_Pair :: struct {
 
 Physics_State :: struct {
 	needs_sync: bool,
+	// Total native-body synchronization passes, including query preparation.
+	sync_count: u64,
 	shapes:  map[u64]Physics_Shape,
 	pairs:   map[Physics_Pair]Physics_Event,
 	events:  [dynamic]Physics_Event,

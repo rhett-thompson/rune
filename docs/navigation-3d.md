@@ -38,6 +38,27 @@ around an obstacle and up a ramp. Press B to block the connecting passage.
 coordinates; it does not require a Transform, and parenting/transforming its entity
 does not move the geometry. Disable its entity to make its surface unavailable.
 
+Games that bake or generate their own surface can instead use
+`NavMesh3D{runtime=true}` with no asset path and bind it explicitly:
+
+```odin
+ecs.add(world, registry, mesh_entity, ecs.NavMesh3D{runtime=true})
+ecs.set_navigation_mesh_3d(world, mesh_entity, generated_mesh)
+// Before freeing or replacing generated_mesh's arrays:
+ecs.clear_navigation_mesh_3d(world, mesh_entity)
+navigation.destroy_mesh_3d(&generated_mesh)
+```
+
+The binding borrows the mesh arrays without copying geometry or baking another
+surface. The owner must retain them until the binding is cleared, the component or
+entity is removed, or the world is destroyed. Asset sync leaves runtime bindings
+alone. Binding a replacement increments the surface revision so agents replan.
+Use `set_navigation_triangle_blocked_3d` for blocked flags; it updates the shared
+triangles and invalidates routes. Runtime geometry and targets are not serialized.
+Game-owned route caches can use `navigation_mesh_revision_3d(world, mesh_entity)`
+to detect replacement, asset reload, and blocked-flag changes. It returns a
+revision and the same readiness flag as `navigation_mesh_3d`.
+
 `NavAgent3D` requires an unparented, unit-scale Transform. Its position is at the
 feet. By default it directly moves the Transform along the surface. This mode
 does not perform physical collision or apply gravity. A RigidBody3D cannot share
@@ -53,9 +74,13 @@ Controller speed is measured along the ground surface; its horizontal component
 is smaller on a slope. Grounded acceleration and braking preserve that surface
 speed across fixed steps.
 
-The bake must provide at least the agent's radius and height clearance, and its
-walkable slope limit must include the slopes the agent needs. Raising an agent's
-`max_slope` does not restore surfaces already removed by the bake.
+Agents share one surface and set their footprint with `NavAgent3D.radius`.
+Queries apply any radius beyond the surface's baked base inset at runtime,
+including around corners and narrow connections. The bake must still provide
+the agent's height clearance, and its walkable slope limit must include the
+slopes the agent needs. Raising an agent's `max_slope` does not restore surfaces
+already removed by the bake. A small base radius preserves more routes for
+small agents; use zero when all horizontal clearance should come from agents.
 
 ## Targets and state
 
@@ -118,7 +143,7 @@ asset polling continues. Callback-based loops should call
 | `update_rotation` | false | Face the horizontal travel direction using local +Z forward, preserving pitch and roll. |
 | `auto_braking` | false | Predictively slow down before the destination using remaining route distance and braking. |
 | `corner_slowdown` | false | Predictively slow down before real bends in the route. |
-| `radius` | 0.3 | Required authored clearance radius. |
+| `radius` | 0.3 | Agent footprint radius; extra clearance beyond the baked base inset is applied by the path query. |
 | `height` | 1.8 | Required authored headroom. |
 | `max_slope` | 45 | Maximum slope in degrees, from 0 to below 89. |
 | `max_projection` | 1 | Maximum XYZ distance for snapping each query endpoint to the mesh. |
@@ -198,6 +223,11 @@ rendering, including the Navigation 3D demo, can call
 `gizmos.draw_navmeshes_3d(world, game.gizmos.navmesh_entity)` inside their 3D camera
 mode when `game.gizmos.navmeshes` is true. The helper borrows current meshes and
 does not require a transform on the navigation entity.
+
+For a mesh owned directly by gameplay code, call
+`gizmos.draw_navmesh_3d(mesh)` in the same camera mode. This also borrows the
+mesh's current world-space geometry, so no `NavMesh3D` component or copied mesh
+is needed. Both helpers preserve scene depth testing and avoid depth writes.
 
 ## Baking a navmesh from a scene
 
@@ -338,8 +368,9 @@ meshes are owned and must be released with `destroy_mesh_3d`.
 You can also provide **authored walkable center surfaces** directly. Inset the surface from walls, holes, and ledges
 by the advertised `agent_radius`, and check that `agent_height` of headroom exists
 throughout it. These fields declare clearance already accounted for by the author
-or exporter; loading an already-authored navmesh does not run the baker. Queries
-reject agents larger than that clearance. The example includes
+or exporter; loading an already-authored navmesh does not run the baker. Wider
+agents inset their routes further from this surface's boundaries; agents taller
+than its declared headroom are rejected. The example includes
 `generate_mesh.bat` / `generate_mesh.sh` as a small original geometry-authoring example.
 
 Indices are zero-based. Adjacent triangles must share the same two vertex indices
@@ -359,6 +390,14 @@ in its corridor triangle, including across ramp seams. `points[i]` to
 `points[i+1]` follows `triangles[i]`; crossings on a flat straight leg are collinear.
 This does not guarantee the globally shortest route across all possible corridors.
 There are no off-mesh jump, ladder, elevator, or teleport links in this version.
+
+When an agent needs additional radius, queries first try a direct surface trace
+and the ordinary funnel route. If a boundary is too close, A* instead uses
+clearance-clipped shared-edge portals and inset corner points. Whole segments
+must retain the additional radius, so a narrow shortcut can be rejected while
+a wider alternate route remains available. This does not create or modify a
+second navmesh. Disconnected surfaces and overlapping floors remain distinct;
+blocked triangles form new clearance boundaries for the querying agent.
 
 ## Direct queries and mouse picking
 
@@ -381,14 +420,19 @@ path is reported as complete.
 `navigation.project_point_3d(mesh, point, max_distance, max_slope)` returns the
 nearest permitted surface point, triangle index, and success. Distance is measured
 in XYZ, so an upper-floor point does not silently become a lower-floor destination.
+Use `navigation.project_agent_point_3d(mesh, point, options)` when a target also
+needs the agent's radius clearance. It moves the center inward within
+`options.max_projection`, or fails if no usable center can be found.
 `navigation.raycast_mesh_3d(mesh, origin, translation, max_slope)` returns the nearest
 permitted triangle hit. Translation is the complete ray segment, not a unit direction.
 The demo uses a screen-to-world ray for click destinations. Blocked triangles are
 excluded from projection, picking, and path searches.
 
 Mesh values returned by `ecs.navigation_mesh_3d` and `assets.navmesh_data` are borrowed
-read-only. ECS mesh values remain valid until their next sync/removal or world
-destruction; asset values expire on successful reload or manager shutdown.
+read-only. ECS asset mesh values remain valid until their next sync/removal or world
+destruction; runtime values expire on replacement/clear/removal or when their owner
+ends the binding's lifetime. Asset values expire on successful reload or manager
+shutdown.
 
 ## Doors, reloads, and persistence
 
@@ -397,8 +441,9 @@ ecs.set_navigation_triangle_blocked_3d(world, mesh_entity, triangle_index, true)
 ```
 
 Blocking a triangle increments that surface's revision and invalidates agent routes
-on the next fixed step. Call with false to reopen it. Each NavMesh3D entity owns its
-blocked flags, even when two entities use the same asset. Whole-mesh disabling also
+on the next fixed step. Call with false to reopen it. Each asset-backed NavMesh3D
+entity owns its blocked flags, even when two entities use the same asset. Runtime
+bindings share their owner's blocked flags. Whole-mesh disabling also
 stops its agents. Physical obstacles do not automatically carve the mesh: game code
 must keep logical door blocking and physical door collision in agreement. Blocking
 an agent's current triangle can leave it with no route until the area reopens or

@@ -6,8 +6,9 @@ import "core:strings"
 import "rune:assets"
 import "rune:navigation"
 
-// The navmesh asset uses world-space coordinates; Transform does not move it.
-NavMesh3D :: struct {asset:string}
+// Navigation geometry uses world-space coordinates; Transform does not move it.
+// Runtime surfaces are bound by set_navigation_mesh_3d instead of an asset.
+NavMesh3D :: struct {asset:string, runtime:bool}
 NavAgent3D :: struct {
 	mesh: Entity_Ref,
 	speed,radius,height,max_slope,max_projection: f32,
@@ -65,6 +66,7 @@ Nav_Mesh_Runtime_3D :: struct {
 	mesh:navigation.Mesh_3D,
 	source:string,
 	asset_revision,revision:u64,
+	borrowed:bool,
 }
 Navigation_Runtime_3D :: struct {
 	meshes:map[Entity]Nav_Mesh_Runtime_3D,
@@ -83,24 +85,53 @@ remove_navigation_agent_3d :: proc(world:^World,entity:Entity) {
 }
 remove_navigation_mesh_3d :: proc(world:^World,entity:Entity) {
 	if runtime,found:=world.navigation_3d.meshes[entity]; found {
-		navigation.destroy_mesh_3d(&runtime.mesh); delete(runtime.source); delete_key(&world.navigation_3d.meshes,entity)
+		if !runtime.borrowed {navigation.destroy_mesh_3d(&runtime.mesh)}
+		delete(runtime.source); delete_key(&world.navigation_3d.meshes,entity)
 	}
 }
 destroy_navigation_3d :: proc(world:^World) {
 	for _,&runtime in world.navigation_3d.agents {navigation.destroy_path_3d(&runtime.path)}
-	for _,&runtime in world.navigation_3d.meshes {navigation.destroy_mesh_3d(&runtime.mesh); delete(runtime.source)}
+	for _,&runtime in world.navigation_3d.meshes {
+		if !runtime.borrowed {navigation.destroy_mesh_3d(&runtime.mesh)}
+		delete(runtime.source)
+	}
 	delete(world.navigation_3d.agents); delete(world.navigation_3d.meshes); world.navigation_3d={}
+}
+
+// Borrows a mesh built by navigation's mesh builder/baker. Its owner must keep
+// the backing arrays alive and unchanged until clear_navigation_mesh_3d, entity
+// removal, or world destruction. Triangle blocking must use the revisioned API.
+set_navigation_mesh_3d :: proc(world:^World,entity:Entity,mesh:navigation.Mesh_3D) -> bool {
+	config,found:=get(world,entity,NavMesh3D)
+	if !found || !config.runtime || !is_alive(world,entity) || len(mesh.vertices)<3 || len(mesh.triangles)==0 {return false}
+	if !finite_nonnegative(mesh.agent_radius) || !finite_nonnegative(mesh.agent_height) || mesh.agent_height<=0 {return false}
+	ensure_navigation_3d(world)
+	remove_navigation_mesh_3d(world,entity)
+	world.navigation_3d.revision+=1
+	world.navigation_3d.meshes[entity]={mesh=mesh,revision=world.navigation_3d.revision,borrowed=true}
+	return true
+}
+
+// Unbinds borrowed geometry without freeing the owner's arrays. Agents become
+// unavailable until another mesh is bound to this runtime NavMesh3D entity.
+clear_navigation_mesh_3d :: proc(world:^World,entity:Entity) -> bool {
+	config,found:=get(world,entity,NavMesh3D)
+	if !found || !config.runtime {return false}
+	remove_navigation_mesh_3d(world,entity)
+	world.navigation_3d.revision+=1
+	return true
 }
 
 // Sync after asset refresh, before simulation/start/restore callbacks.
 sync_navigation_3d :: proc(world:^World,manager:^assets.Asset_Manager) {
 	for entity in entities_with_component(world,"NavMesh3D",include_disabled=true) {
 		config,_:=get(world,entity,NavMesh3D)
+		if config.runtime {continue}
 		mesh,revision,loaded:=assets.navmesh_data(manager,config.asset)
 		if !loaded {continue}
 		ensure_navigation_3d(world)
 		old,found:=world.navigation_3d.meshes[entity]
-		if found && old.source==config.asset && old.asset_revision==revision {continue}
+		if found && !old.borrowed && old.source==config.asset && old.asset_revision==revision {continue}
 		copy_mesh:=navigation.Mesh_3D{agent_radius=mesh.agent_radius,agent_height=mesh.agent_height,
 			vertices=make([][3]f32,len(mesh.vertices)),triangles=make([]navigation.Triangle_3D,len(mesh.triangles))}
 		copy(copy_mesh.vertices,mesh.vertices); copy(copy_mesh.triangles,mesh.triangles)
@@ -113,7 +144,15 @@ sync_navigation_3d :: proc(world:^World,manager:^assets.Asset_Manager) {
 navigation_mesh_3d :: proc(world:^World,entity:Entity) -> (navigation.Mesh_3D,bool) {
 	config,has_config:=get(world,entity,NavMesh3D)
 	runtime,found:=world.navigation_3d.meshes[entity]
-	return runtime.mesh,found && has_config && runtime.source==config.asset && is_enabled(world,entity)
+	matching_source:=runtime.borrowed if config.runtime else !runtime.borrowed && runtime.source==config.asset
+	return runtime.mesh,found && has_config && matching_source && is_enabled(world,entity)
+}
+// Use with borrowed mesh values to invalidate game-owned route caches after
+// binding replacements, asset reloads, and revisioned triangle blocking.
+navigation_mesh_revision_3d :: proc(world:^World,entity:Entity) -> (u64,bool) {
+	_,ready:=navigation_mesh_3d(world,entity)
+	if !ready {return 0,false}
+	return world.navigation_3d.meshes[entity].revision,true
 }
 set_navigation_triangle_blocked_3d :: proc(world:^World,mesh_entity:Entity,triangle:i32,blocked:bool) -> bool {
 	runtime,found:=world.navigation_3d.meshes[mesh_entity]

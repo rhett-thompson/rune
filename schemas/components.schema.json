@@ -41,8 +41,15 @@
       }
     },
     "NavMesh3D": {
-      "type":"object","additionalProperties":false,"required":["asset"],
-      "properties":{"asset":{"type":"string","minLength":1,"description":"Project-relative .navmesh.json asset; vertices are world-space agent-center positions."}}
+      "type":"object","additionalProperties":false,
+      "properties":{
+        "asset":{"type":"string","description":"Project-relative .navmesh.json asset; vertices are world-space agent-center positions."},
+        "runtime":{"type":"boolean","default":false,"description":"Borrow game-owned geometry through ecs.set_navigation_mesh_3d instead of loading an asset."}
+      },
+      "oneOf":[
+        {"required":["asset"],"properties":{"asset":{"minLength":1},"runtime":{"const":false}}},
+        {"required":["runtime"],"properties":{"asset":{"const":""},"runtime":{"const":true}}}
+      ]
     },
     "NavAgent3D": {
       "type":"object","additionalProperties":false,"required":["mesh"],

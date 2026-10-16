@@ -10,6 +10,9 @@ import rl "vendor:raylib"
 
 Scene3D_Settings :: struct {
 	particle_batches: []Particle3D_Batch,
+	// Borrowed world-axis ellipsoids of air distortion, composed after world
+	// transparency and before the foreground overlay and HDR post processing.
+	distortion_volumes: []Distortion_Volume,
 	// Render borrowed camera-local color/emission textures before the scene pass.
 	// They join scene HDR color before bloom, output conversion and final effects,
 	// retaining their own depth instead of replacing the world depth buffer.
@@ -110,6 +113,8 @@ Context :: struct {
 	scene_overlay_attempted: bool,
 	light_shafts_shader: ^r3d.ScreenShader,
 	light_shafts_attempted: bool,
+	distortion_shader: ^r3d.ScreenShader,
+	distortion_attempted: bool,
 	// Follow the window framebuffer by default; disable for a fixed internal resolution.
 	match_framebuffer: bool,
 	// Internal resolution relative to the physical framebuffer; defaults to one.
@@ -208,6 +213,9 @@ shutdown :: proc(ctx: ^Context) {
 	if ctx.light_shafts_shader!=nil {r3d.UnloadScreenShader(ctx.light_shafts_shader)}
 	ctx.light_shafts_shader=nil
 	ctx.light_shafts_attempted=false
+	if ctx.distortion_shader!=nil {r3d.UnloadScreenShader(ctx.distortion_shader)}
+	ctx.distortion_shader=nil
+	ctx.distortion_attempted=false
 	destroy_scene_lights(ctx)
 	destroy_animation_players(ctx)
 	for _, asset in ctx.models {
@@ -328,18 +336,18 @@ draw_scene_ex :: proc(
 	if count > 0 {set_pre_transparency_shader_chain(raw_data(chain[:]),count)}
 	grain_enabled:=prepare_film_grain(ctx,world,asset_manager,entity,settings.post_processing_override)
 	if grain_enabled {r3d.SetScreenShaderChain(.FINAL, &ctx.film_grain_shader, 1)}
-	if overlay_enabled {
-		when PRE_TRANSPARENCY_SHADERS_SUPPORTED {
-			r3d.SetScreenShaderChain(.SCENE, &ctx.scene_overlay_shader, 1)
-		} else {
-			// Other targets keep atmosphere in R3D's scene stage. Compose after
-			// those effects instead of replacing the compatibility chain.
-			scene_chain: [4]^r3d.ScreenShader
-			copy(scene_chain[:count],chain[:count])
-			scene_chain[count]=ctx.scene_overlay_shader
-			r3d.SetScreenShaderChain(.SCENE,raw_data(scene_chain[:]),count+1)
-		}
-	}
+	distortion_enabled:=prepare_distortion(ctx,asset_manager,settings,camera)
+	// Native stages hold four passes. Compatibility targets can need three
+	// atmosphere passes plus distortion and overlay, so spill only the final
+	// foreground composition into POST rather than dropping a pass.
+	scene_chain: [5]^r3d.ScreenShader
+	scene_count: i32
+	when !PRE_TRANSPARENCY_SHADERS_SUPPORTED {copy(scene_chain[:count],chain[:count]); scene_count=count}
+	if distortion_enabled {scene_chain[scene_count]=ctx.distortion_shader; scene_count+=1}
+	if overlay_enabled {scene_chain[scene_count]=ctx.scene_overlay_shader; scene_count+=1}
+	if distortion_enabled || overlay_enabled {r3d.SetScreenShaderChain(.SCENE,raw_data(scene_chain[:]),min(scene_count,4))}
+	compatibility_overlay_post:=scene_count>4
+	if compatibility_overlay_post {r3d.SetScreenShaderChain(.POST,&ctx.scene_overlay_shader,1)}
 	backend_started:=rl.GetTime()
 	update_material_shader_time(ctx, settings, backend_started)
 	gpu_slot:=begin_gpu_timing(ctx)
@@ -348,7 +356,8 @@ draw_scene_ex :: proc(
 	ctx.frame_stats.backend_cpu_ms=(rl.GetTime()-backend_started)*1000
 	if count > 0 {set_pre_transparency_shader_chain(nil,0)}
 	if grain_enabled {r3d.SetScreenShaderChain(.FINAL, nil, 0)}
-	if overlay_enabled {r3d.SetScreenShaderChain(.SCENE, nil, 0)}
+	if distortion_enabled || overlay_enabled {r3d.SetScreenShaderChain(.SCENE, nil, 0)}
+	if compatibility_overlay_post {r3d.SetScreenShaderChain(.POST,nil,0)}
 	draw_debug_overlays(world, visible_camera, settings)
 	ctx.frame_stats.scene_cpu_ms=(rl.GetTime()-started)*1000
 	return true

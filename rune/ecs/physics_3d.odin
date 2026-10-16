@@ -161,6 +161,7 @@ physics_3d_body_edited :: proc(world: ^World, entity: Entity, previous, value: R
 
 sync_bodies_to_box3d :: proc(world: ^World) {
 	defer world.physics_3d.needs_sync = false
+	world.physics_3d.sync_count += 1
 	sync_terrain_bodies(world)
 	sync_static_mesh_bodies(world)
 	for entity, body in world.rigid_bodies_3d {

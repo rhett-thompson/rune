@@ -87,7 +87,7 @@ build rune_relay rune_relay
 for name in $built_validators; do
     "build/$name" || fail "run $name"
 done
-for name in console ecs audio core geometry render r3d_bridge save input ui network replication pathutil; do
+for name in console ecs audio core geometry render r3d_bridge save input ui network replication navigation pathutil; do
     test_rune "$name"
 done
 if ! odin test rune_relay -collection:rune=rune -out:build/rune_relay_config_test; then

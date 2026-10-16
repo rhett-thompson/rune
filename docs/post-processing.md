@@ -240,6 +240,52 @@ The bridge clears this chain after each render and releases its cached shaders
 at shutdown. Native `volumetric_fog` remains independent of this composition.
 Other targets retain the previous `SCENE` chain and opaque-depth fog behavior.
 
+## Local air distortion
+
+Games can supply bounded, moving air fields for heat shimmer, exhaust, or similar
+effects without creating mesh entities:
+
+```odin
+air := [1]r3d_bridge.Distortion_Volume{
+    {position={0,3,0}, radius={0.6,1.2,0.6}, strength=0.005, phase=0.8},
+}
+view := r3d_bridge.Scene3D_Settings{
+    distortion_volumes=air[:],
+    material_time=simulation_seconds,
+    material_time_override=true,
+}
+r3d_bridge.draw_scene_ex(&bridge, world, manager, view)
+```
+
+`position` is the center of a world-axis ellipsoid; `radius` contains its positive
+half extents. `strength` is a world-space displacement, so the apparent shimmer
+shrinks with distance. Values around 0.005 are subtle at close viewing distances.
+`phase` offsets the animation in radians. Animation follows the same clock as
+time-enabled material shaders, including `material_time_override` for pause and
+reproducible captures. Rune borrows the slice only for the draw. Empty slices and
+nonpositive strengths contribute nothing; invalid values are skipped.
+
+One cached screen pass samples the rendered background without adding tint or
+opacity. Ray/ellipsoid intersections clip against opaque scene depth, fade at the
+ellipsoid boundary and partial visible segments, and reject displaced samples
+that would pull foreground silhouettes into the field. The nearest 32 visible
+volumes are retained; off-screen and subpixel fields are culled, with distant
+fields fading before the cutoff. Overlap displacement is limited to four internal
+render pixels. This is screen-space refraction of visible scene color; it cannot
+reveal surfaces hidden from the camera or distinguish the depth of transparent
+clouds, which do not write opaque depth.
+
+On Windows/Linux AMD64, distortion runs after fog and transparent clouds, before
+the camera-local foreground overlay and HDR effects. Weapons and later HUD/debug
+draws stay undistorted. Other targets retain the atmospheric `SCENE` compatibility
+chain. When three atmosphere passes, distortion, and a foreground overlay are all
+active there, the four-pass native stage limit moves only the foreground overlay
+to `POST`, after HDR effects and before output conversion. Its color remains
+visible but does not contribute to bloom in that case. The bridge clears its
+chains after each draw and releases the cached distortion shader at shutdown.
+It owns `SCENE` while distortion or a foreground overlay is active, and owns
+`POST` during that compatibility overflow case.
+
 ## Profile selection and lifetime
 
 1. An enabled profile on the active Camera3D entity wins.

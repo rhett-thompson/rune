@@ -134,7 +134,10 @@ find_path_3d :: proc(mesh: ^Mesh_3D,start,goal: [3]f32,options := Default_Path_O
 	if !finite_3d(options.radius) || !finite_3d(options.height) || options.radius<0 || options.height<=0 ||
 	   !finite_3d(options.max_projection) || options.max_projection<0 || !finite_3d(options.max_slope) || options.max_slope<0 || options.max_slope>=89 ||
 	   !finite_point_3d(start) || !finite_point_3d(goal) {return {status=.Invalid}}
-	if options.radius>mesh.agent_radius+1e-6 || options.height>mesh.agent_height+1e-6 {return {status=.Insufficient_Clearance}}
+	if options.height>mesh.agent_height+1e-6 {return {status=.Insufficient_Clearance}}
+	// The surface may already include a base inset. Wider agents apply only
+	// their additional radius at query time, sharing the same mesh storage.
+	if options.radius>mesh.agent_radius+1e-6 {return find_clearance_path_3d(mesh,start,goal,options,allocator)}
 	s,si,start_ok := project_point_3d(mesh,start,options.max_projection,options.max_slope)
 	if !start_ok {return {status=.Start_Off_Mesh}}
 	g,gi,goal_ok := project_point_3d(mesh,goal,options.max_projection,options.max_slope)

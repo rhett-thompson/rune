@@ -36,7 +36,7 @@ physics_3d_raycast :: proc(
 	   translation == ([3]f32{}) ||
 	   filter.layers == 0 {return {}, false}
 	ensure_box3d_world(world)
-	if world.physics_3d.needs_sync || len(world.terrains) > 0 || len(world.static_meshes) > 0 {sync_bodies_to_box3d(world)}
+	if world.physics_3d.needs_sync {sync_bodies_to_box3d(world)}
 	query := Physics_Query_3D {
 		caller_context = context,
 		world          = world,
@@ -60,7 +60,7 @@ physics_3d_sphere_cast :: proc(world: ^World, origin, translation: [3]f32, radiu
 	   translation==([3]f32{}) || !finite_nonnegative(radius) || filter.layers==0 {return {},false}
 	if radius==0 {return physics_3d_raycast(world,origin,translation,filter)}
 	ensure_box3d_world(world)
-	if world.physics_3d.needs_sync || len(world.terrains)>0 || len(world.static_meshes)>0 {sync_bodies_to_box3d(world)}
+	if world.physics_3d.needs_sync {sync_bodies_to_box3d(world)}
 	point:b3.Vec3
 	proxy:=b3.ShapeProxy{points=&point,count=1,radius=radius}
 	query:=Physics_Query_3D{caller_context=context,world=world,filter=filter}
@@ -161,7 +161,7 @@ physics_3d_overlap_proxy :: proc(
 ) -> []Entity {
 	if filter.layers == 0 {return nil}
 	ensure_box3d_world(world)
-	if world.physics_3d.needs_sync || len(world.terrains) > 0 || len(world.static_meshes) > 0 {sync_bodies_to_box3d(world)}
+	if world.physics_3d.needs_sync {sync_bodies_to_box3d(world)}
 	query := Physics_Query_3D {
 		caller_context = context,
 		world          = world,

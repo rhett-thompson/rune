@@ -45,7 +45,7 @@ type nul >"build\validate-failures.log"
 for /d %%D in ("tools\*") do if exist "%%D\main.odin" call :build "%%~nxD" "%%D"
 call :build rune_relay rune_relay
 for /f "usebackq delims=" %%N in ("build\validate-built.tmp") do call :run_validator "%%N"
-for %%N in (console ecs audio core geometry render r3d_bridge save input ui network replication pathutil) do call :test_rune "%%N"
+for %%N in (console ecs audio core geometry render r3d_bridge save input ui network replication navigation pathutil) do call :test_rune "%%N"
 odin test rune_relay -collection:rune=rune "-out:build/rune_relay_config_test.exe" -linker:msvc
 if errorlevel 1 call :fail "test rune_relay configuration"
 odin test rune_relay/server -collection:rune=rune "-out:build/rune_relay_test.exe" -linker:msvc
