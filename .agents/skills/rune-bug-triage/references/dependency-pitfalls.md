@@ -1,0 +1,147 @@
+# Rune dependency pitfalls
+
+These observations were verified on 2026-10-16 against Rune through `861a3d4`.
+Recheck the current pin and implementation before applying them. Paths are
+relative to the Rune checkout; existing source and maintained docs take priority
+over this historical baseline.
+
+## High DPI and Camera2D
+
+Relevant files: `rune/render/camera.odin`, `rune/render/render.odin`,
+`rune/gizmos/gizmos.odin`, `docs/display.md`,
+`tools/particle_validation/main.odin`.
+
+- Raw raylib 6 `BeginMode2D` resets the modelview and applies only the camera
+  matrix, losing `BeginDrawing`'s screen scale. `EndMode2D` restores that scale
+  on the default framebuffer. This can split world drawing from logical overlays
+  and mouse coordinates at non-unit DPI.
+- Rune already provides `render.begin_camera_2d(camera)`: save the current
+  screen modelview, enter raylib camera mode, then compose `screen * camera`.
+  The built-in renderer and 2D gizmos use it. Custom drawing should call the
+  helper from screen space, outside another camera mode, and pair it with
+  `rl.EndMode2D()`.
+- A render texture begins with an identity modelview and texture-pixel
+  projection. The helper preserves those units. Unconditionally adding monitor
+  DPI to every camera path would break offscreen rendering.
+- Use `GetScreenWidth/Height` and logical mouse positions for screen-space
+  layout/picking; use `GetRenderWidth/Height` for physical framebuffer targets.
+  Do not multiply already logical mouse coordinates by DPI without examining
+  the conversion being performed.
+- The claimed 5.5-to-6.0 move of screen scaling from `BeginMode2D` to `EndMode2D`
+  was false: [5.5](https://github.com/raysan5/raylib/blob/5.5/src/rcore.c#L1003-L1021)
+  already used the same begin/end logic as
+  [6.0](https://github.com/raysan5/raylib/blob/6.0/src/rcore.c#L942-L960).
+
+Verification: record actual screen size, framebuffer size, DPI, and backend.
+`WINDOW_HIGHDPI` alone does not establish a non-unit scale. At 125% Linux/X11,
+raw camera drawing and picking failed while Rune's helper passed; Rune's
+particle/gizmo and offscreen runtime checks passed too. The existing particle
+validator requires `--runtime` and can also pass at 100%, so check the measured
+condition. Compare visible pixels and inverse camera picking with a translated,
+rotated, zoomed camera. The world-coordinate error is not generally just
+`world / scale` when the camera has an offset or target.
+
+The recorded fractional run used Ubuntu 24.04 under WSL2, an isolated Xvfb/X11
+display with `Xft.dpi: 120`, and Mesa llvmpipe software rendering. The focused
+probe measured screen `640x480`, framebuffer `800x600`, and DPI `1.25` on both
+axes. This does not establish native Wayland or physical desktop GPU coverage.
+On a display already configured for the scale being tested, the maintained
+particle/gizmo/offscreen checks can be built and run from the checkout with:
+
+```sh
+mkdir -p build
+sh tools/odin.sh build tools/particle_validation -collection:rune=rune \
+    -collection:r3d=third_party/r3d-odin -out:build/particle_validation
+./build/particle_validation --runtime
+```
+
+This validator does not by itself distinguish raw raylib from Rune or exercise
+mouse picking; add the focused comparison when those are the reported symptoms.
+
+## Shared raylib and window modes
+
+Relevant files: `rune/core/window*.odin`, `rune/core/core.odin`,
+`tools/window_validation/main.odin`, `tools/validate.sh`, `tools/validate.bat`,
+`docs/display.md`.
+
+- The pinned static raylib exposed GLFW symbols that its shared library hid.
+  A static build passing does not establish shared-library compatibility.
+  Inspect the actual vendor `RAYLIB_SHARED` default rather than assuming it.
+- Rune window handling uses exported raylib APIs and bounded platform-specific
+  Win32/X11 queries. Avoid direct calls into raylib's private GLFW instance or
+  linking another GLFW copy to operate on its state. Treat native handles
+  according to the backend's documented type.
+- Window-mode fixes must retain ordinary borderless behavior, fullscreen,
+  restored geometry/maximization, DPI, and frame pacing. Native resize and window
+  decoration callbacks can lag a request; cached dimensions may be stale.
+- Custom engine loops should call `rune.begin_frame`, which processes pending
+  window state. Follow the current display docs instead of copying old GLFW
+  workarounds.
+
+Use the shared window validator link check and relevant runtime transitions.
+Distinguish WSLg/X11 software-rendering coverage from native Wayland, desktop
+GPU drivers, or other untested backends.
+
+## Clay dropdown clipping and native archives
+
+Relevant files: `rune/ui/dropdown.odin`, `rune/ui/dropdown_test.odin`,
+`rune/ui/render.odin`, `third_party/clay/README.rune.md`,
+`third_party/clay/clay.h`, `third_party/clay/clay-odin/clay.odin`.
+
+- The floating dropdown intentionally escapes the enclosing menu's scroll clip
+  and uses its own viewport. Options visible outside the ancestor clip should
+  remain clickable. The nested dropdown test asserts this behavior; its failure
+  messages do not mean that inheriting the menu clip is desirable.
+- The upstream Linux archive contained two `clay.o` members. The linker selected
+  an older implementation that ignored `clipTo = None`, even though the committed
+  header and binding supported it. Rebuilding from that header corrected both
+  rendering and pointer hits. Rune now ships the rebuilt archive.
+- Compare the platform artifact actually selected by the binding, its ABI,
+  archive membership (`ar t`), and symbol index/definitions (`nm`). If needed,
+  inspect the implementation selected in the linked executable.
+- Build a fresh archive in a unique scratch directory; updating a malformed
+  archive in place can preserve duplicate members. Follow the staged
+  build/test/publish recipe in `third_party/clay/README.rune.md`. Keep the
+  header, binding, and native implementation consistent.
+
+Run the UI suite serially on the affected platform. A correctly applied
+`ODIN_TEST_NAMES=ui.test_name` filter should select one test; a trailing comma
+does not imply that all tests should run. Check the runner output before calling
+a run isolated or attributing a failure to concurrency.
+
+## Audio device availability and ownership
+
+Relevant files: `rune/audio/audio.odin`, `rune/audio/preload.odin`,
+`tools/mixer_validation/main.odin`, `tools/audio_stop_validation/`,
+`docs/audio-mixer.md`.
+
+- Repeated raw `InitAudioDevice` calls can trigger native backend failures.
+  Rune checks `IsAudioDeviceReady()` before initializing and records
+  `owns_device` only when Rune opened a device successfully.
+- Shutdown releases Rune-owned sounds, aliases, and streams before closing the
+  device, and closes it only when Rune owns it. An externally initialized device
+  must remain open. Borrowers must be destroyed before the owner: this ownership
+  flag is not reference counting.
+- Check both already-initialized/external ownership and Rune-owned lifecycle
+  cases. `available` or `IsAudioDeviceReady()` does not prove audible playback.
+  A PulseAudio assertion alone does not prove a permanent daemon failure or
+  justify changing stop/playback semantics.
+
+Use the mixer ownership regression and audio runtime validators as appropriate;
+record whether an actual playback backend was available.
+
+## R3D preparation and apparently dirty submodules
+
+Relevant files: `third_party/r3d-compat/README.md`,
+`third_party/r3d-compat/bindings.patch`, `third_party/r3d-compat/files.blobs`,
+`tools/prepare_r3d.sh`, `tools/prepare_r3d.bat`.
+
+Rune keeps the official upstream submodule pin and applies a parent-owned
+compatibility patch locally. That expected submodule diff is reproducible from
+already tracked Rune files. Inspect its provenance before resetting it or
+creating a submodule commit and changing the gitlink.
+
+The preparation helper validates the exact pin and canonical tracked diff,
+rejecting unrelated tracked or untracked changes. `--check` accepts pristine or
+already prepared input without applying the patch; passing it alone does not
+make pristine input ready for manual builds. Run actual preparation when needed.

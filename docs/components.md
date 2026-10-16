@@ -226,13 +226,15 @@ World-space CPU particles emitted from the entity transform. Existing particles 
 
 ### MeshRenderer
 
-Draws a built-in cube or plane through the 3D rendering path. Set `primitive` explicitly: omission leaves an empty value and draws neither shape. Transform sets pose and dimensions. Optional material assets enable the r3d material pipeline; without a material the component color supplies the surface color.
+Draws a built-in cube, horizontal XZ plane, or vertical XY quad facing local +Z through the 3D rendering path. Set `primitive` explicitly to draw a built-in shape; omission leaves an empty value. Transform sets pose and dimensions. Optional material assets enable the r3d material pipeline; without a material the component color supplies the surface color.
 
-[Guide / example](../README.md#asset-backed-3d-models) · [Implementation](../rune/ecs/render_components.odin)
+`primitive: "static"` styles geometry installed with `ecs.set_static_mesh`; it creates no surface by itself. The setter copies mesh buffers, while `ecs.set_static_mesh_owned` transfers owned buffers on success. Runtime geometry is not serialized: reinstall it after loading or replacing the World. See the runtime geometry guide for collision and transform requirements.
+
+[Guide / example](../README.md#asset-backed-3d-models) · [Runtime geometry](static-geometry.md) · [Implementation](../rune/ecs/render_components.odin)
 
 | Field | Type / constraints | JSON default | Meaning |
 | --- | --- | --- | --- |
-| `primitive` | `"cube"`, `"plane"` | `""` | Built-in geometry; choose cube or plane explicitly. |
+| `primitive` | `"cube"`, `"plane"`, `"quad"`, `"static"` | `""` | Built-in geometry, or material/color/shadow settings for installed runtime geometry. |
 | `color` | 4-item array of integer; ≥ 0; ≤ 255 | `[255, 255, 255, 255]` | RGBA color with channels from 0 through 255. |
 | `material` | string; nonempty | `""` | Optional project-relative material asset; omit for no override. |
 | `shadows` | boolean | `true` | Enable shadow casting for geometry, or shadows for this light. |
@@ -872,13 +874,16 @@ Stores reusable path-following settings; it has no destination, speed, or automa
 
 ### NavMesh3D
 
-References a baked triangle navmesh asset. Vertices are in world space; a transform or parent does not move the surface. No transform is required. Disabling the entity makes its surface unavailable. Asset refresh is handled by the scene loop; geometry edits require rebaking.
+References a baked triangle navmesh asset or a runtime surface bound by game code. Vertices are in world space; a transform or parent does not move the surface. No transform is required. Disabling the entity makes its surface unavailable. In asset mode, the scene loop handles asset refresh; geometry edits require rebaking.
+
+For `runtime: true`, omit `asset` or leave it empty and call `ecs.set_navigation_mesh_3d`. This binding borrows the mesh arrays: retain them until `ecs.clear_navigation_mesh_3d`, component/entity removal, or World destruction. Do not edit bound geometry directly; use `ecs.set_navigation_triangle_blocked_3d` for blocked flags so agents replan. Asset sync leaves runtime bindings alone, and runtime geometry is not serialized; bind it again after loading or replacing the World.
 
 [Guide / example](navigation-3d.md) · [Implementation](../rune/ecs/navigation_3d.odin)
 
 | Field | Type / constraints | JSON default | Meaning |
 | --- | --- | --- | --- |
-| `asset` | string; nonempty | Required | Project-relative .navmesh.json asset; vertices are world-space agent-center positions. |
+| `asset` | string | Required when `runtime` is false | Nonempty project-relative .navmesh.json path in asset mode; omitted or empty in runtime mode. Vertices are world-space agent-center positions. |
+| `runtime` | boolean | `false` | Borrow game-owned geometry bound with `ecs.set_navigation_mesh_3d` instead of loading an asset. |
 
 ### NavAgent3D
 

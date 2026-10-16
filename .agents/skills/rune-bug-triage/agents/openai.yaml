@@ -1,0 +1,3 @@
+interface:
+  display_name: "Rune Bug Triage"
+  short_description: "Verify Rune reports and native dependency behavior"

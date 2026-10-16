@@ -1,0 +1,76 @@
+---
+name: rune-game-development
+description: "Build or modify games using Rune, the Odin game engine. Use for creating Rune game projects, authoring scenes and components, implementing gameplay/input, and integrating rendering, UI, or audio through Rune's APIs."
+---
+
+# Rune Game Development
+
+Use this skill for game development with Rune. The separate `rune-bug-triage`
+skill covers engine regressions and dependency investigation when those become
+relevant; it is not required for ordinary game work.
+
+## Locate the game and engine
+
+Identify the game directory containing `project.json` (`GAME_ROOT`) separately
+from the Rune checkout containing `rune/core/core.odin` (`RUNE_ROOT`). Use the
+user's paths, existing build helpers, `--rune-root`, or `RUNE_ROOT` environment
+variable to resolve them; do not assume an installed skill is beside the engine.
+Read each root's applicable agent instructions. Paths in these notes are relative
+to `RUNE_ROOT` unless explicitly marked `GAME_ROOT`.
+
+Read only the references needed for the task:
+
+| Task | Reference |
+| --- | --- |
+| New/existing project, build helpers, dependencies, asset paths, validation, console inspection | [project-workflow.md](references/project-workflow.md) |
+| Scene/prefab JSON, typed ECS, systems, controller input/rebinding, reload/save state | [gameplay-and-scenes.md](references/gameplay-and-scenes.md) |
+| 2D/3D rendering, transforms/collision, canvas/picking, Clay UI, audio ownership | [rendering-ui-audio.md](references/rendering-ui-audio.md) |
+| Navigation, networking, generated geometry, memory, pools/tweens | [subsystems-and-ownership.md](references/subsystems-and-ownership.md) |
+
+Use Rune's current `docs/components.md`, schemas, focused guides, and the closest
+working example for API details. Do not load the entire manual or all examples
+for a small feature. Check installed source signatures before inventing calls.
+
+## Implement through Rune's supported workflow
+
+- For a new standalone game, use Rune's project generator in the requested
+  location. Preserve an existing game's structure. Learn from examples in place:
+  they can depend on neighboring assets and helpers and are not standalone game
+  templates.
+- Prefer the engine-owned startup scene and registered `rune.System` callbacks.
+  Register custom component types before loading scenes that use them. Choose
+  callback timing from the lifecycle reference rather than manually advancing
+  physics, audio, particles, or animation that the scene loop already owns.
+- Author scene/prefab/input JSON against the game's schemas. Verify omitted-field
+  defaults with Rune's decoder/default helpers. Use typed ECS setters/adders and
+  supported named-instance APIs so validation, ownership, change tracking, and
+  physics/render caches stay consistent.
+- Keep ordinary asset paths project-relative; use the documented `prefab://`
+  prefix when reusable component assets should resolve from their authoring
+  file. Match drawing and picking coordinates to the game canvas or native UI
+  as appropriate. Use Rune's camera helper for custom Camera2D drawing;
+  initialize and dispose optional UI/3D resources at the appropriate system
+  lifecycle boundaries.
+- Reacquire scene entities and borrowed state after reload or restoration.
+  Frame scratch and borrowed component strings/collections are not persistent
+  game storage. Keep durable game state in owned storage or configured saves.
+
+## Verify the game, then report the result
+
+Run project-file validation when authoring data, build the actual game with the
+appropriate compiler/collections, and exercise the affected behavior when the
+environment supports it. A successful build does not prove gameplay, visual
+alignment, or audible output. Choose focused tests for game logic; an ordinary
+game feature does not require a full Rune release check.
+
+Give the user the game location, exact build/run instructions, what works, and
+any runtime checks still unverified. Keep gameplay changes in the game project;
+identify genuine engine/API gaps rather than silently changing unrelated engine
+defaults or replacing the user's chosen framework.
+
+## Keep the skill current
+
+The canonical package is `RUNE_ROOT/.agents/skills/rune-game-development/`.
+Follow `RUNE_ROOT/AGENTS.md` when changes affect these workflows or contracts,
+and synchronize a corresponding installed personal copy when present. Keep
+these notes portable, link maintained sources, and retire outdated advice.
