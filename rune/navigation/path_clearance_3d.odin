@@ -303,34 +303,19 @@ clearance_add_node_3d :: proc(q:^Clearance_Query_3D,p:[3]f32,first:i32=-1,second
 	return index
 }
 
-clearance_triangle_interval_3d :: proc(mesh:^Mesh_3D,index:i32,a,b:[3]f32) -> (Clearance_Interval_3D,bool) {
-	triangle:=mesh.triangles[index]
-	interval:=Clearance_Interval_3D{0,1}
-	for edge in 0..<3 {
-		u,v:=mesh.vertices[triangle.vertices[edge]],mesh.vertices[triangle.vertices[(edge+1)%3]]
-		sign:f32=1 if area_xz(u,v,triangle.center)>0 else -1
-		origin:=area_xz(u,v,a)*sign;delta:=(area_xz(u,v,b)-area_xz(u,v,a))*sign
-		if abs(delta)<1e-8 {if origin < -1e-5 {return {},false};continue}
-		crossing:=-origin/delta
-		if delta>0 {interval.low=max(interval.low,crossing)} else {interval.high=min(interval.high,crossing)}
-		if interval.low>interval.high+1e-5 {return {},false}
-	}
-	return interval,interval.high>=-1e-5 && interval.low<=1+1e-5
-}
-
 clearance_corridor_leg_3d :: proc(q:^Clearance_Query_3D,path:^Path_3D,first,last:int,write:bool) -> bool {
 	a,b:=path.points[first],path.points[last]
 	if !clearance_leg_allowed_3d(q,a,b) {return false}
 	progress:f32=0
 	for k in first..<last {
-		interval,ok:=clearance_triangle_interval_3d(q.mesh,path.triangles[k],a,b)
+		interval,ok:=surface_triangle_interval_3d(q.mesh,path.triangles[k],a,b)
 		if !ok || interval.low>progress+1e-4 || interval.high<progress-1e-4 {return false}
 		progress=max(progress,interval.high)
 	}
 	if progress<1-1e-4 {return false}
 	if write {
 		for k in first..<last-1 {
-			interval,_:=clearance_triangle_interval_3d(q.mesh,path.triangles[k],a,b)
+			interval,_:=surface_triangle_interval_3d(q.mesh,path.triangles[k],a,b)
 			p:=a+(b-a)*math.clamp(interval.high,0,1)
 			triangle:=q.mesh.triangles[path.triangles[k]];v:=q.mesh.vertices[triangle.vertices[0]]
 			p.y=v.y-(triangle.normal.x*(p.x-v.x)+triangle.normal.z*(p.z-v.z))/triangle.normal.y
@@ -349,48 +334,18 @@ clearance_smooth_path_3d :: proc(q:^Clearance_Query_3D,path:^Path_3D) {
 	}
 }
 
-// Trace a straight XZ leg through actual shared edges. This bypasses the
-// center-cost A* corridor when an open room admits a direct path, while keeping
-// every ramp crossing and excluding disconnected/overlapping surfaces.
+// Apply extra footprint clearance to the shared surface trace. The ordinary
+// query uses the same trace without constructing clearance geometry.
 clearance_direct_path_3d :: proc(q:^Clearance_Query_3D,a,b:[3]f32,start,goal:i32,allocator:mem.Allocator) -> Path_3D {
-	count:=len(q.mesh.triangles)
-	intervals:=make([]Clearance_Interval_3D,count,q.allocator)
-	valid:=make([]bool,count,q.allocator)
-	arrival:=make([]f32,count,q.allocator);parents:=make([]i32,count,q.allocator)
-	for i in 0..<count {
-		arrival[i]=3.402823e38;parents[i]=-1
-		if q.component[i] {intervals[i],valid[i]=clearance_triangle_interval_3d(q.mesh,i32(i),a,b)}
-	}
-	queue:=make([dynamic]i32,q.allocator);append(&queue,start);arrival[start]=0
-	for cursor:=0;cursor<len(queue);cursor+=1 {
-		current:=queue[cursor]
-		if current==goal {break}
-		for neighbor in q.mesh.triangles[current].neighbors {
-			if neighbor<0 || !valid[neighbor] {continue}
-			entry:=max(arrival[current],intervals[current].low,intervals[neighbor].low)
-			if entry>min(intervals[current].high,intervals[neighbor].high)+1e-5 || entry>=arrival[neighbor]-1e-6 {continue}
-			arrival[neighbor]=entry;parents[neighbor]=current;append(&queue,neighbor)
+	path:=surface_direct_path_3d(q.mesh,a,b,start,goal,q.options.max_slope,allocator)
+	if path.status!=.Complete {return path}
+	for i in 0..<len(path.points)-1 {
+		if !clearance_leg_allowed_3d(q,path.points[i],path.points[i+1]) {
+			delete(path.points,allocator);delete(path.triangles,allocator)
+			return {status=.Unreachable}
 		}
 	}
-	if arrival[goal]>1+1e-5 {return {status=.Unreachable}}
-	reversed:=make([dynamic]i32,q.allocator)
-	for cursor:=goal;cursor>=0;cursor=parents[cursor] {append(&reversed,cursor)}
-	points:=make([][3]f32,len(reversed)+1,q.allocator)
-	triangles:=make([]i32,len(reversed),q.allocator)
-	points[0]=a;points[len(points)-1]=b
-	for triangle,i in reversed {
-		destination:=len(reversed)-1-i;triangles[destination]=triangle
-		if destination>0 {
-			p:=a+(b-a)*math.clamp(arrival[triangle],0,1)
-			face:=q.mesh.triangles[triangle];v:=q.mesh.vertices[face.vertices[0]]
-			p.y=v.y-(face.normal.x*(p.x-v.x)+face.normal.z*(p.z-v.z))/face.normal.y
-			points[destination]=p
-		}
-	}
-	for i in 0..<len(points)-1 {if !clearance_leg_allowed_3d(q,points[i],points[i+1]) {return {status=.Unreachable}}}
-	result:=Path_3D{status=.Complete,points=make([][3]f32,len(points),allocator),triangles=make([]i32,len(triangles),allocator)}
-	copy(result.points,points);copy(result.triangles,triangles)
-	return result
+	return path
 }
 clearance_add_portals_3d :: proc(q:^Clearance_Query_3D,index:i32) {
 	triangle:=q.mesh.triangles[index]

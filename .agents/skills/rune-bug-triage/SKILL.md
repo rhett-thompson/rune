@@ -12,6 +12,8 @@ report concerns DPI/cameras, window modes/linking, audio, Clay, or R3D.
 Use [build-and-validation.md](references/build-and-validation.md) for Windows
 linker requirements, choosing validation coverage, and identifying the exact
 source snapshot and executable being tested.
+For navmesh baking, simplification, path detours, or agent-radius differences,
+read [navigation-pitfalls.md](references/navigation-pitfalls.md).
 
 The checked-in `.agents/skills/rune-bug-triage/` package is the canonical Rune
 copy. Follow the repository's `AGENTS.md` maintenance guidance and keep any

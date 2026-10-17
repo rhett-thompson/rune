@@ -1,6 +1,6 @@
 # 3D navigation
 
-Rune provides automatic static-geometry baking, triangle navmeshes, A* corridor queries, click projection, and
+Rune provides automatic static-geometry baking, triangle navmeshes, surface path queries, click projection, and
 fixed-step agents for grounded 3D movement. Paths follow ramps in XYZ, and
 overlapping floors remain separate unless their triangles are connected.
 
@@ -382,22 +382,31 @@ must not overlap at the same height; spatial self-intersection testing is not
 performed. Limits are 131072 vertices and 65536 triangles, with coordinates within
 one million world units. The JSON schema provides authoring completion.
 
-Walkable slopes are filtered per query. A* searches the shared-edge triangle graph
-using center-distance costs and a binary heap. A funnel straightens the selected
-corridor in X/Z, eliminating detours through triangle-edge midpoints. The path
-retains each shared-edge crossing at its surface height, so each segment remains
-in its corridor triangle, including across ramp seams. `points[i]` to
-`points[i+1]` follows `triangles[i]`; crossings on a flat straight leg are collinear.
-This does not guarantee the globally shortest route across all possible corridors.
-There are no off-mesh jump, ladder, elevator, or teleport links in this version.
+Walkable slopes and blocked triangles are filtered per query. Queries first try
+to follow the direct X/Z line between the projected endpoints through actual
+shared triangle edges. This avoids a triangulation-induced detour when a direct
+surface route is available, including on simplified meshes with thin triangles.
+The trace cannot cross holes or disconnected surfaces, or jump between
+overlapping floors. It retains every shared-edge crossing at its surface height,
+including across ramp seams: `points[i]` to `points[i+1]` follows `triangles[i]`.
+Crossings on a flat straight leg are collinear.
 
-When an agent needs additional radius, queries first try a direct surface trace
-and the ordinary funnel route. If a boundary is too close, A* instead uses
-clearance-clipped shared-edge portals and inset corner points. Whole segments
-must retain the additional radius, so a narrow shortcut can be rejected while
-a wider alternate route remains available. This does not create or modify a
-second navmesh. Disconnected surfaces and overlapping floors remain distinct;
-blocked triangles form new clearance boundaries for the querying agent.
+If the direct trace cannot reach the goal, ordinary queries fall back to A* on
+the shared-edge triangle graph, using center-distance costs and a binary heap.
+A funnel straightens only that selected corridor in X/Z. Those approximate
+graph costs can still select a longer route around an obstacle; neither the
+fallback nor the direct X/Z trace guarantees the globally shortest XYZ route
+across all possible corridors. There are no off-mesh jump, ladder, elevator, or
+teleport links in this version.
+
+When an agent needs additional radius beyond the surface's baked inset, both the
+direct surface trace and the ordinary route must also pass whole-segment
+clearance checks. If a boundary is too close, A* instead uses clearance-clipped
+shared-edge portals and inset corner points. A narrow shortcut can therefore be
+rejected while a wider alternate route remains available. This does not create
+or modify a second navmesh. Blocked triangles form new clearance boundaries for
+the querying agent. Keep the intended agent dimensions; increasing radius is
+not a route-quality workaround.
 
 ## Direct queries and mouse picking
 

@@ -14,6 +14,14 @@ than treating this routing table as a second API manual.
 | Memory and storage maintenance | `docs/memory.md`. Reacquire borrowed scene data after compaction even though entity handles remain valid; see [gameplay-and-scenes.md](gameplay-and-scenes.md). |
 | Pools and tweening | `rune/pool/pool.odin`, `rune/tween/tween.odin`, `examples/tweening_2d/main.odin`. Game code owns pool lifetimes and advances tweens; attaching scene components does not drive these helpers. |
 
+3D path queries first try a direct X/Z surface trace through connected shared
+edges, retaining ramp heights and avoiding triangulation-induced detours when
+that route is available. Otherwise ordinary queries use approximate triangle
+center-cost A* and funnel smoothing; routes are not guaranteed globally shortest.
+Queries wider than the baked inset also enforce extra whole-segment clearance.
+Keep the agent's intended radius and height rather than changing its dimensions
+to influence route selection. See `docs/navigation-3d.md`.
+
 ## Service network clients independently of gameplay traffic
 
 Keep calling `network.poll` on the client's owning thread, including when there

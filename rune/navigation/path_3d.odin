@@ -131,7 +131,8 @@ smooth_corridor_3d :: proc(mesh:^Mesh_3D,path:^Path_3D) {
 	}
 }
 
-// A* selects connected triangles, then a funnel straightens their corridor.
+// Trace a direct connected surface leg first. Otherwise A* selects connected
+// triangles, then a funnel straightens their corridor.
 // Consecutive points lie in one convex triangle, including on ramps.
 // Returned arrays belong to allocator. No partial paths are reported complete.
 find_path_3d :: proc(mesh: ^Mesh_3D,start,goal: [3]f32,options := Default_Path_Options_3D,allocator := context.allocator,preparation:^Clearance_Preparation_3D=nil) -> Path_3D {
@@ -145,6 +146,8 @@ find_path_3d :: proc(mesh: ^Mesh_3D,start,goal: [3]f32,options := Default_Path_O
 	if !start_ok {return {status=.Start_Off_Mesh}}
 	g,gi,goal_ok := project_point_3d(mesh,goal,options.max_projection,options.max_slope)
 	if !goal_ok {return {status=.Goal_Off_Mesh}}
+	direct:=surface_direct_path_3d(mesh,s,g,si,gi,options.max_slope,allocator)
+	if direct.status==.Complete {return direct}
 	count := len(mesh.triangles)
 	scores := make([]f32,count,context.temp_allocator)
 	parents := make([]i32,count,context.temp_allocator)

@@ -40,6 +40,7 @@ finishes and releases the compiler lock; Windows outputs use `.exe`.
 | 2D canvas scaling or mouse mapping | `tools/resolution_validation` for layout/mapping math | `resolution_validation --runtime` for framebuffer pixels |
 | Window modes or shared-raylib linking | `tools/window_validation` for settings; compile a separate shared target with `-define:RAYLIB_SHARED=true` | `window_validation --runtime`; run `--startup-windowed`, `--startup-borderless`, and `--startup-fullscreen` in separate processes when startup modes matter |
 | Audio ownership, mixing, stopping, or preload | `tools/mixer_validation` and `tools/audio_stop_validation` for configuration | Both validators with `--runtime`, using a working playback backend |
+| Navmesh bake coverage or path detours | `rune/navigation` tests, `tools/navigation_bake_validation`, and headless `tools/navigation_3d_validation`; compare actual route lengths on the reported bake/query settings | `navigation_3d_validation --runtime` when visible agent motion or rendered navigation is the symptom |
 
 The table names tool packages; runtime commands refer to the executables built
 from them. UI pixel checks do not replace the serial dropdown/input tests.
