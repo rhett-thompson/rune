@@ -16,8 +16,11 @@ Settings :: struct {
 	lights:         bool,
 	// Navigation visualization is independent of the F3 overlay switch.
 	navmeshes:      bool,
-	// Borrowed stable scene ID; empty draws every enabled NavMesh3D.
+	// Borrowed scene ID, or a display label when a runtime handle overrides it.
+	// An empty ID with no runtime handle draws every enabled NavMesh3D.
 	navmesh_entity: string,
+	// A nonzero generation-bound handle overrides the ID for unnamed entities.
+	navmesh_runtime_entity: ecs.Entity,
 	transform_size: f32,
 }
 
@@ -94,7 +97,7 @@ draw_3d_gizmos :: proc(world: ^ecs.World, settings: Settings) -> bool {
 		if settings.lights {draw_lights_3d(world)}
 		if settings.transforms {draw_transforms_3d(world, normalized_transform_size(settings) / 24)}
 	}
-	if settings.navmeshes {draw_navmeshes_3d(world, settings.navmesh_entity)}
+	if settings.navmeshes {draw_navmeshes_3d(world, settings.navmesh_entity, settings.navmesh_runtime_entity)}
 	rl.EndMode3D()
 	return true
 }

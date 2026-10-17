@@ -161,11 +161,12 @@ scroll :: proc(console: ^Console, rows, total, visible_rows: int) {
 }
 
 View_Layout :: struct {
-	panel, output, input, track: rl.Rectangle,
+	panel, output, input, track, suggestions: rl.Rectangle,
 	visible_rows: int,
+	suggestion_first, suggestion_end: int,
 }
 
-view_layout :: proc(width, height: f32) -> View_Layout {
+view_layout :: proc(width, height: f32, suggestion_count := 0, selected := 0) -> View_Layout {
 	margin := min(12, max(0, min(min(width, height) * 0.03, (min(width, height) - 1) / 2)))
 	panel := rl.Rectangle{margin, margin, max(1, width - margin * 2),
 		max(1, min(height - margin * 2, min(460, max(180, height * 0.6))))}
@@ -177,8 +178,22 @@ view_layout :: proc(width, height: f32) -> View_Layout {
 	header_height := f32(58) if panel.height >= 140 else 0
 	output := rl.Rectangle{panel.x + padding, panel.y + header_height, max(1, panel.width - padding * 2 - 16),
 		max(0, input.y - (panel.y + header_height) - 12)}
-	return {panel, output, input, {panel.x + panel.width - 22, output.y, 6, output.height},
-		int(output.height / Row_Height)}
+	layout := View_Layout{panel = panel, output = output, input = input}
+	// Suggestions take space from the output only. The command and caret stay
+	// fixed, and hit-testing/scrolling use the same reduced log viewport.
+	available := output.height - Row_Height - Suggestion_Gap
+	rows := min(Suggestion_Max_Rows, max(0, suggestion_count),
+		max(0, int((available - Suggestion_Header_Height - Suggestion_Padding * 2) / Row_Height)))
+	if rows > 0 && input.width >= 120 {
+		popup_height := Suggestion_Header_Height + Suggestion_Padding * 2 + f32(rows) * Row_Height
+		layout.suggestions = {input.x, input.y - Suggestion_Gap - popup_height, input.width, popup_height}
+		layout.suggestion_first = clamp(selected - rows / 2, 0, max(0, suggestion_count - rows))
+		layout.suggestion_end = layout.suggestion_first + rows
+		layout.output.height = max(0, layout.suggestions.y - Suggestion_Gap - output.y)
+	}
+	layout.track = {panel.x + panel.width - 22, layout.output.y, 6, layout.output.height}
+	layout.visible_rows = int(layout.output.height / Row_Height)
+	return layout
 }
 
 scrollbar_thumb :: proc(layout: View_Layout, total, offset: int) -> rl.Rectangle {
@@ -191,11 +206,12 @@ scrollbar_thumb :: proc(layout: View_Layout, total, offset: int) -> rl.Rectangle
 
 update_view :: proc(console: ^Console) {
 	ensure_renderer(console)
-	layout := view_layout(f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight()))
+	matches := view_completion_matches(console)
+	layout := view_layout(f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight()), len(matches.options), matches.selected)
 	view := build_view(console, layout.output.width, layout.visible_rows)
 	total := len(view.rows)
 	pointer := rl.GetMousePosition()
-	if rl.CheckCollisionPointRec(pointer, layout.panel) {
+	if rl.CheckCollisionPointRec(pointer, layout.panel) && !rl.CheckCollisionPointRec(pointer, layout.suggestions) {
 		console.renderer.wheel_remainder += rl.GetMouseWheelMove() * 3
 		rows := int(console.renderer.wheel_remainder)
 		if rows != 0 {
@@ -238,7 +254,7 @@ update_view :: proc(console: ^Console) {
 	}
 	view = build_view(console, layout.output.width, layout.visible_rows)
 	pointer_select(console, layout, view, pointer, rl.IsMouseButtonPressed(.LEFT), rl.IsMouseButtonDown(.LEFT),
-		rl.IsKeyDown(.LEFT_SHIFT) || rl.IsKeyDown(.RIGHT_SHIFT), now)
+		rl.IsKeyDown(.LEFT_SHIFT) || rl.IsKeyDown(.RIGHT_SHIFT), now, nil, &matches)
 }
 
 // Return the prefix width; drawing subtracts input_scroll from both text and
@@ -266,7 +282,8 @@ clip :: proc(rect: rl.Rectangle) {
 draw_view :: proc(console: ^Console) {
 	if !console.is_open {return}
 	ensure_renderer(console)
-	layout := view_layout(f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight()))
+	matches := view_completion_matches(console)
+	layout := view_layout(f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight()), len(matches.options), matches.selected)
 	view := build_view(console, layout.output.width, layout.visible_rows)
 	rl.DrawRectangleRounded({layout.panel.x, layout.panel.y + 4, layout.panel.width, layout.panel.height}, 0.05, 8, {0, 0, 0, 85})
 	rl.DrawRectangleRounded(layout.panel, 0.05, 8, {20, 29, 44, 255})
@@ -317,6 +334,7 @@ draw_view :: proc(console: ^Console) {
 		rl.DrawRectangleRounded(scrollbar_thumb(layout, len(view.rows), console.scroll_offset), 1, 4,
 			Accent_Color if console.renderer.dragging_scrollbar else Muted_Color)
 	}
+	draw_suggestions(console, layout, matches)
 	clip(layout.panel)
 	rl.DrawRectangleRounded(layout.input, 0.3, 8, Surface_Color)
 	rl.DrawRectangleRoundedLinesEx(layout.input, 0.3, 8, 1, {62, 107, 111, 255})
@@ -349,15 +367,23 @@ draw_view :: proc(console: ^Console) {
 	clip(layout.panel)
 	foot_y := layout.input.y + layout.input.height + 10
 	busy := console.defer_reply || console.remote.result_len > 0
-	if busy {
+	if layout.suggestion_end > layout.suggestion_first {
+		hint := "Enter/click accept"
+		if layout.panel.width > 760 {
+			hint = "Up/Down select   /   Enter/click accept   /   Tab complete   /   Ctrl+Up/Down history"
+		} else if layout.panel.width > 620 {
+			hint = "Up/Down select   /   Enter/click accept   /   Tab complete"
+		}
+		view_text(console, hint, {layout.input.x, foot_y}, 13, Muted_Color)
+	} else if busy {
 		view_text(console, "Command running; you can keep editing" if layout.panel.width > 620 else "Command running",
 			{layout.input.x, foot_y}, 13, Muted_Color)
 	} else if console.selection_target == .Output {
 		view_text(console, "Ctrl+C copy   /   Ctrl+V paste to command" if layout.panel.width > 620 else "Ctrl+C copy / Ctrl+V paste",
 			{layout.input.x, foot_y}, 13, Muted_Color)
 	} else if layout.panel.width > 620 {
-		view_text(console, "Enter run   /   Ctrl+C copy   /   Ctrl+V paste   /   PgUp PgDn scroll", {layout.input.x, foot_y}, 13, Muted_Color)
-	} else {view_text(console, "Ctrl+C copy / Ctrl+V paste", {layout.input.x, foot_y}, 13, Muted_Color)}
+		view_text(console, "Enter run   /   Up/Down history   /   Tab complete   /   Ctrl+C/V copy/paste", {layout.input.x, foot_y}, 13, Muted_Color)
+	} else {view_text(console, "Enter run / Up/Down history", {layout.input.x, foot_y}, 13, Muted_Color)}
 	state := "RUNNING" if busy else "LIVE" if console.scroll_offset == 0 else fmt.tprintf("%d rows above latest", console.scroll_offset)
 	if layout.panel.width > 300 {
 		view_text(console, state, {layout.input.x + layout.input.width - text_width(console, state, 13), foot_y}, 13,

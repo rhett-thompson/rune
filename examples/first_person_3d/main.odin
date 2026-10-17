@@ -43,9 +43,9 @@ shutdown_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	r3d_bridge.shutdown(&bridge)
 }
 
-toggle_cursor :: proc() {
+toggle_cursor :: proc(game: ^rune.Engine) {
 	cursor_captured=!cursor_captured
-	if cursor_captured {rl.DisableCursor()} else {rl.EnableCursor()}
+	rune.set_cursor_mode(game,.captured if cursor_captured else .visible)
 }
 
 move_platform :: proc(game:^rune.Engine,world:^ecs.World) {
@@ -121,7 +121,7 @@ main :: proc() {
 		return
 	}
 
-	rl.DisableCursor()
+	rune.set_cursor_mode(&game,.captured)
 	if !rune.run(&game) {
 		fmt.eprintln("Could not run startup scene: ", rune.last_scene_error())
 	}

@@ -95,7 +95,10 @@ validate_ramp_destination_facing :: proc() {
 // settled. Repeatedly flattening and projecting velocity used to reduce a
 // requested 3 units/s to about 1.25 units/s in both directions on this ramp.
 validate_ramp_cruise_speed :: proc() {
-	for endpoints in ([][2][3]f32{{{-1,0.5,0},{7,2,0}},{{1,1.5,0},{-7,0,0}}}) {
+	// The lower-floor obstacle's baked inset crosses z=0. Use a clear lane
+	// through the ramp for straight cruise; validate_ramp_facing retains the
+	// obstructed route and checks its turning, steering and arrival separately.
+	for endpoints in ([][2][3]f32{{{-1,0.5,1},{7,2,1}},{{1,1.5,1},{-7,0,1}}}) {
 		r:=ecs.init_registry();assert(ecs.register_builtin_components(&r))
 		w,loaded:=scene.load("examples/navigation_3d/scenes/main.scene.json",&r)
 		assert(loaded,scene.last_load_error())
@@ -105,6 +108,20 @@ validate_ramp_cruise_speed :: proc() {
 		config,_:=ecs.get(&w,agent,ecs.NavAgent3D)
 		pose,_:=ecs.get_transform(&w,agent)
 		sign:=f32(1) if endpoints[1].x>endpoints[0].x else f32(-1)
+		mesh,mesh_ok:=ecs.navigation_mesh_3d(&w,entity(&w,"navigation"))
+		assert(mesh_ok,"ramp cruise requires the example's loaded baked surface")
+		path:=navigation.find_path_3d(&mesh,endpoints[0],endpoints[1],{
+			radius=config.radius,height=config.height,max_slope=config.max_slope,max_projection=config.max_projection,
+		})
+		assert(path.status==.Complete && len(path.points)>=2,"ramp cruise lane must be connected")
+		assert(navigation.distance_3d(path.points[0],endpoints[0])<0.001 &&
+		       navigation.distance_3d(path.points[len(path.points)-1],endpoints[1])<0.001,
+		       "ramp cruise endpoints must already lie on the baked surface")
+		for point,i in path.points {
+			assert(abs(point.z-endpoints[0].z)<0.001,"ramp cruise requires a straight unobstructed XZ route")
+			if i>0 {assert((point.x-path.points[i-1].x)*sign>= -0.001,"ramp cruise crossings advance toward the goal")}
+		}
+		navigation.destroy_path_3d(&path)
 		pose.position=endpoints[0];pose.rotation.y=90*sign
 		assert(ecs.set_transform(&w,agent,pose))
 		assert(ecs.set_navigation_target_3d(&w,agent,endpoints[1]))

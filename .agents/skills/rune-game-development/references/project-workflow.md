@@ -114,6 +114,66 @@ desktop GPU, or audible behavior.
 
 ## Inspect gameplay through the console
 
+Press backtick to open the in-game console. Tab completes case-sensitive command
+names and supported arguments; Shift+Tab cycles matches backward. Engine commands
+suggest live entity IDs, component names, `set` field paths, input actions and
+fixed command options. Matching suggestions appear above the input as you type;
+Up/Down moves the highlight without editing the command, and Enter accepts the
+highlighted token. Click any visible suggestion to accept that row directly.
+Acceptance replaces only the current token and hides the list until an edit or
+Tab, so another Enter executes. Ctrl+Up/Down always browses command history;
+Up/Down also browses history when suggestions are hidden or unavailable. Completion quotes names
+containing spaces when needed.
+Custom command names participate automatically; pass an optional
+`console.Completion_Proc` to `console.register` for argument suggestions. Its
+callback can run during suggestion refreshes and token completion. Keep it a
+read-only query of live game state. Request and candidate strings are borrowed for the
+current call; do not retain scene pointers or request data across reloads.
+Built-in completions do not suggest file paths or arbitrary JSON values. See
+`docs/runtime-console.md` and `rune/console/completion.odin` for the controls and
+callback contract.
+
+With the console open, left-click a scene object outside the panel to print its
+ID, name, hierarchy, and current component values without editing the command
+draft or history. Picking uses the attached scene's active cameras and rejects
+letterbox bars. A supported 3D hit takes priority over a 2D hit; 2D objects follow
+draw order. It remains available while paused, except while a `step`, `profile`,
+or local inbox reply is pending. Queries use geometry bounds rather than visible
+pixels. Amber corner brackets follow the picked entity's own rendered bounds,
+independently of F3 gizmos. The native debug overlay draws after game UI and is
+excluded from `capture`; it does not change game materials, depth state, or scene
+data. Closing the console, clicking empty canvas, replacing the attached scene,
+or deleting the entity clears the selection. Disabling the entity or an ancestor
+hides its brackets while retaining the selection. See
+`docs/runtime-console.md` (Picking scene objects),
+`rune/core/debug_picking.odin`, and the picking notes in
+[rendering-ui-audio.md](rendering-ui-audio.md#choose-collision-queries-or-rendered-picking)
+for supported renderers and custom drawing limits. Callback loops have no
+attached scene to pick.
+
+Use `@picked` in entity arguments to `inspect`, `set`, `enable`, `disable`, or
+`navmesh on`; it resolves the live selection when the command runs and participates
+in entity, component, and field completion. It is reserved before scene IDs.
+The alias and completion remain available after `disable @picked`, allowing
+`enable @picked` to restore the object's local activation flag. Disabled
+ancestors still keep it inactive; brackets return when it is active and visible.
+An invalid selection reports an error without changing the scene. Custom engine
+commands can query `rune.debug_picked_entity(game)` for a handle plus validity flag.
+Do not keep the handle across scene replacement.
+
+The console temporarily shows and releases the mouse, then restores the desired
+gameplay cursor mode. After `rune.init`, use `rune.set_cursor_mode(game, .captured)` for first-person
+look, `.hidden` for a hidden free cursor, or `.visible` for a visible free cursor.
+Mode changes while the console is open update the restore mode; query it with
+`rune.cursor_mode(game)`. Direct raylib hidden/captured modes cannot be distinguished
+by its public query, so use Rune's setter for exact restoration. Mapped gameplay
+input remains captured through the closing frame and recapture mouse deltas are
+discarded. Raw raylib readers must still respect console focus. `rune.begin_frame`
+owns this for custom loops; loops calling `console.update` directly use
+`rune.sync_console_cursor` before and after it and must handle their own next-sample
+mouse-delta suppression. Prefer `rune.begin_frame` for the complete input policy. See
+`docs/runtime-console.md` (Cursor ownership) and `rune/core/cursor.odin`.
+
 Use `docs/runtime-console.md` for repeatable runtime inspection without keyboard
 focus. Launch the built game from `GAME_ROOT` with an inbox unique to that process:
 `build/game.exe --console-dir=build/console/inspection` on Windows, or

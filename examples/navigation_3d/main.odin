@@ -123,7 +123,7 @@ draw :: proc(game:^rune.Engine,world:^ecs.World) {
 	rl.DrawSphere(nose,0.1,{225,245,255,255})
 	for i in 1..<len(state.path) {rl.DrawLine3D(state.path[i-1]+[3]f32{0,0.08,0},state.path[i]+[3]f32{0,0.08,0},{255,225,115,255})}
 	if has_destination {rl.DrawSphere(destination+[3]f32{0,0.13,0},0.13,{255,225,115,255})}
-	if game.gizmos.navmeshes {gizmos.draw_navmeshes_3d(world, game.gizmos.navmesh_entity)}
+	if game.gizmos.navmeshes {gizmos.draw_navmeshes_3d(world, game.gizmos.navmesh_entity, game.gizmos.navmesh_runtime_entity)}
 	rl.EndMode3D()
 	example_text.draw("3D NAVIGATION",28,24,30,{225,235,245,255})
 	example_text.draw("Click moves | Pad A upper platform | X ramp | Y mesh | B stop | Start pause",28,66,19,{175,195,210,255})

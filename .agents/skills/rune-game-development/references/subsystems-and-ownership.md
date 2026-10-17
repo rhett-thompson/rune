@@ -22,6 +22,12 @@ Queries wider than the baked inset also enforce extra whole-segment clearance.
 Keep the agent's intended radius and height rather than changing its dimensions
 to influence route selection. See `docs/navigation-3d.md`.
 
+Inspect the actual path and current baked surface before assuming an agent
+should keep a constant heading: an obstacle's baked inset can require a valid
+bend even when the endpoints align. For straight ramp cruise, verify a complete
+unobstructed route with the agent's authored options before checking facing or
+speed; see `tools/navigation_3d_validation/ramp_facing.odin`.
+
 ## Service network clients independently of gameplay traffic
 
 Keep calling `network.poll` on the client's owning thread, including when there

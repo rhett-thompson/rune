@@ -7,7 +7,6 @@ import "core:os"
 import "core:path/filepath"
 import rune "rune:core"
 import "rune:ecs"
-import rl "vendor:raylib"
 
 main :: proc() {
 	project_path := "examples/dungeoncrawler/project.json"
@@ -62,7 +61,7 @@ main :: proc() {
 		fmt.eprintln("Could not register dungeon system")
 		return
 	}
-	rl.DisableCursor()
+	rune.set_cursor_mode(&engine,.captured)
 	if !rune.run(&engine) {
 		fmt.eprintln("Could not run startup scene: ", rune.last_scene_error())
 	}

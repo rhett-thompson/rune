@@ -90,7 +90,7 @@ jump_press_sent, jump_release_sent: bool
 sample_controls :: proc(game:^rune.Engine,world:^ecs.World) {
 	jump_press_sent,jump_release_sent=false,false
 	controls:=rune.input_state(game)
-	if input.pressed(controls,"toggle_cursor") {toggle_cursor()}
+	if input.pressed(controls,"toggle_cursor") {toggle_cursor(game)}
 	if !cursor_captured || rune.is_paused(game) {
 		ecs.character_controller_3d_move(world,player,{})
 		if !cursor_captured {ecs.character_controller_3d_release_jump(world,player)}

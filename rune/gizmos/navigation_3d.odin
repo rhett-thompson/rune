@@ -8,12 +8,19 @@ import "vendor:raylib/rlgl"
 // Call inside an active 3D camera mode for games with custom camera rendering.
 // Scene loops call this automatically through draw_scene. Meshes are borrowed
 // each frame so reloads and runtime triangle blocking are immediately visible.
-draw_navmeshes_3d :: proc(world: ^ecs.World, entity_id: string = "") {
+// A nonzero runtime_entity overrides the scene ID. Unlike an ID filter, this
+// handle cannot rebind to a different entity after scene replacement.
+draw_navmeshes_3d :: proc(world: ^ecs.World, entity_id: string = "", runtime_entity: ecs.Entity = 0) {
+	filter := runtime_entity
+	if filter != 0 {
+		if !ecs.is_alive(world, filter) {return}
+	} else if entity_id != "" {
+		found: bool
+		filter, found = ecs.find_entity_by_id(world, entity_id)
+		if !found {return}
+	}
 	for entity in ecs.entities_with_component(world, "NavMesh3D") {
-		if entity_id != "" {
-			id, found := ecs.entity_id(world, entity)
-			if !found || id != entity_id {continue}
-		}
+		if filter != 0 && entity != filter {continue}
 		mesh, ready := ecs.navigation_mesh_3d(world, entity)
 		if ready {draw_navmesh_3d(mesh)}
 	}

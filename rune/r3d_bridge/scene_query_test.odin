@@ -2,9 +2,27 @@ package r3d_bridge
 
 import "core:testing"
 import "core:math"
+import "rune:assets"
 import "rune:ecs"
 import "rune:geometry"
+import "rune:render"
 import rl "vendor:raylib"
+
+@(test)
+scene_query_reused_model_cache_publishes_bounds_for_context_free_picking :: proc(t:^testing.T) {
+	w:=ecs.init(); defer ecs.destroy(&w)
+	r:=ecs.init_registry(); defer ecs.destroy_registry(&r); ecs.register_builtin_components(&r)
+	manager:=assets.Asset_Manager{models=make(map[string]assets.Model_Asset)}; defer delete(manager.models)
+	manager.models["fixture.obj"]={revision=3}
+	bridge:=Context{models=make(map[string]Model_Asset)}; defer delete(bridge.models)
+	bridge.models["fixture.obj"]={revision=3,model={meshCount=1,aabb={{-2,-0.5,-0.2},{0.25,0.5,0.2}}}}
+	e:=ecs.create_entity(&w); ecs.add(&w,&r,e,ecs.Transform{position={0,0,5},scale={1,1,1}}); ecs.add(&w,&r,e,ecs.ModelRenderer{model="fixture.obj"})
+	_,before:=render.scene_pick_3d(&w,{-1,0,0},{0,0,10},&manager); testing.expect(t,!before)
+	_,loaded:=load_model(&bridge,&manager,"fixture.obj"); testing.expect(t,loaded,"existing rendered cache is reused without importing or creating GPU resources")
+	hit,ok:=render.scene_pick_3d(&w,{-1,0,0},{0,0,10},&manager)
+	testing.expect(t,ok && hit.entity==e && abs(hit.distance-4.8)<0.001,"core can pick imported geometry without owning the bridge")
+	testing.expect(t,manager.models["fixture.obj"].revision==3,"publishing geometry does not advance the file watch generation")
+}
 
 @(test)
 scene_query_cached_model_bounds_follow_rendered_nonuniform_hierarchy :: proc(t:^testing.T) {

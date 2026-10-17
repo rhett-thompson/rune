@@ -38,6 +38,7 @@ Command :: struct {
 	description:     [Max_Line_Length]u8,
 	description_len: int,
 	handler:         Command_Proc,
+	completion:      Completion_Proc,
 }
 
 Console :: struct {
@@ -51,6 +52,7 @@ Console :: struct {
 	input_anchor:  int,
 	selection_target: Selection_Target,
 	edit_revision: u64,
+	completion:    Completion_State,
 	renderer:      Renderer,
 	// Wrapped rows above the newest output. Zero follows incoming messages.
 	scroll_offset: int,
@@ -90,7 +92,8 @@ init :: proc() -> Console {
 
 // register adds a command by name. Names are case-sensitive and must be
 // unique. Command data is copied, so caller-provided strings need not persist.
-register :: proc(console: ^Console, name, description: string, handler: Command_Proc) -> bool {
+register :: proc(console: ^Console, name, description: string, handler: Command_Proc,
+	completion: Completion_Proc = nil) -> bool {
 	if len(name) == 0 ||
 	   len(name) > Max_Name_Length ||
 	   len(description) > Max_Line_Length ||
@@ -107,6 +110,7 @@ register :: proc(console: ^Console, name, description: string, handler: Command_
 	copy(command.description[:], description)
 	command.description_len = len(description)
 	command.handler = handler
+	command.completion = completion
 	console.command_count += 1
 	return true
 }
@@ -179,13 +183,20 @@ update :: proc(console: ^Console) {
 	if key_pressed_or_repeated(.RIGHT) {edit(console, .Right, by_word, extend)}
 	if rl.IsKeyPressed(.HOME) {edit(console, .Home, false, extend)}
 	if rl.IsKeyPressed(.END) {edit(console, .End, false, extend)}
-	if key_pressed_or_repeated(.UP) {edit(console, .Previous_History)}
-	if key_pressed_or_repeated(.DOWN) {edit(console, .Next_History)}
-
 	for character := rl.GetCharPressed(); character > 0; character = rl.GetCharPressed() {
 		if !by_word {insert_character(console, rune(character))}
 	}
-	if rl.IsKeyPressed(.ENTER) {submit(console)}
+	if !by_word && key_pressed_or_repeated(.TAB) {complete(console, extend)}
+	up, down := key_pressed_or_repeated(.UP), key_pressed_or_repeated(.DOWN)
+	if up || down {
+		matches := Completion_Matches{}
+		if !by_word {matches = input_completion_matches(console, f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight()))}
+		input_vertical(console, up, len(matches.options) > 0, by_word, &matches)
+	}
+	if rl.IsKeyPressed(.ENTER) {
+		matches := input_completion_matches(console, f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight()))
+		input_enter(console, len(matches.options) > 0, &matches)
+	}
 }
 
 // submit executes the current input line. It is public so headless validation

@@ -202,6 +202,124 @@ validate_console_selection_rendering :: proc(dev: ^console.Console) {
 		"output selection background must stop at the semantic span's measured bounds")
 }
 
+validate_suggestion_highlight :: proc(dev: ^console.Console, image: rl.Image, expected: string) -> console.View_Layout {
+	matches := console.view_completion_matches(dev)
+	assert(matches.selected >= 0 && matches.options[matches.selected].value == expected)
+	layout := console.view_layout(f32(image.width), f32(image.height), len(matches.options), matches.selected)
+	assert(layout.suggestion_first <= matches.selected && matches.selected < layout.suggestion_end)
+	assert(layout.output.y + layout.output.height < layout.suggestions.y &&
+		layout.suggestions.y + layout.suggestions.height < layout.input.y,
+		"suggestions must sit between the output and the fixed input")
+	for index in layout.suggestion_first ..< layout.suggestion_end {
+		row := console.suggestion_row(layout, index)
+		x, y := row.x + 4, row.y + 12
+		pixel := rl.GetImageColor(image, i32(x), i32(y))
+		assert((pixel == console.Accent_Color) == (index == matches.selected),
+			"only the current completion row must carry the accent highlight marker")
+	}
+	return layout
+}
+
+validate_console_completion_rendering :: proc(dev: ^console.Console) {
+	rl.SetWindowSize(960, 640)
+	console_view_set_input(dev, "c build/captures/tab.png", 1)
+	assert(console.complete(dev) && string(dev.input[:dev.input_len]) == "capture build/captures/tab.png")
+	assert(console.complete(dev) && string(dev.input[:dev.input_len]) == "clear build/captures/tab.png")
+	assert(console.complete(dev, true) && string(dev.input[:dev.input_len]) == "capture build/captures/tab.png")
+	image := console_snapshot(dev, "build/captures/console-completion.png")
+	defer rl.UnloadImage(image)
+	assert(dev.input_caret == len("capture") && console_caret_is_visible(dev, image),
+		"completion must draw the caret after the command name, before its preserved arguments")
+	validate_suggestion_highlight(dev, image, "capture")
+	assert(console.complete(dev))
+	next_image := console_snapshot(dev, "build/captures/console-completion-next.png")
+	defer rl.UnloadImage(next_image)
+	validate_suggestion_highlight(dev, next_image, "clear")
+	assert(console.register(dev, "inspect", "Inspect a sample entity", console.clear_command, console_view_argument_completion))
+	console_view_set_input(dev, "inspect pl Transform", len("inspect pl"))
+	typing_image := console_snapshot(dev, "build/captures/console-suggestions-typing.png")
+	defer rl.UnloadImage(typing_image)
+	validate_suggestion_highlight(dev, typing_image, "player one")
+	assert(string(dev.input[:dev.input_len]) == "inspect pl Transform", "preview must not change the typed command")
+	history_count, sequence := dev.history_count, dev.log_sequence
+	assert(console.input_vertical(dev, false))
+	assert(string(dev.input[:dev.input_len]) == "inspect pl Transform", "arrows must move the highlight without changing input")
+	arrow_image := console_snapshot(dev, "build/captures/console-suggestions-arrow.png")
+	defer rl.UnloadImage(arrow_image)
+	validate_suggestion_highlight(dev, arrow_image, "player two")
+	console.input_enter(dev)
+	assert(string(dev.input[:dev.input_len]) == `inspect "player two" Transform` &&
+		dev.history_count == history_count && dev.log_sequence == sequence,
+		"Enter must accept the highlighted argument without executing it")
+	accepted_image := console_snapshot(dev, "build/captures/console-suggestions-accepted.png")
+	defer rl.UnloadImage(accepted_image)
+	assert(len(console.view_completion_matches(dev).options) == 0,
+		"acceptance must dismiss the list so the next Enter can run the command")
+	console_view_set_input(dev, "inspect pl Transform", len("inspect pl"))
+	click_matches := console.view_completion_matches(dev)
+	click_layout := console.view_layout(960, 640, len(click_matches.options), click_matches.selected)
+	click_view := console.build_view(dev, click_layout.output.width, click_layout.visible_rows)
+	row := console.suggestion_row(click_layout, 1)
+	point := rl.Vector2{row.x + 20, row.y + 12}
+	console.pointer_select(dev, click_layout, click_view, point, true, true, false, 1, nil, &click_matches)
+	assert(string(dev.input[:dev.input_len]) == `inspect "player two" Transform` &&
+		dev.history_count == history_count && dev.log_sequence == sequence,
+		"clicking an unhighlighted row must accept that suggestion without executing it")
+	clicked_image := console_snapshot(dev, "build/captures/console-suggestions-clicked.png")
+	defer rl.UnloadImage(clicked_image)
+	assert(len(console.view_completion_matches(dev).options) == 0 && console_caret_is_visible(dev, clicked_image))
+	held_layout := console.view_layout(960, 640)
+	held_view := console.build_view(dev, held_layout.output.width, held_layout.visible_rows)
+	console.pointer_select(dev, held_layout, held_view, point, false, true, false, 1.1)
+	assert(!dev.renderer.dragging_text && dev.selection_target == .Input &&
+		dev.input_caret == len(`inspect "player two"`), "holding a suggestion click must not select newly revealed output")
+	console_view_set_input(dev, "inspect pl Transform", len("inspect pl"))
+	assert(console.complete(dev) && string(dev.input[:dev.input_len]) == `inspect "player one" Transform`)
+	assert(console.complete(dev) && string(dev.input[:dev.input_len]) == `inspect "player two" Transform`)
+	assert(console.complete(dev, true) && string(dev.input[:dev.input_len]) == `inspect "player one" Transform`)
+	argument_image := console_snapshot(dev, "build/captures/console-argument-completion.png")
+	defer rl.UnloadImage(argument_image)
+	assert(dev.input_caret == len(`inspect "player one"`) && console_caret_is_visible(dev, argument_image),
+		"argument completion must draw the caret after the quoted ID and preserve later arguments")
+	validate_suggestion_highlight(dev, argument_image, "player one")
+	for index in 0..<12 {
+		assert(console.register(dev, fmt.tprintf("suggest_%02d_command_with_a_very_long_name", index), "Test suggestions", console.clear_command))
+	}
+	console_view_set_input(dev, "suggest_", len("suggest_"))
+	for _ in 0..<9 {assert(console.complete(dev))}
+	windowed := console_snapshot(dev, "build/captures/console-suggestions-many.png")
+	defer rl.UnloadImage(windowed)
+	expected := "suggest_08_command_with_a_very_long_name"
+	windowed_layout := validate_suggestion_highlight(dev, windowed, expected)
+	assert(windowed_layout.suggestion_first > 0 &&
+		windowed_layout.suggestion_end - windowed_layout.suggestion_first == console.Suggestion_Max_Rows,
+		"long suggestion lists must keep the current choice visible in a bounded window")
+	rl.SetWindowSize(360, 540)
+	narrow := console_snapshot(dev, "build/captures/console-suggestions-narrow.png")
+	defer rl.UnloadImage(narrow)
+	narrow_layout := validate_suggestion_highlight(dev, narrow, expected)
+	assert(console_text_is_clipped(narrow, narrow_layout.panel))
+	rl.SetWindowSize(180, 90)
+	tiny := console_snapshot(dev, "build/captures/console-suggestions-tiny.png")
+	defer rl.UnloadImage(tiny)
+	assert(console.view_layout(f32(tiny.width), f32(tiny.height), 12, 8).suggestions.height == 0)
+	assert(console_text_is_clipped(tiny, console.view_layout(f32(tiny.width), f32(tiny.height)).panel))
+	assert(len(console.input_completion_matches(dev, f32(tiny.width), f32(tiny.height)).options) == 0,
+		"hidden suggestion rows must not intercept navigation or Enter")
+	rl.SetWindowSize(960, 640)
+	console_view_set_input(dev, "clear", len("clear"))
+	console.input_enter(dev)
+	assert(dev.input_len == len("clear") && dev.history_count == history_count,
+		"the first Enter must accept even an unchanged command name")
+	console.input_enter(dev)
+	assert(dev.input_len == 0 && dev.history_count == history_count+1 && dev.line_count == 0,
+		"a second Enter must execute the accepted command exactly once")
+}
+
+console_view_argument_completion :: proc(dev: ^console.Console, request: console.Completion_Request, candidates: ^[dynamic]string) {
+	if request.argument_index == 0 {append(candidates, "player one", "player two")}
+}
+
 validate_console_view :: proc() {
 	assert(os.make_directory_all("build/captures") == nil || os.exists("build/captures"))
 	rl.SetConfigFlags({.WINDOW_HIDDEN, .MSAA_4X_HINT})
@@ -281,6 +399,7 @@ validate_console_view :: proc() {
 		"text and caret must remain clipped to the panel in a tiny window")
 	assert(console_caret_is_visible(dev, tiny), "tiny input viewport must keep its caret visible")
 	rl.UnloadImage(tiny)
+	validate_console_completion_rendering(dev)
 	validate_console_clipboard(dev)
 	validate_console_selection_rendering(dev)
 	fmt.println("Console runtime rendering and overlay screenshots passed")

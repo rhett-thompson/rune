@@ -4,6 +4,7 @@ import "core:encoding/json"
 import "core:fmt"
 import "core:math"
 import "core:mem"
+import "core:os"
 import "rune:console"
 import rune "rune:core"
 import "rune:ecs"
@@ -139,7 +140,151 @@ main :: proc() {
 	}
 	validate_snapshot_ownership(&registry, paths)
 	validate_navmesh_commands(&registry)
+	validate_argument_completion(&registry)
 	fmt.println("Debug commands, runtime edits, and deterministic stepping validation passed")
+	for argument in os.args[1:] {
+		if argument == "--runtime" {validate_debug_picking_view(&registry)}
+	}
+}
+
+completion_line :: proc(dev: ^console.Console, text: string) {
+	console.edit(dev, .Select_All)
+	assert(console.insert_text(dev, text))
+}
+
+expect_completion :: proc(dev: ^console.Console, expected: string, reverse := false) {
+	assert(console.complete(dev, reverse), expected)
+	assert(string(dev.input[:dev.input_len]) == expected, string(dev.input[:dev.input_len]))
+}
+
+validate_argument_completion :: proc(registry: ^ecs.Component_Registry) {
+	world := ecs.init()
+	defer ecs.destroy(&world)
+	player := ecs.create_entity(&world)
+	assert(ecs.set_entity_metadata(&world, player, "player", "", "", ecs.Default_Layer_Mask))
+	assert(ecs.add_component(&world, registry, player, "Transform", parse(`{}`)))
+	assert(ecs.add_component(&world, registry, player, "Custom", parse(`{}`)))
+	spaced := ecs.create_entity(&world)
+	assert(ecs.set_entity_metadata(&world, spaced, "player two", "", "", ecs.Default_Layer_Mask))
+	assert(ecs.add_component(&world, registry, spaced, "Transform", parse(`{}`)))
+	assert(ecs.register_data_component(registry, "Debug extra"))
+	assert(ecs.add_component(&world, registry, spaced, "Debug extra", parse(`{"value":false}`)))
+	quoted := ecs.create_entity(&world)
+	assert(ecs.set_entity_metadata(&world, quoted, `quoted"one`, "", "", ecs.Default_Layer_Mask))
+	assert(ecs.add_component(&world, registry, quoted, "Custom", parse(`{}`)))
+	nav := ecs.create_entity(&world)
+	assert(ecs.set_entity_metadata(&world, nav, "navigation", "", "", ecs.Default_Layer_Mask))
+	assert(ecs.add_component(&world, registry, nav, "NavMesh3D", parse(`{"asset":"course.navmesh.json"}`)))
+	unnamed := ecs.create_entity(&world)
+	controls, loaded := input.load("examples/tilemap_2d/input/default.input.json")
+	assert(loaded)
+	defer input.destroy(&controls)
+	controls.mappings.actions["open menu"] = controls.mappings.actions["move_right"]
+	game := rune.Engine{console = console.init(), registry = registry^, input = controls}
+	rune.register_debug_commands(&game.console)
+	rune.bind_debug_console(&game, &world)
+	dev := &game.console
+	log_sequence, errors := dev.log_sequence, dev.error_count
+	completion_line(dev, "inspect pla")
+	expect_completion(dev, "inspect player")
+	expect_completion(dev, `inspect "player two"`)
+	expect_completion(dev, "inspect player", true)
+	completion_line(dev, "inspect player C")
+	expect_completion(dev, "inspect player Custom")
+	completion_line(dev, "inspect player Camera3")
+	assert(!console.complete(dev), "inspect offers only attached components")
+	completion_line(dev, `inspect "player two" Debug`)
+	expect_completion(dev, `inspect "player two" "Debug extra"`)
+	completion_line(dev, "entities Camera3")
+	expect_completion(dev, "entities Camera3D")
+	completion_line(dev, "set player Tr")
+	expect_completion(dev, "set player Transform.position")
+	completion_line(dev, "set player Transform.position.")
+	expect_completion(dev, "set player Transform.position.0")
+	expect_completion(dev, "set player Transform.position.1")
+	expect_completion(dev, "set player Transform.position.0", true)
+	completion_line(dev, "set player Custom.")
+	expect_completion(dev, "set player Custom.label")
+	expect_completion(dev, "set player Custom.speed")
+	completion_line(dev, "input move_r")
+	expect_completion(dev, "input move_right")
+	completion_line(dev, "input move_right re")
+	expect_completion(dev, "input move_right release")
+	completion_line(dev, "input open")
+	expect_completion(dev, `input "open menu"`)
+	completion_line(dev, "window b")
+	expect_completion(dev, "window borderless")
+	completion_line(dev, "navmesh o")
+	expect_completion(dev, "navmesh off")
+	expect_completion(dev, "navmesh on")
+	completion_line(dev, "navmesh on n")
+	expect_completion(dev, "navmesh on navigation")
+	completion_line(dev, "navmesh off n")
+	assert(!console.complete(dev))
+	completion_line(dev, fmt.tprintf("enable @%d", u64(unnamed)))
+	assert(!console.complete(dev), "an exact single candidate leaves input intact")
+	completion_line(dev, "disable @")
+	expect_completion(dev, fmt.tprintf("disable @%d", u64(unnamed)))
+	assert(dev.log_sequence == log_sequence && dev.error_count == errors, "completion does not execute commands or log errors")
+	// Quoted candidates must remain executable by all consumers, including the
+	// inspect reply generated internally by set.
+	completion_line(dev, "inspect player t")
+	assert(!console.complete(dev))
+	completion_line(dev, "inspect \"player tw")
+	expect_completion(dev, `inspect "player two"`)
+	console.execute(dev, string(dev.input[:dev.input_len]))
+	assert(dev.result_data.(json.Object)["entity"].(json.Object)["id"].(json.String) == "player two")
+	console.execute(dev, `set "quoted\"one" Custom.speed 5`)
+	assert(dev.result_data.(json.Object)["entity"].(json.Object)["id"].(json.String) == `quoted"one`)
+	completion_line(dev, `set "player two" Debug`)
+	expect_completion(dev, `set "player two" "Debug extra.value"`)
+	console.execute(dev, `set "player two" "Debug extra.value" true`)
+	assert(dev.result_data.(json.Object)["components"].(json.Object)["Debug extra"].(json.Object)["value"].(json.Boolean))
+	for command in ([]string{`inspect "player two" Debug extra`, `inspect "player two" "Debug extra"`}) {
+		console.execute(dev, command)
+		assert(dev.result_data.(json.Object)["components"].(json.Object)["Debug extra"].(json.Object)["value"].(json.Boolean))
+	}
+	completion_line(dev, "entities Debug")
+	expect_completion(dev, `entities "Debug extra"`)
+	console.execute(dev, string(dev.input[:dev.input_len]))
+	assert(len(dev.result_data.(json.Array)) == 1)
+	console.execute(dev, "entities Debug extra")
+	assert(len(dev.result_data.(json.Array)) == 1)
+	console.execute(dev, `input "open menu" press`)
+	assert(game.input.injected["open menu"].down)
+	console.execute(dev, `disable "player two"`)
+	assert(!ecs.is_locally_enabled(&world, spaced))
+	console.execute(dev, `enable "player two"`)
+	assert(ecs.is_locally_enabled(&world, spaced))
+	assert(dev.error_count == errors)
+	for command in ([]string{
+		`entities "Debug extra" junk`, `entities "Debug extra"junk`,
+		`inspect "player two" "Debug extra" junk`, `inspect "player two" "Debug extra\uZZZZ"`,
+	}) {
+		before := dev.error_count
+		console.execute(dev, command)
+		assert(dev.error_count == before+1, "malformed quoted components must be rejected in full")
+	}
+	errors = dev.error_count
+	// Repeated Tab reacquires live data even when the previous candidate is
+	// removed, then a completely different World is bound before the next Tab.
+	fresh := ecs.create_entity(&world)
+	assert(ecs.set_entity_metadata(&world, fresh, "fresh_a", "", "", ecs.Default_Layer_Mask))
+	completion_line(dev, "inspect fresh")
+	expect_completion(dev, "inspect fresh_a")
+	assert(ecs.destroy_entity(&world, fresh))
+	fresh = ecs.create_entity(&world)
+	assert(ecs.set_entity_metadata(&world, fresh, "fresh_b", "", "", ecs.Default_Layer_Mask))
+	expect_completion(dev, "inspect fresh_b")
+	replacement := ecs.init()
+	defer ecs.destroy(&replacement)
+	fresh = ecs.create_entity(&replacement)
+	assert(ecs.set_entity_metadata(&replacement, fresh, "fresh_c", "", "", ecs.Default_Layer_Mask))
+	rune.bind_debug_console(&game, &replacement)
+	expect_completion(dev, "inspect fresh_c")
+	rune.bind_debug_console(&game, nil)
+	assert(!console.complete(dev))
+	assert(dev.error_count == errors, "completion without a World stays quiet")
 }
 
 validate_navmesh_commands :: proc(registry: ^ecs.Component_Registry) {

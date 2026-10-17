@@ -16,6 +16,9 @@ Max_Debug_Frames :: 600
 
 Debug_State :: struct {
 	world: ^ecs.World,
+	// Generation-bound handle only; geometry and cameras are reacquired per frame.
+	picked_entity: ecs.Entity,
+	picked_dimension: Debug_Pick_Dimension,
 	paused: bool,
 	steps_remaining: int,
 	steps_requested: int,
@@ -38,23 +41,23 @@ Profile_Sample :: struct {
 }
 
 register_debug_commands :: proc(dev: ^console.Console) {
-	console.register(dev, "enable", "Enable entity subtree: enable <entity-id>.", enable_command)
-	console.register(dev, "disable", "Suspend entity subtree: disable <entity-id>.", disable_command)
-	console.register(dev, "window", "Inspect display or change mode: window [windowed|borderless|fullscreen].", window_command)
+	console.register(dev, "enable", "Enable entity subtree: enable <entity-id>.", enable_command, debug_argument_completion)
+	console.register(dev, "disable", "Suspend entity subtree: disable <entity-id>.", disable_command, debug_argument_completion)
+	console.register(dev, "window", "Inspect display or change mode: window [windowed|borderless|fullscreen].", window_command, debug_argument_completion)
 	console.register(dev, "status", "Report scene, timing, camera, entity count, and errors.", status_command)
-	console.register(dev, "entities", "List entities: entities [component].", entities_command)
-	console.register(dev, "inspect", "Current data: inspect <entity-id> [component].", inspect_command)
+	console.register(dev, "entities", "List entities: entities [component].", entities_command, debug_argument_completion)
+	console.register(dev, "inspect", "Current data: inspect <entity-id> [component].", inspect_command, debug_argument_completion)
 	console.register(dev, "pause", "Pause simulation while rendering and console continue.", pause_command)
 	console.register(dev, "resume", "Resume simulation.", resume_command)
 	console.register(dev, "step", "Advance paused simulation: step [count, 1..600].", step_command)
-	console.register(dev, "input", "Override action: input <action> press|release|clear.", input_command)
+	console.register(dev, "input", "Override action: input <action> press|release|clear.", input_command, debug_argument_completion)
 	console.register(dev, "pads", "List connected gamepads and live axis values.", pads_command)
 	console.register(dev, "quit", "Exit the active engine loop.", quit_command)
-	console.register(dev, "set", "Runtime edit: set <id> <Component.field> <JSON-value>.", set_command)
+	console.register(dev, "set", "Runtime edit: set <id> <Component.field> <JSON-value>.", set_command, debug_argument_completion)
 	console.register(dev, "reload", "Reload the active scene from disk; discard runtime edits.", reload_command)
 	console.register(dev, "profile", "Sample CPU/frame timings: profile [frames, 1..600].", profile_command)
 	console.register(dev, "memory", "Known World/asset backing buffers and texture GPU estimates.", memory_command)
-	console.register(dev, "navmesh", "Show navigation surfaces: navmesh [on [entity-id]|off].", navmesh_command)
+	console.register(dev, "navmesh", "Show navigation surfaces: navmesh [on [entity-id]|off].", navmesh_command, debug_argument_completion)
 }
 
 quit_command :: proc(dev: ^console.Console, arguments: string) {
@@ -93,6 +96,7 @@ navmesh_command :: proc(dev: ^console.Console, arguments: string) {
 	mode, rest := take_word(arguments)
 	if mode != "" {
 		id, extra := take_word(rest)
+		runtime_entity: ecs.Entity
 		if (mode != "on" && mode != "off") || extra != "" || (mode == "off" && id != "") {
 			console.error(dev, "Usage: navmesh [on [entity-id]|off].")
 			return
@@ -100,11 +104,17 @@ navmesh_command :: proc(dev: ^console.Console, arguments: string) {
 		if id != "" {
 			_, world, attached := command_world(dev)
 			if !attached {return}
-			entity, found := ecs.find_entity_by_id(world, id)
-			if !found || !ecs.has_component_data(world, entity, "NavMesh3D") {
+			entity, found := resolve_debug_entity(dev, world, id)
+			if !found {return}
+			if !ecs.has_component_data(world, entity, "NavMesh3D") {
 				console.error(dev, fmt.tprintf("NavMesh3D scene entity not found: %s", id))
 				return
 			}
+			// Resolve the alias now: changing the current pick cannot redirect a
+			// navigation filter that is already enabled. IDs survive reloads;
+			// unnamed entities use a generation-bound runtime handle instead.
+			id = entity_label(world, entity)
+			if scene_id, has_id := ecs.entity_id(world, entity); !has_id || scene_id == "" {runtime_entity = entity}
 		}
 		filter: string
 		if id != "" {
@@ -115,6 +125,7 @@ navmesh_command :: proc(dev: ^console.Console, arguments: string) {
 		delete(engine.debug.navmesh_entity)
 		engine.debug.navmesh_entity = filter
 		engine.gizmos.navmesh_entity = filter
+		engine.gizmos.navmesh_runtime_entity = runtime_entity
 		engine.gizmos.navmeshes = mode == "on"
 	}
 	console.info(dev, fmt.tprintf("Navmesh display %s (%s).",
@@ -133,6 +144,7 @@ memory_command :: proc(dev: ^console.Console, arguments: string) {
 }
 
 bind_debug_console :: proc(engine: ^Engine, world: ^ecs.World) {
+	if engine.debug.world != world {clear_debug_selection(engine)}
 	engine.console.user_data = engine
 	engine.debug.world = world
 }
@@ -166,10 +178,15 @@ command_world :: proc(dev: ^console.Console) -> (^Engine, ^ecs.World, bool) {
 }
 
 take_word :: proc(arguments: string) -> (string, string) {
-	line := strings.trim_space(arguments)
-	end := 0
-	for end < len(line) && line[end] != ' ' && line[end] != '\t' {end += 1}
-	return line[:end], strings.trim_space(line[end:])
+	return console.take_argument(arguments)
+}
+
+// Component filters historically consume the whole remaining text, including
+// spaces in custom component names. Completed quoted filters use JSON syntax.
+take_component_argument :: proc(arguments: string) -> (string, bool) {
+	name := strings.trim_space(arguments)
+	if name == "" || name[0] != '"' {return name, true}
+	return console.decode_argument(name)
 }
 
 no_arguments :: proc(dev: ^console.Console, arguments: string) -> bool {
@@ -186,13 +203,46 @@ entity_label :: proc(world: ^ecs.World, entity: ecs.Entity) -> string {
 	return fmt.tprintf("@%d", u64(entity))
 }
 
-resolve_debug_entity :: proc(dev: ^console.Console, world: ^ecs.World, label: string) -> (ecs.Entity, bool) {
+// Return the live selection for custom console commands without producing
+// output. A handle is meaningful only in its currently bound World generation;
+// never fall back to a matching ID after scene replacement or deletion.
+// Disabled entities remain selected so enable @picked can restore them.
+debug_picked_entity :: proc(engine: ^Engine) -> (ecs.Entity, bool) {
+	if engine == nil || !engine.console.is_open || engine.debug.world == nil || engine.debug.picked_dimension == .None {return 0, false}
+	entity := engine.debug.picked_entity
+	world := engine.debug.world
+	if !ecs.is_alive(world, entity) {return 0, false}
+	return entity, true
+}
+
+// Shared nonlogging resolution keeps completion and command execution aligned.
+// Exact @picked is reserved before looking up scene IDs. Other IDs retain their
+// historical precedence over numeric @handle labels.
+@(private)
+debug_entity :: proc(engine: ^Engine, world: ^ecs.World, label: string) -> (ecs.Entity, bool) {
+	if world == nil {return 0, false}
+	if label == "@picked" {
+		if engine == nil || engine.debug.world != world {return 0, false}
+		return debug_picked_entity(engine)
+	}
+	return debug_literal_entity(world, label)
+}
+
+@(private)
+debug_literal_entity :: proc(world: ^ecs.World, label: string) -> (ecs.Entity, bool) {
 	if entity, found := ecs.find_entity_by_id(world, label); found {return entity, true}
 	if strings.has_prefix(label, "@") {
 		handle, parsed := strconv.parse_uint(label[1:], 10)
 		if parsed && ecs.is_alive(world, ecs.Entity(handle)) {return ecs.Entity(handle), true}
 	}
-	console.error(dev, fmt.tprintf("Entity not found: %s", label))
+	return 0, false
+}
+
+resolve_debug_entity :: proc(dev: ^console.Console, world: ^ecs.World, label: string) -> (ecs.Entity, bool) {
+	engine := cast(^Engine)dev.user_data
+	if entity, found := debug_entity(engine, world, label); found {return entity, true}
+	if label == "@picked" {console.error(dev, "No object is currently picked.")
+	} else {console.error(dev, fmt.tprintf("Entity not found: %s", label))}
 	return 0, false
 }
 
@@ -252,13 +302,14 @@ entity_summary :: proc(world: ^ecs.World, entity: ecs.Entity) -> Entity_Summary 
 entities_command :: proc(dev: ^console.Console, arguments: string) {
 	engine, world, ok := command_world(dev)
 	if !ok {return}
-	if arguments != "" && !ecs.has_component(&engine.registry, arguments) {
+	component, valid := take_component_argument(arguments)
+	if !valid || (component != "" && !ecs.has_component(&engine.registry, component)) {
 		console.error(dev, "Unknown component filter.")
 		return
 	}
 	rows := make([dynamic]Entity_Summary, context.temp_allocator)
 	for entity in world.entities {
-		if arguments != "" && !ecs.has_component_data(world, entity, arguments) {continue}
+		if component != "" && !ecs.has_component_data(world, entity, component) {continue}
 		append(&rows, entity_summary(world, entity))
 	}
 	slice.sort_by(rows[:], proc(a, b: Entity_Summary) -> bool {return a.id < b.id})
@@ -268,32 +319,43 @@ entities_command :: proc(dev: ^console.Console, arguments: string) {
 inspect_command :: proc(dev: ^console.Console, arguments: string) {
 	_, world, ok := command_world(dev)
 	if !ok {return}
-	id, component := take_word(arguments)
-	if id == "" {
+	id, rest := take_word(arguments)
+	component, valid := take_component_argument(rest)
+	if id == "" || !valid {
 		console.error(dev, "Usage: inspect <entity-id> [component]")
 		return
 	}
 	entity, found := resolve_debug_entity(dev, world, id)
 	if !found {return}
+	inspect_debug_entity(dev, world, entity, component)
+}
+
+// Both the inspect command and scene picking snapshot the same current data.
+// Direct entity access also handles IDs too long to fit a command input line.
+inspect_debug_entity :: proc(dev: ^console.Console, world: ^ecs.World, entity: ecs.Entity, component: string = "") -> bool {
+	if world == nil || !ecs.is_alive(world, entity) {return false}
+	summary := entity_summary(world, entity)
 	components := make(json.Object, context.temp_allocator)
-	names := entity_summary(world, entity).components
+	names := summary.components
 	if component != "" {names = []string{component}}
 	for name in names {
 		value, valid := ecs.runtime_component_json(world, entity, name)
 		if !valid {
 			console.error(dev, fmt.tprintf("Cannot inspect component: %s", name))
-			return
+			return false
 		}
 		components[name] = value
 	}
 	children := make([dynamic]string, context.temp_allocator)
 	for child in ecs.child_entities(world, entity) {append(&children, entity_label(world, child))}
 	slice.sort(children[:])
+	errors := dev.error_count
 	console.set_result(dev, struct {
 		entity: Entity_Summary,
 		children: []string,
 		components: json.Object,
-	}{entity_summary(world, entity), children[:], components})
+	}{summary, children[:], components})
+	return dev.error_count == errors
 }
 
 pause_command :: proc(dev: ^console.Console, arguments: string) {
@@ -339,8 +401,9 @@ step_command :: proc(dev: ^console.Console, arguments: string) {
 input_command :: proc(dev: ^console.Console, arguments: string) {
 	engine, ok := command_engine(dev)
 	if !ok {return}
-	action, operation := take_word(arguments)
-	if operation != "press" && operation != "release" && operation != "clear" {
+	action, rest := take_word(arguments)
+	operation, extra := take_word(rest)
+	if extra != "" || (operation != "press" && operation != "release" && operation != "clear") {
 		console.error(dev, "Usage: input <action> press|release|clear")
 		return
 	}
@@ -374,7 +437,11 @@ set_command :: proc(dev: ^console.Console, arguments: string) {
 		console.error(dev, "Invalid field or value; component was not changed.")
 		return
 	}
-	inspect_command(dev, fmt.tprintf("%s %s", id, component))
+	encoded_id, encode_error := json.marshal(id, allocator = context.temp_allocator)
+	encoded_component, component_error := json.marshal(component, allocator = context.temp_allocator)
+	if encode_error == nil && component_error == nil {
+		inspect_command(dev, fmt.tprintf("%s %s", string(encoded_id), string(encoded_component)))
+	}
 }
 
 reload_command :: proc(dev: ^console.Console, arguments: string) {

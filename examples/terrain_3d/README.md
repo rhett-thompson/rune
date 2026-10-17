@@ -34,6 +34,10 @@ Edit `assets/hills.png` in a grayscale image editor, or change
 reload together with collision. A corrupt edit keeps the last working terrain.
 Use the runtime console's `pause`, `step`, `inspect`, `profile`, and `capture`
 commands for repeatable inspection; see [the terrain guide](../../docs/terrain.md).
+Opening the console temporarily releases and shows the mouse; closing restores
+the previous gameplay mode. Click a supported object outside the console panel
+to inspect it, then use `inspect @picked` or `set @picked ...` in commands. Terrain
+and decorative GPU instances are outside the console's supported picking geometry.
 
 Tune each entry in `layers` in `assets/hills.terrain.json`: `height` and `slope`
 set fade-in start/end and fade-out start/end, `weight` adjusts contribution, and

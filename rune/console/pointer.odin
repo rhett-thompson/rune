@@ -16,9 +16,19 @@ output_hit :: proc(console: ^Console, layout: View_Layout, view: Log_View,
 // dragging can be validated without sending input to a desktop window.
 pointer_select :: proc(console: ^Console, layout: View_Layout, view: Log_View,
 	pointer: rl.Vector2, pressed, down, extend: bool, now: f64,
-	measure: Measure_Proc = nil) {
+	measure: Measure_Proc = nil, matches: ^Completion_Matches = nil) {
 	renderer := &console.renderer
 	if pressed && !renderer.dragging_scrollbar {
+		if layout.suggestions.height > 0 && rl.CheckCollisionPointRec(pointer, layout.suggestions) {
+			options := matches^ if matches != nil else view_completion_matches(console)
+			click_suggestion(console, layout, options, pointer)
+			// Closing the popup reveals log rows under the same held click.
+			// Consume the press without beginning a selection or double click.
+			renderer.dragging_text = false
+			renderer.word_drag = false
+			renderer.last_click_time = 0
+			return
+		}
 		in_input := rl.CheckCollisionPointRec(pointer, layout.input)
 		in_output := rl.CheckCollisionPointRec(pointer, layout.output) && view.end > view.first
 		if !in_input && !in_output {renderer.dragging_text = false; return}

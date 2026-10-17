@@ -120,6 +120,7 @@ Engine :: struct {
 	save_processing:    bool,
 	canvas:             render.Canvas,
 	window:             Window_State,
+	cursor:             Cursor_State,
 	debug:              Debug_State,
 	project:            Project,
 	project_directory:  string,
@@ -593,6 +594,7 @@ run_callbacks :: proc(engine: ^Engine, on_update: Update_Proc, on_draw: Draw_Pro
 		flush_asset_diagnostics(engine)
 		engine.console.frame_metadata = debug_frame_metadata(engine)
 		console.finish_frame(&engine.console)
+		draw_debug_selection(engine)
 		console.draw(&engine.console)
 		engine.debug.sample.render_ms = (rl.GetTime() - draw_started) * 1000
 		rl.EndDrawing()
@@ -700,6 +702,7 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 		flush_asset_diagnostics(engine)
 		engine.console.frame_metadata = debug_frame_metadata(engine)
 		console.finish_frame(&engine.console)
+		draw_debug_selection(engine)
 		console.draw(&engine.console)
 		engine.debug.sample.render_ms = (rl.GetTime() - draw_started) * 1000
 		rl.EndDrawing()
@@ -882,9 +885,18 @@ begin_frame :: proc(engine: ^Engine) {
 		}
 	}
 	input.update(&engine.input)
+	discard_cursor_mouse_delta(engine)
+	sync_console_cursor(engine)
 	console_was_open := console.is_open(&engine.console)
 	console.update(&engine.console)
+	sync_console_cursor(engine)
+	if !console.is_open(&engine.console) {clear_debug_selection(engine)}
 	if console_was_open || console.is_open(&engine.console) {input.capture(&engine.input)}
+	if console_was_open && console.is_open(&engine.console) && rl.IsMouseButtonPressed(.LEFT) {
+		debug_pick_scene(engine, rl.GetMousePosition(),
+			{f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight())},
+			{f32(rl.GetRenderWidth()), f32(rl.GetRenderHeight())})
+	}
 	finish_exit_console(engine)
 }
 
@@ -932,6 +944,7 @@ shutdown :: proc(engine: ^Engine) {
 		delete(engine.debug.navmesh_entity)
 		engine.debug.navmesh_entity = ""
 		engine.gizmos.navmesh_entity = ""
+		engine.gizmos.navmesh_runtime_entity = 0
 		delete(engine.save_request.name)
 		engine.save_request = {}
 		save.destroy(&engine.saves)

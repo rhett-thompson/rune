@@ -54,6 +54,26 @@ for a small feature. Check installed source signatures before inventing calls.
 - Reacquire scene entities and borrowed state after reload or restoration.
   Frame scratch and borrowed component strings/collections are not persistent
   game storage. Keep durable game state in owned storage or configured saves.
+- Use the built-in console for runtime inspection; Tab/Shift+Tab cycles matching
+  command names and supported arguments, including entity IDs and component
+  names. Suggestions appear above the input with the current match highlighted.
+  Up/Down selects a suggestion without editing; Enter accepts it, then another
+  Enter executes. Clicking any visible suggestion also accepts it and hides the
+  list; Enter then executes. Ctrl+Up/Down always browses command history.
+  With the console open, left-click a scene object outside the panel to print
+  its hierarchy and current component values; supported picking uses active
+  scene cameras and cached geometry without changing the command draft. Amber
+  corner brackets follow the selected object's rendered bounds in a separate
+  native debug overlay; closing the console or clicking empty canvas clears it.
+  Refer to the current selection with `@picked` in engine entity arguments;
+  component and field completion follows it, including while it is disabled.
+  `disable @picked` hides its brackets but keeps the alias valid for
+  `enable @picked`. Console focus temporarily releases
+  and shows the mouse, then restores the desired gameplay mode. Use
+  `rune.set_cursor_mode` for visible, hidden-free, or captured gameplay cursors.
+  Custom commands can supply read-only argument completion callbacks. See
+  [console inspection](references/project-workflow.md#inspect-gameplay-through-the-console)
+  for interactive use and the local command inbox.
 
 ## Verify the game, then report the result
 

@@ -5,6 +5,8 @@
 Press backtick to open the console and Escape or backtick to close it. The
 overlay uses Inter typography, rounded navy panels, and the game UI's teal
 accent. Warning and error messages have distinct colors.
+Opening it releases and shows the mouse so first-person games can use suggestions
+and pick objects; closing restores the gameplay cursor mode.
 
 - Left/Right moves the caret; Home/End moves to the start/end of the command.
 - Backspace removes the previous character; Delete removes the next. Both
@@ -20,17 +22,42 @@ accent. Warning and error messages have distinct colors.
   stays read-only. Ctrl+V pastes into the command, replacing its selection.
   Ctrl+A selects the command or retained output, depending on which you clicked.
   Copied output preserves its original text across visual wraps and result chunks.
-- Up/Down browses command history and restores an unfinished draft and caret.
+- Up/Down moves the highlight through visible suggestions, wrapping at either
+  end without changing the command. When suggestions are hidden or unavailable,
+  Up/Down browses command history and restores an unfinished draft and caret.
+  Ctrl+Up/Down always browses history.
+- Tab completes command names and supported arguments matching the
+  case-sensitive prefix before the caret. Repeated Tab cycles matches
+  alphabetically; Shift+Tab cycles backward. Completion replaces the current
+  token and preserves the rest of the line, including leading whitespace.
+  Editing, moving the caret, or browsing history starts a new completion cycle.
+  After Up/Down navigation, either Tab or Shift+Tab accepts the highlighted
+  suggestion; subsequent presses resume cycling in the corresponding direction.
+- Matching suggestions appear above the input as you type, including at a blank
+  argument. Tab highlights the current match and keeps it visible while cycling
+  the original prefix's matches. An empty command shows suggestions after Tab.
+  The list uses available console space and hides when the window is too short.
+- Enter accepts the highlighted suggestion, replacing only the current token.
+  Acceptance hides suggestions until you edit the command or press Tab; the next
+  Enter executes the command.
+- Click any visible suggestion to accept that row, whether or not it is
+  highlighted. This replaces only the current token, preserves the rest of the
+  command and quotes the value when needed, then hides the list. Press Enter to
+  execute the accepted command.
+- With the console open, left-click an object outside its panel to inspect that
+  entity. The output includes its ID, name, hierarchy, and current component
+  values. Amber corner brackets mark the picked object and follow it as it moves.
+  Picking preserves your command draft and history.
 - Scroll the mouse wheel over the console, drag the scrollbar, or use
   Page Up/Page Down to browse wrapped output. Ctrl+End returns to the latest
   output. Incoming messages preserve your reading position while scrolled up.
 
-Enter executes a command. While a `step` or `profile` command is pending,
-editing and scrolling still work; Enter leaves your draft intact until the
-pending result is ready. Interactive input accepts visible UTF-8 text, up to 256
-bytes. Multiline/control-character and oversized pastes leave the command
-unchanged. Available glyphs depend on the selected font. The output retains the
-newest 64 log entries.
+Enter executes a command when no suggestion list is visible. While a `step` or
+`profile` command is pending, editing, scrolling, and accepting suggestions still
+work; Enter can submit your draft once the pending result is ready. Interactive
+input accepts visible UTF-8 text, up to 256 bytes. Multiline/control-character
+and oversized pastes leave the command unchanged. Available glyphs depend on
+the selected font. The output retains the newest 64 log entries.
 
 The default Inter font is embedded, so console typography works from any
 project directory. Games can borrow their own UI font with
@@ -39,6 +66,147 @@ after asset hot reload and keep them alive through drawing; `console.set_font`
 with an empty `rl.Font{}` restores Inter. Rune releases its console atlas before
 closing the window. Standalone console users call `console.destroy_renderer`
 before `rl.CloseWindow`.
+
+### Picking scene objects
+
+Object inspection uses the scene attached to the engine loop and its active
+cameras. It converts window coordinates to the game canvas and ignores clicks
+in letterbox bars or within the console panel. A hit through the active
+`Camera3D` takes priority; otherwise, the active `Camera2D` selects the topmost
+matching object by draw order. Picking also works while simulation is paused.
+Clicks are ignored while a `step`, `profile`, or local inbox reply is pending.
+
+The picked object's own supported rendered bounds are marked with amber corner
+brackets and a dark backing. They update from live geometry and the active camera
+each frame, independently of F3 gizmos. Clicking empty canvas space, closing the
+console, replacing the attached scene, or deleting the entity clears the
+selection. Disabling the entity or one of its ancestors hides the brackets while
+retaining the selection; re-enabling it restores the brackets when it is visible.
+A valid selection also temporarily hides when it is offscreen, has no supported
+geometry, or has no valid active camera.
+
+Use `@picked` wherever the engine commands accept an entity: `inspect`, `set`,
+`enable`, `disable`, and `navmesh on`. For example:
+
+```text
+inspect @picked Transform
+set @picked Transform.position.1 2
+disable @picked
+enable @picked
+```
+
+The alias resolves when the command runs, so it follows the current selection.
+It is reserved ahead of scene IDs and is offered by argument completion only
+while a valid picked entity is available; component and field suggestions follow
+that entity too, including while it is disabled. `disable @picked` keeps the alias
+valid so `enable @picked` can turn the object back on. These commands change its
+local activation flag; a disabled ancestor still keeps it inactive. Closing the
+console, an empty canvas click, scene replacement, or deletion invalidates the
+alias. Using it with no valid selection reports an error and leaves the scene
+unchanged. Custom
+commands can use `rune.debug_picked_entity(game)` to obtain the current handle
+and a validity flag; do not retain that handle across scene replacement.
+An authored entity whose literal ID is `@picked` can use its numeric `@handle`.
+`navmesh on @picked` resolves its filter immediately; picking another object
+does not redirect an already enabled navmesh overlay.
+
+The brackets draw at native UI resolution after the game canvas and game UI, and
+before the console. This debug overlay does not change game materials, shaders,
+depth state, or entity data and allocates no GPU resources. `capture` excludes
+both the brackets and the console, leaving the completed game frame unchanged.
+
+Supported 2D objects include shapes, sprite and text bounds, occupied tilemap
+cells, and live particles. Textures and fonts must already be cached when their
+dimensions are needed. Supported 3D objects include primitive meshes, spheres,
+runtime static mesh triangles, and imported models whose static bounds were
+cached by the renderer. Imported model bounds are approximate and do not follow
+animated deformation. Disabled entities are excluded; colliders are not required.
+
+Picking queries scene geometry rather than rendered pixels. Transparent texture
+regions can still select an object. Terrain, volumes, shader displacement,
+custom draw calls, and custom camera projections are not inspected. Mixed 2D/3D
+scenes use the priority above even if custom drawing presents a different order.
+The callback loop has no attached scene and does not provide object inspection.
+
+### Cursor ownership
+
+Both engine-owned loops temporarily use a visible, free cursor while the console
+is open. After `rune.init` creates the window, set the desired gameplay mode with
+`rune.set_cursor_mode(game, mode)`:
+`.visible` shows a free cursor, `.hidden` hides a free cursor, and `.captured`
+locks and hides it for mouse look. `rune.cursor_mode(game)` returns that desired
+mode, including while the console temporarily overrides it. A mode change while
+the console is open updates what will be restored when it closes.
+
+Mapped gameplay input is captured through the opening and closing frames, and
+mouse-delta axes discard the recapture warp before mouse look resumes. Raw
+raylib input remains available; game systems reading it directly must respect
+console focus and avoid relocking the cursor while the console owns it. Use
+Rune's cursor setter to retain an exact hidden-free versus captured mode:
+raylib's public cursor query reports both as hidden. An untracked hidden cursor
+is assumed captured for compatibility with raw `DisableCursor` calls. Use Rune's
+setter consistently because later raw changes between hidden-free and captured
+modes cannot be detected from visibility alone.
+
+`rune.begin_frame` manages console cursor ownership for custom loops too.
+Advanced loops that call `console.update` directly should call
+`rune.sync_console_cursor(game)` immediately before and after it, capture project
+input whenever the console was or is open, and suppress the next sampled mouse
+delta after restoring capture. The sync helper handles cursor ownership; using
+`rune.begin_frame` also supplies this input-sampling protection. Draw the completed
+frame before `console.finish_frame` and `console.draw`.
+
+### Argument completion
+
+Suggestions query the current scene and input mappings as the list refreshes
+and when completing a token:
+
+| Command argument | Suggestions |
+| --- | --- |
+| `inspect`, `enable`, `disable`, `set`: entity | Live entity IDs, `@handles` for unnamed entities, and `@picked` when available. |
+| `inspect`: component | Components attached to the selected entity. |
+| `entities`: component filter | Registered component names. |
+| `set`: `Component.field` | Fields on the selected entity, including nested object fields and array indices after a dot, such as `Transform.position.0`. |
+| `input`: action, then operation | Configured action names, then `press`, `release`, or `clear`. |
+| `window`: mode | `windowed`, `borderless`, or `fullscreen`. |
+| `navmesh`: mode, then entity | `on` or `off`, then entity IDs/handles with `NavMesh3D` after `on`; `@picked` when the picked entity qualifies. |
+
+For example, type `inspect ` and press Tab to cycle entity IDs, or type
+`inspect player Tr` and press Tab to complete an attached component. Names with
+spaces, quotes, or backslashes are inserted as JSON-quoted tokens accepted by
+these commands. File paths and arbitrary JSON values are not completed.
+
+### Custom argument completion
+
+Command names registered with `console.register` participate automatically.
+For arguments, pass an optional `console.Completion_Proc` after the handler:
+
+```odin
+spawn_completion :: proc(dev: ^console.Console, request: console.Completion_Request,
+                         candidates: ^[dynamic]string) {
+    if request.argument_index == 0 {
+        append(candidates, "knight", "slime")
+    }
+}
+
+console.register(dev_console, "spawn", "Spawn a test entity.", spawn_command, spawn_completion)
+```
+
+`request.command` is the command name, `request.arguments` contains the decoded
+arguments preceding the current token, `request.argument_index` is its zero-based
+argument position, and `request.prefix` is its decoded text before the caret.
+Append raw candidate values; the console filters by prefix, removes duplicates,
+sorts matches, and quotes values when needed. The callback can run while the
+interactive suggestion list refreshes and when completing a token. Treat it as a
+read-only query of current game state; do not mutate gameplay or retain scene
+entities across reloads.
+
+The candidate array uses `context.temp_allocator`. Borrowed strings and temporary
+strings are consumed during the current completion call. Do not retain the
+request data or candidate array after the callback. Custom handlers can use
+`word, rest := console.take_argument(arguments)` to decode the first argument
+token and obtain the remaining argument text, including JSON-quoted tokens
+completion inserts.
 
 ## Local console inbox
 
@@ -157,8 +325,9 @@ edit, change the source JSON explicitly; no command automatically saves a scene.
 - Use a separate inbox directory for each running game. The inbox is disabled
   unless the game is launched with `--console-dir=<directory>`.
 - `capture [path.png]` saves the completed game frame before the developer
-  console overlay. Game UI and enabled gizmos are included. Relative paths
-  resolve from the game's working directory; parent directories are created.
+  console and picked-object brackets. Game UI and enabled gizmos are included.
+  Relative paths resolve from the game's working directory; parent directories
+  are created.
 - The helper waits for a reply, prints console output, and reports command
   failures. Its default timeout is 10 seconds; override with `--timeout-seconds`.
   A timeout removes unclaimed requests, but a claimed command may still finish;

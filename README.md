@@ -328,15 +328,34 @@ rune.run(&game)
 ## Runtime console
 
 Every Rune engine instance includes a lightweight developer console. Press the
-grave/backtick key (`` ` ``) to open it, `Esc` to close it, and use the up/down
-arrows to navigate command history. The built-in `help`, `clear`, and `capture` commands
-are always available. The console is rendered after game draw callbacks and
-registered draw systems, so it remains visible over both 2D and 3D scenes.
+grave/backtick key (`` ` ``) to open it and `Esc` to close it. Tab completes
+registered command names and supported arguments, including live entity IDs and
+component names. Matching suggestions appear above the input. Up/Down moves the
+highlight, and Enter accepts the highlighted token. Click any visible suggestion
+to accept it too; press Enter after acceptance to execute.
+Repeated Tab cycles alphabetically, and Shift+Tab cycles backward. Ctrl+Up/Down
+browses command history, as does Up/Down when suggestions are hidden. The built-in
+`help`, `clear`, and `capture` commands are always available. The console is
+rendered after game draw callbacks and registered draw systems, so it remains
+visible over both 2D and 3D scenes.
+
+With the console open, left-click a scene object outside the panel to print its
+ID, hierarchy, and current component values without changing your command draft.
+Amber corner brackets follow its rendered bounds while the console is open.
+They draw as a separate debug overlay without changing the object's rendering.
+Use `@picked` in entity arguments, for example `inspect @picked Transform` or
+`set @picked Transform.position.1 2`. Completion also follows the picked entity.
+The alias remains valid after `disable @picked`, so `enable @picked` can restore
+it; its brackets hide while it is inactive.
+Picking uses active scene cameras and supported 2D/3D geometry; see
+[object picking](docs/runtime-console.md#picking-scene-objects) for bounds and
+custom rendering limits.
 
 `capture` saves the current rendered frame to `build/captures/frame-<timestamp>.png`.
 Use `capture build/captures/example.png` to choose a PNG path. Paths are relative
 to the game's working directory, and parent directories are created as needed.
-The capture includes game UI and gizmos but excludes the developer console.
+The capture includes game UI and gizmos but excludes the developer console and
+picked-object brackets.
 It runs after drawing completes, so the success message means the PNG was saved.
 
 For local tools or coding agents, enable a command inbox when launching a game:
@@ -361,7 +380,10 @@ See [Runtime console commands](docs/runtime-console.md)
 for the command reference, repeatable inspection workflow, and inbox limits.
 
 Register game-specific commands from Odin. Command handlers own the game
-behavior; the JSON formats remain declarative.
+behavior; the JSON formats remain declarative. Their names participate in Tab
+completion automatically; pass an optional completion callback to
+`console.register` to suggest arguments. See
+[custom argument completion](docs/runtime-console.md#custom-argument-completion).
 
 ```odin
 import "rune:console"
@@ -390,10 +412,16 @@ and `EndDrawing`, as both engine-owned loops already do.
 
 The engine-owned loops capture project input while the console is open,
 including its opening and closing frames. Gameplay action queries return an
-empty state and axes return zero. Raw raylib input remains available, so systems
+empty state and axes return zero. Opening the console releases and shows the
+mouse; closing restores the gameplay cursor mode. After initialization, use
+`rune.set_cursor_mode(&game, .captured)` for first-person mouse look, `.hidden`
+for a hidden free cursor, or `.visible` for a visible free cursor. Changes while
+the console is open take effect when it closes. `rune.cursor_mode(&game)` returns
+the desired gameplay mode. Raw raylib input remains available, so systems
 reading it directly must handle console focus themselves. Custom loops should
 call `input.capture` after input and console updates whenever the console was or
-is open that frame.
+is open that frame. See [console cursor ownership](docs/runtime-console.md#cursor-ownership)
+for custom loops and direct raylib cursor calls.
 
 Runtime asset failures are written to stderr and copied into this console. The
 message identifies the asset type, load or reload operation, source material or
@@ -444,7 +472,8 @@ rune.draw_gizmos(game, &world)
 ```
 
 With a custom camera, call `gizmos.draw_navmeshes_3d(&world,
-game.gizmos.navmesh_entity)` inside that camera's `BeginMode3D`/`EndMode3D` block
+game.gizmos.navmesh_entity, game.gizmos.navmesh_runtime_entity)` inside that
+camera's `BeginMode3D`/`EndMode3D` block
 when `game.gizmos.navmeshes` is true. Import `rune:gizmos` for this helper.
 
 ## Tweening and easing

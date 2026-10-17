@@ -81,8 +81,28 @@ shared edges, separate floors, ramp heights, slope limits, result ownership,
 and large-coordinate hole rejection. On 2026-10-17, all 13 navigation tests
 passed headlessly on Windows AMD64 and Linux AMD64 under WSL2 with the compiler
 version above. Bake validation and 3D navigation/controller validation also
-passed; the latter used the example course fixture from `d227400`. A 34-triangle
-rebake of that course triggered the ramp-heading assertion with both baseline
-and modified navigation code. Record the generated mesh as well as search-code
-provenance when comparing results. These checks establish CPU path/movement
-behavior, with no graphical or physical-device coverage claim.
+passed; the latter used the example course fixture from `d227400`. These checks
+establish CPU path/movement behavior, with no graphical or physical-device
+coverage claim.
+
+## Check the actual route before asserting constant heading
+
+Record generated-mesh provenance as well as search-code provenance. Rebaking
+can change an agent's valid route around an obstacle even when its endpoints
+stay the same. An obstacle's baked inset can force a ramp approach to bend;
+turning toward that bend is expected, so a constant-yaw assertion alone does
+not establish a motor or pathfinding regression.
+
+`tools/navigation_3d_validation/ramp_facing.odin` keeps turning/arrival checks on
+obstructed approaches and uses a clear lane for steady cruise. Before asserting
+constant heading, its cruise check requires a complete route with the authored
+agent options, unchanged projected endpoints, constant Z, and monotonic X in
+the travel direction. Preserve those route preconditions and speed/sample/
+arrival checks when updating fixtures; inspect the path rather than weakening
+movement thresholds. See `docs/navigation-3d.md` for baking, clearance, and
+turning contracts.
+
+With the 34-triangle rebaked example course, the full headless 3D navigation
+validator passed on Windows AMD64 and Linux AMD64 under WSL2 on 2026-10-17,
+using the compiler version above. Restoring the obstructed cruise lane fails
+the straight-route precondition. This covers CPU path/movement behavior.

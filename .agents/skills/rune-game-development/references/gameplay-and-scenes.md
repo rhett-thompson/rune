@@ -97,6 +97,27 @@ during pause, use the frame APIs described in
 bypasses capture. Mouse deltas are displacement, while stick look values are
 rates; apply time accordingly (`docs/gamepads.md`).
 
+After `rune.init` creates the window, use
+`rune.set_cursor_mode(game, .captured)` for locked, hidden mouse look,
+`.hidden` for a hidden free cursor, or `.visible` for a visible free cursor.
+`rune.cursor_mode(game)` returns the desired gameplay mode. The console temporarily
+uses a visible free cursor and restores the desired mode on close, including mode
+changes requested while open. Keep gameplay capture flags unchanged during that
+temporary override. Mapped input is captured through the console's closing frame;
+recapture mouse deltas are discarded before look resumes. Raw raylib readers must
+still respect console focus. Rune's setter preserves the distinction between
+hidden-free and captured modes that raylib's public cursor query cannot report.
+See `docs/runtime-console.md` (Cursor ownership) and `rune/core/cursor.odin`.
+
+Cursor policy tests are in `rune/core/cursor_test.odin`; the hidden-window
+`tools/debug_console_validation --runtime` fixture checks visible/hidden/captured
+mode restoration, console input capture, live mode changes, and the next sampled
+mouse delta. Verified with static and pinned shared raylib builds on Windows,
+OpenGL 3.3/NVIDIA, at 1000x800 logical and framebuffer resolution. These checks
+observe raylib visibility and Rune's tracked mode; they do not establish focused
+native pointer lock, physical mouse/click
+behavior, or physical HiDPI coverage.
+
 Raylib closes the window on Escape by default. If Escape belongs to a game menu,
 call `rl.SetExitKey(rl.KeyboardKey(0))` after initialization, as in
 `examples/clay_ui/main.odin`. Rune also exits after a focused controller holds

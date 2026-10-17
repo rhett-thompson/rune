@@ -19,6 +19,10 @@ Texture_Asset :: struct {
 Model_Asset :: struct {
 	modified_time: i64,
 	revision:      u64,
+	// Last successfully imported local bounds, published by the renderer.
+	// Retained across failed reloads to match the model still being rendered.
+	model_bounds: rl.BoundingBox,
+	has_model_bounds: bool,
 }
 
 Font_Asset :: struct {
@@ -202,6 +206,23 @@ model_revision :: proc(manager: ^Asset_Manager, path: string) -> (u64, bool) {
 		revision      = 1,
 	}
 	return 1, true
+}
+
+// Publish CPU-only metadata for an already watched model. The renderer retains
+// ownership of the model and updates these bounds only after a successful load.
+cache_model_bounds :: proc(manager:^Asset_Manager,path:string,bounds:rl.BoundingBox) {
+	if manager==nil {return}
+	asset,ok:=manager.models[path]; if !ok {return}
+	asset.model_bounds=bounds
+	asset.has_model_bounds=true
+	manager.models[path]=asset
+}
+
+// Read the last successfully imported static local AABB without loading assets.
+cached_model_bounds :: proc(manager:^Asset_Manager,path:string) -> (rl.BoundingBox,bool) {
+	if manager==nil {return {},false}
+	asset,ok:=manager.models[path]
+	return asset.model_bounds,ok && asset.has_model_bounds
 }
 
 // material returns a cached material JSON definition. r3d owns the shader

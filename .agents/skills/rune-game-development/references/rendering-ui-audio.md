@@ -57,6 +57,67 @@ displacement or transparency. Read `rune/r3d_bridge/scene_query.md` and
 the separate controller query guidance in
 [gameplay-and-scenes.md](gameplay-and-scenes.md).
 
+For a read-only scene query without an R3D dependency, use
+`render.scene_pick_2d(world, assets, world_point)` or
+`render.scene_pick_3d(world, origin, translation, assets)`. The 2D query follows
+render hierarchy and draw order for shapes, sprite/text bounds, occupied tiles,
+and live particles. It borrows cached textures/fonts when dimensions are needed.
+The 3D query returns the nearest supported primitive, sphere, runtime static
+mesh triangle, or cached imported model bound. Its translation is a bounded
+segment, as with raycasts above. Imported model bounds are CPU metadata
+published to the asset manager after successful renderer loads; the renderer
+continues to own the model resources. Neither query loads assets or uses native
+colliders. See `rune/render/picking_2d.odin`, `rune/render/picking_3d.odin`, and
+`rune/assets/assets.odin`.
+
+The open runtime console uses these queries when clicking outside its panel:
+an active `Camera3D` hit takes priority, then an active `Camera2D` hit. This
+inspects the current entity without retaining scene pointers or changing the
+command draft. It retains only the selected entity handle and picking dimension,
+recomputes its own supported rendered bounds each frame, and draws amber corner
+brackets with a dark backing. The native debug overlay runs after the game canvas,
+game UI, and console frame capture, before the console panel. It needs no F3
+gizmos or GPU resources and changes no materials, shaders, depth state, or entity
+data. Closing the console, clicking empty canvas, rebinding the scene, or deleting
+the selected entity clears it. Disabling the entity or an ancestor, offscreen
+bounds, or otherwise temporarily undrawable bounds hide the brackets while
+retaining a valid selection.
+Engine entity commands can resolve this selection as `@picked`; custom commands
+can query `rune.debug_picked_entity(game)` for the current handle and validity.
+The alias, component completion, and field completion remain valid while the
+entity is disabled, so `enable @picked` can restore its local activation flag.
+A disabled ancestor still keeps it inactive. The alias clears with the selection
+and never retains scene pointers. Console
+focus temporarily shows a free cursor, allowing picks in first-person games;
+set the desired gameplay cursor mode with `rune.set_cursor_mode` so closing the
+console restores it. See `docs/runtime-console.md` (Cursor ownership).
+
+For the same CPU-only bounds, use
+`render.scene_selection_bounds_2d(world, assets, entity, camera)` or
+`render.scene_selection_bounds_3d(world, assets, entity, camera, viewport, near, far)`.
+They return a rectangle in canvas coordinates plus a valid flag. The console
+maps those coordinates through canvas presentation into native logical UI space.
+These helpers borrow scene/cache data and do not load assets. Geometry queries
+do not test texture transparency, animated model deformation, shader displacement,
+terrain, or volumes. Custom draw calls/cameras
+and mixed rendering order can differ from this picking policy. See
+`docs/runtime-console.md` (Picking scene objects) and
+`rune/core/debug_picking.odin`.
+
+Geometry and coordinate tests live in `rune/render/picking_2d_test.odin`,
+`rune/render/picking_3d_test.odin`, `rune/render/selection_2d_test.odin`,
+`rune/render/selection_3d_test.odin`, `rune/core/debug_picking_test.odin`, and
+`rune/core/debug_selection_test.odin`.
+`tools/debug_console_validation` also accepts `--runtime` to check picks against
+rendered pixels and selection overlays in a hidden raylib window. Verified on
+Windows with OpenGL 3.3/NVIDIA at 1000x800 logical and framebuffer resolution,
+using a 400x400 fit canvas and perspective and orthographic 3D cameras. These
+fixtures check live bounds, unchanged object surface colors and pixels outside
+the brackets, visible amber markers, and clean console frame captures. This does
+not establish coverage for custom drawing, animated model deformation, other
+graphics backends, or physical HiDPI displays; headless coordinate tests cover
+simulated framebuffer scaling separately.
+
 ## Canvas and coordinates
 
 Read display settings (`docs/display.md`) before custom drawing or picking.

@@ -2,6 +2,7 @@ package r3d_bridge
 
 import "core:math"
 import "rune:ecs"
+import "rune:render"
 import rl "vendor:raylib"
 
 Scene_Ray_Hit :: struct {
@@ -46,77 +47,26 @@ scene_query_model_bounds :: proc(world:^ecs.World,entity:ecs.Entity,bridge:^Cont
 	return bounds,true
 }
 
-// Picks visible cube/plane/quad/sphere primitives and runtime static meshes,
-// including render-only meshes. Shader transparency and volumes are not tested.
-// Translation is a complete world-space segment. No GPU context is required;
-// an optional bridge context supplies cached static-mesh and ModelRenderer
-// bounds. Imported models use their local AABB, not animated/skinned triangles.
-// ignore remains exact; ignored_subtrees excludes each root and its descendants.
+// Picks supported rendered geometry along a bounded world-space segment.
+// The shared CPU query does not require a GPU; the optional bridge supplies
+// already imported static model bounds and never loads an asset during a query.
 scene_raycast :: proc(world: ^ecs.World, origin, translation: [3]f32, ignore: ecs.Entity=0, bridge: ^Context=nil, ignored_subtrees:[]ecs.Entity=nil) -> (Scene_Ray_Hit,bool) {
-	if world==nil {return {},false}
-	length:=math.sqrt(translation[0]*translation[0]+translation[1]*translation[1]+translation[2]*translation[2])
-	if length<=0 || math.is_nan(length) || math.is_inf(length) {return {},false}
-	for value in origin {if math.is_nan(value) || math.is_inf(value) {return {},false}}
-	ray:=rl.Ray{position=origin,direction=translation/length}
-	result: Scene_Ray_Hit; found:=false
-	for entity in world.entities {
-		if entity==ignore || !ecs.is_enabled(world,entity) {continue}
-		excluded:=false
-		for root in ignored_subtrees {if scene_query_in_subtree(world,entity,root) {excluded=true; break}}
-		if excluded {continue}
-		mesh,has_mesh:=ecs.get_mesh_renderer(world,entity); sphere,has_sphere:=ecs.get_sphere_renderer(world,entity)
-		model_bounds,has_model:=scene_query_model_bounds(world,entity,bridge)
-		if !has_mesh && !has_sphere && !has_model {continue}
-		pose,valid:=ecs.terrain_transform(world,entity); if !valid {continue}
-		pose_matrix:=rl.MatrixTranslate(pose.position[0],pose.position[1],pose.position[2])*rl.QuaternionToMatrix(rotation_quaternion(pose))*rl.MatrixScale(pose.scale[0],pose.scale[1],pose.scale[2])
-		inverse:=rl.MatrixInvert(pose_matrix)
-		local_origin:=rl.Vector3Transform(ray.position,inverse)
-		local_forward:=rl.Vector3Transform(ray.position+ray.direction,inverse)-local_origin
-		local_ray:=rl.Ray{local_origin,rl.Vector3Normalize(local_forward)}
-		hit: rl.RayCollision
-		if has_mesh {
-			switch mesh.primitive {
-			case "cube": hit=rl.GetRayCollisionBox(local_ray,{{-0.5,-0.5,-0.5},{0.5,0.5,0.5}})
-			case "plane": hit=rl.GetRayCollisionQuad(local_ray,{-0.5,0,-0.5},{-0.5,0,0.5},{0.5,0,0.5},{0.5,0,-0.5})
-			case "quad": hit=rl.GetRayCollisionQuad(local_ray,{-0.5,-0.5,0},{0.5,-0.5,0},{0.5,0.5,0},{-0.5,0.5,0})
-			case "static":
-				if state,ok:=world.static_meshes[entity]; ok && len(state.data.vertices)>0 {
-					bounds:=rl.BoundingBox{state.data.vertices[0].position,state.data.vertices[0].position}
-					cached:=false
-					if bridge!=nil {if cache,present:=bridge.static_meshes[entity]; present && bridge.static_mesh_generation==world.generation && cache.revision==state.revision {bounds=cache.mesh.aabb; cached=true}}
-					if !cached {for v in state.data.vertices {for axis in 0..<3 {bounds.min[axis]=min(bounds.min[axis],v.position[axis]); bounds.max[axis]=max(bounds.max[axis],v.position[axis])}}}
-					// Include flat paint meshes in the broad-phase box test.
-					for axis in 0..<3 {bounds.min[axis]-=0.001; bounds.max[axis]+=0.001}
-					if rl.GetRayCollisionBox(local_ray,bounds).hit {
-						for i:=0; i+2<len(state.data.indices); i+=3 {
-							a:=state.data.vertices[state.data.indices[i]].position; b:=state.data.vertices[state.data.indices[i+1]].position; c:=state.data.vertices[state.data.indices[i+2]].position
-							triangle:=rl.GetRayCollisionTriangle(local_ray,a,b,c)
-							if triangle.hit && (!hit.hit || triangle.distance<hit.distance) {hit=triangle}
-						}
-					}
-				}
-			}
-		}
-		if has_sphere {
-			sphere_hit:=rl.GetRayCollisionSphere(local_ray,{},sphere.radius)
-			if sphere_hit.hit && (!hit.hit || sphere_hit.distance<hit.distance) {hit=sphere_hit}
-		}
-		if has_model {
-			model_hit:=rl.GetRayCollisionBox(local_ray,model_bounds)
-			if model_hit.hit && (!hit.hit || model_hit.distance<hit.distance) {hit=model_hit}
-		}
-		if !hit.hit {continue}
-		point:=rl.Vector3Transform(hit.point,pose_matrix)
-		delta:=point-ray.position
-		distance:=delta.x*ray.direction.x+delta.y*ray.direction.y+delta.z*ray.direction.z
-		if distance<0 || distance>length || (found && (distance>result.distance || (distance==result.distance && entity>=result.entity))) {continue}
-		// Inverse-transpose retains perpendicularity under nonuniform scale.
-		normal,normal_ok:=scene_query_unit(rl.Vector3Transform(hit.normal,rl.MatrixTranspose(inverse)))
-		if !normal_ok {continue}
-		if rl.Vector3DotProduct(normal,ray.direction)>0 {normal=-normal}
-		result={entity=entity,point=point,distance=distance,normal=normal}; found=true
-	}
-	return result,found
+	hit,ok:=render.scene_raycast_3d(world,origin,translation,ignore,scene_query_bridge_bounds,bridge,ignored_subtrees,scene_query_bridge_static_bounds)
+	return Scene_Ray_Hit{entity=hit.entity,point=hit.point,distance=hit.distance,normal=hit.normal},ok
+}
+
+@(private)
+scene_query_bridge_bounds :: proc(data: rawptr,world:^ecs.World,entity:ecs.Entity) -> (rl.BoundingBox,bool) {
+	return scene_query_model_bounds(world,entity,cast(^Context)data)
+}
+
+@(private)
+scene_query_bridge_static_bounds :: proc(data: rawptr,world:^ecs.World,entity:ecs.Entity,revision:u64) -> (rl.BoundingBox,bool) {
+	bridge:=cast(^Context)data
+	if bridge==nil {return {},false}
+	cache,present:=bridge.static_meshes[entity]
+	if !present || bridge.static_mesh_generation!=world.generation || cache.revision!=revision {return {},false}
+	return cache.mesh.aabb,true
 }
 
 // Directional extents of supported rendered geometry in this subtree.

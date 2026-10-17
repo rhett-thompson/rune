@@ -607,6 +607,7 @@ load_model :: proc(
 	revision, watched := assets.model_revision(asset_manager, path)
 	if !watched {return {}, false}
 	previous, already_loaded := ctx.models[path]
+	if already_loaded {assets.cache_model_bounds(asset_manager,path,previous.model.aabb)}
 	if already_loaded && previous.revision == revision {return previous.model, true}
 	full_path := resolve_path(ctx, path)
 	cpath, _ := strings.clone_to_cstring(full_path)
@@ -650,6 +651,7 @@ load_model :: proc(
 	}
 	unload_imported_materials(&loaded)
 	enable_model_shadows(&loaded)
+	assets.cache_model_bounds(asset_manager,path,loaded.aabb)
 	if already_loaded && previous.animations_loaded {
 		assets.resolve_asset_failure(asset_manager, "", "ModelAnimator.clip", path)
 	}

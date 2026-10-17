@@ -8,4 +8,8 @@ The hit includes its entity, world point, distance, and a unit world-space norma
 
 Imported models use their cached local bounding boxes for both ray hits and projected bounds. These are conservative static bounds, so recesses and animated poses are not tested. Queries do not load missing model assets; render the scene first or supply a populated bridge cache.
 
+`render.scene_pick_3d(world, origin, translation, asset_manager=nil)` provides the same CPU ray intersection through `rune:render` without requiring the R3D collection or a renderer context. Its hit also includes entity, point, distance, and normal. A successful bridge model load publishes its local bounds to the supplied asset manager; this query reads that metadata for imported models. A pending or failed reload retains the bounds of the visual model still held by the bridge, and a successful replacement updates them. Merely watching a model file does not supply geometry. The built-in console uses this query for scene clicks. `render.scene_raycast_3d` is the shared implementation; specialized renderers can supply read-only cached model and static-mesh bounds callbacks. The bridge retains its own model-cache lookup and revision-checked static-mesh acceleration through those callbacks.
+
+Ray picking also follows an inherited pose when the renderer has no local `Transform`, and handles nonzero mirrored scales. A zero scale has no inverse and is excluded. Projected bounds continue to require a local `Transform` and positive composed scale.
+
 Both queries follow Rune's composed TRS hierarchy. Terrain, shader displacement, transparency, volumes, and unsupported primitives are excluded. Callers own object assembly selection, input, placement policy, and persistence.

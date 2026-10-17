@@ -220,9 +220,11 @@ is independent of F3 and included in console captures:
 
 Scene loops draw it through the active `Camera3D`. Games with custom camera
 rendering, including the Navigation 3D demo, can call
-`gizmos.draw_navmeshes_3d(world, game.gizmos.navmesh_entity)` inside their 3D camera
+`gizmos.draw_navmeshes_3d(world, game.gizmos.navmesh_entity, game.gizmos.navmesh_runtime_entity)` inside their 3D camera
 mode when `game.gizmos.navmeshes` is true. The helper borrows current meshes and
-does not require a transform on the navigation entity.
+does not require a transform on the navigation entity. The optional third argument
+keeps an unnamed `navmesh on @picked` filter bound to its entity generation instead
+of reinterpreting a stale handle as a scene ID after reload.
 
 For a mesh owned directly by gameplay code, call
 `gizmos.draw_navmesh_3d(mesh)` in the same camera mode. This also borrows the

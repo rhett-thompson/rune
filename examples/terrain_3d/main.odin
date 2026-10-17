@@ -19,16 +19,16 @@ captured: bool
 console_was_open: bool
 show_navigation: bool
 
-set_mouse_capture :: proc(enabled: bool) {
+set_mouse_capture :: proc(game: ^rune.Engine, enabled: bool) {
 	captured = enabled
-	if captured {rl.DisableCursor()} else {rl.EnableCursor()}
+	rune.set_cursor_mode(game,.captured if captured else .visible)
 }
 
-initialize_mouse :: proc() {
+initialize_mouse :: proc(game: ^rune.Engine) {
 	// Escape belongs to the example's cursor action, not raylib's quit handler.
 	rl.SetExitKey(.KEY_NULL)
 	console_was_open = false
-	set_mouse_capture(true)
+	set_mouse_capture(game,true)
 }
 
 start :: proc(game:^rune.Engine,world:^ecs.World) {
@@ -36,7 +36,7 @@ start :: proc(game:^rune.Engine,world:^ecs.World) {
 		ok:bool
 		bridge,ok = r3d_bridge.init("examples/terrain_3d",rl.GetScreenWidth(),rl.GetScreenHeight())
 		if !ok {fmt.eprintln("Could not initialize r3d"); rune.request_exit(game)}
-		initialize_mouse()
+		initialize_mouse(game)
 	}
 	player,_ = ecs.find_entity_by_id(world,"player")
 	camera_entity,_ = ecs.find_entity_by_id(world,"camera")
@@ -49,19 +49,18 @@ controls :: proc(game:^rune.Engine,world:^ecs.World) {
 	capture := input.frame_action(i,"capture_cursor")
 	console_open := console.is_open(rune.developer_console(game))
 	if console_open || console_was_open {
-		// The console processes Escape first. Do not also recapture the cursor
-		// on the frame that Escape closes it.
-		if console_open && captured {set_mouse_capture(false)}
+		// The engine temporarily releases the cursor while the console is up.
+		// Its closing Escape must not also toggle the requested gameplay mode.
 		console_was_open = console_open
 		return
 	}
 	if toggle.pressed {
-		set_mouse_capture(!captured)
+		set_mouse_capture(game,!captured)
 		return // Ignore mouse warping on the capture frame.
 	}
 	if input.frame_action(i,"navigation").pressed {show_navigation=!show_navigation}
 	if !captured && capture.pressed {
-		set_mouse_capture(true)
+		set_mouse_capture(game,true)
 		return
 	}
 	if captured {
@@ -120,7 +119,7 @@ draw_ui :: proc(game:^rune.Engine,world:^ecs.World) {
 	example_text.draw("N baked navigation mesh | Re-run navmesh_baker after terrain edits",30,145,16,{255,220,85,255})
 	rl.DrawFPS(rl.GetScreenWidth()-100,24)
 }
-shutdown :: proc(game:^rune.Engine,world:^ecs.World) {r3d_bridge.shutdown(&bridge); set_mouse_capture(false)}
+shutdown :: proc(game:^rune.Engine,world:^ecs.World) {r3d_bridge.shutdown(&bridge); set_mouse_capture(game,false)}
 navigation_command :: proc(c:^console.Console,args:string) {
 	show_navigation=!show_navigation
 	console.info(c,"Baked navigation overlay enabled" if show_navigation else "Baked navigation overlay disabled")
