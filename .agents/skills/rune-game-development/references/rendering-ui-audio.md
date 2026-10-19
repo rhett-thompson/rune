@@ -118,6 +118,28 @@ not establish coverage for custom drawing, animated model deformation, other
 graphics backends, or physical HiDPI displays; headless coordinate tests cover
 simulated framebuffer scaling separately.
 
+## Live material authoring
+
+For live material authoring, `assets.set_material_preview(manager, path, data)`
+owns a deep copy and invalidates existing R3D material/instance caches through
+the asset revision. All uses of the same path share the preview. Getters return
+borrowed strings; clone retained values with `assets.clone_material_data` and
+release them with `destroy_material_data`. `material_data` sees the preview;
+`authored_material_data` bypasses it. Clear one or all previews on editor exit.
+Saving remains tool-owned: write JSON preserving required source fields, call
+`refresh_materials`, then clear the preview. See `docs/procedural-materials.md`
+and `rune/assets/material_preview.odin` for ownership and authoring limits.
+
+Imported models can share default slot paths through the optional
+`<model path>.materials.json` sidecar (`{"materials":{"0":"materials/body.json"}}`).
+The bridge applies these below explicit `ModelRenderer.material` and
+`ModelRenderer.materials` overrides, including instanced rendering.
+`assets.model_material_paths`/`model_material_path` borrow cached defaults;
+`refresh_materials` watches optional sidecar creation, changes, and removal.
+Invalid replacement JSON retains the previous mapping. Paths inside the sidecar
+are project-relative. See `docs/components.md` (ModelRenderer) and
+`rune/assets/model_materials.odin`.
+
 ## Canvas and coordinates
 
 Read display settings (`docs/display.md`) before custom drawing or picking.
@@ -154,6 +176,15 @@ outside camera modes. Use stable unique widget IDs. Custom loops call
 `rune.begin_frame` before updates to sample input/console, then explicitly drive
 layout and drawing; the low-level callback `run` overload does not dispatch
 registered systems. See `rune/ui/input.odin` for mapped or synthetic inputs.
+
+Text inputs clip their contents and each consumes a native Clay scroll entry.
+Rune's patched header sizes these entries by the element limit, supporting
+inspectors with many numeric fields. Native artifacts must be rebuilt from that
+header; see `third_party/clay/README.rune.md` and the many-field regression in
+`rune/ui/scroll_nested_test.odin` when diagnosing native capacity errors.
+The patched Windows AMD64 object and Linux AMD64 archive passed all 30 serial
+headless UI tests on 2026-10-18; Linux coverage used Ubuntu WSL. Other targets
+and rendered-pixel behavior are not established by those headless tests.
 
 ## Audio lifetime and commands
 

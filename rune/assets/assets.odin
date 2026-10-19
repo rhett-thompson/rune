@@ -81,8 +81,10 @@ Asset_Manager :: struct {
 	terrains: map[string]Terrain_Asset,
 	fonts:                    map[string]Font_Asset,
 	materials:                map[string]Material_Asset,
+	material_previews:        map[string]Material_Data,
 	animations:               map[string]Animation_Asset,
 	model_events:             map[string]Model_Events_Asset,
+	model_materials:          map[string]Model_Materials_Asset,
 	tilesets:                 map[string]Tileset_Asset,
 	generated_orm_textures:   map[u64]Texture_Asset,
 	material_texture_watches: map[string]i64,
@@ -105,6 +107,7 @@ init :: proc(root: string) -> Asset_Manager {
 		terrains = make(map[string]Terrain_Asset),
 		fonts                    = make(map[string]Font_Asset),
 		materials                = make(map[string]Material_Asset),
+		material_previews        = make(map[string]Material_Data),
 		animations               = make(map[string]Animation_Asset),
 		tilesets                 = make(map[string]Tileset_Asset),
 		generated_orm_textures   = make(map[u64]Texture_Asset),
@@ -232,7 +235,16 @@ material :: proc(manager: ^Asset_Manager, path: string) -> (Material_Data, bool)
 }
 
 material_data :: proc(manager: ^Asset_Manager, path: string) -> (Material_Data, bool) {
-	if len(path) == 0 {return {}, false}
+	if manager == nil || len(path) == 0 {return {}, false}
+	if preview, found := manager.material_previews[path]; found {return preview, true}
+	return authored_material_data(manager, path)
+}
+
+// Return the last successfully loaded file data, bypassing any live preview.
+// Both material getters borrow their strings; clone_material_data creates an
+// owned copy for callers retaining or editing values across asset mutations.
+authored_material_data :: proc(manager: ^Asset_Manager, path: string) -> (Material_Data, bool) {
+	if manager == nil || len(path) == 0 {return {}, false}
 	if asset, found := manager.materials[path]; found {
 		return asset.data, true
 	}
@@ -658,7 +670,9 @@ refresh :: proc(manager: ^Asset_Manager) {
 }
 
 refresh_materials :: proc(manager: ^Asset_Manager) {
+	if manager == nil {return}
 	materials_changed := false
+	if refresh_model_materials(manager) {materials_changed = true}
 	for path, asset in manager.materials {
 		full_path := resolve_path(manager, path)
 		current_time := modified_time(full_path)
@@ -1129,6 +1143,10 @@ shutdown :: proc(manager: ^Asset_Manager) {
 		data := asset.data
 		destroy_material_data(&data)
 	}
+	for _, preview in manager.material_previews {
+		data := preview
+		destroy_material_data(&data)
+	}
 	for _, asset in manager.animations {
 		data := asset.data
 		destroy_animation_data(&data)
@@ -1149,6 +1167,9 @@ shutdown :: proc(manager: ^Asset_Manager) {
 	delete(manager.skyboxes)
 	delete(manager.fonts)
 	delete(manager.materials)
+	delete(manager.material_previews)
+	for _, cached in manager.model_materials {destroy_model_material_paths(cached.materials)}
+	delete(manager.model_materials)
 	delete(manager.animations)
 	for _, &cached in manager.model_events {destroy_model_events_data(&cached.data)}
 	delete(manager.model_events)

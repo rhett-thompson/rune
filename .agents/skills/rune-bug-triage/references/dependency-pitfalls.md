@@ -99,6 +99,19 @@ Relevant files: `rune/ui/dropdown.odin`, `rune/ui/dropdown_test.odin`,
 - Compare the platform artifact actually selected by the binding, its ABI,
   archive membership (`ar t`), and symbol index/definitions (`nm`). If needed,
   inspect the implementation selected in the linked executable.
+- The pinned upstream header allocates only ten persistent scroll-container
+  entries. Every clip, including a single-line text input, uses one. Rune's
+  header patch bounds this storage by `maxElementCount`; `Clay_MinMemorySize`
+  includes it through the same initializer. A header-only edit does not update
+  an already linked native artifact. Rebuild the relevant artifact from the
+  patched header, then run the many-field inspector regression in
+  `rune/ui/scroll_nested_test.odin` and the serial UI suite. The patched Windows
+  object built with MSVC 19.51 passed all 30 serial headless UI tests on
+  2026-10-18 before publication. The Linux AMD64 archive built with Zig 0.15.2 /
+  Clang 20.1.2 and GNU ar 2.42 passed all 30 serial UI tests in Ubuntu WSL against
+  both the staged and published copies with pinned Odin
+  `dev-2026-10-nightly:84bc3fc` on the same date. See the native artifact notes
+  for exact compilation flags, runtime limits, and remaining platforms.
 - Build a fresh archive in a unique scratch directory; updating a malformed
   archive in place can preserve duplicate members. Follow the staged
   build/test/publish recipe in `third_party/clay/README.rune.md`. Keep the

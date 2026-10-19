@@ -129,6 +129,30 @@ and jumps between gravity wells. Cameras and visuals remain game-owned.
 
 ### Ground and air movement
 
+`ecs.character_controller_3d_add_external_velocity(world, entity, velocity)` adds
+world-space velocity in units per second for the **next fixed physics step only**.
+Use it for currents, wind, and other tangent motion that should combine with
+the character's own controls. Multiple requests before that step accumulate.
+Submit from `fixed_update` immediately before physics; omit suspended sources.
+Requests queued from rendered-frame callbacks apply to only one physics step,
+even if that frame runs several steps. Pausing physics leaves an unconsumed
+request queued, so submit after checking gameplay suspension.
+
+The motor projects this contribution onto the plane perpendicular to runtime up,
+then follows walkable ground at the requested surface speed. It adds the result
+after ordinary acceleration/braking and dash selection, using the same capsule
+sweeps, sliding, stairs, support carry, and gravity. A dash that ends partway
+through a step still receives external motion across the entire step. Effective
+motion also drives the existing bounded pushing of dynamic obstacles.
+
+The contribution does not change movement intent, ordinary velocity, jump/fall
+speed, or resumed dash momentum. `state.pending_external_velocity` exposes only
+the queued request and clears when the step consumes it; refresh the request
+each step to keep the effect active. Missing, disabled, invalidly composed, and
+free-motion controllers reject requests. Nonfinite vectors, nonfinite sums, and
+overflowing vector lengths are rejected without changing the pending request.
+Teleport, disable, removal, and free-motion mode changes clear queued motion.
+
 `ecs.character_controller_3d_dash(world, entity, direction, speed, duration)`
 starts a finite world-space tangent burst. Direction is projected onto runtime
 up and frozen when triggered. The ordinary capsule sweeps, steps, slope limits,
@@ -189,7 +213,8 @@ State includes `active`, `grounded`, `ground_normal`, `velocity`, `height`,
 `crouched`, `stand_blocked`, `stepped`, `support_entity`, `support_velocity`,
 `inherited_velocity`, `previous_position`, and pending requests/grace timers.
 `velocity` is the motor velocity before horizontal collision constraints; actual
-displacement can be smaller when blocked.
+displacement can be smaller when blocked or include additive external motion
+that is deliberately absent from stored motor velocity.
 Configuration and runtime state are separate; scene saves serialize settings.
 Use `ecs.set` or `ecs.set_character_controller_3d` for configuration edits.
 JSON, prefab loading, console field edits, and value-only scene reloads use the

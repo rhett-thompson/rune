@@ -2191,7 +2191,10 @@ void Clay__InitializePersistentMemory(Clay_Context* context) {
     int32_t maxMeasureTextCacheWordCount = context->maxMeasureTextCacheWordCount;
     Clay_Arena *arena = &context->internalArena;
 
-    context->scrollContainerDatas = Clay__ScrollContainerDataInternalArray_Allocate_Arena(10, arena);
+    // Rune: every clipped element is also a scroll container, including text
+    // inputs. Bound this storage by the same element limit as clip configs.
+    // Clay_MinMemorySize uses this initializer, so its arena estimate matches.
+    context->scrollContainerDatas = Clay__ScrollContainerDataInternalArray_Allocate_Arena(maxElementCount, arena);
     context->layoutElementsHashMapInternal = Clay__LayoutElementHashMapItemArray_Allocate_Arena(maxElementCount, arena);
     context->layoutElementsHashMap = Clay__int32_tArray_Allocate_Arena(maxElementCount, arena);
     context->measureTextHashMapInternal = Clay__MeasureTextCacheItemArray_Allocate_Arena(maxElementCount, arena);

@@ -170,6 +170,18 @@ jump/dash requests. See `rune/ecs/character_controller_2d.odin`,
 `rune/ecs/character_controller_3d.odin`, and
 `rune/ecs/character_controller_3d_dash.odin`.
 
+For wind, currents, or other motion additive to a 3D character's controls, call
+`ecs.character_controller_3d_add_external_velocity(world, entity, velocity)` in
+`fixed_update` immediately before physics and only while that source is active.
+Requests accumulate for the next physics step, then clear; render callbacks do
+not refresh every step of a frame. The motor projects onto runtime up's tangent
+plane and follows walkable ground through the existing capsule sweeps, including
+during dashes, without changing input or retaining external momentum. Omit
+requests while gameplay is suspended; pausing physics leaves an already queued
+request pending. Teleport, disable, removal, and free-motion mode changes clear
+it, and free motion rejects requests. See `docs/character-controller-3d.md` and
+`rune/ecs/character_controller_3d_external.odin`.
+
 ## Reacquire scene state and preserve restored progress
 
 Give authored entities stable nonempty IDs. Structural hot reload replaces the

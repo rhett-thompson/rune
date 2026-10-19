@@ -29,6 +29,9 @@ memory_stats :: proc(manager: ^Asset_Manager) -> Memory_Stats {
 	}
 	result.map_bytes = memory.map_bytes(manager.textures) + memory.map_bytes(manager.fonts) + memory.map_bytes(manager.models)
 	result.map_bytes += memory.map_bytes(manager.materials) + memory.map_bytes(manager.retained_paths) + memory.map_bytes(manager.generated_orm_textures)
+	result.map_bytes += memory.map_bytes(manager.material_previews)
+	result.map_bytes += memory.map_bytes(manager.model_materials)
+	for _, cached in manager.model_materials {result.map_bytes += memory.map_bytes(cached.materials)}
 	result.map_bytes += memory.map_bytes(manager.skyboxes) + memory.map_bytes(manager.terrains) + memory.map_bytes(manager.animations)
 	result.map_bytes += memory.map_bytes(manager.tilesets) + memory.map_bytes(manager.navmeshes) + memory.map_bytes(manager.model_events)
 	result.map_bytes += memory.map_bytes(manager.shadow_profiles) + memory.map_bytes(manager.material_texture_watches) + memory.map_bytes(manager.missing_textures)

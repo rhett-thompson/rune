@@ -686,16 +686,23 @@ apply_model_materials :: proc(
 	renderer: ecs.ModelRenderer,
 ) {
 	if model.materialCount <= 0 {return}
+	material := r3d.GetDefaultMaterial()
+	material.albedo.color = to_raylib_color(renderer.tint)
+	for index in 0 ..< model.materialCount {
+		model.materials[index] = material
+	}
+	// Asset defaults are shared by all model instances, below explicit component
+	// overrides. This routine also resolves the instanced prop submission path.
+	for slot, path in assets.model_material_paths(asset_manager, renderer.model) {
+		if slot < 0 || slot >= model.materialCount {continue}
+		if _, loaded := assets.material_data(asset_manager, path); loaded {
+			model.materials[slot] = material_from_path(ctx, asset_manager, path, renderer.tint)
+		}
+	}
 	if _, loaded := assets.material_data(asset_manager, renderer.material); loaded {
 		r3d_material := material_from_path(ctx, asset_manager, renderer.material, renderer.tint)
 		for index in 0 ..< model.materialCount {
 			model.materials[index] = r3d_material
-		}
-	} else {
-		material := r3d.GetDefaultMaterial()
-		material.albedo.color = to_raylib_color(renderer.tint)
-		for index in 0 ..< model.materialCount {
-			model.materials[index] = material
 		}
 	}
 	for slot, path in renderer.materials {

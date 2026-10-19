@@ -254,7 +254,15 @@ Draws a sphere with the given local radius, multiplied by transform scale. Optio
 
 ### ModelRenderer
 
-Loads a project-relative model asset and renders it through the entity transform. `material` is the fallback override; entries in `materials` override individual zero-based imported material slots. Omit overrides to retain imported materials. Keys are nonnegative integer strings within the signed 32-bit slot range.
+Loads a project-relative model asset and renders it through the entity transform. `material` overrides every slot; entries in `materials` override individual zero-based imported material slots. Keys are nonnegative integer strings within the signed 32-bit slot range. The R3D bridge uses neutral tinted materials for slots without an authored material path; it releases imported native materials when loading a model.
+
+An optional adjacent `<model path>.materials.json` file supplies asset-level slot defaults, for example `models/statue.obj.materials.json`:
+
+```json
+{"materials":{"0":"materials/statue_stone.json"}}
+```
+
+Material paths in this file are project-relative. The bridge resolves defaults first, then `material`, then individual `materials` entries; explicit component paths take priority. Every model instance can inherit the same defaults, including the instanced prop rendering path. Missing sidecars are allowed and watched for creation by material hot reload. Valid edits and deletion update existing material/instance caches; invalid replacements keep the previous defaults. `assets.model_material_paths` and `model_material_path` return borrowed cached paths, and `assets.refresh_materials` polls these sidecars along with material files.
 
 [Guide / example](../examples/textured_model_3d/README.md) · [Implementation](../rune/ecs/render_components.odin)
 

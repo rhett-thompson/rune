@@ -25,6 +25,9 @@ Character_Controller_State_3D :: struct {
 	support_entity: Entity,
 	support_local_point, support_world_point, support_velocity: [3]f32,
 	inherited_velocity: [3]f32,
+	// Additive tangent motion consumed by the next fixed physics step. It does
+	// not alter the requested direction or retain momentum after that step.
+	pending_external_velocity: [3]f32,
 	move: [2]f32,
 	// Runtime gravity frame. Zero up retains the default world-Y controller.
 	up, world_move: [3]f32,

@@ -65,6 +65,8 @@ character_controllers_3d_step :: proc(world:^World,dt:f32) {
 		}
 		query.entity=entity
 		state := world.character_controller_states_3d[entity]
+		external_velocity:=state.pending_external_velocity
+		state.pending_external_velocity={}
 		pose := world.transforms[entity]
 		position := pose.position
 		if state.free_motion {
@@ -183,12 +185,19 @@ character_controllers_3d_step :: proc(world:^World,dt:f32) {
 			dash_time=min(dt,state.dash_remaining)
 			state.velocity=character_dash_velocity_3d(&state,ordinary_velocity,up)
 		}
+		// External motion bypasses input acceleration/braking and never becomes
+		// stored momentum. Preserve its surface speed along walkable slopes.
+		external_velocity-=up*character_dot_3d(external_velocity,up)
+		if state.grounded {
+			external_velocity=character_ground_velocity_3d(external_velocity,state.ground_normal,up,character_length_3d(external_velocity))
+		}
 		// Sweep the burst and any remainder separately. A duration shorter than
 		// this step travels only speed*duration, then resumes ordinary movement.
 		for slice in 0..<2 {
 			slice_time:=dash_time if slice==0 else dt-dash_time
 			if slice_time<=0 {continue}
 			velocity:=state.velocity if slice==0 else ordinary_velocity
+			velocity+=external_velocity
 			start:=position
 			translation:=velocity*slice_time
 			position=character_slide_3d(&query,position,translation,config.radius,state.height)
@@ -200,7 +209,7 @@ character_controllers_3d_step :: proc(world:^World,dt:f32) {
 		}
 		// Preserve vertical velocity on slopes but cancel a jump at a ceiling.
 		character_collect_planes_3d(&query,position,config.radius,state.height)
-		character_push_3d(&query,position,state.velocity,config.push_force,dt,state.support_entity)
+		character_push_3d(&query,position,state.velocity+external_velocity,config.push_force,dt,state.support_entity)
 		for plane in query.planes {
 			if plane.plane.offset < -0.01 {continue}
 			normal:=character_array_3d(plane.plane.normal)

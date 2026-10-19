@@ -51,6 +51,10 @@ for a small feature. Check installed source signatures before inventing calls.
   as appropriate. Use Rune's camera helper for custom Camera2D drawing;
   initialize and dispose optional UI/3D resources at the appropriate system
   lifecycle boundaries.
+- Use asset-manager material previews for live material authoring; they update
+  existing renderer caches without changing files. Clone borrowed material data,
+  save JSON through the tool, and clear previews on editor exit. See the
+  rendering reference for ownership and save ordering.
 - Reacquire scene entities and borrowed state after reload or restoration.
   Frame scratch and borrowed component strings/collections are not persistent
   game storage. Keep durable game state in owned storage or configured saves.

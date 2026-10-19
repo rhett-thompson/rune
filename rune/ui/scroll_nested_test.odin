@@ -1,7 +1,49 @@
 package ui
 
 import "core:testing"
+import "core:fmt"
 import clay "../../third_party/clay/clay-odin"
+
+@(private)
+scroll_many_fields_layout :: proc(ctx:^Context,fields:[]Text_Field,size:[2]f32,controls:Inputs={}) -> bool {
+	if !begin(ctx,size,controls,1.0/60) {return false}
+	panel(ctx,"many_fields_root",{layout={sizing={width=grow({}),height=grow({})},layoutDirection=.TopToBottom,childGap=8}})
+	scroll_panel(ctx,"many_fields_list",{layout={sizing={width=fixed(220),height=fixed(120)},layoutDirection=.TopToBottom,childGap=4}},false,true)
+	for &field,index in fields {text_input(ctx,fmt.tprintf("many_fields_%d",index),&field)}
+	end_panel(ctx)
+	button(ctx,"many_fields_save","Save")
+	end_panel(ctx)
+	return finish(ctx)
+}
+
+@(test)
+scroll_inspector_supports_many_clipped_text_fields_without_native_capacity_errors :: proc(t:^testing.T) {
+	ctx:Context
+	if !testing.expect(t,init(&ctx,measure=scroll_test_measure)) {return}
+	defer destroy(&ctx)
+	ctx.style.height=30;ctx.style.font_size=14
+	fields:[24]Text_Field
+	for &field in fields[:] {text_field_set(&field,"0.25")}
+	for size in ([3][2]f32{{360,360},{800,540},{1280,720}}) {
+		// All 24 inputs clip their text, in addition to the inspector viewport.
+		// Repeat with fewer fields to exercise persistent-container pruning too.
+		for count in ([3]int{24,12,24}) {
+			testing.expect(t,scroll_many_fields_layout(&ctx,fields[:count],size),last_error(&ctx))
+			for index in 0..<count {
+				testing.expect(t,scroll_test_data(&ctx,fmt.tprintf("many_fields_%d",index)).found,
+					"each text field retains its native clip/scroll data")
+			}
+			footer,found:=bounds(&ctx,"many_fields_save")
+			testing.expect(t,found && footer.y>=0 && footer.y+footer.height<=size[1],"inspector footer remains accessible")
+		}
+	}
+	box,found:=bounds(&ctx,"many_fields_0")
+	if !testing.expect(t,found) {return}
+	point:=scroll_test_center(box)
+	testing.expect(t,scroll_many_fields_layout(&ctx,fields[:],{1280,720},{pointer=point,scroll={0,-1}}),last_error(&ctx))
+	testing.expect(t,scroll_test_data(&ctx,"many_fields_list").position[1]==-60,
+		"vertical wheel input over a clipped numeric field still scrolls its inspector")
+}
 
 scroll_test_field_layout :: proc(ctx:^Context,field:^Text_Field,controls:Inputs={}) {
 	assert(begin(ctx,{500,400},controls,1.0/60))

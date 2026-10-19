@@ -30,6 +30,13 @@ prop_membership_cache_observes_live_sources :: proc(t:^testing.T) {
 	testing.expect(t,prepare_prop_sources(&ctx,&w,&manager))
 	manager.material_revision+=1
 	testing.expect(t,prepare_prop_sources(&ctx,&w,&manager),"asset hot reload invalidates resolved keys")
+	manager.retained_paths=make(map[string]string)
+	defer assets.shutdown(&manager)
+	testing.expect(t,assets.set_material_preview(&manager,"materials/preview.json",assets.Material_Data{roughness=0.2}))
+	testing.expect(t,prepare_prop_sources(&ctx,&w,&manager),"live material previews invalidate stationary instance batches")
+	testing.expect(t,!prepare_prop_sources(&ctx,&w,&manager))
+	testing.expect(t,assets.clear_material_preview(&manager,"materials/preview.json"))
+	testing.expect(t,prepare_prop_sources(&ctx,&w,&manager),"clearing a preview restores instance materials")
 	ecs.set_enabled(&w,e,false); ctx.frame_stats={}; prepare_render_cache(&ctx,&w)
 	testing.expect(t,prepare_prop_sources(&ctx,&w,&manager))
 	ecs.destroy_entity(&w,e); ctx.frame_stats={}; prepare_render_cache(&ctx,&w)

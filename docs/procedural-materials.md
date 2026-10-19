@@ -101,6 +101,27 @@ works without a window; release its three images with
 `r3d_bridge.material_from_data` directly, supply a stable nonempty material path
 as its cache key so the bridge owns and releases the generated GPU maps.
 
+Live authoring tools can call `assets.set_material_preview(&manager, path, data)`
+to override a material without writing a file. Start with `material_data` or
+`authored_material_data`, clone it with `clone_material_data` when retaining it,
+and keep edited values within the material's authoring limits. The setter owns
+its own deep copy, preserves texture/shader/procedural fields, and updates the
+asset revision used by existing R3D material and instance caches. Every object
+using that path sees the same preview. `material_data` returns the preview;
+`authored_material_data` bypasses it. Both getters return borrowed strings.
+
+`clear_material_preview` restores one path, and `clear_material_previews`
+restores all paths. Previews survive file hot reload until cleared and are
+released at asset-manager shutdown. To save, the authoring tool writes its
+material JSON, calls `refresh_materials`, then clears the preview so the latest
+authored file stays visible. Rune does not serialize a preview or preserve
+unknown JSON fields on the tool's behalf.
+
+For imported models without component overrides, persist per-slot paths in the
+optional `<model path>.materials.json` sidecar described under
+[ModelRenderer](components.md#modelrenderer). These defaults are shared by every
+instance of that model and refresh through `refresh_materials`.
+
 Try [Procedural Materials 3D](../examples/procedural_material_3d/README.md) for
 nine presets on keys **1–9**: stone, moss, hammered metal, grass, granite, wood,
 sand, terracotta, and snow. All support independent resolution and sampling controls.
