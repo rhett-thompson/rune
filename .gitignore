@@ -34,3 +34,5 @@ Desktop.ini
 *.bak
 *.swp
 *~
+
+/output/
