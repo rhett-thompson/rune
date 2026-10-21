@@ -11,6 +11,11 @@ input; audio; physics; hot reload; validation; and runnable example games.
 - Expand runtime gizmos and debugging tools where they improve iteration.
 - Split large ECS implementation files as responsibilities become stable.
 - Improve error messages with precise source paths and JSON locations.
+- Add manually authored off-mesh navigation links (`NavLink3D`):
+  - Connect disconnected navmesh surfaces with start/end points, one-way or bidirectional travel, and configurable traversal cost.
+  - Support enabling/disabling links at runtime and have path queries and agents replan when links change.
+  - Expose a traversal handoff to game code without assuming a movement method; add editor/debug visualization and pathfinding tests.
+  - Follow up with jump, ladder, elevator, moving-platform, and teleport traversal behaviors.
 - Add seamless neighboring terrain tiles:
   - Define a terrain grid with matching tile sizes and sample spacing, and automatic neighbor connections.
   - Match border heights and calculate edge normals using neighboring samples.
