@@ -1,0 +1,7 @@
+{
+  "name": "Player Profile Validation",
+  "startup_scene": "main.scene.json",
+  "window": {"width": 640, "height": 360, "show_fps": true},
+  "hot_reload": {"enabled": true, "scenes": true, "textures": true},
+  "gizmos": {"enabled": true, "navmeshes": true}
+}

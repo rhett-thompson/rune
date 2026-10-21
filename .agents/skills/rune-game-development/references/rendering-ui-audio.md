@@ -29,6 +29,9 @@ Builds importing the bridge also need
 `-collection:r3d=<RUNE_ROOT>/third_party/r3d-odin`; JSON components alone do not
 initialize or draw R3D. For animated models, explicitly advance
 `r3d_bridge.update_animations` during update; drawing alone does not advance time.
+For relocatable games, pass `game.project_directory` as the bridge's root after
+`rune.init_project()` (or explicit `rune.init`). The bridge has its own root;
+hard-coded example paths do not become portable just because core startup is.
 
 ## Transform and collision conventions
 

@@ -208,6 +208,7 @@ entity_label :: proc(world: ^ecs.World, entity: ecs.Entity) -> string {
 // never fall back to a matching ID after scene replacement or deletion.
 // Disabled entities remain selected so enable @picked can restore them.
 debug_picked_entity :: proc(engine: ^Engine) -> (ecs.Entity, bool) {
+	when Player_Build {return 0, false}
 	if engine == nil || !engine.console.is_open || engine.debug.world == nil || engine.debug.picked_dimension == .None {return 0, false}
 	entity := engine.debug.picked_entity
 	world := engine.debug.world
@@ -477,6 +478,10 @@ profile_command :: proc(dev: ^console.Console, arguments: string) {
 // Select a simulation tick only after console commands have been dispatched.
 // Paused frames still sample real input, draw, poll files, and accept commands.
 debug_simulation_tick :: proc(engine: ^Engine) -> bool {
+	when Player_Build {
+		if engine.game_paused {engine.delta_time = 0; return false}
+		return true
+	}
 	if is_paused(engine) || engine.debug.steps_remaining > 0 {
 		if engine.debug.steps_remaining == 0 {
 			engine.delta_time = 0
@@ -492,6 +497,7 @@ debug_simulation_tick :: proc(engine: ^Engine) -> bool {
 debug_simulation_finished :: proc(engine: ^Engine) {
 	engine.debug.simulation_time += f64(engine.delta_time)
 	engine.debug.simulation_updates += 1
+	when Player_Build {return}
 	if engine.debug.steps_remaining > 0 {
 		engine.debug.steps_remaining -= 1
 		if engine.debug.steps_remaining == 0 {
@@ -511,6 +517,7 @@ timing_summary :: proc(values: []f64) -> Timing_Summary {
 }
 
 debug_profile_finished_frame :: proc(engine: ^Engine) {
+	when Player_Build {return}
 	debug := &engine.debug
 	if debug.profile_target == 0 {return}
 	debug.sample.frame_ms = (rl.GetTime() - debug.frame_started) * 1000

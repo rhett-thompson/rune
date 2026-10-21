@@ -1,5 +1,6 @@
 package core
 
+import "rune:console"
 import rl "vendor:raylib"
 
 Cursor_Mode :: enum {visible, hidden, captured}
@@ -33,7 +34,7 @@ set_cursor_mode :: proc(engine: ^Engine, mode: Cursor_Mode) {
 	previous, was_owned := cursor_mode(engine),state.console_owned
 	state.mode, state.known = mode,true
 	if !rl.IsWindowReady() {return}
-	if engine.console.is_open {
+	if console.is_open(&engine.console) {
 		if !state.console_owned || rl.IsCursorHidden() {
 			rl.EnableCursor()
 			suppress_cursor_mouse_delta(engine)
@@ -51,7 +52,7 @@ set_cursor_mode :: proc(engine: ^Engine, mode: Cursor_Mode) {
 sync_console_cursor :: proc(engine: ^Engine) {
 	if engine == nil || !rl.IsWindowReady() {return}
 	state := &engine.cursor
-	if engine.console.is_open {
+	if console.is_open(&engine.console) {
 		if !state.console_owned {
 			state.mode = cursor_mode(engine)
 			state.known, state.console_owned = true,true

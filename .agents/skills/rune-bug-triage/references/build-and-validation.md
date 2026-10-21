@@ -90,3 +90,20 @@ fix; do not require the full release workflow for every report.
 Keep Windows/Linux and headless/runtime results distinct. An X11 software-rendered
 pass does not establish native Wayland or physical GPU behavior; WSL builds on a
 Windows-mounted checkout do not establish case-sensitive filename correctness.
+
+## Pinned Windows directory traversal and finalization
+
+With `dev-2026-10-nightly:84bc3fc`, a completed `core:os` Walker can leave its
+last Windows `FindFirstFileW` search handle open: `dir_walker.odin` clears the
+iterator file before the Windows iterator destructor reaches `FindClose`.
+On 2026-10-21, a focused walk/destroy/rename reproduction failed with Windows
+error 5 until that same handle was explicitly closed. This is a pinned-toolchain
+observation, not a claim about later Odin releases or every access-denied error.
+
+Rune's publisher uses `read_all_directory_by_path` recursion in
+`tools/publisher/main.odin` so enumeration closes before finalization; its
+`main_finalization_moves_files_and_directories_without_replacing_targets` test
+records inventory before moving the populated directory. If package finalization
+fails only while the publisher is alive, inspect retained search/file handles
+before blaming ACLs or antivirus. Do not patch a user's compiler installation to
+work around this; keep the checked-in ownership fix and test the actual output.

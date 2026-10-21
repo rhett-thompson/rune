@@ -27,9 +27,12 @@ for source in "$template"/* "$template"/.[!.]* "$template"/..?*; do
 done
 cp -R -- "$engine_root/schemas" "$destination/schemas"
 export RUNE_PROJECT_NAME=$name
+RUNE_PROJECT_SLUG=$(printf '%s' "$name" | LC_ALL=C tr 'A-Z' 'a-z' | LC_ALL=C sed 's/[^a-z0-9][^a-z0-9]*/-/g; s/^-//; s/-$//')
+case "$RUNE_PROJECT_SLUG" in ''|con|prn|aux|nul|com[1-9]|lpt[1-9]|licenses) RUNE_PROJECT_SLUG=game ;; esac
+export RUNE_PROJECT_SLUG
 rewrite() {
     file=$destination/$1
-    awk -v schema="$2" -v project="$3" '
+    awk -v schema="$2" -v project="$3" -v publishing="${4:-0}" '
         function quote(s, result, i, c, j) {
             result="\""
             for (i=1; i<=length(s); i++) {
@@ -53,11 +56,17 @@ rewrite() {
             key=($0 ~ /"name"/) ? "name" : "title"
             print indent "\"" key "\": " quote(ENVIRON["RUNE_PROJECT_NAME"]) ","; next
         }
+        publishing && /^[ \t]*"(id|executable)"[ \t]*:/ {
+            match($0,/^[ \t]*/); indent=substr($0,1,RLENGTH)
+            key=($0 ~ /"id"/) ? "id" : "executable"
+            print indent "\"" key "\": " quote(ENVIRON["RUNE_PROJECT_SLUG"]) ","; next
+        }
         { print }
     ' "$file" > "$file.tmp"
     mv -- "$file.tmp" "$file"
 }
 rewrite project.json schemas/project.schema.json 1
+rewrite publish.json schemas/publish.schema.json 1 1
 rewrite scenes/main.scene.json ../schemas/scene.schema.json 0
 rewrite input/default.input.json ../schemas/input.schema.json 0
 printf 'Created %s\n' "$destination"

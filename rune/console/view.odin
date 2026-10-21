@@ -1,5 +1,7 @@
 package console
 
+import "rune:profile"
+
 import "core:fmt"
 import "core:math"
 import "core:strings"
@@ -205,6 +207,7 @@ scrollbar_thumb :: proc(layout: View_Layout, total, offset: int) -> rl.Rectangle
 }
 
 update_view :: proc(console: ^Console) {
+	when profile.Player_Build {return}
 	ensure_renderer(console)
 	matches := view_completion_matches(console)
 	layout := view_layout(f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight()), len(matches.options), matches.selected)
@@ -280,6 +283,7 @@ clip :: proc(rect: rl.Rectangle) {
 }
 
 draw_view :: proc(console: ^Console) {
+	when profile.Player_Build {return}
 	if !console.is_open {return}
 	ensure_renderer(console)
 	matches := view_completion_matches(console)

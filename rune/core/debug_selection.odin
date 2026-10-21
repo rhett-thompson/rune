@@ -18,6 +18,7 @@ clear_debug_selection :: proc(engine: ^Engine) {
 // Disabled entities, missing cameras, and offscreen geometry hide the marker
 // while retaining selection. Console close, World replacement, or deletion clears it.
 debug_selection_bounds :: proc(engine: ^Engine, screen, framebuffer: [2]f32) -> (rl.Rectangle, bool) {
+	when Player_Build {return {},false}
 	if engine == nil {return {},false}
 	world, entity := engine.debug.world, engine.debug.picked_entity
 	if !engine.console.is_open || world == nil || !ecs.is_alive(world,entity) {
@@ -69,6 +70,7 @@ debug_selection_bounds :: proc(engine: ^Engine, screen, framebuffer: [2]f32) -> 
 // before console.draw. Only ordinary 2D lines are submitted: no renderer asset,
 // material, shader, camera, depth, blend, or post-processing state is changed.
 draw_debug_selection :: proc(engine: ^Engine) {
+	when Player_Build {return}
 	screen := [2]f32{f32(rl.GetScreenWidth()),f32(rl.GetScreenHeight())}
 	framebuffer := [2]f32{f32(rl.GetRenderWidth()),f32(rl.GetRenderHeight())}
 	bounds,visible := debug_selection_bounds(engine,screen,framebuffer)

@@ -46,9 +46,13 @@ for /d %%D in ("tools\*") do if exist "%%D\main.odin" call :build "%%~nxD" "%%D"
 rem Native window handling must link with raylib's private GLFW symbols hidden.
 odin build tools/window_validation -collection:rune=rune -collection:r3d=third_party/r3d-odin -define:RAYLIB_SHARED=true -out:build/window_validation_shared.exe -linker:msvc
 if errorlevel 1 (call :fail "build window_validation_shared") else echo PASS build window_validation_shared
+rem Exercise the player policy as well as the default development validator.
+call :build player_profile_player_validation tools\player_profile_validation "-define:RUNE_PLAYER=true"
 call :build rune_relay rune_relay
 for /f "usebackq delims=" %%N in ("build\validate-built.tmp") do call :run_validator "%%N"
 for %%N in (console ecs audio core geometry render r3d_bridge save input ui network replication navigation pathutil) do call :test_rune "%%N"
+odin test tools/publisher -collection:rune=rune -define:ODIN_TEST_THREADS=1 -out:build/publisher_test.exe -linker:msvc
+if errorlevel 1 call :fail "test publisher"
 odin test rune_relay -collection:rune=rune "-out:build/rune_relay_config_test.exe" -linker:msvc
 if errorlevel 1 call :fail "test rune_relay configuration"
 odin test rune_relay/server -collection:rune=rune "-out:build/rune_relay_test.exe" -linker:msvc

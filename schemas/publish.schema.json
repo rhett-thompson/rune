@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "publish.schema.json",
+  "title": "Rune publishing configuration",
+  "description": "Build a player executable and package explicitly included game content. Paths are relative to the game directory; compiler collection paths may refer to sibling dependencies.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "version", "executable", "targets", "content"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": {
+      "$ref": "#/$defs/portableComponent",
+      "description": "Stable game identity used to name packages. Use the same identity in project save settings."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?=.*\\S)[^\\u0000-\\u001f\\u007f]+$",
+      "description": "Human-readable game title."
+    },
+    "version": {
+      "type": "string",
+      "allOf": [
+        { "pattern": "^[A-Za-z0-9][A-Za-z0-9._+\\-]*$" },
+        { "$ref": "#/$defs/notDevice" },
+        { "not": { "pattern": "\\.$" } }
+      ],
+      "description": "Release version used in distribution filenames; independent of save-format versions."
+    },
+    "executable": {
+      "type": "string",
+      "allOf": [
+        { "pattern": "^[A-Za-z0-9][A-Za-z0-9_\\-]*$" },
+        { "$ref": "#/$defs/notDevice" },
+        { "not": { "pattern": "^[Ll][Ii][Cc][Ee][Nn][Ss][Ee][Ss]$" } }
+      ],
+      "description": "Extensionless executable name. Windows adds .exe automatically."
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "enum": ["windows-amd64", "linux-amd64"] },
+      "description": "Supported native publishing targets. Build each package on its matching operating system."
+    },
+    "content": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/contentPath" },
+      "description": "Files and entire directories to include, preserving their paths. A trailing slash is allowed for directories. Include project.json and every content directory used by game code."
+    },
+    "licenses": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/contentPath" },
+      "default": [],
+      "description": "Additional game-specific license and credit files or directories. Required Rune dependency notices are added by the publisher."
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "collections": {
+          "type": "object",
+          "propertyNames": {
+            "allOf": [
+              { "$ref": "#/$defs/identifier" },
+              { "not": { "enum": ["rune", "r3d"] } }
+            ]
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?![/\\\\])[^\\u0000-\\u001f\\u007f:\"|<>?*]+$"
+          },
+          "description": "Additional Odin collection names and paths relative to the game root. Parent traversal is allowed for build dependencies. Rune supplies its own rune and r3d collections."
+        },
+        "defines": {
+          "type": "object",
+          "propertyNames": {
+            "allOf": [
+              { "$ref": "#/$defs/identifier" },
+              { "not": { "enum": ["RUNE_PLAYER", "RAYLIB_SHARED"] } }
+            ]
+          },
+          "additionalProperties": {
+            "anyOf": [
+              { "type": ["boolean", "number"] },
+              { "type": "string", "pattern": "^[^\\u0000]*$" }
+            ]
+          },
+          "description": "Odin compiler defines. The publisher always selects RUNE_PLAYER=true and RAYLIB_SHARED=false."
+        },
+        "extra_linker_flags": {
+          "type": "string",
+          "pattern": "^[^\\u0000\\r\\n]*$",
+          "description": "Optional native linker flags passed as one Odin -extra-linker-flags argument."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "identifier": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+    "notDevice": {
+      "not": {
+        "pattern": "^(?:[Cc][Oo][Nn](?:[Ii][Nn]\\$|[Oo][Uu][Tt]\\$)?|[Pp][Rr][Nn]|[Aa][Uu][Xx]|[Nn][Uu][Ll]|[Cc][Oo][Mm][1-9¹²³]|[Ll][Pp][Tt][1-9¹²³])(?:\\.|$)"
+      }
+    },
+    "portableComponent": {
+      "type": "string",
+      "allOf": [
+        { "pattern": "^[A-Za-z0-9][A-Za-z0-9._\\-]*$" },
+        { "$ref": "#/$defs/notDevice" },
+        { "not": { "pattern": "\\.$" } }
+      ]
+    },
+    "contentPath": {
+      "type": "string",
+      "minLength": 1,
+      "allOf": [
+        { "pattern": "^[^/\\\\:\"<>|?*\\u0000-\\u001f\\u007f]+(?:/[^/\\\\:\"<>|?*\\u0000-\\u001f\\u007f]+)*/?$" },
+        { "not": { "pattern": "(?:^|/)(?:\\.|\\.\\.)(?:/|$)" } },
+        { "not": { "pattern": "[. ](?:/|$)" } },
+        { "not": { "pattern": "(?:^|/)(?:[Cc][Oo][Nn](?:[Ii][Nn]\\$|[Oo][Uu][Tt]\\$)?|[Pp][Rr][Nn]|[Aa][Uu][Xx]|[Nn][Uu][Ll]|[Cc][Oo][Mm][1-9¹²³]|[Ll][Pp][Tt][1-9¹²³])(?:\\.|/|$)" } }
+      ]
+    }
+  }
+}

@@ -228,14 +228,46 @@ Pop-Location
 On Linux, use `sh tools/new_project.sh --path ../MyGame --name 'My Game'`, then
 `sh build.sh --rune-root /path/to/rune --run` from the new game directory.
 
-The new folder contains code, scene/input JSON, local schemas, and both build scripts.
-The initial scene is empty. The script builds into the game's `build/` directory
-and runs from the correct working directory. Engine paths containing spaces work.
+The new folder contains code, scene/input JSON, `publish.json`, local schemas,
+and both build scripts.
+The initial scene is empty. The script builds into the game's `build/` directory.
+The generated entry point uses `rune.init_project()` to find `../project.json`
+relative to that executable, so it also runs from an unrelated working directory.
+Engine paths containing spaces work.
 The project-creation helper refuses to overwrite an existing directory.
 
 Pass `--release` to the generated `build.bat` or `build.sh` for an optimized `-o:speed` build.
 Use optimized builds when profiling; generated projects use Odin's default minimal optimization.
 Runtime checks remain enabled, and hot reload still follows `project.json`.
+
+Pass `--player` instead for an optimized player build on Windows or Linux. It
+sets `-define:RUNE_PLAYER=true` and uses static raylib. Player builds disable the
+developer console/inbox, hot reload, gizmos, and FPS title updates even if project
+settings request them. Assertions and runtime checks remain enabled; diagnostic
+console logs also go to stderr. Stage `project.json` and game content beside the
+player executable before launching it. The helpers reject `--player --run`
+because they do not yet stage a package. See [game publishing](docs/publishing.md)
+for the current APIs, manual layout, and remaining publishing work.
+
+To create a complete package, edit the game's `publish.json`, then run
+`..\rune\tools\publish.bat --project .` on Windows or
+`sh ../rune/tools/publish.sh --project .` on Linux, adapting the engine path.
+The command builds the player, stages included content and notices, validates
+references/native dependencies, and produces a fresh folder plus ZIP/tar.gz
+under the game's `build/publish/`. It refuses existing outputs. The publisher
+supplies the Rune/r3d collections; list other collections/defines in the config.
+See [publishing configuration and build](docs/publishing.md#publishing-configuration-and-build)
+for platform prerequisites, Linux compatibility limits, and output options.
+
+Existing games keep their copied entry points and build helpers. Adopt
+`rune.init_project()` and compare both helpers with the current template to use
+this workflow. Explicit `rune.init(path)` still resolves relative paths from the
+caller's working directory, then retains an absolute project/resource root.
+Pass `game.project_directory` to `r3d_bridge.init`, and use
+`rune.resource_path(&game, "assets/file.json")` for custom project-relative file
+I/O; the returned path is owned by the caller. Save-enabled games already default
+to OS user-data storage. Game-owned settings and file logging must also use a
+writable user location rather than the installed content tree.
 
 To run the template directly from the engine checkout:
 
@@ -327,7 +359,7 @@ rune.run(&game)
 
 ## Runtime console
 
-Every Rune engine instance includes a lightweight developer console. Press the
+Development builds include a lightweight developer console. Press the
 grave/backtick key (`` ` ``) to open it and `Esc` to close it. Tab completes
 registered command names and supported arguments, including live entity IDs and
 component names. Matching suggestions appear above the input. Up/Down moves the

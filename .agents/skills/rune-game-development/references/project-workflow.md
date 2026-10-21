@@ -9,7 +9,7 @@ Use the current `toolchain.json` and source as the authority for changing pins.
 
 For a new independent game, use `tools/new_project.bat` or
 `tools/new_project.sh`. They copy `templates/blank_project`, local schemas,
-scene/input JSON, and Windows/Linux build helpers; they refuse to overwrite an
+scene/input JSON, `publish.json`, and Windows/Linux build helpers; they refuse to overwrite an
 existing destination. The initial scene is empty, so a window showing only its
 background is expected. Add an active Camera2D and drawable entities for Rune's
 automatic 2D scene rendering, or explicitly integrate 3D rendering.
@@ -37,8 +37,9 @@ sh build.sh --rune-root "$rune_root"
 ```
 
 For existing games, inspect their own `project.json`, `main.odin`, local schemas,
-and build helpers. The generated entry point initializes `project.json`, then
-uses `rune.run(&engine)` for the startup scene. It must run from `GAME_ROOT`.
+and build helpers. The generated entry point uses `rune.init_project()`, then
+`rune.run(&engine)` for the startup scene. Development binaries in `GAME_ROOT/build/`
+find `../project.json` relative to the executable, independently of CWD.
 Examples instead commonly initialize `examples/<name>/project.json` from
 `RUNE_ROOT` and can import `examples/shared` or neighboring assets. Reuse their
 patterns; do not assume copying an example folder produces an independent game.
@@ -66,6 +67,85 @@ optimized build, and `-- <game arguments>` for runtime arguments when running.
 Outputs are `GAME_ROOT/build/game.exe` on Windows and `GAME_ROOT/build/game` on
 Linux. Use optimized builds for profiling; optimization does not disable runtime
 checks or configured JSON hot reload.
+
+Use `--player` for an optimized Windows/Linux player executable. This adds
+`-define:RUNE_PLAYER=true` and `-define:RAYLIB_SHARED=false`; it does not yet
+package content. Stage the executable with adjacent `project.json` and the
+project's complete content tree, preserving relative paths. Player startup never
+falls back to a parent project or CWD. `--player --run` is rejected until staging
+is implemented. The profile disables developer console/UI/commands/inbox,
+captures, hot reload, engine gizmos, bridge debug grids/collider wireframes, and
+FPS title updates, regardless of project settings. Assertions and runtime checks
+remain; console diagnostics also reach stderr. Guard command registration
+assertions with `when !rune.Player_Build`:
+`console.register`, `console.execute`, and `console.enable_remote` return false
+in player builds. Runtime console inspection below requires a development build.
+See `docs/publishing.md` for the maintained plan and manual staging layout.
+
+## Publish the game
+
+Invoke the engine's `tools/publish.bat --project <GAME_ROOT>` or
+`sh tools/publish.sh --project <GAME_ROOT>`. Generated games include `publish.json`
+and its local schema; existing games must add a config and adopt portable
+startup. The config supplies ID/title/version/executable, enabled native targets,
+explicit `content` files/directories, optional game `licenses`, and optional
+build collections/typed defines/linker flags. Paths are game-relative; sibling
+build-only source collections may use `../`. Include entire directories for
+code-loaded assets; automatic checks cannot discover arbitrary Odin/custom-data
+references. Rune/r3d collections and player/static-raylib flags are reserved and
+supplied by the publisher, independently of the game's copied build helpers.
+
+The default output is `GAME_ROOT/build/publish/<id>-<version>-<target>/`, plus an
+adjacent Windows ZIP or Linux tar.gz. `--output` selects a fresh package directory;
+command-line paths are relative to the caller. Both outputs must be absent.
+The publisher stages content/notices, validates known references and every
+recognized included scene, builds with the cooperative compiler lock, audits
+native dependencies, hashes files into `manifest.json`, and creates the archive
+before final no-replacement moves. Failed staging remains for inspection.
+On Linux the output filesystem must support atomic no-replacement renames;
+choose native Linux storage for `--output` if a WSL Windows mount rejects them.
+It preserves empty directories and rejects unsafe/omitted references, case
+conflicts, overlapping includes, symlinks, and Windows reparse/junction ancestors.
+
+Windows requires MSVC and an official installed AMD64 VC CRT for the bundled
+native libraries. The publisher can discover `VCToolsRedistDir` or the installed
+VC-qualified Visual Studio redist; `--windows-runtime-directory` and optional
+`--windows-runtime-license` override it. Only audited allowlisted required CRT
+DLLs are copied; arbitrary native plugins are unsupported. Linux requires
+`flock`, `readelf`, `mktemp`, and `tar`, and defaults to a glibc 2.39 ceiling. Build with a
+compatible SDK/sysroot; raising `--glibc-max` records a different requirement and
+does not preserve the older baseline. System sonames/C++ symbol requirements
+remain target requirements. No extra scripting runtime is required by publishing.
+
+`--odin`/`ODIN` selects the game compiler; the bootstrap launcher needs Odin on
+PATH. Both must follow `toolchain.json`. Typed strings use Odin's single-quote
+define convention. The tested Windows compiler cannot preserve literal double
+quotes inside argument values; the publisher rejects them rather than silently
+changing defines/linker flags. Validate custom options on the intended host.
+
+Verify file hashes/archive structure, then move/extract the package and launch
+from an unrelated working directory with compiler/checkout paths unavailable.
+Exercise scene transitions, prefab/model sidecars, input, writes to user storage,
+and the actual rendering path. The manifest's native audit and a successful
+build do not qualify older Linux systems, physical hardware, or audible output.
+See `docs/publishing.md` for exact commands, config fields, and validation limits.
+
+## Continue development
+
+`rune.init_project(path)` accepts an explicit executable-relative layout;
+`rune.init(path)` retains explicit CWD-relative/absolute caller control. Both
+retain an absolute `engine.project_directory` after successful initialization.
+Pass that root to `r3d_bridge.init`; use
+`rune.resource_path(&engine, "assets/settings.json")` for game-owned reads and
+delete the returned owned path with its allocator. Absolute resource paths and
+parent traversal remain supported for tools; this helper is not a package
+containment check. Raw relative OS/raylib file reads still depend on CWD.
+Configured saves default to OS user-data/game ID/saves; keep custom settings,
+rebinding saves, and file logs in writable user storage too. Startup does not
+change the process working directory or redirect arbitrary game writes.
+The Windows/Linux startup/profile and publishing validation contexts and their
+runtime/ABI limits are recorded in `docs/publishing.md`, including extracted
+packages and the explicit glibc ceiling used for Ubuntu 26.04 checks.
 
 For manual Odin commands, use Rune's compiler-lock wrappers
 `tools/odin.ps1`, `tools/odin.bat`, or `sh tools/odin.sh`; supply
@@ -111,6 +191,13 @@ problem; `README.md`, `docs/linux.md`, and `docs/release.md` describe wider engi
 checks. Clean up only processes and scratch directories created for the task.
 A virtual display is graphics coverage, not proof of physical controller,
 desktop GPU, or audible behavior.
+
+In the 2026-10-21 managed Windows sandbox, default temporary directories allowed
+test-file creation but denied the atomic rename used by console replies.
+Core/console tests passed with process-scoped `TEMP` and `TMP` pointing to a
+temporary directory under ignored `build/`. If the same permission error occurs,
+verify the failing rename and use that scoped test environment; restore the
+variables afterward. Do not treat a sandbox rename denial as a runtime regression.
 
 ## Inspect gameplay through the console
 

@@ -1,5 +1,12 @@
 # Runtime console commands
 
+These tools are available in development builds, including optimized `--release`
+builds. The player profile (`--player`, or `-define:RUNE_PLAYER=true`) disables
+console UI, command registration/execution, captures, and the local command
+inbox. `--console-dir` cannot enable it. Diagnostic logging remains available
+through `rune.developer_console`; player logs also go to stderr. See
+[game publishing](publishing.md) for startup and build-profile details.
+
 ## In-game console
 
 Press backtick to open the console and Escape or backtick to close it. The

@@ -20,6 +20,14 @@ the root license does not replace their terms or establish missing asset permiss
 The pinned binding's license file documents that binding; it is not a substitute
 for reviewing every library shipped inside a prebuilt native archive.
 
+Rune's [game publisher](docs/publishing.md) conservatively collects the checked-in
+engine/native notices and selected Odin vendor notices under `licenses/rune/`.
+Game-specific notices belong in `publish.json`'s `licenses` list. Windows
+publishing can include required official installed VC runtime DLLs and detected
+VS third-party notices; explicit runtime/notice overrides support other build
+environments. Automatic collection preserves the supplied texts and does not
+establish missing game-asset permissions.
+
 ## Example assets
 
 The examples' shared Inter font is distributed under the

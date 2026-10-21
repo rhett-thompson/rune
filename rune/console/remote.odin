@@ -5,6 +5,7 @@ import "core:fmt"
 import "core:os"
 import "core:path/filepath"
 import "core:strings"
+import "rune:profile"
 
 // An opt-in local file inbox: one command per .cmd file, one .result.json
 // reply. The sender publishes requests by atomic rename. No background thread
@@ -27,6 +28,7 @@ Remote_Result :: struct {
 }
 
 enable_remote :: proc(console: ^Console, directory: string) -> bool {
+	when profile.Player_Build {return false}
 	if len(directory) == 0 || len(directory) > Max_Path_Length - 100 ||
 	   console.remote.directory_len > 0 {return false}
 	if !ensure_directory(directory) {return false}
@@ -37,6 +39,7 @@ enable_remote :: proc(console: ^Console, directory: string) -> bool {
 }
 
 poll_remote :: proc(console: ^Console, now: f64) {
+	when profile.Player_Build {return}
 	remote := &console.remote
 	if console.defer_reply || remote.directory_len == 0 || remote.result_len > 0 || now < remote.next_poll {return}
 	remote.next_poll = now + 0.1
@@ -70,6 +73,7 @@ poll_remote :: proc(console: ^Console, now: f64) {
 }
 
 finish_remote :: proc(console: ^Console) {
+	when profile.Player_Build {return}
 	remote := &console.remote
 	if console.defer_reply {return}
 	defer console.result_data = {}

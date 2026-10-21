@@ -69,6 +69,8 @@ try {
     if (fs.FolderExists(destination) || fs.FileExists(destination)) fail("Destination already exists: " + destination);
     if (!name) name = fs.GetFileName(destination);
     if (!name.replace(/\s/g, "")) fail("The project needs a non-empty name.");
+    var slug = name.replace(/[A-Z]/g, function(c) { return c.toLowerCase(); }).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    if (!slug || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9]|licenses)$/.test(slug)) slug = "game";
     var root = fs.GetParentFolderName(fs.GetParentFolderName(WScript.ScriptFullName));
     var template = fs.GetFolder(fs.BuildPath(root, "templates\\blank_project"));
     mkdir(fs.GetParentFolderName(destination)); fs.CreateFolder(destination);
@@ -79,7 +81,7 @@ try {
         if (entries.item().Name !== "build") fs.CopyFolder(entries.item().Path, fs.BuildPath(destination, entries.item().Name), false);
     }
     fs.CopyFolder(fs.BuildPath(root, "schemas"), fs.BuildPath(destination, "schemas"), false);
-    function rewrite(relative, schema, project) {
+    function rewrite(relative, schema, project, publishing) {
         var path = fs.BuildPath(destination, relative), text = readUTF8(path);
         var schemaPattern = /(^\s*"\$schema"\s*:\s*)"(?:[^"\\]|\\.)*"/m;
         if (!schemaPattern.test(text)) fail("Missing template schema: " + relative);
@@ -87,9 +89,13 @@ try {
         if (project) {
             text = text.replace(/(^\s*"(?:name|title)"\s*:\s*)"(?:[^"\\]|\\.)*"/gm, function(all, prefix) { return prefix + quote(name); });
         }
+        if (publishing) {
+            text = text.replace(/(^\s*"(?:id|executable)"\s*:\s*)"(?:[^"\\]|\\.)*"/gm, function(all, prefix) { return prefix + quote(slug); });
+        }
         writeUTF8(path, text);
     }
     rewrite("project.json", "schemas/project.schema.json", true);
+    rewrite("publish.json", "schemas/publish.schema.json", true, true);
     rewrite("scenes\\main.scene.json", "../schemas/scene.schema.json", false);
     rewrite("input\\default.input.json", "../schemas/input.schema.json", false);
     writeLine(WScript.StdOut,"Created " + destination);

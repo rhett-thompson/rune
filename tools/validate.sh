@@ -83,6 +83,7 @@ done
 
 # Native window handling must also link with raylib's private GLFW symbols hidden.
 build window_validation_shared tools/window_validation -collection:r3d=third_party/r3d-odin -define:RAYLIB_SHARED=true
+build player_profile_player_validation tools/player_profile_validation -define:RUNE_PLAYER=true
 
 build rune_relay rune_relay
 
@@ -93,6 +94,9 @@ done
 for name in console ecs audio core geometry render r3d_bridge save input ui network replication navigation pathutil; do
     test_rune "$name"
 done
+if ! odin test tools/publisher -collection:rune=rune -define:ODIN_TEST_THREADS=1 -out:build/publisher_test; then
+    fail 'test publisher'
+fi
 if ! odin test rune_relay -collection:rune=rune -out:build/rune_relay_config_test; then
     fail 'test rune_relay configuration'
 fi

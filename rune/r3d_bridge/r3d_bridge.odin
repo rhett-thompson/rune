@@ -5,6 +5,7 @@ import "core:strings"
 import r3d "r3d:r3d"
 import "rune:assets"
 import "rune:ecs"
+import "rune:profile"
 import "rune:shadows"
 import rl "vendor:raylib"
 
@@ -1010,6 +1011,9 @@ billboard_mode_from_name :: proc(name: string) -> r3d.BillboardMode {
 }
 
 draw_debug_overlays :: proc(world: ^ecs.World, camera: rl.Camera3D, settings: Scene3D_Settings) {
+	// Grid and collider overlays are development tools, independent of scene
+	// geometry. Mutable draw settings cannot restore them in a player build.
+	when profile.Player_Build {return}
 	if settings.grid_slices <= 0 && !settings.draw_colliders {return}
 	rl.BeginMode3D(camera)
 	if settings.grid_slices > 0 {

@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:os"
 import "core:path/filepath"
 import "rune:pathutil"
+import "rune:profile"
 import "core:strings"
 import "core:time"
 import rl "vendor:raylib"
@@ -17,6 +18,7 @@ Capture_Request :: struct {
 }
 
 capture_command :: proc(console: ^Console, arguments: string) {
+	when profile.Player_Build {return}
 	if console.capture.len > 0 {
 		error(console, "A frame capture is already pending.")
 		return
@@ -36,6 +38,7 @@ capture_command :: proc(console: ^Console, arguments: string) {
 // finish_frame runs after game/gizmo drawing and before the console overlay,
 // inside BeginDrawing/EndDrawing. Flush raylib's batch before reading pixels.
 finish_frame :: proc(console: ^Console) {
+	when profile.Player_Build {return}
 	if console.capture.len > 0 {
 		path := string(console.capture.path[:console.capture.len])
 		directory, _ := filepath.split(path)

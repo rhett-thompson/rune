@@ -52,6 +52,7 @@ Hot_Reload_Settings :: struct {
 }
 
 default_hot_reload_settings :: proc() -> Hot_Reload_Settings {
+	when Player_Build {return {}}
 	return Hot_Reload_Settings {
 		shadow_profiles = true,
 		navmeshes = true,
@@ -197,6 +198,7 @@ load_project :: proc(path: string) -> (Project, bool) {
 	if project.hot_reload.poll_interval_ms <= 0 {
 		project.hot_reload.poll_interval_ms = 250
 	}
+	apply_project_profile(&project)
 
 	return project, true
 }
@@ -215,7 +217,9 @@ project_allocator :: proc(project: ^Project) -> mem.Allocator {
 }
 
 init :: proc(project_path: string) -> (Engine, bool) {
-	project, ok := load_project(project_path)
+	absolute_path, path_error := pathutil.absolute(project_path, context.temp_allocator)
+	if path_error != nil {return {}, false}
+	project, ok := load_project(absolute_path)
 	if !ok {
 		return {}, false
 	}
@@ -241,7 +245,7 @@ init :: proc(project_path: string) -> (Engine, bool) {
 		destroy_project(&project)
 		return {}, false
 	}
-	project_directory_view, _ := filepath.split(project_path)
+	project_directory_view, _ := filepath.split(absolute_path)
 	project_directory, _ := strings.clone(project_directory_view, project_allocator(&project))
 	input_path := project.input
 	if len(input_path) > 0 {
@@ -278,12 +282,14 @@ init :: proc(project_path: string) -> (Engine, bool) {
 	asset_manager := assets.init(project_directory)
 	audio_system := audio.init(project_directory)
 	dev_console := console.init()
-	register_debug_commands(&dev_console)
-	for argument in os.args[1:] {
-		prefix :: "--console-dir="
-		if strings.has_prefix(argument, prefix) {
-			if !console.enable_remote(&dev_console, argument[len(prefix):]) {
-				console.error(&dev_console, "Could not enable local console inbox.")
+	when !Player_Build {
+		register_debug_commands(&dev_console)
+		for argument in os.args[1:] {
+			prefix :: "--console-dir="
+			if strings.has_prefix(argument, prefix) {
+				if !console.enable_remote(&dev_console, argument[len(prefix):]) {
+					console.error(&dev_console, "Could not enable local console inbox.")
+				}
 			}
 		}
 	}
@@ -329,8 +335,9 @@ project_value :: proc(engine: ^Engine, key: string) -> (json.Value, bool) {
 	return value, found
 }
 
-// developer_console exposes the engine-owned runtime console. Register
-// project-specific commands and write diagnostic messages through this value.
+// developer_console exposes the engine-owned diagnostic history. Development
+// builds also support command registration and interactive inspection; player
+// builds retain logging while registration/execution and console UI are disabled.
 developer_console :: proc(engine: ^Engine) -> ^console.Console {
 	engine.console.user_data = engine
 	return &engine.console
@@ -350,7 +357,7 @@ asset_manager :: proc(engine: ^Engine) -> ^assets.Asset_Manager {
 
 // gizmo_settings exposes runtime debug visualization flags. F3 toggles the
 // overlay while a game is running; projects may also configure the default
-// category flags in project.json.
+// category flags in project.json. Player builds never draw this overlay.
 gizmo_settings :: proc(engine: ^Engine) -> ^gizmos.Settings {
 	return &engine.gizmos
 }
@@ -359,6 +366,7 @@ gizmo_settings :: proc(engine: ^Engine) -> ^gizmos.Settings {
 // The engine-owned rune.run workflow draws it automatically after registered
 // draw systems.
 draw_gizmos :: proc(engine: ^Engine, world: ^ecs.World) {
+	when Player_Build {return}
 	gizmos.draw_scene(world, engine.gizmos)
 }
 
@@ -483,6 +491,7 @@ last_scene_error :: proc() -> string {return scene.last_load_error()}
 // reload callbacks do not run. Structural changes still rebuild the World and
 // return true; game code must reacquire cached entity IDs after that.
 reload_scene_if_changed :: proc(engine: ^Engine, world: ^ecs.World, path: string) -> bool {
+	when Player_Build {return false}
 	if !engine.project.hot_reload.enabled ||
 	   !engine.project.hot_reload.scenes ||
 	   !engine.hot_reload_due ||
@@ -514,6 +523,12 @@ watch_scene :: proc(engine: ^Engine, path: string) -> string {
 	if previous, watched := engine.scene_watches[owned_scene_path]; watched {
 		destroy_scene_watch(previous)
 		delete_key(&engine.scene_watches, owned_scene_path)
+	}
+	when Player_Build {
+		// Retain the owned scene path for transitions and saves without polling
+		// or collecting scene/prefab dependencies in a distributed game.
+		engine.scene_watches[owned_scene_path] = make(map[string]i64)
+		return owned_scene_path
 	}
 	paths, found := scene.dependency_paths(path)
 	if !found {
@@ -696,7 +711,7 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 		run_pre_draw_systems(engine, world)
 		render.draw_scene_2d(world, &engine.assets)
 		run_draw_systems(engine, world)
-		gizmos.draw_scene(world, engine.gizmos)
+		draw_gizmos(engine, world)
 		render.end_canvas(&engine.canvas)
 		for system in engine.systems {if system.draw_ui != nil {system.draw_ui(engine,world)}}
 		flush_asset_diagnostics(engine)
@@ -714,6 +729,7 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 // Measure completed frames against wall time, including presentation/frame
 // limiting. Simulation delta is capped and would overstate FPS after stalls.
 update_fps_title :: proc(engine: ^Engine) {
+	when Player_Build {return}
 	engine.fps_sample_frames += 1
 	now := rl.GetTime()
 	elapsed := now - engine.fps_sample_started
@@ -742,7 +758,7 @@ set_paused :: proc(engine: ^Engine, paused: bool) {
 }
 
 is_paused :: proc(engine: ^Engine) -> bool {
-	return engine != nil && (engine.game_paused || engine.debug.paused)
+	return engine != nil && (engine.game_paused || (!Player_Build && engine.debug.paused))
 }
 
 run_start_systems :: proc(engine: ^Engine, world: ^ecs.World) {
@@ -876,7 +892,7 @@ begin_frame :: proc(engine: ^Engine) {
 	flush_asset_diagnostics(engine)
 	// This runs before update resets frame capture. Respect a UI that captured
 	// the preceding frame, as well as the console's current focus.
-	if !console.is_open(&engine.console) && !engine.input.captured && rl.IsKeyPressed(.F3) {
+	if !Player_Build && !console.is_open(&engine.console) && !engine.input.captured && rl.IsKeyPressed(.F3) {
 		engine.gizmos.enabled = !engine.gizmos.enabled
 		if engine.gizmos.enabled {
 			console.info(&engine.console, "Gizmos enabled")
@@ -931,6 +947,7 @@ clear_background :: proc(engine: ^Engine) {
 }
 
 hot_reload_poll_due :: proc(engine: ^Engine) -> bool {
+	when Player_Build {return false}
 	if !engine.project.hot_reload.enabled {return false}
 	engine.hot_reload_elapsed += engine.delta_time
 	interval := f32(engine.project.hot_reload.poll_interval_ms) / 1000

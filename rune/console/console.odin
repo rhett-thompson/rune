@@ -2,6 +2,8 @@ package console
 
 import "core:strings"
 import "core:encoding/json"
+import "core:fmt"
+import "rune:profile"
 import rl "vendor:raylib"
 
 // Console is a small runtime developer console. It intentionally owns no game
@@ -82,6 +84,7 @@ init :: proc() -> Console {
 	result := Console {
 		history_index = -1,
 	}
+	when profile.Player_Build {return result}
 	register(&result, "clear", "Clear console output.", clear_command)
 	register(&result, "help", "List registered console commands.", help_command)
 	register(&result, "capture", "Save this frame: capture [path.png] (without console overlay).", capture_command)
@@ -92,8 +95,10 @@ init :: proc() -> Console {
 
 // register adds a command by name. Names are case-sensitive and must be
 // unique. Command data is copied, so caller-provided strings need not persist.
+// Player builds reject registration; guard game command setup with Player_Build.
 register :: proc(console: ^Console, name, description: string, handler: Command_Proc,
 	completion: Completion_Proc = nil) -> bool {
+	when profile.Player_Build {return false}
 	if len(name) == 0 ||
 	   len(name) > Max_Name_Length ||
 	   len(description) > Max_Line_Length ||
@@ -116,6 +121,11 @@ register :: proc(console: ^Console, name, description: string, handler: Command_
 }
 
 log :: proc(console: ^Console, level: Log_Level, message: string) {
+	when profile.Player_Build {
+		// Keep the bounded diagnostic history and preserve visible error output
+		// even though the interactive developer console is unavailable.
+		fmt.eprintf("[Rune %s] %s\n", level, message)
+	}
 	console.log_sequence += 1
 	if level == .Error {console.error_count += 1}
 	index := (console.line_start + console.line_count) % Max_Log_Lines
@@ -152,6 +162,7 @@ error :: proc(console: ^Console, message: string) {log(console, .Error, message)
 // update handles console-only keyboard input. It runs before game systems;
 // systems that need exclusive input can query is_open and skip their controls.
 update :: proc(console: ^Console) {
+	when profile.Player_Build {console.is_open = false; return}
 	poll_remote(console, rl.GetTime())
 	if rl.IsKeyPressed(.GRAVE) {
 		console.is_open = !console.is_open
@@ -220,6 +231,7 @@ submit :: proc(console: ^Console) {
 // execute dispatches the same commands as interactive input, without changing
 // the line the user is currently typing. Arguments are borrowed for this call.
 execute :: proc(console: ^Console, command_line: string) -> bool {
+	when profile.Player_Build {return false}
 	if console.defer_reply {
 		warning(console, "A step/profile command is still running.")
 		return false
@@ -256,10 +268,11 @@ execute :: proc(console: ^Console, command_line: string) -> bool {
 }
 
 draw :: proc(console: ^Console) {
+	when profile.Player_Build {return}
 	draw_view(console)
 }
 
-is_open :: proc(console: ^Console) -> bool {return console.is_open}
+is_open :: proc(console: ^Console) -> bool {return !profile.Player_Build && console.is_open}
 
 clear_command :: proc(console: ^Console, arguments: string) {
 	console.line_start = 0

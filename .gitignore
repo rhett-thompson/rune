@@ -10,6 +10,7 @@
 /build/
 /bin/
 /out/
+/output/
 
 # Odin language server and compiler caches
 .odin/
@@ -34,5 +35,3 @@ Desktop.ini
 *.bak
 *.swp
 *~
-
-/output/

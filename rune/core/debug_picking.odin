@@ -14,6 +14,7 @@ import "vendor:raylib/rlgl"
 // generation-bound handle and is revalidated when drawing its debug overlay.
 // Pending console replies keep exclusive ownership of their logs and results.
 debug_pick_scene :: proc(engine: ^Engine, screen_point, screen_size, framebuffer_size: [2]f32) -> bool {
+	when Player_Build {return false}
 	if engine == nil || engine.exit_requested || !engine.console.is_open ||
 	   engine.debug.world == nil || engine.console.defer_reply || engine.console.remote.result_len > 0 {return false}
 	for vector in ([3][2]f32{screen_point, screen_size, framebuffer_size}) {

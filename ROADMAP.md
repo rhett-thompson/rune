@@ -11,6 +11,18 @@ input; audio; physics; hot reload; validation; and runnable example games.
 - Expand runtime gizmos and debugging tools where they improve iteration.
 - Split large ECS implementation files as responsibilities become stable.
 - Improve error messages with precise source paths and JSON locations.
+- Publish portable Windows AMD64 and Linux AMD64 games; see the
+  [publishing plan](docs/publishing.md):
+  - Available: executable-relative startup and resource helpers, plus an explicit
+    player build profile in the Windows/Linux generated helpers.
+  - Available: `publish.json`, native publishing commands, complete configured
+    content folders, staged validation, ZIP/tar.gz archives, file manifests,
+    native dependency audits, and engine/toolchain notices.
+  - Extend the existing OS user-data save workflow to general game settings,
+    input bindings, and file logs with a stable game identity.
+  - Qualify packages on fresh supported systems, the declared Linux ABI baseline,
+    and target hardware; verify saves/settings across upgrades before claiming
+    complete publishing coverage.
 - Add manually authored off-mesh navigation links (`NavLink3D`):
   - Connect disconnected navmesh surfaces with start/end points, one-way or bidirectional travel, and configurable traversal cost.
   - Support enabling/disabling links at runtime and have path queries and agents replan when links change.
@@ -26,7 +38,10 @@ input; audio; physics; hot reload; validation; and runnable example games.
 ## Later
 
 - Optional scene hierarchy and component inspector.
-- Asset dependency inspection and build/export tooling.
+- Expand publishing asset-dependency inspection and add optional package-size
+  reduction after the initial Windows/Linux packages.
+- Extend publishing with store uploads, installers, packed assets, and
+  cross-compilation when the portable package workflow is established.
 - Broader 3D asset, animation and physics coverage.
 - More focused documentation and example projects.
 - Expand terrain grids into large worlds with nearby-tile streaming, distance-based detail reduction, and seamless joins between different detail levels.

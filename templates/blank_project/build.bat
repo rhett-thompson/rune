@@ -5,6 +5,7 @@ set rawArguments=%*
 set "runeRoot=%RUNE_ROOT%"
 set "run=0"
 set "release=0"
+set "player=0"
 :parse
 if "%~1"=="" goto parsed
 if /i "%~1"=="--rune-root" goto rune_root
@@ -13,6 +14,8 @@ if /i "%~1"=="--run" goto run
 if /i "%~1"=="-Run" goto run
 if /i "%~1"=="--release" goto release
 if /i "%~1"=="-Release" goto release
+if /i "%~1"=="--player" goto player
+if /i "%~1"=="-Player" goto player
 if "%~1"=="--" goto arguments
 if /i "%~1"=="--help" goto help
 if /i "%~1"=="-h" goto help
@@ -32,9 +35,18 @@ goto parse
 set "release=1"
 shift
 goto parse
+:player
+set "player=1"
+shift
+goto parse
 :arguments
 goto parsed
 :parsed
+if "%player%%run%"=="11" (
+    echo --player cannot be combined with --run until the game content is staged beside the executable. 1>&2
+    echo Build with --player, then copy project.json and content into a separate package folder with game.exe. 1>&2
+    exit /b 2
+)
 if not defined runeRoot (
     echo Pass --rune-root ^<engine-directory^>, or set RUNE_ROOT to your Rune checkout. 1>&2
     exit /b 1
@@ -55,8 +67,13 @@ if not exist build mkdir build
 if not exist build (popd & exit /b 1)
 set "optimization="
 if "%release%"=="1" set "optimization=-o:speed"
+set "profile="
+if "%player%"=="1" (
+    set "optimization=-o:speed"
+    set "profile=-define:RUNE_PLAYER=true -define:RAYLIB_SHARED=false"
+)
 rem R3D/Assimp uses bundled /GL zlib; MSVC supports its LTCG objects.
-odin build . "-collection:rune=%engineRoot%\rune" -linker:msvc -out:build/game.exe %optimization%
+call "%engineRoot%\tools\odin.bat" build . "-collection:rune=%engineRoot%\rune" -linker:msvc -out:build/game.exe %optimization% %profile%
 set "result=%errorlevel%"
 if not "%result%"=="0" (
     echo Game build failed ^(exit %result%^). 1>&2
@@ -64,6 +81,7 @@ if not "%result%"=="0" (
     exit /b %result%
 )
 echo Built "%CD%\build\game.exe"
+if "%player%"=="1" echo Player build: stage project.json and content beside game.exe in a separate package folder.
 if "%run%"=="0" (popd & exit /b 0)
 set "executable=%CD%\build\game.exe"
 call :run_game
@@ -100,6 +118,7 @@ goto scan_arguments
 set "result=!errorlevel!"
 endlocal & exit /b %result%
 :help
-echo Usage: build.bat [--rune-root ^<directory^>] [--release] [--run] [-- ^<game arguments^>]
+echo Usage: build.bat [--rune-root ^<directory^>] [--release ^| --player] [--run] [-- ^<game arguments^>]
 echo RUNE_ROOT can also point to your Rune checkout.
+echo --player builds an optimized player executable; stage content beside it before launching.
 exit /b 0

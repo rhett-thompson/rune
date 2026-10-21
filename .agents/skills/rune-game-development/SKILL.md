@@ -37,6 +37,18 @@ for a small feature. Check installed source signatures before inventing calls.
   location. Preserve an existing game's structure. Learn from examples in place:
   they can depend on neighboring assets and helpers and are not standalone game
   templates.
+- Generated games use `rune.init_project()` for executable-relative startup:
+  development binaries in `build/` use the parent project's JSON; player binaries
+  use adjacent JSON/content. `--player` is a distinct runtime profile from
+  optimized `--release`. Use `engine.project_directory` for optional renderer
+  roots and `rune.resource_path` for custom file reads; keep writes in user-data
+  storage. See the project workflow for staging and migration limits.
+- Publish standalone games with `tools/publish.bat` or `tools/publish.sh` and
+  the game's `publish.json`. Include complete resource folders and explicit
+  game notices; custom compiler requirements belong in that config. Publishing
+  validates staged references and native dependencies before producing a fresh
+  folder/archive. Check the documented host/ABI/runtime requirements and test
+  the extracted game; a successful archive alone does not prove compatibility.
 - Prefer the engine-owned startup scene and registered `rune.System` callbacks.
   Register custom component types before loading scenes that use them. Choose
   callback timing from the lifecycle reference rather than manually advancing
