@@ -59,6 +59,11 @@ and include applicable asset licenses/credits. Paths remain game-relative;
 directories are copied completely without pruning. Additional compiler
 collections/defines belong in `publish.json`; Rune/r3d are supplied automatically.
 
+`publish.assets.json` starts with an empty `roots` list and is already registered
+in `publish.json` under `prune.manifests`. Add files or directory trees loaded by
+code there, including later scenes, and keep their paths covered by `content`.
+Pruning stays disabled until you set `prune.enabled` to true.
+
 A packaged player looks for `project.json` beside itself and launches from any
 working directory. You can also stage a `--player` executable manually:
 

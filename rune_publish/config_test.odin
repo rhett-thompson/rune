@@ -92,3 +92,26 @@ config_test_replace :: proc(source, old, replacement: string) -> string {
 	result, _ := strings.replace_all(source, old, replacement)
 	return result
 }
+
+@(test)
+config_pruning_is_explicit_and_paths_are_portable :: proc(t: ^testing.T) {
+	arena: mem.Dynamic_Arena
+	mem.dynamic_arena_init(&arena)
+	defer mem.dynamic_arena_destroy(&arena)
+	context.allocator = mem.dynamic_arena_allocator(&arena)
+	base, error := decode_config(transmute([]u8)string(CONFIG_TEST_BASE))
+	testing.expect(t, error == "" && !base.prune.enabled && len(base.prune.roots) == 0 && len(base.prune.manifests) == 0)
+	source := config_test_replace(CONFIG_TEST_BASE, `"content":`, `"prune":{"enabled":true,"roots":["scenes/","assets/code-loaded.json"],"manifests":["publish.assets.json"]},"content":`)
+	config, prune_error := decode_config(transmute([]u8)source)
+	testing.expect(t, prune_error == "" && config.prune.enabled && len(config.prune.roots) == 2 && config.prune.manifests[0] == "publish.assets.json", prune_error)
+	for pruning in ([]string{
+		`true`, `{"unknown":true}`, `{"enabled":"yes"}`, `{"enabled":1}`,
+		`{"roots":"assets/"}`, `{"roots":[42]}`, `{"roots":["../outside"]}`,
+		`{"roots":["assets/","assets/"]}`, `{"manifests":["C:/outside.json"]}`,
+		`{"manifests":["meta.json","meta.json"]}`, `{"enabled":true,"enabled":false}`,
+	}) {
+		invalid := config_test_replace(CONFIG_TEST_BASE, `"content":`, config_test_replace(`"prune":$pruning,"content":`, "$pruning", pruning))
+		_, error := decode_config(transmute([]u8)invalid)
+		testing.expect(t, error != "", pruning)
+	}
+}

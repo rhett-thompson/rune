@@ -23,6 +23,11 @@ New-Item -ItemType Directory -Force build | Out-Null
 ```
 
 Rune's Windows launcher and build/validation helpers select MSVC themselves.
+Published Windows players additionally select `-subsystem:windows`. If a
+published game opens a console, inspect its PE optional-header Subsystem:
+2 is Windows GUI, 3 is Windows CUI. The publisher's compiler arguments and
+native audit enforce GUI in `rune_publish/process.odin` and `native.odin`;
+changing runtime window visibility does not change the executable subsystem.
 Existing generated games retain copied build helpers: inspect that game's
 `build.bat` when an engine/toolchain upgrade exposes an old linker choice.
 
@@ -101,7 +106,7 @@ error 5 until that same handle was explicitly closed. This is a pinned-toolchain
 observation, not a claim about later Odin releases or every access-denied error.
 
 Rune's publisher uses `read_all_directory_by_path` recursion in
-`tools/publisher/main.odin` so enumeration closes before finalization; its
+`rune_publish/main.odin` so enumeration closes before finalization; its
 `main_finalization_moves_files_and_directories_without_replacing_targets` test
 records inventory before moving the populated directory. If package finalization
 fails only while the publisher is alive, inspect retained search/file handles

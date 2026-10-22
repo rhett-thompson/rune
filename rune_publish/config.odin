@@ -13,6 +13,12 @@ Config :: struct {
 	id, name, version, executable: string,
 	targets, content, licenses: []string,
 	build: Build_Settings,
+	prune: Prune_Settings,
+}
+
+Prune_Settings :: struct {
+	enabled: bool,
+	roots, manifests: []string,
 }
 
 Build_Settings :: struct {
@@ -34,7 +40,7 @@ decode_config :: proc(bytes: []u8) -> (Config, string) {
 	if parse_error != nil {return {}, fmt.aprintf("invalid publish.json: %v", parse_error)}
 	object, is_object := value.(json.Object)
 	if !is_object {return {}, "publish.json must contain an object"}
-	if error := config_keys(object, {"$schema", "id", "name", "version", "executable", "targets", "content", "licenses", "build"}, "publish.json"); error != "" {return {}, error}
+	if error := config_keys(object, {"$schema", "id", "name", "version", "executable", "targets", "content", "licenses", "build", "prune"}, "publish.json"); error != "" {return {}, error}
 	if schema, found := object["$schema"]; found {
 		if _, valid := schema.(json.String); !valid {return {}, "$schema must be a string"}
 	}
@@ -114,7 +120,39 @@ decode_config :: proc(bytes: []u8) -> (Config, string) {
 			result.build.extra_linker_flags = flags
 		}
 	}
+	if raw, found := object["prune"]; found {
+		prune, valid := raw.(json.Object)
+		if !valid {return {}, "prune must be an object"}
+		if error := config_keys(prune, {"enabled", "roots", "manifests"}, "prune"); error != "" {return {}, error}
+		if raw_enabled, found := prune["enabled"]; found {
+			enabled, valid := raw_enabled.(json.Boolean)
+			if !valid {return {}, "prune.enabled must be a boolean"}
+			result.prune.enabled = enabled
+		}
+		for field in ([2]string{"roots", "manifests"}) {
+			if value, found := prune[field]; found {
+				paths, error := config_path_array(value, fmt.aprintf("prune.%s", field))
+				if error != "" {return {}, error}
+				if field == "roots" {result.prune.roots = paths} else {result.prune.manifests = paths}
+			}
+		}
+	}
 	return result, ""
+}
+
+config_path_array :: proc(value: json.Value, location: string) -> ([]string, string) {
+	array, valid := value.(json.Array)
+	if !valid {return nil, fmt.aprintf("%s must be a string array", location)}
+	paths := make([]string, len(array))
+	seen := make(map[string]bool)
+	for value, i in array {
+		path, valid := value.(json.String)
+		if !valid || !config_content_path(path) {return nil, fmt.aprintf("%s[%d] must be a portable project-relative path", location, i)}
+		if seen[path] {return nil, fmt.aprintf("%s contains duplicate path %s", location, path)}
+		seen[path] = true
+		paths[i] = path
+	}
+	return paths, ""
 }
 
 config_keys :: proc(object: json.Object, allowed: []string, location: string) -> string {

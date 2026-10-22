@@ -93,6 +93,9 @@ parse_pe_imports :: proc(data: []u8, application := true) -> ([]string, string) 
 		return nil, "invalid or truncated PE optional header/sections"
 	}
 	if native_u16(data, optional) != 0x20b {return nil, "Windows package requires PE32+ (64 bit)"}
+	if application && native_u16(data, optional+68) != 2 {
+		return nil, "Windows player requires the Windows GUI subsystem; publish with -subsystem:windows to avoid a console window"
+	}
 	headers := native_u32(data, optional+60)
 	section_start := optional+optional_size
 	sections := make([]PE_Section, section_count)

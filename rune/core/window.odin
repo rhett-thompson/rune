@@ -6,6 +6,9 @@ import rl "vendor:raylib"
 Window_Mode :: enum {Windowed, Borderless, Fullscreen}
 
 Window_State :: struct {
+	// Startup remains hidden through the first presented frame when requested.
+	show_pending: bool,
+	startup_mode: Window_Mode,
 	// Native client size and desktop position, retained across mode changes.
 	size: [2]i32,
 	position: rl.Vector2,
@@ -45,7 +48,10 @@ window_mode_name :: proc(mode: Window_Mode) -> string {
 	return ""
 }
 
-window_mode :: proc() -> Window_Mode {
+// With an engine, include an exclusive mode queued until startup is revealed.
+// Without one, report the actual native window state.
+window_mode :: proc(engine: ^Engine = nil) -> Window_Mode {
+	if engine != nil && engine.window.show_pending {return engine.window.startup_mode}
 	if rl.IsWindowFullscreen() {return .Fullscreen}
 	if rl.IsWindowState({.WINDOW_UNDECORATED}) || rl.IsWindowState({.BORDERLESS_WINDOWED_MODE}) {return .Borderless}
 	return .Windowed
@@ -55,8 +61,17 @@ window_mode :: proc() -> Window_Mode {
 // Changes runtime state only; project.json remains the startup configuration.
 set_window_mode :: proc(engine: ^Engine, mode: Window_Mode) -> bool {
 	if engine == nil || !rl.IsWindowReady() || window_mode_name(mode) == "" {return false}
+	if engine.window.show_pending && mode == .Fullscreen {
+		engine.window.startup_mode = mode
+		// GLFW's Win32 monitor attachment shows even a hidden window. Wait
+		// until a complete frame has been painted before entering fullscreen.
+		return true
+	}
 	previous := window_mode()
-	if previous == mode {return true}
+	if previous == mode {
+		if engine.window.show_pending {engine.window.startup_mode = mode}
+		return true
+	}
 	monitor := rl.GetCurrentMonitor()
 	monitor_size := [2]i32{rl.GetMonitorWidth(monitor), rl.GetMonitorHeight(monitor)}
 	if mode == .Borderless && (monitor_size[0] <= 0 || monitor_size[1] <= 0) {return false}
@@ -103,7 +118,25 @@ set_window_mode :: proc(engine: ^Engine, mode: Window_Mode) -> bool {
 	}
 	// Monitor changes can reset the swap interval. Force the requested state.
 	apply_vsync(vsync)
-	return window_mode() == mode
+	succeeded := window_mode() == mode
+	if succeeded && engine.window.show_pending {engine.window.startup_mode = mode}
+	return succeeded
+}
+
+// Built-in loops call this after the first EndDrawing. Custom loops should do
+// the same when using init(..., defer_window_show=true). Later calls are no-ops,
+// preserving windows deliberately hidden by the application after startup.
+show_window :: proc(engine: ^Engine) -> bool {
+	if engine == nil || !rl.IsWindowReady() {return false}
+	if !engine.window.show_pending {return true}
+	mode := engine.window.startup_mode
+	engine.window.show_pending = false
+	if !set_window_mode(engine, mode) {
+		engine.window.show_pending = true
+		return false
+	}
+	rl.ClearWindowState({.WINDOW_HIDDEN})
+	return true
 }
 
 @(private)

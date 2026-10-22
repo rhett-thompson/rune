@@ -49,10 +49,11 @@ if errorlevel 1 (call :fail "build window_validation_shared") else echo PASS bui
 rem Exercise the player policy as well as the default development validator.
 call :build player_profile_player_validation tools\player_profile_validation "-define:RUNE_PLAYER=true"
 call :build rune_relay rune_relay
+call :build rune_publish rune_publish
 for /f "usebackq delims=" %%N in ("build\validate-built.tmp") do call :run_validator "%%N"
 for %%N in (console ecs audio core geometry render r3d_bridge save input ui network replication navigation pathutil) do call :test_rune "%%N"
-odin test tools/publisher -collection:rune=rune -define:ODIN_TEST_THREADS=1 -out:build/publisher_test.exe -linker:msvc
-if errorlevel 1 call :fail "test publisher"
+odin test rune_publish -collection:rune=rune -define:ODIN_TEST_THREADS=1 -out:build/rune_publish_test.exe -linker:msvc
+if errorlevel 1 call :fail "test rune_publish"
 odin test rune_relay -collection:rune=rune "-out:build/rune_relay_config_test.exe" -linker:msvc
 if errorlevel 1 call :fail "test rune_relay configuration"
 odin test rune_relay/server -collection:rune=rune "-out:build/rune_relay_test.exe" -linker:msvc

@@ -15,6 +15,7 @@ foreign {
 	GetWindowRect :: proc(handle: rawptr, rect: ^Native_Rect) -> i32 ---
 	MonitorFromWindow :: proc(handle: rawptr, flags: u32) -> rawptr ---
 	GetMonitorInfoW :: proc(monitor: rawptr, info: ^Monitor_Info) -> i32 ---
+	ShowWindow :: proc(handle: rawptr, command: i32) -> i32 ---
 }
 
 @(private)

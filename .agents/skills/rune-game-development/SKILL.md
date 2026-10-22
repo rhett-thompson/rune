@@ -43,12 +43,25 @@ for a small feature. Check installed source signatures before inventing calls.
   optimized `--release`. Use `engine.project_directory` for optional renderer
   roots and `rune.resource_path` for custom file reads; keep writes in user-data
   storage. See the project workflow for staging and migration limits.
-- Publish standalone games with `tools/publish.bat` or `tools/publish.sh` and
-  the game's `publish.json`. Include complete resource folders and explicit
-  game notices; custom compiler requirements belong in that config. Publishing
+- Publish standalone games with the `rune_publish/` command-line application,
+  using `tools/publish.bat` or `tools/publish.sh` and the game's `publish.json`.
+  See `rune_publish/README.md` for direct builds and CLI options.
+  Include resource folders and explicit game notices;
+  opt-in `prune` follows known references plus explicit roots/manifests for
+  code-loaded/custom data. Keep generated manifests current with input hashes
+  and preview with `--dry-run`. Custom compiler requirements belong in that config. Publishing
   validates staged references and native dependencies before producing a fresh
   folder/archive. Check the documented host/ABI/runtime requirements and test
   the extracted game; a successful archive alone does not prove compatibility.
+- When adding, changing, or removing game code that loads assets, scenes,
+  prefabs, or custom data, update the game's publishing dependency manifest in
+  the same change, including when pruning is currently disabled. Declare
+  runtime-selected files or their complete directory trees; Rune does not scan
+  Odin source. Reuse the game's existing manifest or generator.
+  New games register an empty `publish.assets.json`; populate its `roots` while
+  preserving the game's opt-in pruning setting. See
+  [code-loaded resources](references/project-workflow.md#declare-code-loaded-resources)
+  for manifest creation, registration, and validation.
 - Prefer the engine-owned startup scene and registered `rune.System` callbacks.
   Register custom component types before loading scenes that use them. Choose
   callback timing from the lifecycle reference rather than manually advancing

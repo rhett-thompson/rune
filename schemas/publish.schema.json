@@ -48,7 +48,7 @@
       "minItems": 1,
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/contentPath" },
-      "description": "Files and entire directories to include, preserving their paths. A trailing slash is allowed for directories. Include project.json and every content directory used by game code."
+      "description": "Candidate files and complete directories, preserving their paths. All are copied unless prune.enabled selects their reachable subset. A trailing slash is allowed for directories. Include project.json and every possible runtime resource."
     },
     "licenses": {
       "type": "array",
@@ -56,6 +56,24 @@
       "items": { "$ref": "#/$defs/contentPath" },
       "default": [],
       "description": "Additional game-specific license and credit files or directories. Required Rune dependency notices are added by the publisher."
+    },
+    "prune": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Opt-in reachability pruning of the content inventory. Declare code-loaded resources explicitly; all license entries remain included.",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "roots": {
+          "type": "array", "uniqueItems": true,
+          "items": { "$ref": "#/$defs/contentPath" },
+          "description": "Additional reachable files or directory trees within content, beyond project.json and its dependencies."
+        },
+        "manifests": {
+          "type": "array", "uniqueItems": true,
+          "items": { "$ref": "#/$defs/contentPath" },
+          "description": "Project-relative version 1 dependency manifests declaring roots, custom dependency edges, and optional source input hashes. These metadata files need not be included in content."
+        }
+      }
     },
     "build": {
       "type": "object",

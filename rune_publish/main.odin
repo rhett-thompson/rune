@@ -19,7 +19,7 @@ Archive_Suffix :: ".zip" when ODIN_OS == .Windows else ".tar.gz"
 Options :: struct {
 	project, output, target, rune_root, compiler, glibc_max: string,
 	windows_runtime_directory, windows_runtime_license: string,
-	help: bool,
+	help, dry_run: bool,
 }
 File_Record :: struct {path: string, size: i64, sha256: string, executable: bool}
 Source_Revision :: struct {commit, state: string}
@@ -32,6 +32,7 @@ Manifest :: struct {
 	native_sources: map[string]json.Value,
 	native: Native_Audit,
 	files: []File_Record,
+	asset_pruning: Prune_Report,
 }
 
 main :: proc() {
@@ -54,6 +55,7 @@ parse_options :: proc(args: []string) -> (Options, string) {
 		if seen[key] {return {}, fmt.aprintf("Duplicate option: %s", key)}
 		seen[key] = true
 		switch key {
+		case "--dry-run": options.dry_run = true
 		case "--project", "--output", "--target", "--rune-root", "--odin", "--glibc-max", "--windows-runtime-directory", "--windows-runtime-license":
 			if i+1 == len(args) || args[i+1] == "" {return {}, fmt.aprintf("Missing value for %s", key)}
 			i += 1
@@ -77,10 +79,14 @@ run_main :: proc(args: []string) -> int {
 	options, error := parse_options(args)
 	if error != "" {fmt.eprintln(error); return 2}
 	if options.help {
-		fmt.println("Usage: tools/publish.bat|sh [--project GAME_DIRECTORY] [--output NEW_PACKAGE_DIRECTORY]")
+		fmt.println("Rune Publish - build portable Rune game packages.")
+		fmt.println("Usage: rune_publish [--project GAME_DIRECTORY] [--output NEW_PACKAGE_DIRECTORY]")
 		fmt.println("       [--target windows-amd64|linux-amd64] [--odin COMPILER] [--glibc-max 2.39]")
+		fmt.println("       [--rune-root ENGINE_DIRECTORY]")
 		fmt.println("       [--windows-runtime-directory OFFICIAL_VC_CRT_DIRECTORY] [--windows-runtime-license NOTICE]")
+		fmt.println("       [--dry-run] Validate content and report pruning without building or writing a package.")
 		fmt.println("Builds publish.json as a player package on the matching host OS, with an adjacent ZIP/tar.gz.")
+		fmt.println("Use --rune-root or RUNE_ROOT with a standalone binary; tools/publish.bat|sh supplies it automatically.")
 		return 0
 	}
 	if error = publish(options); error != "" {fmt.eprintln("Publishing failed: ", error); return 1}
@@ -119,6 +125,17 @@ publish :: proc(options: Options) -> string {
 	}
 	files, content_error := collect_content(game_root, config, binary_name)
 	if content_error != "" {return content_error}
+	retained_files, pruning, pruning_error := prune_content(game_root, config, files)
+	if pruning_error != "" {return pruning_error}
+	files = retained_files
+	if pruning.enabled {
+		fmt.printf("Asset pruning: retained %d of %d files; removed %d files (%d bytes).\n", pruning.retained_files, pruning.candidate_files, pruning.pruned_files, pruning.pruned_bytes)
+	}
+	if options.dry_run {
+		if error := validate_content_inventory(game_root, files); error != "" {return error}
+		fmt.println("Dry run: content dependency checks passed; no package was written.")
+		return ""
+	}
 	output := options.output
 	if output == "" {output = fmt.aprintf("%s/build/publish/%s-%s-%s", game_root, config.id, config.version, options.target)}
 	output, path_error = pathutil.absolute(output)
@@ -184,6 +201,7 @@ publish :: proc(options: Options) -> string {
 		compiler = strings.trim_space(version), config_sha256 = config_hash,
 		rune_source = source_revision(rune_root), game_source = source_revision(game_root),
 		profile = "player", configuration = config, native = audit, files = records,
+		asset_pruning = pruning,
 		native_sources = native_source_pins(rune_root),
 	}
 	manifest_data, marshal_error := json.marshal(manifest, {pretty = true, use_spaces = true})

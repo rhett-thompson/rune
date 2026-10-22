@@ -216,7 +216,9 @@ project_allocator :: proc(project: ^Project) -> mem.Allocator {
 	return mem.dynamic_arena_allocator(project.arena)
 }
 
-init :: proc(project_path: string) -> (Engine, bool) {
+// Defer showing the native window until run presents its first complete frame.
+// Custom loops finish startup with show_window after their first EndDrawing.
+init :: proc(project_path: string, defer_window_show: bool = false) -> (Engine, bool) {
 	absolute_path, path_error := pathutil.absolute(project_path, context.temp_allocator)
 	if path_error != nil {return {}, false}
 	project, ok := load_project(absolute_path)
@@ -264,7 +266,9 @@ init :: proc(project_path: string) -> (Engine, bool) {
 
 	title, _ := strings.clone_to_cstring(project.window.title)
 	defer delete(title)
-	flags: rl.ConfigFlags
+	// Configure geometry and display mode before exposing the native surface.
+	// Always set this explicitly: raylib retains flags across CloseWindow.
+	flags: rl.ConfigFlags = {.WINDOW_HIDDEN}
 	if project.window.msaa_4x {flags += {.MSAA_4X_HINT}}
 	if project.window.high_dpi {flags += {.WINDOW_HIGHDPI}}
 	if project.window.resizable {flags += {.WINDOW_RESIZABLE}}
@@ -300,6 +304,7 @@ init :: proc(project_path: string) -> (Engine, bool) {
 				size = initial_window_size, position = initial_window_position,
 				saved = true, geometry_pending_until = rl.GetTime()+1,
 				target_fps = project.window.target_fps,
+				show_pending = true,
 			},
 			registry = registry,
 			assets = asset_manager,
@@ -316,6 +321,7 @@ init :: proc(project_path: string) -> (Engine, bool) {
 	mode := Window_Mode.Fullscreen if project.window.fullscreen else Window_Mode.Windowed
 	if project.window.mode != "" {mode, _ = parse_window_mode(project.window.mode)}
 	set_window_mode(&engine, mode)
+	if !defer_window_show {show_window(&engine)}
 	return engine, true
 }
 
@@ -613,6 +619,7 @@ run_callbacks :: proc(engine: ^Engine, on_update: Update_Proc, on_draw: Draw_Pro
 		console.draw(&engine.console)
 		engine.debug.sample.render_ms = (rl.GetTime() - draw_started) * 1000
 		rl.EndDrawing()
+		show_window(engine)
 		update_fps_title(engine)
 		debug_profile_finished_frame(engine)
 	}
@@ -721,6 +728,7 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 		console.draw(&engine.console)
 		engine.debug.sample.render_ms = (rl.GetTime() - draw_started) * 1000
 		rl.EndDrawing()
+		show_window(engine)
 		update_fps_title(engine)
 		debug_profile_finished_frame(engine)
 	}
@@ -991,6 +999,15 @@ shutdown :: proc(engine: ^Engine) {
 		delete(engine.systems)
 		input.destroy(&engine.input)
 		destroy_project(&engine.project)
+		// CloseWindow retains config flags. A retained fullscreen flag would
+		// bypass hidden creation when another engine starts in this process.
+		rl.SetWindowState({.WINDOW_HIDDEN})
+		when ODIN_OS == .Windows {
+			// GLFW ignores hide requests in exclusive fullscreen. Hide the
+			// native surface before restoring its mode so shutdown stays hidden.
+			ShowWindow(rl.GetWindowHandle(), 0) // SW_HIDE
+		}
+		reset_window_mode()
 		rl.CloseWindow()
 		engine.is_running = false
 	}

@@ -129,14 +129,14 @@ content_rejects_authored_external_references_and_wrong_case :: proc(t: ^testing.
 	content_test_game(t, root)
 	content_test_write(t, root, "assets/image.png", "image")
 	for reference in ([]string{"../outside.png", "/absolute.png", "C:/absolute.png", "assets/IMAGE.png", "prefab://../../outside.png"}) {
-		text := fmt.aprintf(`{"name":"Main","entities":[{"components":{"SpriteRenderer":{"texture":"%s"}}}]}`, reference)
+		text := config_test_replace(`{"name":"Main","entities":[{"components":{"SpriteRenderer":{"texture":"$path"}}}]}`, "$path", reference)
 		content_test_write(t, root, "scenes/main.scene.json", text)
 		error := validate_staged_project(root)
 		testing.expect(t, error != "", reference)
 	}
 	// Absolute references to a real source file must not pass through validation.
 	path := content_slashes(fmt.aprintf("%s/assets/image.png", root))
-	content_test_write(t, root, "scenes/main.scene.json", fmt.aprintf(`{"name":"Main","entities":[{"components":{"SpriteRenderer":{"texture":"%s"}}}]}`, path))
+	content_test_write(t, root, "scenes/main.scene.json", config_test_replace(`{"name":"Main","entities":[{"components":{"SpriteRenderer":{"texture":"$path"}}}]}`, "$path", path))
 	testing.expect(t, validate_staged_project(root) != "")
 }
 

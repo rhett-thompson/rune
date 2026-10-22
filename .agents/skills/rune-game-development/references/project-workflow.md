@@ -9,9 +9,10 @@ Use the current `toolchain.json` and source as the authority for changing pins.
 
 For a new independent game, use `tools/new_project.bat` or
 `tools/new_project.sh`. They copy `templates/blank_project`, local schemas,
-scene/input JSON, `publish.json`, and Windows/Linux build helpers; they refuse to overwrite an
-existing destination. The initial scene is empty, so a window showing only its
-background is expected. Add an active Camera2D and drawable entities for Rune's
+scene/input JSON, `publish.json`, `publish.assets.json`, and Windows/Linux build
+helpers; they refuse to overwrite an existing destination. The initial scene is
+empty, so a window showing only its background is expected. Add an active
+Camera2D and drawable entities for Rune's
 automatic 2D scene rendering, or explicitly integrate 3D rendering.
 
 Example from `RUNE_ROOT` on Windows, adapting the destination to the request:
@@ -84,16 +85,27 @@ See `docs/publishing.md` for the maintained plan and manual staging layout.
 
 ## Publish the game
 
-Invoke the engine's `tools/publish.bat --project <GAME_ROOT>` or
+The standalone application lives in `rune_publish/`; `rune_publish/README.md`
+documents its direct locked builds, tests, CLI options, and exit codes.
+Invoke it through the engine's compatibility launchers:
+`tools/publish.bat --project <GAME_ROOT>` or
 `sh tools/publish.sh --project <GAME_ROOT>`. Generated games include `publish.json`
 and its local schema; existing games must add a config and adopt portable
 startup. The config supplies ID/title/version/executable, enabled native targets,
 explicit `content` files/directories, optional game `licenses`, and optional
 build collections/typed defines/linker flags. Paths are game-relative; sibling
-build-only source collections may use `../`. Include entire directories for
-code-loaded assets; automatic checks cannot discover arbitrary Odin/custom-data
-references. Rune/r3d collections and player/static-raylib flags are reserved and
+build-only source collections may use `../`. By default complete content trees
+are copied. Opt into `prune.enabled` to keep the dependency closure from project
+startup/input, `prune.roots`, dependency manifests, and all game licenses.
+Declare code-loaded resources/custom-data edges explicitly; Rune does not scan
+arbitrary Odin/JSON. Manifest `inputs` can hash source files/directories to reject
+stale generated roots. Retain asset notices under `licenses` even when inside
+prunable folders. Use `--dry-run` to validate selected content and inspect totals
+before building. See `docs/publishing.md` for manifest/checksum semantics and the
+package's `asset_pruning` report. Rune/r3d collections and player/static-raylib flags are reserved and
 supplied by the publisher, independently of the game's copied build helpers.
+Windows packages also use `-subsystem:windows` and audit the resulting PE GUI
+subsystem so launching the player does not create a console window.
 
 The default output is `GAME_ROOT/build/publish/<id>-<version>-<target>/`, plus an
 adjacent Windows ZIP or Linux tar.gz. `--output` selects a fresh package directory;
@@ -130,6 +142,62 @@ and the actual rendering path. The manifest's native audit and a successful
 build do not qualify older Linux systems, physical hardware, or audible output.
 See `docs/publishing.md` for exact commands, config fields, and validation limits.
 
+## Declare code-loaded resources
+
+Whenever game code adds, changes, or removes a file load, maintain its publishing
+dependency manifest in the same change. This includes later scene transitions,
+prefabs spawned from code, asset-manager calls, `rune.resource_path`, and direct
+raylib/OS reads of bundled resources. Resources named only in custom JSON fields
+also need declarations. Runtime-created saves, settings, and user-selected
+external files are not bundled resource dependencies.
+
+Use the game's existing manifest registered in `publish.json` under
+`prune.manifests`. New games already register `publish.assets.json` with an empty
+`roots` list and pruning disabled. If none exists, create
+`GAME_ROOT/publish.assets.json` with `version: 1` and a `roots` array, then append
+its filename to `prune.manifests` when the game has a publishing config. Preserve
+the current `prune.enabled`
+choice; maintaining declarations does not require enabling pruning. If there is
+no publishing config yet, keep the manifest and identify its required wiring.
+
+For example, a game that loads a cursor, a later scene, and runtime-selected
+enemy textures can declare:
+
+```json
+{
+  "version": 1,
+  "roots": [
+    "assets/ui/cursor.png",
+    "scenes/dungeon.scene.json",
+    "assets/enemies/"
+  ]
+}
+```
+
+Paths are case-correct, portable, and relative to `GAME_ROOT`, even when the
+manifest lives in a subdirectory. They must be covered by `publish.json`'s
+`content` inventory. Directory roots keep their entire tree; use specific files
+when the set is known, or a bounded directory for computed filenames. Globs are
+not supported. Known scene/prefab/model dependencies are followed recursively,
+so their recognized asset references need not be repeated. The manifest itself
+is source metadata and need not be shipped in `content`.
+
+Use `roots` for code-loaded resources. Use `dependencies` for custom data edges
+such as a retained level descriptor referring to a binary data file; an edge is
+followed only after its source file becomes reachable. Do not use Odin source
+files as dependency keys: those files normally are not package candidates.
+Reuse entries shared by other load sites; remove obsolete paths only after
+checking that no remaining code or data needs them. For generated manifests,
+update the generator or its source declarations and regenerate; refresh optional
+`inputs` hashes after relevant source changes. See `docs/publishing.md` for the
+manifest format and `rune_publish/pruning.odin` for traversal and hash semantics.
+
+For games with pruning enabled, run the publish launcher with `--dry-run`, then
+exercise the changed loading paths in the published game. A dry run checks
+declared references; it cannot detect missing declarations in arbitrary code.
+With pruning disabled, manifests are not traversed, so a successful dry run does
+not validate their completeness or contents.
+
 ## Continue development
 
 `rune.init_project(path)` accepts an explicit executable-relative layout;
@@ -146,6 +214,18 @@ change the process working directory or redirect arbitrary game writes.
 The Windows/Linux startup/profile and publishing validation contexts and their
 runtime/ABI limits are recorded in `docs/publishing.md`, including extracted
 packages and the explicit glibc ceiling used for Ubuntu 26.04 checks.
+
+Use `rune.init_project(defer_window_show = true)` or
+`rune.init(path, defer_window_show = true)` to keep asset loading and saved
+display preferences hidden. The default is false and reveals before returning.
+Built-in scene/callback loops reveal after their first completed `EndDrawing`;
+custom loops call `rune.show_window(&engine)` after their first full
+`EndDrawing`. It returns success and later calls do nothing, including when the
+game deliberately hides the window after startup. Windowed/borderless changes
+apply while hidden; exclusive fullscreen waits until reveal because its Win32
+transition forces visibility. Query `rune.window_mode(&engine)` for the requested
+startup mode, including queued fullscreen; the no-argument query reports native
+state. See `docs/display.md` and `rune/core/window.odin`.
 
 For manual Odin commands, use Rune's compiler-lock wrappers
 `tools/odin.ps1`, `tools/odin.bat`, or `sh tools/odin.sh`; supply

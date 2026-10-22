@@ -77,6 +77,18 @@ Relevant files: `rune/core/window*.odin`, `rune/core/core.odin`,
 - Custom engine loops should call `rune.begin_frame`, which processes pending
   window state. Follow the current display docs instead of copying old GLFW
   workarounds.
+- Startup creates a hidden native window through initial sizing and mode setup.
+  `rune.init(path, defer_window_show = true)` and
+  `rune.init_project(defer_window_show = true)` keep it hidden through game asset
+  and preference loading; false remains the default and reveals before return.
+  Built-in scene/callback loops reveal after the first completed `EndDrawing`;
+  custom loops call `rune.show_window(&game)` after their first full
+  `EndDrawing`. Its later calls do nothing, preserving an intentionally hidden
+  window. Win32 exclusive fullscreen forces visibility, so that startup mode is
+  queued until reveal while windowed/borderless changes apply hidden. Use
+  `rune.window_mode(&game)` for the queued request and the no-argument query for
+  native state. `tools/window_validation --deferred-startup-runtime` covers the
+  lifecycle; inspect visible startup separately on the affected desktop.
 
 Use the shared window validator link check and relevant runtime transitions.
 Distinguish WSLg/X11 software-rendering coverage from native Wayland, desktop

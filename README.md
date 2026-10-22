@@ -228,8 +228,9 @@ Pop-Location
 On Linux, use `sh tools/new_project.sh --path ../MyGame --name 'My Game'`, then
 `sh build.sh --rune-root /path/to/rune --run` from the new game directory.
 
-The new folder contains code, scene/input JSON, `publish.json`, local schemas,
-and both build scripts.
+The new folder contains code, scene/input JSON, `publish.json`, an empty
+`publish.assets.json`, local schemas, and both build scripts. The asset manifest
+is registered in the publishing config; pruning is disabled by default.
 The initial scene is empty. The script builds into the game's `build/` directory.
 The generated entry point uses `rune.init_project()` to find `../project.json`
 relative to that executable, so it also runs from an unrelated working directory.
@@ -249,13 +250,17 @@ player executable before launching it. The helpers reject `--player --run`
 because they do not yet stage a package. See [game publishing](docs/publishing.md)
 for the current APIs, manual layout, and remaining publishing work.
 
-To create a complete package, edit the game's `publish.json`, then run
+The standalone [Rune Publish command-line tool](rune_publish/README.md) creates
+complete game packages. Edit the game's `publish.json`, then run
 `..\rune\tools\publish.bat --project .` on Windows or
 `sh ../rune/tools/publish.sh --project .` on Linux, adapting the engine path.
 The command builds the player, stages included content and notices, validates
 references/native dependencies, and produces a fresh folder plus ZIP/tar.gz
 under the game's `build/publish/`. It refuses existing outputs. The publisher
 supplies the Rune/r3d collections; list other collections/defines in the config.
+Keep code-loaded scenes, assets, and custom data declared in
+`publish.assets.json`, with their paths covered by `publish.json`'s `content`.
+Enable `prune.enabled` to omit unreachable content; use `--dry-run` to preview it.
 See [publishing configuration and build](docs/publishing.md#publishing-configuration-and-build)
 for platform prerequisites, Linux compatibility limits, and output options.
 

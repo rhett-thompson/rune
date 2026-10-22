@@ -9,7 +9,7 @@ set "publishWorkspace=%runeRoot%\build\.rune-publish-tool-%RANDOM%-%RANDOM%"
 if exist "%publishWorkspace%" goto chooseWorkspace
 mkdir "%publishWorkspace%"
 if errorlevel 1 exit /b 1
-call "%runeRoot%\tools\odin.bat" build "%runeRoot%\tools\publisher" "-collection:rune=%runeRoot%\rune" -linker:msvc "-out:%publishWorkspace%\rune-publish.exe"
+call "%runeRoot%\tools\odin.bat" build "%runeRoot%\rune_publish" "-collection:rune=%runeRoot%\rune" -linker:msvc "-out:%publishWorkspace%\rune-publish.exe"
 if errorlevel 1 goto buildFailed
 "%publishWorkspace%\rune-publish.exe" --rune-root "%runeRoot%" %*
 set "publishResult=%errorlevel%"

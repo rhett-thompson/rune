@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:math"
 import "core:os"
 import rune "rune:core"
+import "rune:ecs"
 import "rune:ui"
 import rl "vendor:raylib"
 
@@ -13,6 +14,7 @@ when ODIN_OS == .Windows {
 	@(default_calling_convention = "system")
 	foreign {
 		GetWindowLongW :: proc(handle: rawptr, index: i32) -> i32 ---
+		IsWindowVisible :: proc(handle: rawptr) -> i32 ---
 	}
 }
 
@@ -374,6 +376,94 @@ validate_borderless_shutdown_reset :: proc() {
 	fmt.println("Window startup: closing in borderless does not affect the next windowed engine")
 }
 
+deferred_frames: int
+deferred_mode: rune.Window_Mode
+
+validate_startup_visibility :: proc(hidden: bool) {
+	assert(rl.IsWindowState({.WINDOW_HIDDEN}) == hidden,"startup hidden flag matches presentation state")
+	when ODIN_OS == .Windows {
+		assert((IsWindowVisible(rl.GetWindowHandle()) == 0) == hidden,"native startup visibility matches presentation state")
+	}
+}
+
+deferred_startup_update :: proc(game: ^rune.Engine) {
+	if deferred_frames == 0 {
+		validate_startup_visibility(true)
+	} else {
+		validate_startup_visibility(false)
+		assert(rune.window_mode() == deferred_mode,"requested native mode applied after first presentation")
+		// Repeated automatic reveal calls must not unhide a window later hidden
+		// by its owner. Also check nil handles while an engine is ready.
+		assert(!rune.show_window(nil))
+		// GLFW does not support hiding an exclusive fullscreen window.
+		if rune.window_mode()==.Fullscreen {assert(rune.set_window_mode(game,.Windowed))}
+		rl.SetWindowState({.WINDOW_HIDDEN})
+		assert(rune.show_window(game))
+		validate_startup_visibility(true)
+		rune.request_exit(game)
+	}
+}
+
+deferred_startup_draw :: proc(game: ^rune.Engine) {
+	validate_startup_visibility(true)
+	rl.ClearBackground(rl.BLACK)
+	deferred_frames += 1
+}
+
+deferred_scene_update :: proc(game: ^rune.Engine, world: ^ecs.World) {deferred_startup_update(game)}
+deferred_scene_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {deferred_startup_draw(game)}
+
+validate_deferred_startup_case :: proc(mode: rune.Window_Mode, scene_loop: bool) {
+	// Model project defaults followed by saved preferences, including
+	// cancellation/replacement of a pending exclusive fullscreen request.
+	write_project(`{"width":640,"height":480,"mode":"fullscreen","high_dpi":false}`)
+	game, ok := rune.init(fixture,defer_window_show=true)
+	assert(ok && rune.window_mode(&game) == .Fullscreen)
+	validate_startup_visibility(true)
+	assert(rune.set_window_mode(&game,.Windowed))
+	assert(rune.window_mode(&game) == .Windowed,"windowed cancels pending fullscreen")
+	assert(rune.set_window_mode(&game,mode))
+	assert(rune.window_mode(&game) == mode,"saved display preference takes effect before showing startup")
+	validate_startup_visibility(true)
+	deferred_mode=mode; deferred_frames=0
+	if scene_loop {
+		assert(rune.register_system(&game,{name="startup_visibility",ui_update=deferred_scene_update,draw=deferred_scene_draw}))
+		assert(os.write_entire_file("build/window-validation.scene.json",`{"name":"Startup validation","entities":[]}`)==nil)
+		defer os.remove("build/window-validation.scene.json")
+		assert(rune.load_active_scene(&game,"window-validation.scene.json"))
+		assert(rune.run(&game))
+	} else {rune.run(&game,deferred_startup_update,deferred_startup_draw)}
+	assert(deferred_frames>=1 && !rl.IsWindowReady(),"both built-in loops present and shut down")
+}
+
+validate_deferred_startup_reset :: proc() {
+	// A default initializer still shows immediately after a deferred/fullscreen
+	// engine closes, even when the previous owner explicitly hid its window.
+	game,ok:=rune.init(fixture)
+	assert(ok && rune.window_mode()==.Fullscreen)
+	validate_startup_visibility(false)
+	rune.shutdown(&game)
+	game,ok=rune.init(fixture,defer_window_show=true)
+	assert(ok)
+	validate_startup_visibility(true)
+	rune.shutdown(&game) // Closing before the first frame must also be safe.
+	write_project(`{"width":640,"height":480,"mode":"windowed"}`)
+	game,ok=rune.init(fixture)
+	assert(ok && rune.window_mode()==.Windowed)
+	validate_startup_visibility(false)
+	rune.shutdown(&game)
+}
+
+validate_deferred_startup_runtime :: proc() {
+	for scene_loop in ([]bool{false,true}) {
+		for mode in ([]rune.Window_Mode{.Windowed,.Borderless,.Fullscreen}) {
+			validate_deferred_startup_case(mode,scene_loop)
+		}
+	}
+	validate_deferred_startup_reset()
+	fmt.println("Deferred startup: native hidden state, saved modes, both frame loops and reinitialization passed")
+}
+
 main :: proc() {
 	defer os.remove(fixture)
 	validate_settings()
@@ -384,6 +474,7 @@ main :: proc() {
 			validate_borderless_shutdown_reset()
 			validate_runtime()
 		case "--frame-pacing-runtime": validate_frame_pacing_runtime()
+		case "--deferred-startup-runtime": validate_deferred_startup_runtime()
 		case "--startup-windowed": validate_startup_mode(.Windowed)
 		case "--startup-borderless": validate_startup_mode(.Borderless)
 		case "--startup-fullscreen": validate_startup_mode(.Fullscreen)

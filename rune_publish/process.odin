@@ -33,7 +33,7 @@ compiler_command :: proc(compiler, game_root, rune_root, binary: string, config:
 	append(&args, compiler, "build", game_root, "-o:speed", "-define:RUNE_PLAYER=true", "-define:RAYLIB_SHARED=false",
 		fmt.aprintf("-collection:rune=%s/rune", rune_root), fmt.aprintf("-collection:r3d=%s/third_party/r3d-odin", rune_root),
 		fmt.aprintf("-out:%s", binary))
-	when ODIN_OS == .Windows {append(&args, "-linker:msvc")}
+	when ODIN_OS == .Windows {append(&args, "-linker:msvc", "-subsystem:windows")}
 	for name, relative in config.build.collections {
 		path, _ := filepath.join({game_root, relative})
 		append(&args, fmt.aprintf("-collection:%s=%s", name, path))

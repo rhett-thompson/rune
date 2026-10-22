@@ -26,6 +26,7 @@ native_test_pe :: proc(normal, delayed: string) -> []u8 {
 	native_test_u16(data, 0x96, 2)
 	native_test_u16(data, 0x98, 0x20b)
 	native_test_u32(data, 0x98+60, 0x200)
+	native_test_u16(data, 0x98+68, 2)
 	native_test_u32(data, 0x98+108, 16)
 	section := 0x98+240
 	native_test_u32(data, section+12, 0x1000)
@@ -71,6 +72,27 @@ native_pe_imports :: proc(t: ^testing.T) {
 		testing.expect(t, audit_needed_libraries([]string{name}, true) != "", name)
 	}
 	testing.expect(t, windows_system_library("API-MS-WIN-CRT-RUNTIME-L1-1-0.DLL"))
+}
+
+@(test)
+native_pe_player_requires_gui_subsystem :: proc(t: ^testing.T) {
+	arena: mem.Dynamic_Arena
+	mem.dynamic_arena_init(&arena)
+	defer mem.dynamic_arena_destroy(&arena)
+	context.allocator = mem.dynamic_arena_allocator(&arena)
+	data := native_test_pe("kernel32.dll", "")
+	_, failure := parse_pe_imports(data)
+	testing.expect(t, failure == "", failure)
+	for subsystem in ([]u16{0, 1, 3}) {
+		native_test_u16(data, 0x98+68, subsystem)
+		_, failure = parse_pe_imports(data)
+		testing.expect(t, strings.contains(failure, "Windows GUI subsystem"), failure)
+	}
+	// Dependency DLLs do not control whether launching the player opens a console.
+	dll := native_test_dll("kernel32.dll", "")
+	native_test_u16(dll, 0x98+68, 3)
+	_, failure = parse_pe_imports(dll, false)
+	testing.expect(t, failure == "", failure)
 }
 
 @(test)

@@ -86,6 +86,7 @@ build window_validation_shared tools/window_validation -collection:r3d=third_par
 build player_profile_player_validation tools/player_profile_validation -define:RUNE_PLAYER=true
 
 build rune_relay rune_relay
+build rune_publish rune_publish
 
 # Validator names are repository directory names without spaces.
 for name in $built_validators; do
@@ -94,8 +95,8 @@ done
 for name in console ecs audio core geometry render r3d_bridge save input ui network replication navigation pathutil; do
     test_rune "$name"
 done
-if ! odin test tools/publisher -collection:rune=rune -define:ODIN_TEST_THREADS=1 -out:build/publisher_test; then
-    fail 'test publisher'
+if ! odin test rune_publish -collection:rune=rune -define:ODIN_TEST_THREADS=1 -out:build/rune_publish_test; then
+    fail 'test rune_publish'
 fi
 if ! odin test rune_relay -collection:rune=rune -out:build/rune_relay_config_test; then
     fail 'test rune_relay configuration'

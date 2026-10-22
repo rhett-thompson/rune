@@ -30,11 +30,11 @@ executable_project_path :: proc(path: string = Default_Project_Path, allocator :
 
 // Portable startup for generated games. init(path) remains available for
 // callers that deliberately resolve a project from CWD or another location.
-init_project :: proc(path: string = Default_Project_Path) -> (Engine, bool) {
+init_project :: proc(path: string = Default_Project_Path, defer_window_show: bool = false) -> (Engine, bool) {
 	project_path, error := executable_project_path(path)
 	if error != nil {return {}, false}
 	defer delete(project_path)
-	return init(project_path)
+	return init(project_path, defer_window_show)
 }
 
 // Resolve a path for custom game file I/O from the engine's resource root.

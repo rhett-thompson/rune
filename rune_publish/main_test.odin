@@ -81,6 +81,40 @@ main_options_validate_flags_and_preserve_argument_values :: proc(t: ^testing.T) 
 	}
 	help, help_error := parse_options({"--help"})
 	testing.expect(t, help_error == "" && help.help)
+	dry_run, dry_run_error := parse_options({"--dry-run"})
+	testing.expect(t, dry_run_error == "" && dry_run.dry_run)
+	_, duplicate_error := parse_options({"--dry-run", "--dry-run"})
+	testing.expect(t, duplicate_error != "")
+}
+
+@(test)
+main_dry_run_validates_content_without_compiler_or_output :: proc(t: ^testing.T) {
+	arena: mem.Dynamic_Arena
+	mem.dynamic_arena_init(&arena)
+	defer mem.dynamic_arena_destroy(&arena)
+	context.allocator = mem.dynamic_arena_allocator(&arena)
+	context.temp_allocator = context.allocator
+	root := main_test_root(t)
+	if root == "" {return}
+	defer main_test_cleanup(root)
+	content_test_game(t, root)
+	_ = main_test_write(t, root, "engine/rune/core/core.odin", "")
+	engine, _ := filepath.join({root, "engine"})
+	output, _ := filepath.join({root, "output"})
+	for prune in ([2]bool{false, true}) {
+		config := config_test_replace(`{"id":"dry-run","name":"Dry run","version":"1","executable":"dry-run","targets":["$target"],"content":["project.json","scenes/"],"prune":{"enabled":$prune}}`, "$target", Current_Target)
+		config = config_test_replace(config, "$prune", "true" if prune else "false")
+		testing.expect(t, config_json_syntax_valid(config), config)
+		_ = main_test_write(t, root, "publish.json", config)
+		options := Options{project=root, rune_root=engine, target=Current_Target, compiler="must-not-launch-a-compiler", output=output, dry_run=true, glibc_max="2.39"}
+		publish_error := publish(options)
+		testing.expect(t, publish_error == "", publish_error)
+		testing.expect(t, !path_is_present(output) && !path_is_present(fmt.aprintf("%s%s", output, Archive_Suffix)))
+		content_test_write(t, root, "scenes/main.scene.json", `{"name":"Missing","entities":[{"components":{"SpriteRenderer":{"texture":"missing.png"}}}]}`)
+		missing_error := publish(options)
+		testing.expect(t, strings.contains(missing_error, "missing.png"), missing_error)
+		content_test_game(t, root)
+	}
 }
 
 @(test)
@@ -123,7 +157,12 @@ main_compiler_argv_preserves_paths_and_typed_values :: proc(t: ^testing.T) {
 	testing.expect(t, main_test_has_arg(args, fmt.aprintf("-collection:rune=%s/rune", rune_root)))
 	testing.expect(t, main_test_has_arg(args, fmt.aprintf("-collection:r3d=%s/third_party/r3d-odin", rune_root)))
 	testing.expect(t, main_test_has_arg(args, fmt.aprintf("-out:%s", binary)))
-	when ODIN_OS == .Windows {testing.expect(t, main_test_has_arg(args, "-linker:msvc"))}
+	when ODIN_OS == .Windows {
+		testing.expect(t, main_test_has_arg(args, "-linker:msvc"))
+		testing.expect(t, main_test_has_arg(args, "-subsystem:windows"), "published players must not create a Windows console")
+	} else {
+		testing.expect(t, !main_test_has_arg(args, "-subsystem:windows"))
+	}
 	player_flags, static_flags := 0, 0
 	for arg in args {
 		if strings.has_prefix(arg, "-define:RUNE_PLAYER=") {player_flags += 1; testing.expect(t, arg == "-define:RUNE_PLAYER=true")}

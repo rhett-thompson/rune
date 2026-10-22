@@ -56,6 +56,28 @@ position are retained across runtime mode switches, including maximized state;
 desktop window managers may adjust the final decorated position. These settings
 are not persisted across application launches.
 
+## Startup visibility
+
+Rune creates the native window hidden while fitting its size and applying the
+project's mode. By default, `rune.init(path)` and `rune.init_project()` reveal it
+before returning. To keep asset loading and saved display preferences hidden,
+pass `defer_window_show = true`:
+
+```odin
+game, ok := rune.init_project(defer_window_show = true)
+```
+
+The built-in scene and callback loops reveal the window after their first
+completed `EndDrawing`. Custom loops must call `rune.show_window(&game)` after
+their first full `EndDrawing`. It returns success; later calls do nothing, so
+they do not reveal a window deliberately hidden after startup.
+
+`set_window_mode` applies windowed and borderless changes while hidden. Exclusive
+fullscreen is queued until reveal because the Win32 fullscreen transition shows
+the native window. Use `rune.window_mode(&game)` when loading display preferences
+to include that pending mode; `rune.window_mode()` reports the current native
+state. See `rune/core/core.odin` and `rune/core/window.odin` for lifecycle details.
+
 ## Code and console
 
 Call mode setters from update or between frames, before `BeginDrawing`:
@@ -174,6 +196,11 @@ Earlier runtime checks passed on Windows at 200% DPI. On 2026-10-16, static and
 shared raylib window checks also passed on Windows and Ubuntu WSLg/X11 at 100%
 scaling. Multi-monitor DPI moves, native Wayland, and macOS still require testing.
 
+On 2026-10-21, deferred startup checks passed on native Windows/GLFW at 100%
+scaling with static and shared raylib. These cover native visibility through the
+first frame, queued fullscreen, both built-in loops, and engine reinitialization.
+Deferred startup visibility on other desktops still requires runtime testing.
+
 ```powershell
 # Windows PowerShell; on Linux omit .exe and -linker:msvc, and use ./build/...
 New-Item -ItemType Directory -Force build | Out-Null
@@ -185,6 +212,7 @@ odin build tools/window_validation -linker:msvc -collection:rune=rune "-out:buil
 & "./build/window_validation$exe" --startup-windowed
 & "./build/window_validation$exe" --startup-borderless
 & "./build/window_validation$exe" --startup-fullscreen
+& "./build/window_validation$exe" --deferred-startup-runtime
 ```
 
 The validation helpers also compile this validator with
@@ -200,3 +228,7 @@ reinitialization. Reported swap timing depends on the driver and compositor.
 drawing/scissor pixels, and raylib mouse coordinates against Clay bounds. It
 briefly opens windows and switches display modes. Verify visible frame pacing
 and tearing separately on 60 Hz and high-refresh-rate displays.
+
+`--deferred-startup-runtime` checks hidden initialization, preference changes,
+and reveal after drawing. A passing lifecycle check alone does not prove that
+every desktop compositor presents the first frame without a flash.

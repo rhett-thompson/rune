@@ -6,5 +6,9 @@
   "executable": "blank-rune-project",
   "targets": ["windows-amd64", "linux-amd64"],
   "content": ["project.json", "input/", "scenes/"],
-  "licenses": []
+  "licenses": [],
+  "prune": {
+    "enabled": false,
+    "manifests": ["publish.assets.json"]
+  }
 }
