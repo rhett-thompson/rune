@@ -128,10 +128,11 @@ owns a deep copy and invalidates existing R3D material/instance caches through
 the asset revision. All uses of the same path share the preview. Getters return
 borrowed strings; clone retained values with `assets.clone_material_data` and
 release them with `destroy_material_data`. `material_data` sees the preview;
-`authored_material_data` bypasses it. Clear one or all previews on editor exit.
-Saving remains tool-owned: write JSON preserving required source fields, call
-`refresh_materials`, then clear the preview. See `docs/procedural-materials.md`
-and `rune/assets/material_preview.odin` for ownership and authoring limits.
+`authored_material_data` bypasses it. Clear one or all previews when live
+authoring ends. Saving remains tool-owned: write JSON preserving required source
+fields, call `refresh_materials`, then clear the preview. See
+`docs/procedural-materials.md` and `rune/assets/material_preview.odin` for
+ownership and authoring limits.
 
 Imported models can share default slot paths through the optional
 `<model path>.materials.json` sidecar (`{"materials":{"0":"materials/body.json"}}`).

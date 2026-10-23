@@ -1,13 +1,12 @@
 # Rune
 
-Rune is a lightweight, code-first game engine written in Odin. Projects,
+Rune is a lightweight, code-first 2D and 3D game engine written in Odin. Projects,
 scenes, prefabs, materials, tilesets, sprite animations, and input mappings are readable JSON files;
 gameplay behavior remains Odin code.
 
 Rune uses raylib for its platform layer, 2D rendering, input, and audio; r3d
 provides the advanced 3D rendering path; and Odin's vendor bindings provide
-Box2D and Box3D physics. The project remains usable without an editor: an
-editor is an optional future view over the same code and JSON files.
+Box2D and Box3D physics.
 
 ## License
 
@@ -35,6 +34,8 @@ their JSON fields and defaults, dependencies, runtime behavior, and linked guide
 
 - [Procedural materials](docs/procedural-materials.md): seamless noise-generated color, bump, and roughness maps with seed, scale, detail, and color controls. Try [Procedural Materials 3D](examples/procedural_material_3d/README.md).
 
+- [Live material authoring](docs/procedural-materials.md): shared material previews without file writes, plus [per-slot model material defaults](docs/components.md#modelrenderer) in hot-reloadable sidecar files.
+
 - [Skeletal animation events](docs/model-animation-events.md): reusable JSON marker tracks, reverse playback, silent seeks, and destination-clip events during blends. The skeletal example includes marker-driven sounds and effects.
 
 - [Sprite animation events](docs/animation-events.md): frame markers and a buffered Odin API for synchronized sounds, damage, and effects. Try [Animation Events 2D](examples/animation_events_2d/README.md).
@@ -43,18 +44,20 @@ their JSON fields and defaults, dependencies, runtime behavior, and linked guide
 
 - [Checkpoint saves](docs/save-load.md): opt-in components, game globals, spawned/deleted entities, per-scene progress, backups, and migrations. Try [Checkpoint Saves](examples/save_load_2d/README.md).
 
-- [Heightmap terrain](docs/terrain.md): chunked 3D landscapes, matching native collision, PNG/r16 heightmaps, and hot reload. Try [Highland Walk](examples/terrain_3d/README.md).
+- [Heightmap terrain](docs/terrain.md): chunked 3D landscapes, matching native collision, PNG/r16 heightmaps, up to eight blended material layers, height/slope rules or authored RGBA control maps, and hot reload. Decorative grass, trees, rocks, and custom model details use GPU instancing. Try [Highland Walk](examples/terrain_3d/README.md).
 - [Runtime static geometry](docs/static-geometry.md): finite voxel surface extraction, merged in-memory meshes, shared triangle collision, material authoring, and automatic R3D resource ownership.
 - [Memory diagnostics and maintenance](docs/memory.md): backing-buffer statistics, reclaimable component JSON, scene compaction, acknowledged change cleanup, and generated-mesh ownership transfer.
 
 - [Audio mixer buses](docs/audio-mixer.md): master/music/SFX/UI volume, mute, and fades.
 - [2D resolution policies](docs/display.md): fit, stretch, integer scaling, and canvas mouse mapping.
-- [3D character controller](docs/character-controller-3d.md): fixed-step capsule movement, slopes, stairs, crouching, and moving platforms.
+- [3D character controller](docs/character-controller-3d.md): fixed-step capsule movement, slopes, stairs, crouching, moving platforms, arbitrary gravity, free motion, dashes, and per-step external velocity.
 - [3D interactions](docs/interactions-3d.md): character reach, facing and visibility checks, press/hold actions, and prompts. The third-person course includes a door, pickup, and guide.
 - [3D trigger zones](docs/triggers-3d.md): box/sphere volumes, layer filtering, and enter/stay/exit events for characters and colliders. Try the third-person checkpoint and hazard.
 - [Animation transitions](docs/animation-transitions.md): queued sprite clips and skeletal pose blends.
-- [3D post processing](docs/post-processing.md): scene/camera profiles, distance and height fog, screen-space light shafts, bloom, tone mapping, occlusion, focus, and hot reload. Try [Post Processing 3D](examples/post_processing_3d/README.md).
+- [3D post processing](docs/post-processing.md): scene/camera profiles, distance and height fog, ray-marched volumetric fog, screen-space light shafts, localized air distortion, bloom, tone mapping, occlusion, focus, and hot reload. Try [Post Processing 3D](examples/post_processing_3d/README.md).
+- [3D foreground overlays](docs/overlays-3d.md): camera-local models with independent depth, including composition before scene HDR post processing for shared bloom, exposure, and tone mapping on Windows/Linux AMD64.
 - [Cloud volumes](docs/cloud-volumes.md): bounded 3D density, ray-marched opacity, directional shading, opaque-depth occlusion, and height fog at cloud sample distances.
+- [3D particles](docs/particles.md#code-owned-3d-bursts): code-owned particle pools with additive HDR bursts and instanced, alpha-blended billboards.
 
 - raylib-backed engine lifecycle and registered update/draw systems;
 - JSON projects, scenes, prefabs, materials, tilesets, sprite animations, input mappings, and schemas;
@@ -65,7 +68,7 @@ their JSON fields and defaults, dependencies, runtime behavior, and linked guide
 - input actions and runtime rebinding, audio components, tweening, and navigation;
 - generic pools for reusable Odin values, with generation-checked handles;
 - reusable 2D particle emitters with JSON settings, textures, and Odin-triggered bursts;
-- optional Clay UI with responsive layouts, buttons, sliders, and mouse/keyboard/gamepad focus;
+- optional Clay UI with responsive layouts, buttons, sliders, dropdowns, text fields, multiline editing, scroll panels, and mouse/keyboard/gamepad focus;
 - fixed-step Box2D physics and Box3D rigid bodies;
 - runtime console, gizmos, validation tools, and complete example games.
 
@@ -198,8 +201,8 @@ the mouse wheel browses the list; Enter or a click runs the selected example.
 D-pad or left stick navigates, A launches, and B exits. Hold START for one
 second to exit a Rune example and return to the launcher.
 The launcher keeps the active category when the example closes. Each example
-remains an independent Odin program and can still be run directly with its
-usual `odin run examples/<name> -o:none -collection:rune=rune` command. Launcher
+remains an independent Odin program and can still be run directly using its
+documented command, including the required linker and collection flags. Launcher
 entries and descriptions live in `examples/examples.json`. See the
 [example guide](examples/README.md) for a learning order, controls, and files to edit.
 
@@ -584,9 +587,10 @@ odin run examples/planetary_3d -o:none -linker:msvc -collection:rune=rune -out:b
 
 ## Clay UI
 
-`rune:ui` adds optional Clay layouts, styled buttons and sliders, pointer capture,
-and keyboard/gamepad focus. Build UI in the new `System.ui_update` phase, which
-continues while gameplay is paused, and draw it in `System.draw_ui`. The
+`rune:ui` adds optional Clay layouts, styled buttons, sliders, dropdowns,
+single-line and multiline text editing, scroll panels, images, pointer capture,
+and keyboard/gamepad focus. Build UI in `System.ui_update`, which continues while
+gameplay is paused, and draw it in `System.draw_ui`. The
 [Clay UI guide](docs/ui.md) covers input ownership, fonts, lifecycle, and the
 resizable pause-menu example:
 
@@ -616,6 +620,16 @@ Odin-triggered bursts, randomized lifetime and velocity, gravity, size/color
 fades, and optional textures with additive blending. The engine updates and
 renders particles automatically through the active 2D camera. See the
 [particle API and example](docs/particles.md).
+
+## 3D particles
+
+For code-owned effects, `rune:particles` provides fixed-capacity `Pool3D` storage
+for world-space bursts. Game code advances the pool during simulation and lends
+its live particles to the renderer. The r3d bridge supports additive HDR spheres
+and instanced, alpha-blended billboards with depth testing and scene post processing.
+A raylib-only drawing path is also available. These pools have no ECS component
+or automatic engine update. See [3D particle bursts](docs/particles.md#code-owned-3d-bursts)
+for emission, drawing, and ownership rules.
 
 ## Generic object pools
 
@@ -749,9 +763,10 @@ dependent; raylib falls back when the requested framebuffer cannot be created.
 
 ## Input actions
 
-Each project must point `input` at an input mapping JSON file. The engine loads
-and validates it during `rune.init`, then samples its bindings before every
-`on_update` callback. Actions support one or more keyboard, mouse-button, or
+Projects can set `input` to an input mapping JSON file, or omit it or leave it
+empty when mapped input is unnecessary. When a path is supplied, the engine loads
+and validates it during initialization, then samples its bindings before frame
+updates. Actions support one or more keyboard, mouse-button, or
 gamepad-button bindings; axes combine two named actions into a signed value
 or sample mouse movement and gamepad axes. Action edges follow the combined
 held state, so releasing a button on one device while another still holds
@@ -861,7 +876,9 @@ From the repository root on Windows:
 odin run examples/hello_world -o:none -linker:msvc -collection:rune=rune "-out:build/hello_world$exe"
 ```
 
-The example loads `project.json`; `scene.load` then reads `scenes/main.scene.json` and returns its populated runtime `World`.
+The example initializes from `project.json`, registers its gameplay component
+and draw system, then calls `rune.run(&game)` to load and run the configured
+startup scene, `scenes/main.scene.json`.
 
 ## Project validation
 
@@ -1081,7 +1098,7 @@ returned runtime handle for that World. IDs are unique when non-empty; names
 are display metadata and may be duplicated. Systems can inspect metadata with `ecs.entity_id`, `ecs.entity_name`,
 `ecs.entity_tag`, `ecs.has_tag`, `ecs.entity_layer_mask`, and
 `ecs.is_in_layer_mask`. Tags are one optional string; layers are a bitmask and
-are suitable for later render, camera, collision, and editor filtering.
+are suitable for later render, camera, and collision filtering.
 
 ## Scene-owned rendering
 
@@ -1096,11 +1113,16 @@ r3d_bridge.draw_scene_ex(&bridge, &world, rune.asset_manager(game), scene_view)
 
 For inspection tools, `r3d_bridge.scene_raycast(&world, origin, translation,
 ignore_entity, &bridge)` returns the closest rendered entity, world hit point,
-and distance along a bounded ray segment. It supports cube, plane, quad, and
-sphere primitives plus runtime static meshes, including render-only decals.
-The optional bridge supplies cached mesh bounds; the query also works without
-GPU initialization. It follows the rendered hierarchy and enabled state.
-Model assets, terrain, shader transparency, and volumes are outside this query.
+distance, and surface normal along a bounded ray segment. It supports cube,
+plane, quad, and sphere primitives plus runtime static meshes, including
+render-only decals.
+Supplying a bridge also includes imported models already in its cache, using
+conservative static bounding boxes rather than mesh triangles or animated poses.
+The query never loads models or creates GPU resources; primitive and runtime
+static-mesh queries work without GPU initialization. It follows the rendered
+hierarchy and enabled state. Terrain, shader displacement, transparency, and
+volumes are excluded. See [rendered scene queries](rune/r3d_bridge/scene_query.md)
+for cache requirements and the shared CPU picking API.
 
 `MeshRenderer` draws `cube`, horizontal `plane`, and vertical `quad` primitives
 through r3d; `SphereRenderer` draws a sphere. `SpriteRenderer` loads a project-relative texture path
@@ -1237,13 +1259,14 @@ following when the block is omitted:
   "materials": true,
   "animations": true,
   "tilesets": true,
-  "navmeshes": true
+  "navmeshes": true,
+  "shadow_profiles": true
 }
 ```
 
-Texture, model, terrain, material, tileset, animation, and navmesh reload use
-their corresponding flags; font reload follows `textures`. Project settings, input mappings, and
-audio-file contents are not automatically reloaded.
+Texture, model, terrain, material, tileset, animation, navmesh, and shadow-profile
+reload use their corresponding flags; font reload follows `textures`. Project
+settings, input mappings, and audio-file contents are not automatically reloaded.
 The normal engine-owned `rune.run(&game)`
 workflow watches the active scene automatically. Component-value-only edits
 are applied to the existing World; structural edits rebuild it and invoke each
@@ -1295,7 +1318,6 @@ World replacement, and free the clone when finished. `entity_ref_from_id` also
 borrows its argument; the literal above needs no allocation.
 
 Readable IDs such as `"player"` are suitable for hand-authored projects.
-Editor tooling may generate UUID-shaped IDs later without changing this API.
 
 ## Asset-backed 3D models
 
@@ -1420,6 +1442,16 @@ r3d material slots:
   }
 }
 ```
+
+An optional `<model path>.materials.json` sidecar supplies shared per-slot
+defaults for every instance of an imported model. Component-level `material`
+and `materials` settings take priority. Sidecars hot reload along with material
+assets; see [ModelRenderer](docs/components.md#modelrenderer).
+
+For live authoring, `assets.set_material_preview` updates all objects using a
+material path without writing its JSON file. Previews remain active until
+cleared and update existing renderer caches. The authoring tool owns saving;
+see [material previews](docs/procedural-materials.md) for lifetime and save order.
 
 The `textured_model_3d` example includes a simple OBJ pyramid and a UV-mapped
 crate with a textured, lit material. Press Space to switch scenes and Tab to
@@ -1776,6 +1808,6 @@ levels, next-piece and ghost previews, pause, and restart:
 odin run examples/tetris -o:none -linker:msvc -collection:rune=rune "-out:build/tetris$exe"
 ```
 
-### Skyboxes
+## Skyboxes
 
 Use a `Skybox` component for procedural skies, atmospheric scattering driven by a DirectionalLight, or image/HDR cubemaps through the r3d bridge. Supports rotation, brightness, scene and camera selection, and hot reload. See [skybox authoring](docs/skybox.md) and the [Skybox 3D example](examples/skybox_3d).

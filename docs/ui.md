@@ -288,5 +288,5 @@ Headless dropdown tests also cover pointer and keyboard selection, focus and
 scroll reveal, dismissal ownership, disabled/empty state, and floating placement.
 `--runtime` adds hidden-window pixel checks for rendering and nested clipping.
 The main validation script discovers this validator and builds the example with
-`--all-examples`. Accessibility APIs, automatic directional
-spatial navigation, and a UI editor are outside this first integration.
+`--all-examples`. Accessibility APIs and automatic directional
+spatial navigation are outside this first integration.

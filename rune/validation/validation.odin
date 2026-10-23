@@ -16,8 +16,7 @@ import "rune:navigation"
 import "rune:shadows"
 
 // Diagnostic describes one authoring problem. `path` is a JSON-style field
-// path, so the same report can later be shown by command-line tools or an
-// editor inspector.
+// path for precise reports from command-line tools.
 Diagnostic :: struct {
 	file:    string,
 	path:    string,

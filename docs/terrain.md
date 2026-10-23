@@ -99,7 +99,7 @@ Unused channels are ignored; all-zero areas select layer 0. Maps cover the whole
 terrain from X/Z origin at the image's top-left to its opposite corner, use
 bilinear sampling, and clamp at the edge. Preserve alpha when exporting: it is
 a layer weight, not transparency. Author these images in an image tool or generate
-them in code; Rune does not yet provide a terrain painting UI.
+them in code.
 
 Each material retains its own filtering and independent procedural resolution
 (8–1024). Use `"filter":"point", "mipmaps":false` for crisp texels; weight-map

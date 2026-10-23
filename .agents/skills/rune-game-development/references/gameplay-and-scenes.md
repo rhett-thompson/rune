@@ -160,6 +160,16 @@ assembling a player. Check `ecs.character_controller_2d_ready` or
   `ecs.character_controller_3d_raycast` for projectile hits and compare with world
   hits. `Trigger3D` explicitly detects these capsules.
 
+For a moving 3D support, grounded motor `velocity` is support-relative and
+airborne velocity includes the captured support motion. The motor handles the
+takeoff/landing conversion; do not add platform velocity again on a jump. If the
+renderer draws movers at current physics poses while a first-person camera uses
+`previous_position` interpolation, capture the support transform before each
+fixed step and interpolate feet within that support's current frame. This keeps
+the rider and visible platform at the same presentation time without changing
+collision poses. See `docs/character-controller-3d.md` and
+`rune/ecs/character_controller_3d_motor.odin`.
+
 Movement and crouch commands persist until replaced; the motors do not read
 action mappings. Send neutral movement and the intended crouch/sprint state on
 release or menu capture, rather than skipping the control callback and retaining

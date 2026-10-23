@@ -87,6 +87,12 @@ the player's feet plus an eye height based on the effective capsule height.
 The example interpolates between `state.previous_position` and the current feet
 using the engine's remaining fixed-step fraction. Mouse look runs at the render
 rate, and movement uses yaw alone so looking up or down does not change speed.
+When rendering moving supports at their current physics poses, interpolate the
+camera in that same support frame. Capture the support transform before each
+fixed step, map the previous feet through that transform's inverse into the
+current support transform, and interpolate from that mapped point to the current
+feet. Interpolating world-space feet alone makes an otherwise stationary rider
+vibrate relative to the support at render rates different from the physics rate.
 The first-person example adds subtle camera-only head bob driven by ground
 movement, with configurable amplitude, cadence, smoothing, and an off switch in
 its `FirstPersonController` settings. See the [example](../examples/first_person_3d/README.md)
@@ -198,6 +204,10 @@ Moving supports carry the previous contact point through translation and
 rotation. Carry is swept against surrounding geometry. Jumping or walking off
 inherits support velocity; subsequent changes to that platform do not steer the
 airborne character. Removing or disabling the support clears the association.
+Grounded motor velocity is relative to the support; airborne velocity includes
+the inherited world motion. Takeoff applies the contact-point carry once, and
+landing converts velocity back into the new support's frame. Game code must not
+add the platform velocity again when requesting a jump.
 `push_force` bounds the horizontal force applied to contacted dynamic obstacles;
 zero disables pushing. This is one-way character-driven pushing, not a rigid-body
 character simulation.

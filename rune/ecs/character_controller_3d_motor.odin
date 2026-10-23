@@ -80,11 +80,13 @@ character_controllers_3d_step :: proc(world:^World,dt:f32) {
 		query.up=up
 		if state.dashing {state.velocity=state.dash_resume_velocity}
 		state.previous_position=position
+		was_active:=state.active
 		if !state.active {state.height=config.height;state.active=true}
 		state.stepped,state.stand_blocked=false,false
 		min_up := math.cos(config.max_slope_angle*Radians_Per_Degree)
 		query.min_up=min_up
 		was_grounded := state.grounded
+		carried_support := false
 
 		// Follow the previous contact point, including platform rotation. Sweep
 		// the carry so a moving support cannot carry the capsule through a wall.
@@ -96,6 +98,7 @@ character_controllers_3d_step :: proc(world:^World,dt:f32) {
 				displacement := current-state.support_world_point
 				state.support_velocity = displacement/dt
 				position=character_slide_3d(&query,position,displacement,config.radius,state.height)
+				carried_support=true
 			} else {state.grounded=false;state.support_entity=0;state.support_velocity={}}
 		}
 		// Feet stay fixed when changing posture. A taller capsule must fit first.
@@ -111,7 +114,15 @@ character_controllers_3d_step :: proc(world:^World,dt:f32) {
 		if character_dot_3d(state.velocity,up) <= 0 || state.grounded {
 			hit,landing,grounded := character_ground_3d(world,entity,position,config.radius,state.height,probe_distance,min_up,up)
 			state.grounded=grounded
-			if grounded {position=landing;character_support_3d(world,&state,hit,position)}
+			if grounded {
+				position=landing
+				previous_support,previous_support_velocity:=state.support_entity,state.support_velocity
+				character_support_3d(world,&state,hit,position)
+				// Ground movement is relative to its support; air movement includes
+				// inherited world motion. Convert only when changing that frame.
+				if !was_grounded && was_active {state.velocity-=state.support_velocity}
+				else if was_grounded && previous_support!=state.support_entity {state.velocity+=previous_support_velocity-state.support_velocity}
+			}
 		} else {state.grounded=false}
 		if was_grounded && !state.grounded {
 			state.velocity+=state.support_velocity
@@ -180,6 +191,11 @@ character_controllers_3d_step :: proc(world:^World,dt:f32) {
 		}
 		state.jump_release_requested=false
 		ordinary_velocity:=state.velocity
+		// Contact-point carry already supplied this step's support displacement.
+		// Retain takeoff momentum in state, but do not sweep it twice on the
+		// transition step. Following airborne steps integrate it normally.
+		takeoff_carry:[3]f32
+		if carried_support && !state.grounded {takeoff_carry=state.inherited_velocity}
 		dash_time:f32
 		if state.dashing {
 			dash_time=min(dt,state.dash_remaining)
@@ -197,7 +213,7 @@ character_controllers_3d_step :: proc(world:^World,dt:f32) {
 			slice_time:=dash_time if slice==0 else dt-dash_time
 			if slice_time<=0 {continue}
 			velocity:=state.velocity if slice==0 else ordinary_velocity
-			velocity+=external_velocity
+			velocity+=external_velocity-takeoff_carry
 			start:=position
 			translation:=velocity*slice_time
 			position=character_slide_3d(&query,position,translation,config.radius,state.height)
@@ -224,6 +240,15 @@ character_controllers_3d_step :: proc(world:^World,dt:f32) {
 			hit,landing,grounded:=character_ground_3d(world,entity,position,config.radius,state.height,distance,min_up,up)
 			if grounded {
 				position=landing
+				previous_support,previous_support_velocity:=state.support_entity,state.support_velocity
+				character_support_3d(world,&state,hit,position)
+				if !moving_on_ground && was_active {
+					state.velocity-=state.support_velocity
+					ordinary_velocity-=state.support_velocity
+				} else if moving_on_ground && previous_support!=state.support_entity {
+					state.velocity+=previous_support_velocity-state.support_velocity
+					ordinary_velocity+=previous_support_velocity-state.support_velocity
+				}
 				surface_speed:=character_length_3d(state.velocity) if moving_on_ground else
 					character_length_3d(state.velocity-up*character_dot_3d(state.velocity,up))
 				state.velocity=character_ground_velocity_3d(state.velocity,hit.normal,up,surface_speed)
@@ -231,7 +256,6 @@ character_controllers_3d_step :: proc(world:^World,dt:f32) {
 					character_length_3d(ordinary_velocity-up*character_dot_3d(ordinary_velocity,up))
 				ordinary_velocity=character_ground_velocity_3d(ordinary_velocity,hit.normal,up,ordinary_speed)
 				state.inherited_velocity={}
-				character_support_3d(world,&state,hit,position)
 			} else if state.grounded {
 				state.velocity+=state.support_velocity
 				ordinary_velocity+=state.support_velocity

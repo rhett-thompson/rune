@@ -35,7 +35,7 @@
 
 ## Terrain
 
-- [ ] **Expand the terrain system.** Add seamless adjacent tiles, distance-based LOD, and streaming/loading/unloading near the player. Explore incremental or asynchronous terrain rebuilds to avoid heightmap-edit hitches. Consider terrain sculpting and material-painting tools as follow-on work.
+- [ ] **Expand the terrain system.** Add seamless adjacent tiles, distance-based LOD, and streaming/loading/unloading near the player. Explore incremental or asynchronous terrain rebuilds to avoid heightmap-edit hitches.
 
 ## Animation and tweening
 
