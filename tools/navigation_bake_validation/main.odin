@@ -30,10 +30,11 @@ main :: proc() {
 	validate_layers()
 	validate_terrain()
 	validate_scene()
+	validate_scene_game_components()
 	validate_limits()
 	validate_coverage_precision()
 	validate_simplification()
-	fmt.println("Navigation bake validation passed: clearance, layers, terrain, scene collection, serialization, simplification coverage/connectivity, determinism and invalid inputs")
+	fmt.println("Navigation bake validation passed: clearance, layers, terrain, scene collection, game-component tool loading and strict defaults, serialization, simplification coverage/connectivity, determinism and invalid inputs")
 }
 validate_flat_and_obstacles :: proc() {
 	g:navigation.Bake_Geometry_3D;defer navigation.destroy_bake_geometry_3d(&g)

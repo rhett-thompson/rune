@@ -7,6 +7,10 @@ import "rune:shadows"
 // These constraints are shared by JSON readers and typed setters. Keep checks
 // on hot gameplay paths scalar: no JSON serialization or scratch allocation.
 component_value_valid :: proc(value: $T) -> bool {
+	when T == OrbitCamera3D {
+		return (value.pan_mode == .screen || value.pan_mode == .horizontal) &&
+		       (value.zoom_mode == .absolute || value.zoom_mode == .relative)
+	}
 	when T == DirectionalLight || T == PointLight || T == SpotLight {
 		return finite_nonnegative(value.fog_energy.(f32) or_else 1) && shadows.overrides_valid(value.shadow_overrides)
 	}

@@ -225,7 +225,7 @@ State includes `active`, `grounded`, `ground_normal`, `velocity`, `height`,
 `velocity` is the motor velocity before horizontal collision constraints; actual
 displacement can be smaller when blocked or include additive external motion
 that is deliberately absent from stored motor velocity.
-Configuration and runtime state are separate; scene saves serialize settings.
+Authored scene JSON contains controller settings. Movement state is runtime-only.
 Use `ecs.set` or `ecs.set_character_controller_3d` for configuration edits.
 JSON, prefab loading, console field edits, and value-only scene reloads use the
 same validation. Value-only edits preserve movement state; full World replacement

@@ -13,7 +13,9 @@ Use [build-and-validation.md](references/build-and-validation.md) for Windows
 linker requirements, choosing validation coverage, and identifying the exact
 source snapshot and executable being tested.
 For navmesh baking, simplification, path detours, or agent-radius differences,
-read [navigation-pitfalls.md](references/navigation-pitfalls.md).
+read [navigation-pitfalls.md](references/navigation-pitfalls.md). Distinguish the
+standalone baker's warned omission of unregistered components from strict normal
+scene loading and from game-generated geometry that needs a game-side bake.
 
 The checked-in `.agents/skills/rune-bug-triage/` package is the canonical Rune
 copy. Follow the repository's `AGENTS.md` maintenance guidance and keep any

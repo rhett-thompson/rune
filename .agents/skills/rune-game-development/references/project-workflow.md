@@ -381,6 +381,9 @@ reply after completion, so adjust `--timeout-seconds` when needed. A timeout can
 leave a claimed command running; inspect the result before repeating it.
 
 `set` changes runtime fields and `reload` discards runtime scene edits. To persist
-an edit, change source JSON explicitly. Entity inspection/edits require the
-scene-owning loop; the low-level callback loop supports only the applicable
-timing, input, logs, profiling, and capture operations.
+an authored edit, change the scene source JSON directly or save it through the
+game's level editor. Scene documents remain the source of truth; Rune loads and
+instantiates them, and scene export stays outside the engine. Entity
+inspection/edits require the scene-owning loop; the low-level callback loop
+supports only the applicable timing, input, logs, profiling, and capture
+operations.

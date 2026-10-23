@@ -66,16 +66,31 @@ for a small feature. Check installed source signatures before inventing calls.
   Register custom component types before loading scenes that use them. Choose
   callback timing from the lifecycle reference rather than manually advancing
   physics, audio, particles, or animation that the scene loop already owns.
+- The standalone navmesh baker omits unregistered game components and warns for
+  each omission; review those warnings for misspelled built-ins. Normal scene
+  loading stays strict. Bake a game-side World when systems generate geometry;
+  see `docs/navigation-3d.md`.
 - Author scene/prefab/input JSON against the game's schemas. Verify omitted-field
   defaults with Rune's decoder/default helpers. Use typed ECS setters/adders and
   supported named-instance APIs so validation, ownership, change tracking, and
   physics/render caches stay consistent.
+- Treat authored scene documents as the source of truth. Game level editors own
+  creating and saving them; Rune owns validation, loading, and instantiation.
+  Keep scene saving in game-owned tools and scene export APIs/console commands
+  out of the engine. Runtime Worlds are instances of authored data; component
+  serialization and checkpoint saves do not replace that source. See the scene
+  authoring boundary in `README.md` and the gameplay/scenes reference.
 - Keep ordinary asset paths project-relative; use the documented `prefab://`
   prefix when reusable component assets should resolve from their authoring
   file. Match drawing and picking coordinates to the game canvas or native UI
   as appropriate. Use Rune's camera helper for custom Camera2D drawing;
   initialize and dispose optional UI/3D resources at the appropriate system
   lifecycle boundaries.
+- Use `ecs.OrbitCamera3D` for reusable 3D orbit navigation. Tool viewports can
+  supply resolved input from `ui_update` for navigation while paused; the host
+  owns focus and drag capture. Keep framing targets and level interpretation in
+  the game. See [orbit navigation](references/rendering-ui-audio.md#orbit-navigation-in-tool-viewports)
+  for pan/zoom modes and input timing.
 - Use asset-manager material previews for live material authoring; they update
   existing renderer caches without changing files. Clone borrowed material data,
   save JSON through the tool, and clear previews when live authoring ends. See

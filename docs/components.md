@@ -573,7 +573,9 @@ Uses the entity's composed world transform position as the camera position, incl
 
 ### OrbitCamera3D
 
-Drives `Transform` and `Camera3D` around a world-space target, with distances in world units. The scene-owning loop updates it automatically; callback loops call `rune.update_orbit_cameras_3d`. Parented cameras convert the calculated world position into the composed parent's local frame; a zero-scale parent skips the update. Held manual input controls orbit; panning takes precedence over orbit and automatic rotation. Empty pan action disables panning. Minimum pitch/distance must not exceed their maxima; initial pitch and distance are clamped to the configured range.
+Drives `Transform` and `Camera3D` around a world-space target, with distances in world units. The scene-owning loop updates it automatically during simulation; callback loops call `rune.update_orbit_cameras_3d`. Parented cameras convert the calculated world position into the composed parent's local frame; a zero-scale parent skips the update. Held manual input controls orbit; panning takes precedence over orbit and automatic rotation. Empty pan action disables mapped panning. Minimum pitch/distance must not exceed their maxima; initial pitch and distance are clamped to the configured range.
+
+For a game-owned editor viewport, keep an `OrbitCamera3D` in tool state and call `ecs.update_orbit_camera_3d(&orbit, controls, frame_dt)` with an `ecs.Orbit_Camera_Input` value. The existing `^input.Input` overload retains mapped gameplay input and capture behavior. Resolved input leaves viewport focus, modal gating, and drag capture to the caller: `orbiting`/`panning` enable their gestures, `orbit_delta`/`pan_delta` are per-frame displacements, and positive `zoom` moves toward the target. `pad_orbit` supplies normalized rate axes and positive `pad_zoom` moves away; their speeds use `dt`. Call once from `ui_update` with frame delta time for navigation while paused; the automatic scene update keeps its simulation timing. Both overloads return a world-space `Transform`. Use `ecs.orbit_camera_3d_pose(orbit)` to evaluate that pose without changing state or consuming input, and use `orbit.target` as the `Camera3D` target.
 
 [Guide / example](../README.md#orbit-camera) · [Implementation](../rune/ecs/camera.odin)
 
@@ -598,12 +600,14 @@ Drives `Transform` and `Camera3D` around a world-space target, with distances in
 | `zoom_out_action` | string | `"zoom_out"` | Held action increasing distance. |
 | `pad_orbit_speed` | number; ≥ 0 | `180` | Degrees/second at full stick deflection. |
 | `pad_zoom_speed` | number; ≥ 0 | `8` | World units/second while a zoom action is held. |
-| `pan_action` | string | `""` | Held action enabling camera-plane panning. Empty disables panning; panning takes priority over orbit rotation. |
+| `pan_action` | string | `""` | Held action enabling panning. Empty disables mapped panning; panning takes priority over orbit rotation. |
 | `pan_x_axis` | string | `"pan_x"` | Input axis for horizontal pan. |
 | `pan_y_axis` | string | `"pan_y"` | Input axis for vertical pan. |
 | `pan_sensitivity` | number; > 0 | `0.0015` | World units per input unit per unit of camera distance. Use raw mouse deltas for drag-to-pan. |
+| `pan_mode` | `"screen"` or `"horizontal"` | `"screen"` | Pan along the camera plane or the world XZ plane; horizontal mode preserves target Y. In Odin, use `.screen` or `.horizontal`. |
 | `orbit_sensitivity` | number; > 0 | `0.35` | Degrees per orbit input unit. |
-| `zoom_sensitivity` | number; > 0 | `1` | Distance per zoom input unit. |
+| `zoom_sensitivity` | number; > 0 | `1` | World units per zoom input unit in absolute mode; fraction of current distance per input unit in relative mode (`0.1` gives a 10% step). |
+| `zoom_mode` | `"absolute"` or `"relative"` | `"absolute"` | Scale wheel/zoom-axis displacement by world units or current distance. Held pad zoom remains world units/second. In Odin, use `.absolute` or `.relative`. |
 
 ## 2D physics and movement
 

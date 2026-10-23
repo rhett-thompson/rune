@@ -33,6 +33,41 @@ For relocatable games, pass `game.project_directory` as the bridge's root after
 `rune.init_project()` (or explicit `rune.init`). The bridge has its own root;
 hard-coded example paths do not become portable just because core startup is.
 
+## Orbit navigation in tool viewports
+
+`ecs.OrbitCamera3D` stores a world-space target/distance and yaw/pitch in degrees.
+Use `ecs.default_orbit_camera_3d()` before applying overrides. Existing defaults
+retain camera-plane panning (`pan_mode = .screen`) and world-unit wheel zoom
+(`zoom_mode = .absolute`). Choose `.horizontal` panning to move on world XZ
+without changing target Y. Relative zoom changes distance by
+`-zoom * distance * zoom_sensitivity`; it affects the wheel/zoom axis, while
+held pad zoom remains world units/second. See `docs/components.md`, OrbitCamera3D,
+and `rune/ecs/camera.odin` for the complete contract.
+
+The mapped `ecs.update_orbit_camera_3d(&orbit, &game.input, dt)` overload respects
+gameplay input capture. For a game-owned viewport, pass an
+`ecs.Orbit_Camera_Input` value instead: `orbiting`/`panning` enable gestures,
+`orbit_delta`/`pan_delta` are per-frame displacements, and positive `zoom` moves
+toward the target. `pad_orbit` contains normalized rate axes and positive
+`pad_zoom` moves away; `dt` scales those rate inputs. Panning takes priority over
+orbiting. The caller owns viewport focus, modal gating, and drag capture; the
+resolved overload does not change global input capture.
+
+For navigation while paused, call the resolved overload once from `ui_update`
+with frame delta time. The scene's automatic orbit update remains tied to
+simulation; avoid advancing the same camera twice. Tool state need not be an ECS
+entity. Both overloads return a world-space `Transform`; use `orbit.target` for
+`Camera3D.target` and convert position into parent-local space when storing it
+on a parented entity. `ecs.orbit_camera_3d_pose(orbit)` evaluates the current
+world pose without advancing time or input, suitable for drawing and picking.
+The game continues to own selection/floor framing, cutaway rules, and preview
+scale.
+
+`rune/ecs/orbit_camera_input_test.odin` covers resolved/mapped input, pan/zoom
+modes, pause-independent mouse displacement, snapshot round trips, and typed
+mode validation. These tests and `tools/component_validation` pass on Windows;
+physical viewport focus and mouse drag capture still need game-level exercise.
+
 ## Transform and collision conventions
 
 For 2D layering, set each rendering component's `draw_order`; Transform Z does
@@ -72,6 +107,16 @@ published to the asset manager after successful renderer loads; the renderer
 continues to own the model resources. Neither query loads assets or uses native
 colliders. See `rune/render/picking_2d.odin`, `rune/render/picking_3d.odin`, and
 `rune/assets/assets.odin`.
+
+To form a bounded 3D picking segment without a graphics context, current core
+exposes `rune.debug_pick_camera_ray(camera, point, viewport, near, far)`. Its
+screen point and dimensions are in the presented canvas coordinate system;
+convert native mouse coordinates first when the game uses a scaled canvas.
+It returns origin, translation and validity for perspective or orthographic
+cameras. Raylib also exposes `GetScreenToWorldRay`/`GetScreenToWorldRayEx`;
+`GetMouseRay` is not the name in the pinned binding. For interactive move/rotate
+handles, use `rune/gizmos/transform_3d.md`; the caller owns input, document edits
+and undo history. See `rune/core/debug_picking.odin` and `rune/render/resolution.odin`.
 
 The open runtime console uses these queries when clicking outside its panel:
 an active `Camera3D` hit takes priority, then an active `Camera2D` hit. This

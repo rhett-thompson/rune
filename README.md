@@ -26,6 +26,24 @@ their game-specific fields are not completed by the built-in schemas.
 See the [built-in component reference](docs/components.md) for all 49 components,
 their JSON fields and defaults, dependencies, runtime behavior, and linked guides.
 
+## Scene authoring boundary
+
+Scene documents are the source of truth for authored levels. Game level editors
+and other game-owned authoring tools own creating, editing, and saving them.
+Rune owns validating, loading, and instantiating scene data into runtime Worlds.
+
+An editor keeps its authored document and uses Rune's loading, instantiation,
+and ECS APIs to populate game objects for previews or play. Saving writes the
+editor's document, preserving its prefab references, overrides, and portable
+asset paths. A runtime World contains expanded prefabs, resolved defaults and
+paths, and gameplay changes; it does not replace that authoring source.
+
+Scene export from a runtime World is outside the engine's scope. Keep scene
+creation and saving in game-owned tools; do not add engine scene-export APIs or
+console commands. Component serialization and inspection remain useful building
+blocks for those tools. [Checkpoint saves](docs/save-load.md) preserve selected
+gameplay progress over authored scenes without rewriting the scene documents.
+
 ## Current capabilities
 
 - [Self-hosted networking](docs/networking.md): the standalone [Rune Relay application](rune_relay/README.md), reliable room controls, and authenticated UDP gameplay. Try the [Relay Arena example](examples/relay_multiplayer/README.md) for a two-player Rune scene with host-authoritative movement, prediction, stable entity IDs, and replicated positions.

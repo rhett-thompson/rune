@@ -326,8 +326,12 @@ input, logs, profiling, and captures. Keep gameplay changes in update/fixed-upda
 callbacks so pausing simulation does not mutate game state through draw callbacks.
 Runtime edits use the same notifications and cache updates as typed setters.
 Shape or scale edits rebuild the affected native physics body; animator asset,
-clip, or autoplay changes reset playback. To persist an
-edit, change the source JSON explicitly; no command automatically saves a scene.
+clip, or autoplay changes reset playback. To persist an authored edit, change the
+scene source JSON directly or save it through the game's level editor. Scene
+documents are the source of truth; game editors own creating and saving them,
+and Rune owns loading and instantiation. Scene export APIs and console commands
+are outside the engine's scope; see the
+[scene authoring boundary](../README.md#scene-authoring-boundary).
 
 - Use a separate inbox directory for each running game. The inbox is disabled
   unless the game is launched with `--console-dir=<directory>`.

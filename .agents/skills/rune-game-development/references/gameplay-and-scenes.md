@@ -4,6 +4,31 @@ Author game files under `GAME_ROOT`; read engine APIs, schemas, and examples
 under `RUNE_ROOT`. Repository paths below are relative to `RUNE_ROOT`; authored
 paths follow the relevant game file's loader, not this skill's location.
 
+## Keep scene authoring in game-owned tools
+
+Scene documents are the source of truth for authored levels. The game's level
+editor owns creating, editing, and saving those documents; Rune owns validating,
+loading, and instantiating their data into runtime Worlds. Keep engine scene
+export APIs and console commands out of scope. See `README.md`, Scene authoring
+boundary.
+
+Retain the editor's authored document separately from its preview/play World.
+Use `scene.load` or the instantiation APIs in `rune/scene/scene.odin` to populate
+game objects, and supported ECS APIs to update the preview. Save through the
+game's tool, preserving authored prefab references, overrides, and portable
+asset paths. Expanded prefabs, resolved defaults/paths, and simulation changes
+in a World do not become the authoring source. Component serialization and
+inspection can support editor operations; they do not define a whole-scene
+export contract. Checkpoint saves in `docs/save-load.md` preserve gameplay
+progress over the authored scene without rewriting its source.
+
+For a file-loaded World, `ecs.get_scene_json` exposes the retained original root
+document, including prefab references and overrides. Resolution expands a
+separate copy; runtime ECS edits do not update that source document. The returned
+JSON is borrowed: clone it into editor-owned storage before retaining or editing
+it. See `rune/ecs/scene_snapshot.odin`, `rune/prefab/resolve.odin` and
+`docs/memory.md`.
+
 ## Author component data deliberately
 
 Use `docs/components.md` and `schemas/scene.schema.json` to choose authorable
@@ -55,6 +80,31 @@ After `rune.init`, register custom gameplay structs and their defaults with
 systems before `rune.run(&game)` loads the startup scene. Unregistered component
 names and unknown custom fields fail loading. Follow
 `examples/hello_world/main.odin`.
+
+For a game-owned inspector, `ecs.component_descriptor` exposes registered types
+and defaults, and `ecs.json_struct_field_type` looks up types using JSON field
+names. `runtime_component_json` and `set_runtime_field` support current-value
+inspection and editing. These are not a complete editor metadata schema:
+built-in authoring constraints/defaults/enums also live in `schemas/`, and some
+runtime types use custom JSON representations. Use those representations when
+building controls; supply game-specific hints separately. See
+`rune/ecs/registry.odin` and `rune/ecs/runtime_inspection.odin`.
+
+The standalone navmesh baker is an explicit exception: it loads built-in
+geometry while omitting unregistered component blocks, with a warning for each
+resolved entity ID and component name. Review every warning because a misspelled
+built-in is also unregistered. This does not register or validate the omitted
+data against a game type, run game systems, or relax validation of known
+components and scene structure. Normal `scene.load`, `scene.load_with_layers`, and instantiation calls
+remain strict by default. Offline tools can opt in through the final
+`scene.Load_Options` argument to `scene.load_with_layers`, using
+`skip_unregistered_components` and an `on_skipped_component` callback. See
+`rune/scene/scene.odin` and `docs/navigation-3d.md`.
+
+Passive game data does not affect the built-in geometry collector. If game
+systems create or modify bake geometry, register components, load the scene, run
+the necessary game setup, then call `ecs.bake_navigation_world_3d` on that World.
+The standalone baker cannot reproduce that setup.
 
 ## Put behavior in the correct phase
 

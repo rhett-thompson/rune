@@ -264,6 +264,26 @@ previous asset untouched; successful writes atomically replace it, and the engin
 normal navmesh hot reload picks it up. Re-run the command after scene or heightmap
 edits. Baking does not run automatically in the frame loop.
 
+The standalone baker registers built-in components and omits unregistered
+game-defined component blocks, including those inherited or overridden through
+prefabs. It writes a warning to stderr for each omitted component, identifying
+the resolved entity ID (for example, `crate/contents`) and component name. Review
+every warning: a typo in a built-in component name is also unregistered and could
+remove intended bake geometry. Scene structure, JSON, prefab resolution,
+layers, and registered component data still undergo normal validation. Omitted
+game component data is not added to the World or validated against a game type.
+
+This omission policy is specific to the baker. Normal scene loading and
+instantiation reject unregistered components by default. Other offline tools
+can explicitly pass `scene.Load_Options{skip_unregistered_components = true,
+on_skipped_component = report_skipped_component}` as the final argument to
+`scene.load_with_layers`. The callback has signature
+`proc(entity_id, component_name: string)` and receives the resolved entity ID.
+
+The standalone baker does not run game systems. Passive gameplay data can be
+omitted without changing built-in collider collection, but geometry or transform
+changes produced by game code require the game-side World bake API below.
+
 The Navigation 3D demo calls the baker itself at startup and after scene reloads.
 Press **N** or run `rebake` in its console to bake live scene edits or changed
 settings without leaving the example. Manual rebakes preserve active destinations
@@ -331,8 +351,10 @@ if error == "" {
 }
 ```
 
-The world API works with a game's registered custom components. For standalone
-geometry, create `navigation.Bake_Geometry_3D`, append inputs with
+The world API works with a game's registered custom components. Register those
+types before loading the scene, and run any game setup that creates or modifies
+geometry before baking. For standalone geometry, create
+`navigation.Bake_Geometry_3D`, append inputs with
 `append_bake_triangles_3d`, `append_bake_box_3d` or `append_bake_terrain_3d`, then
 call `bake_mesh_3d`. Each helper accepts position, Euler rotation and positive scale.
 `append_bake_terrain_3d` accepts CPU `terrain.Data`, so PNG and R16 heightmaps use
@@ -492,4 +514,8 @@ activation, removal, value reload, independent blocked flags, asset recovery, an
 project validation. Hidden-window checks exercise startup asset loading, pause,
 and the real fixed-step loop. Bake checks cover terrain sampling/transforms,
 radius erosion, obstacle volumes, thin walls, low ceilings, deterministic output,
-serialization and failure handling. All validators are integrated into `.\tools\validate.bat`.
+serialization and failure handling. The game-component fixture in
+`tools/navigation_bake_validation/game_components.odin` covers the baker's
+opt-in loading policy and strict normal scene loading, including prefab data.
+It is a headless loader/bake check; use the standalone CLI to verify its stderr
+warnings and output behavior. All validators are integrated into `.\tools\validate.bat`.

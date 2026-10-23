@@ -18,6 +18,11 @@ resolve :: proc(root,path:string) -> string {
 	return filepath.join({root,path},context.temp_allocator) or_else ""
 }
 fail :: proc(message:string) {fmt.eprintln("Navmesh bake failed:",message);os.exit(1)}
+warn_skipped_component :: proc(entity_id,component_name:string) {
+	id:=entity_id
+	if id=="" {id="<no ID>"}
+	fmt.eprintf("Navmesh bake warning: entity '%s': skipping unregistered component '%s' (check for misspelled built-in names).\n",id,component_name)
+}
 main :: proc() {
 	if len(os.args)!=2 {fmt.eprintln("Usage: navmesh_baker path/to/level.navbake.json");os.exit(2)}
 	path:=os.args[1]
@@ -48,7 +53,10 @@ main :: proc() {
 		if project_error!=nil || json.unmarshal(project_bytes,&project,allocator=context.temp_allocator)!=nil {fail("could not read project layer table")}
 		for name,index in project.layers {if name=="" || index>63 || (index==0 && name!="Default") {fail("invalid project layer table")}}
 	}
-	world,loaded:=scene.load_with_layers(scene_path,&registry,project.layers)
+	world,loaded:=scene.load_with_layers(scene_path,&registry,project.layers,scene.Load_Options{
+		skip_unregistered_components=true,
+		on_skipped_component=warn_skipped_component,
+	})
 	if !loaded {fail(scene.last_load_error())};defer ecs.destroy(&world)
 	mesh,stats,error:=ecs.bake_navigation_world_3d(&world,root,config.settings)
 	if error!="" {fail(error)};defer navigation.destroy_mesh_3d(&mesh)

@@ -889,12 +889,14 @@
         "zoom_out_action": { "type": "string", "default": "zoom_out" },
         "pad_orbit_speed": { "type": "number", "minimum": 0, "default": 180, "description": "Degrees per second at full stick deflection while manual_action is held." },
         "pad_zoom_speed": { "type": "number", "minimum": 0, "default": 8, "description": "World units per second while a zoom action is held." },
-        "pan_action": { "type": "string", "default": "", "description": "Held action enabling camera-plane panning. Empty disables panning; panning takes priority over orbit rotation." },
+        "pan_action": { "type": "string", "default": "", "description": "Held action enabling panning. Empty disables panning; panning takes priority over orbit rotation." },
         "pan_x_axis": { "type": "string", "default": "pan_x" },
         "pan_y_axis": { "type": "string", "default": "pan_y" },
         "pan_sensitivity": { "type": "number", "exclusiveMinimum": 0, "default": 0.0015, "description": "World units per input unit per unit of camera distance. Use raw mouse deltas for drag-to-pan." },
+        "pan_mode": { "type": "string", "enum": ["screen", "horizontal"], "default": "screen", "description": "Pan in the camera's screen plane or the horizontal world XZ plane, preserving target height." },
+        "zoom_mode": { "type": "string", "enum": ["absolute", "relative"], "default": "absolute", "description": "Wheel/zoom-axis steps use world units or a fraction of current distance. Gamepad zoom remains world units per second." },
         "orbit_sensitivity": { "type": "number", "exclusiveMinimum": 0, "default": 0.35 },
-        "zoom_sensitivity": { "type": "number", "exclusiveMinimum": 0, "default": 1 }
+        "zoom_sensitivity": { "type": "number", "exclusiveMinimum": 0, "default": 1, "description": "World units per zoom-axis unit in absolute mode; fraction of current distance in relative mode." }
       },
       "additionalProperties": false
     },

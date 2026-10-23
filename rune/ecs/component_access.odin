@@ -457,7 +457,7 @@ set_orbit_camera_3d :: proc(
 	entity: Entity,
 	value: OrbitCamera3D,
 ) -> bool {
-	if !has_component_data(world, entity, "OrbitCamera3D") {return false}
+	if !has_component_data(world, entity, "OrbitCamera3D") || !component_value_valid(value) {return false}
 	owned := value
 	owned.manual_action = retain_scene_string(world, value.manual_action)
 	owned.yaw_axis = retain_scene_string(world, value.yaw_axis)

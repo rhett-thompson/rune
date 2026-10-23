@@ -46,12 +46,18 @@ finishes and releases the compiler lock; Windows outputs use `.exe`.
 | Window modes or shared-raylib linking | `tools/window_validation` for settings; compile a separate shared target with `-define:RAYLIB_SHARED=true` | `window_validation --runtime`; run `--startup-windowed`, `--startup-borderless`, and `--startup-fullscreen` in separate processes when startup modes matter |
 | Audio ownership, mixing, stopping, or preload | `tools/mixer_validation` and `tools/audio_stop_validation` for configuration | Both validators with `--runtime`, using a working playback backend |
 | Navmesh bake coverage or path detours | `rune/navigation` tests, `tools/navigation_bake_validation`, and headless `tools/navigation_3d_validation`; compare actual route lengths on the reported bake/query settings | `navigation_3d_validation --runtime` when visible agent motion or rendered navigation is the symptom |
+| Terrain editing or reload retention | `tools/terrain_validation` for PNG/R16 decoding, CPU data ownership, native collision, corrupt-heightmap retention and recovery | `terrain_validation --runtime` for GPU chunk replacement, invalid-reload retention, materials and instanced details |
 
 The table names tool packages; runtime commands refer to the executables built
 from them. UI pixel checks do not replace the serial dropdown/input tests.
 Camera runtime checks can pass at 100% DPI, which does not exercise scale loss.
 Audio runtime validators intentionally mute playback, so passing them does not
 establish audible output.
+
+On 2026-10-23, both terrain validator modes passed with the pinned October Odin
+compiler and MSVC linker on Windows AMD64; hidden-window rendering used an
+NVIDIA GTX 1060 and OpenGL 3.3. Invalid edits retained native collision and GPU
+chunks, and valid repairs replaced them. This does not establish Linux behavior.
 
 Inspect stdout/stderr for skipped branches as well as the exit status.
 For example, window runtime can report a skipped maximized roundtrip when the

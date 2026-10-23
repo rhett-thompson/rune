@@ -8,6 +8,13 @@ regressions, and dependency issues, use the
 Repository skill copies are canonical; personal installations are not required
 to work on Rune.
 
+Scene documents are the source of truth for authored levels. Game level editors
+own creating and saving them; Rune owns validating, loading, and instantiating
+them. Keep scene export APIs and console commands out of the engine. Component
+serialization, inspection, and checkpoint saves support their documented runtime
+uses without making a World the authoring source. See the
+[scene authoring boundary](README.md#scene-authoring-boundary).
+
 Keep this guidance, the relevant skills, and affected reference notes current in
 the same change when relevant code or API contracts, ownership or coordinate
 conventions, dependency pins or native artifacts, or build/test workflows change.

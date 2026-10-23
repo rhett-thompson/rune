@@ -3,6 +3,60 @@
 Paths are relative to the Rune checkout. Recheck current source before applying
 historical observations below.
 
+## Standalone baker and game-defined components
+
+`tools/navmesh_baker/main.odin` registers only built-in components and calls
+`scene.load_with_layers` with explicit `scene.Load_Options` that enable
+`skip_unregistered_components`. It omits unregistered blocks and uses
+`on_skipped_component` to warn on stderr for every resolved entity ID and
+component name, including inherited/overridden prefab data. Normal scene loading
+and instantiation still reject unregistered names by default. The option does
+not bypass JSON/scene structure, layer, prefab, or registered-component
+validation. See `rune/scene/scene.odin` and `docs/navigation-3d.md`.
+
+Keep this tool policy separate from the world bake API. A game or custom tool can
+register its components, load the authored scene, then call
+`ecs.bake_navigation_world_3d`; see `docs/navigation-3d.md`, Baking from code,
+and `rune/ecs/navigation_bake_3d.odin`. Runtime-only component injection is not
+required to use this path. The collector reads built-in geometry and activation
+state; passive custom data does not directly affect its output. Game systems
+that generate geometry or change transforms/colliders must run before collecting
+that resulting geometry. The standalone baker does not run game systems or add
+the omitted game data to its World.
+
+Review every omission warning: the baker cannot distinguish a custom component
+from a mistyped `BoxCollider`. A successful bake does not establish that the
+authored game data is valid or that all intended geometry was included. Check
+the source component names and compare the intended built-in geometry.
+
+At `a21c259` on 2026-10-23, a focused headless Windows AMD64 reproduction with
+Odin `dev-2026-10-nightly:84bc3fc` and the MSVC linker confirmed that a static
+floor/crate scene containing `Ownership` failed in the standalone CLI with
+`uses unregistered component 'Ownership'`. Removing only that block succeeded.
+Registering a typed `Ownership` before loading retained authored values and
+registered defaults, and its world bake was byte-identical to the stripped
+scene's CLI bake: 791 bytes and 18 output triangles with default bake settings.
+This historical reproduction establishes the passive-component case on that
+platform; it does not validate a particular external game project.
+
+Current regression coverage is in
+`tools/navigation_bake_validation/game_components.odin`. Check direct and prefab
+game-component omission, the resolved-ID callback, strict normal loading, and
+continued rejection of invalid scene/known-component data. This headless fixture
+does not by itself establish the standalone CLI's stderr, process exit, or
+atomic-output behavior; verify those through the rebuilt CLI when changing its
+loading policy. Record actual platform/compiler and CLI results when reporting
+validation, without extending them to an external project or untested platform.
+
+On 2026-10-23, the updated working tree based on `a21c259` passed headless
+Windows AMD64 validation with Odin `dev-2026-10-nightly:84bc3fc` and the MSVC
+linker: 44 ECS, 26 core and 13 navigation tests, plus navigation bake, prefab
+and scene-value-reload validators. Rebuilt CLI checks confirmed direct/prefab
+omission warnings on stderr, named project layers, byte-identical geometry
+controls and pre-change built-in course output, and preservation of an existing
+navmesh when registered component data fails loading. These checks do not cover
+Linux, rendered behavior or the external tester's project.
+
 ## Direct surface routes and approximate corridor selection
 
 Relevant sources: `rune/navigation/bake_simplify_3d.odin`,

@@ -5,6 +5,12 @@ the authored scene, reapplies saved progress, and recreates native runtime
 resources. It supports game globals, progress across scenes, entity deletion,
 runtime spawns, hierarchy changes, disabled entities, and custom state adapters.
 
+Checkpoint slots preserve gameplay progress over authored scenes without
+rewriting their source documents. Scene documents remain the source of truth
+for authored levels: game level editors own creating and saving them, and Rune
+owns loading and instantiation. Scene export is outside the engine's scope; see
+the [scene authoring boundary](../README.md#scene-authoring-boundary).
+
 Try [Checkpoint Saves](../examples/save_load_2d/README.md) for a two-room example.
 
 ## Setup and requests

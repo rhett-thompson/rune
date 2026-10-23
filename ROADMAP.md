@@ -4,6 +4,10 @@ Rune already supports the core code-first workflow: JSON projects, scenes and
 prefabs; typed ECS components; registered Odin systems; 2D and 3D rendering;
 input; audio; physics; hot reload; validation; and runnable example games.
 
+Scene documents remain the source of truth: game level editors own creating and
+saving them, while Rune owns loading and instantiation. Scene export is outside
+the engine's scope; see the [scene authoring boundary](README.md#scene-authoring-boundary).
+
 ## Near term
 
 - Keep all examples and validators building through one repeatable command.

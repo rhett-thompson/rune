@@ -81,6 +81,17 @@ destroy_dependency_paths :: proc(paths: []string) {
 	delete(paths)
 }
 
+// The callback runs synchronously for each omitted component. Its strings are
+// borrowed for the duration of the call; clone them before retaining them.
+Skipped_Component_Proc :: #type proc(entity_id, component_name: string)
+
+Load_Options :: struct {
+	// For standalone tools extracting built-in data without game registrations.
+	// Scene structure, prefab composition and registered components stay strict.
+	skip_unregistered_components: bool,
+	on_skipped_component: Skipped_Component_Proc,
+}
+
 // load reads a scene document and returns the fully instantiated runtime World.
 // The caller supplies the engine's component registry so built-ins and any
 // game-defined component registrations are shared with the loaded scene.
@@ -90,11 +101,13 @@ load :: proc(path: string, registry: ^ecs.Component_Registry) -> (ecs.World, boo
 
 // load_with_layers resolves the readable layer names in a scene against the
 // project's layer table. Passing nil supports standalone scenes that only use
-// the implicit Default layer.
+// the implicit Default layer. Unregistered component names fail by default;
+// standalone tools can explicitly omit them through options.
 load_with_layers :: proc(
 	path: string,
 	registry: ^ecs.Component_Registry,
 	layer_names: map[string]u8,
+	options := Load_Options{},
 ) -> (
 	ecs.World,
 	bool,
@@ -128,7 +141,7 @@ load_with_layers :: proc(
 	if resolved.error != "" {set_load_error("%s", resolved.error); return {}, false}
 	world := ecs.init()
 	ecs.set_scene_json(&world, root_json)
-	if !instantiate_resolved(&world, registry, resolved.value, layer_names, parse_allocator) {
+	if !instantiate_resolved(&world, registry, resolved.value, layer_names, parse_allocator, options) {
 		ecs.destroy(&world)
 		return {}, false
 	}
@@ -172,6 +185,7 @@ instantiate_with_layers_at :: proc(
 instantiate_resolved :: proc(
 	world: ^ecs.World, registry: ^ecs.Component_Registry, value: json.Value,
 	layer_names: map[string]u8, allocator: mem.Allocator,
+	options := Load_Options{},
 ) -> bool {
 	data, error := json.marshal(value, allocator = allocator)
 	if error != nil {set_load_error("Could not serialize resolved scene"); return false}
@@ -181,7 +195,7 @@ instantiate_resolved :: proc(
 		return false
 	}
 	for entity in scene.entities {
-		if !instantiate_entity(world, registry, entity, ecs.Entity(0), layer_names) {return false}
+		if !instantiate_entity(world, registry, entity, ecs.Entity(0), layer_names, options) {return false}
 	}
 	return true
 }
@@ -189,6 +203,7 @@ instantiate_resolved :: proc(
 instantiate_entity :: proc(
 	world: ^ecs.World, registry: ^ecs.Component_Registry, entity_data: Entity_Data,
 	parent: ecs.Entity, layer_names: map[string]u8,
+	options := Load_Options{},
 ) -> bool {
 	entity := ecs.create_entity(world)
 	enabled := true
@@ -202,6 +217,12 @@ instantiate_entity :: proc(
 	if parent != ecs.Entity(0) && !ecs.set_parent(world, entity, parent) {return false}
 	for name, data in entity_data.components {
 		if !ecs.has_component(registry, name) {
+			if options.skip_unregistered_components {
+				if options.on_skipped_component != nil {
+					options.on_skipped_component(entity_data.id, name)
+				}
+				continue
+			}
 			set_load_error("Entity '%s' uses unregistered component '%s'", entity_data.id, name)
 			return false
 		}
@@ -211,7 +232,7 @@ instantiate_entity :: proc(
 		}
 	}
 	for child in entity_data.children {
-		if !instantiate_entity(world, registry, child, entity, layer_names) {return false}
+		if !instantiate_entity(world, registry, child, entity, layer_names, options) {return false}
 	}
 	return true
 }

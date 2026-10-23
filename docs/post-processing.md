@@ -34,8 +34,8 @@ partially specified effect. An empty profile uses FXAA, linear tone mapping,
 exposure/white/brightness/contrast/saturation of 1, and disables other effects.
 All fields and defaults appear in
 [`post-processing.schema.json`](../schemas/post-processing.schema.json).
-Scene saves hot reload through the normal scene loader; prefab overrides and
-runtime console inspection use the same component format.
+Saving authored scene JSON triggers hot reload through the normal scene loader;
+prefab overrides and runtime console inspection use the same component format.
 
 ## Bloom and film grain
 

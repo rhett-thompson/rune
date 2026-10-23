@@ -37,6 +37,9 @@ Camera3D :: struct {
 	projection: Camera_Projection,
 }
 
+Orbit_Pan_Mode :: enum {screen, horizontal}
+Orbit_Zoom_Mode :: enum {absolute, relative}
+
 // Target and orbit distances are world-space. The scene loop converts the
 // computed camera position to its parent's local frame before storing it.
 OrbitCamera3D :: struct {
@@ -65,6 +68,21 @@ OrbitCamera3D :: struct {
 	orbit_sensitivity: f32,
 	zoom_sensitivity:  f32,
 	pan_sensitivity:   f32,
+	pan_mode:          Orbit_Pan_Mode,
+	zoom_mode:         Orbit_Zoom_Mode,
+}
+
+// Resolved controls for one frame. Tool UIs own viewport/modal gating and drag
+// capture before supplying these values; no global Input capture is changed.
+// Mouse deltas are displacement, zoom is positive toward the target, pad_orbit
+// contains normalized rate axes, and pad_zoom is positive away from the target.
+Orbit_Camera_Input :: struct {
+	orbiting, panning: bool,
+	orbit_delta:      [2]f32,
+	pan_delta:        [2]f32,
+	zoom:             f32,
+	pad_orbit:        [2]f32,
+	pad_zoom:         f32,
 }
 
 default_camera_2d :: proc() -> Camera2D {
@@ -298,6 +316,24 @@ orbit_camera_3d_from_json :: proc(data: json.Value) -> (OrbitCamera3D, bool) {
 		result.pan_sensitivity, ok = read_number(value)
 		if !ok || result.pan_sensitivity <= 0 || math.is_nan(result.pan_sensitivity) || math.is_inf(result.pan_sensitivity) {return {}, false}
 	}
+	if value, found := object["pan_mode"]; found {
+		mode, valid := value.(json.String)
+		if !valid {return {}, false}
+		switch mode {
+		case "screen": result.pan_mode = .screen
+		case "horizontal": result.pan_mode = .horizontal
+		case: return {}, false
+		}
+	}
+	if value, found := object["zoom_mode"]; found {
+		mode, valid := value.(json.String)
+		if !valid {return {}, false}
+		switch mode {
+		case "absolute": result.zoom_mode = .absolute
+		case "relative": result.zoom_mode = .relative
+		case: return {}, false
+		}
+	}
 	if value, found := object["manual_action"];
 	   found {result.manual_action, ok = value.(json.String); if !ok {return {}, false}}
 	if value, found := object["yaw_axis"];
@@ -335,38 +371,54 @@ orbit_camera_3d_from_json :: proc(data: json.Value) -> (OrbitCamera3D, bool) {
 	return result, true
 }
 
-// Returns a world-space camera pose; convert position to the parent frame when
-// writing it to a parented entity's local Transform.
-update_orbit_camera_3d :: proc(
+// Both overloads return a world-space pose; convert its position to the parent
+// frame before storing it in a parented entity's local Transform. The mapped
+// overload respects gameplay Input capture. Tools can call the resolved-input
+// overload from ui_update while simulation is paused, using frame delta time.
+update_orbit_camera_3d :: proc {
+	update_orbit_camera_3d_mapped,
+	update_orbit_camera_3d_resolved,
+}
+
+update_orbit_camera_3d_mapped :: proc(
 	orbit: ^OrbitCamera3D,
 	controls: ^input.Input,
 	dt: f32,
 ) -> Transform {
-	manual := len(orbit.manual_action) > 0 && input.is_down(controls, orbit.manual_action)
-	panning := len(orbit.pan_action) > 0 && input.is_down(controls, orbit.pan_action)
-	pad_dt := dt if dt > 0 && !math.is_nan(dt) && !math.is_inf(dt) else 0
-	if manual && !panning {
-		if len(orbit.yaw_axis) > 0 {
-			orbit.yaw -= input.axis(controls, orbit.yaw_axis) * orbit.orbit_sensitivity
-		}
-		if len(orbit.pitch_axis) > 0 {
-			orbit.pitch += input.axis(controls, orbit.pitch_axis) * orbit.orbit_sensitivity
-		}
-		if len(orbit.pad_yaw_axis) > 0 {
-			orbit.yaw -= input.axis(controls, orbit.pad_yaw_axis) * orbit.pad_orbit_speed * pad_dt
-		}
-		if len(orbit.pad_pitch_axis) > 0 {
-			orbit.pitch += input.axis(controls, orbit.pad_pitch_axis) * orbit.pad_orbit_speed * pad_dt
-		}
-	} else if !panning && orbit.auto_yaw_speed != 0 {
-		orbit.yaw += orbit.auto_yaw_speed * dt
+	resolved := Orbit_Camera_Input{
+		orbiting = len(orbit.manual_action) > 0 && input.is_down(controls, orbit.manual_action),
+		panning = len(orbit.pan_action) > 0 && input.is_down(controls, orbit.pan_action),
 	}
-	if len(orbit.zoom_axis) > 0 {
-		orbit.distance -= input.axis(controls, orbit.zoom_axis) * orbit.zoom_sensitivity
-	}
+	if len(orbit.yaw_axis) > 0 {resolved.orbit_delta[0] = input.axis(controls, orbit.yaw_axis)}
+	if len(orbit.pitch_axis) > 0 {resolved.orbit_delta[1] = input.axis(controls, orbit.pitch_axis)}
+	if len(orbit.pan_x_axis) > 0 {resolved.pan_delta[0] = input.axis(controls, orbit.pan_x_axis)}
+	if len(orbit.pan_y_axis) > 0 {resolved.pan_delta[1] = input.axis(controls, orbit.pan_y_axis)}
+	if len(orbit.zoom_axis) > 0 {resolved.zoom = input.axis(controls, orbit.zoom_axis)}
+	if len(orbit.pad_yaw_axis) > 0 {resolved.pad_orbit[0] = input.axis(controls, orbit.pad_yaw_axis)}
+	if len(orbit.pad_pitch_axis) > 0 {resolved.pad_orbit[1] = input.axis(controls, orbit.pad_pitch_axis)}
 	zoom_in := input.strength(controls, orbit.zoom_in_action) if len(orbit.zoom_in_action) > 0 else 0
 	zoom_out := input.strength(controls, orbit.zoom_out_action) if len(orbit.zoom_out_action) > 0 else 0
-	orbit.distance += (zoom_out - zoom_in) * orbit.pad_zoom_speed * pad_dt
+	resolved.pad_zoom = zoom_out - zoom_in
+	return update_orbit_camera_3d_resolved(orbit, resolved, dt)
+}
+
+update_orbit_camera_3d_resolved :: proc(
+	orbit: ^OrbitCamera3D,
+	controls: Orbit_Camera_Input,
+	dt: f32,
+) -> Transform {
+	pad_dt := dt if dt > 0 && !math.is_nan(dt) && !math.is_inf(dt) else 0
+	if controls.orbiting && !controls.panning {
+		orbit.yaw -= controls.orbit_delta[0] * orbit.orbit_sensitivity
+		orbit.pitch += controls.orbit_delta[1] * orbit.orbit_sensitivity
+		orbit.yaw -= controls.pad_orbit[0] * orbit.pad_orbit_speed * pad_dt
+		orbit.pitch += controls.pad_orbit[1] * orbit.pad_orbit_speed * pad_dt
+	} else if !controls.panning && orbit.auto_yaw_speed != 0 {
+		orbit.yaw += orbit.auto_yaw_speed * dt
+	}
+	zoom_scale := orbit.distance if orbit.zoom_mode == .relative else 1
+	orbit.distance -= controls.zoom * zoom_scale * orbit.zoom_sensitivity
+	orbit.distance += controls.pad_zoom * orbit.pad_zoom_speed * pad_dt
 	orbit.pitch = clamp(orbit.pitch, orbit.min_pitch, orbit.max_pitch)
 	orbit.distance = clamp(orbit.distance, orbit.min_distance, orbit.max_distance)
 	for orbit.yaw >= 360 {orbit.yaw -= 360}
@@ -374,15 +426,23 @@ update_orbit_camera_3d :: proc(
 
 	yaw := orbit.yaw * f32(math.PI / 180)
 	pitch := orbit.pitch * f32(math.PI / 180)
-	if panning {
-		// Drag the scene with the pointer in the camera's screen plane. Mouse
-		// deltas are already per-frame; distance scales pan speed with zoom.
-		dx := input.axis(controls, orbit.pan_x_axis)
-		dy := input.axis(controls, orbit.pan_y_axis)
+	if controls.panning {
+		// Distance scales drag speed. Horizontal mode keeps the target's height
+		// fixed while screen mode follows the camera's visible up direction.
+		dx, dy := controls.pan_delta[0], controls.pan_delta[1]
 		right := [3]f32{math.sin(yaw), 0, -math.cos(yaw)}
 		up := [3]f32{-math.sin(pitch) * math.cos(yaw), math.cos(pitch), -math.sin(pitch) * math.sin(yaw)}
+		if orbit.pan_mode == .horizontal {up = {-math.cos(yaw), 0, -math.sin(yaw)}}
 		orbit.target += (up * dy - right * dx) * (orbit.distance * orbit.pan_sensitivity)
 	}
+	return orbit_camera_3d_pose(orbit^)
+}
+
+// Evaluate the current world-space orbit pose without consuming input or
+// advancing time. Drawing can reuse a tool camera updated earlier in the frame.
+orbit_camera_3d_pose :: proc(orbit: OrbitCamera3D) -> Transform {
+	yaw := orbit.yaw * f32(math.PI / 180)
+	pitch := orbit.pitch * f32(math.PI / 180)
 	horizontal_distance := orbit.distance * f32(math.cos(f64(pitch)))
 	return Transform {
 		position = {

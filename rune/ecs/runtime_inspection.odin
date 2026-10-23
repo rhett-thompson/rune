@@ -81,6 +81,10 @@ component_value_json :: proc(component: $T, allocator := context.temp_allocator)
 		when T == Camera3D {
 			object["projection"] = json.String("perspective" if component.projection == .perspective else "orthographic")
 		}
+		when T == OrbitCamera3D {
+			object["pan_mode"] = json.String("screen" if component.pan_mode == .screen else "horizontal")
+			object["zoom_mode"] = json.String("absolute" if component.zoom_mode == .absolute else "relative")
+		}
 		when T == ShapeRenderer2D {
 			object["shape"] = json.String("rectangle" if component.shape == .rectangle else "circle")
 		}
