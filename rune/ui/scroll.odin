@@ -19,6 +19,71 @@ Scroll_Panel_Frame :: struct {
 }
 
 @(private)
+Scroll_Focus_Ancestor :: struct {
+	widget: u32,
+	panel: int,
+}
+
+// Floating roots without inherited clipping have their own scroll ancestry.
+// In particular, dropdown options must not scroll the menu behind their popup.
+@(private)
+scroll_focus_open :: proc(ui:^Context,declaration:Element) {
+	if declaration.floating.attachTo!=.None && declaration.floating.clipTo==.None {
+		append(&ui.scroll_floating_depths,ui.depth)
+	}
+}
+
+@(private)
+scroll_focus_close :: proc(ui:^Context) {
+	for len(ui.scroll_floating_depths)>0 && ui.scroll_floating_depths[len(ui.scroll_floating_depths)-1]>ui.depth {
+		pop(&ui.scroll_floating_depths)
+	}
+}
+
+@(private)
+scroll_focus_widget :: proc(ui:^Context,key:u32) {
+	floor:=ui.scroll_floating_depths[len(ui.scroll_floating_depths)-1] if len(ui.scroll_floating_depths)>0 else 0
+	for index:=len(ui.scroll_stack)-1;index>=0;index-=1 {
+		panel:=ui.scroll_stack[index]
+		if ui.scroll_panels[panel].depth<floor {break}
+		append(&ui.scroll_focus_ancestors,Scroll_Focus_Ancestor{key,panel})
+	}
+}
+
+// Called only after explicit navigation and the completed layout, with this
+// context selected. Inner-to-outer updates keep a nested control visible through
+// every ancestor clip without disturbing independent lists or idle wheel input.
+@(private)
+scroll_reveal_focus :: proc(ui:^Context) {
+	widget:=clay.GetElementData({id=ui.focus_id})
+	if !widget.found {return}
+	target:=widget.boundingBox
+	for ancestor in ui.scroll_focus_ancestors {
+		if ancestor.widget!=ui.focus_id {continue}
+		frame:=ui.scroll_panels[ancestor.panel]
+		viewport:=clay.GetElementData({id=frame.id})
+		data:=clay.GetScrollContainerData({id=frame.id})
+		if !viewport.found || !data.found || data.scrollPosition==nil {continue}
+		for axis in 0..<2 {
+			if !(frame.vertical if axis==1 else frame.horizontal) {continue}
+			start:=target.y if axis==1 else target.x
+			size:=target.height if axis==1 else target.width
+			origin:=viewport.boundingBox.y if axis==1 else viewport.boundingBox.x
+			length:=viewport.boundingBox.height if axis==1 else viewport.boundingBox.width
+			content:=data.contentDimensions.height if axis==1 else data.contentDimensions.width
+			if !(length>0) || !(content>length) {continue}
+			delta:f32
+			if start<origin || size>length {delta=origin-start}
+			else if start+size>origin+length {delta=origin+length-start-size}
+			before:=data.scrollPosition^[axis]
+			data.scrollPosition^[axis]=clamp(before+delta,-(content-length),0)
+			if axis==1 {target.y+=data.scrollPosition^[axis]-before}
+			else {target.x+=data.scrollPosition^[axis]-before}
+		}
+	}
+}
+
+@(private)
 Scroll_Bar_Geometry :: struct {
 	track,thumb: clay.BoundingBox,
 	range,travel,thumb_ratio,leading_ratio: f32,
@@ -194,6 +259,7 @@ open_scroll_panel :: proc(ui:^Context,id:string,declaration:Element,horizontal,v
 	outer.layout={sizing=declaration.layout.sizing,layoutDirection=.TopToBottom}
 	outer.clip={}
 	scroll_open(outer); ui.depth+=1
+	scroll_focus_open(ui,outer)
 	row:=Element{id=clay.ID("__rune_scroll_row",key),layout={sizing={width=grow({}),height=grow({})}}}
 	if declaration.layout.sizing.width.type==.Fixed {row.layout.sizing.width=declaration.layout.sizing.width}
 	if declaration.layout.sizing.height.type==.Fixed {
@@ -224,6 +290,7 @@ close_scroll_panel :: proc(ui:^Context) {
 		clay._CloseElement()
 	}
 	clay._CloseElement(); ui.depth-=1
+	scroll_focus_close(ui)
 }
 
 // Ordinary layout children keep both rendering and pointer hits inside every

@@ -226,6 +226,12 @@ outside camera modes. Use stable unique widget IDs. Custom loops call
 layout and drawing; the low-level callback `run` overload does not dispatch
 registered systems. See `rune/ui/input.odin` for mapped or synthetic inputs.
 
+Use `ui.scroll_panel` for long control lists. Explicit next/previous navigation
+reveals focused widgets inside their containing scroll panels, including nested
+viewports; idle focus preserves mouse-wheel scroll positions. The context input
+overload above adds controller left-stick navigation and repeat to mapped D-pad
+and keyboard actions.
+
 Text inputs clip their contents and each consumes a native Clay scroll entry.
 Rune's patched header sizes these entries by the element limit, supporting
 inspectors with many numeric fields. Native artifacts must be rebuilt from that

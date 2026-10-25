@@ -47,6 +47,8 @@ finishes and releases the compiler lock; Windows outputs use `.exe`.
 | Audio ownership, mixing, stopping, or preload | `tools/mixer_validation` and `tools/audio_stop_validation` for configuration | Both validators with `--runtime`, using a working playback backend |
 | Navmesh bake coverage or path detours | `rune/navigation` tests, `tools/navigation_bake_validation`, and headless `tools/navigation_3d_validation`; compare actual route lengths on the reported bake/query settings | `navigation_3d_validation --runtime` when visible agent motion or rendered navigation is the symptom |
 | Terrain editing or reload retention | `tools/terrain_validation` for PNG/R16 decoding, CPU data ownership, native collision, corrupt-heightmap retention and recovery | `terrain_validation --runtime` for GPU chunk replacement, invalid-reload retention, materials and instanced details |
+| Console transport, batching, or completion | `rune/console` tests, focused `rune/core` console/quit tests, and `tools/console_validation` | `debug_console_validation --runtime` for capture pixels, profile completion, and results retained across rendered frames |
+| Paused stepping, fast-step input, or frame pacing | `rune/core/fast_step_test.odin` and `rune/input/fast_step_test.odin` within their package tests | `fast_step_validation --runtime` for actual callback/scene tick cadence, deferred ordering, runtime cap restoration, and interrupted commands |
 
 The table names tool packages; runtime commands refer to the executables built
 from them. UI pixel checks do not replace the serial dropdown/input tests.
@@ -77,6 +79,100 @@ validation; normally choose a release check or a full validation run instead of
 duplicating both. See `docs/release.md` and `docs/linux.md` for current commands,
 runtime logs, timeouts, and platform limits. Choose focused checks for a focused
 fix; do not require the full release workflow for every report.
+
+## Console transport validation
+
+Use the serial `rune/console` tests for batch parsing, bounds, ordering, failure
+continuation, result ownership, and the single-command inbox. The focused tests
+in `rune/core/console_batch_test.odin` and the quit tests in
+`rune/core/gamepad_exit_test.odin` exercise actual engine commands, deferred
+stepping, partial replies, and loop exit. Use the compiler wrapper and the
+`rune`/`r3d` collections described above. `tools/console_validation` also runs
+headless inbox checks. Build `tools/debug_console_validation`, then run its
+executable with `--runtime` to check capture pixels, profile completion after
+presentation, and retained batch results across frame-arena resets. Both
+aggregate helpers include this validator when `--runtime` is selected; it
+requires a display.
+
+For `step --fast`, also run the focused `fast_step_*` core tests and
+`clear_transients_*` input tests. They cover argument validation and completion,
+counts around the eight-tick boundary, controlled component-state comparisons,
+cached physical versus injected input edges, batch sequencing, and interrupted
+completion. Build `tools/fast_step_validation` with the same compiler wrapper and
+collections, then run the resulting executable with `--runtime`. It creates a
+hidden window and exercises both engine-owned loops. The aggregate helpers
+include it with `--runtime`; without that flag the executable does not exercise
+the loops. A display backend is required even when the window is hidden.
+
+When diagnosing cap restoration, distinguish `engine.window.target_fps` (the
+desired runtime cap) from the native software cap temporarily removed during a
+fast step. Check actual presented-frame timing as well as the retained value,
+including a `set_target_fps` call made during the command. The project value is
+the startup setting, and averaged FPS can include frames from before restoration.
+V-Sync remains independent. Compare controlled simulation/component values;
+fast stepping changes frame-service cadence and does not promise identical
+frame counts, FPS, live input, or wall-time behavior.
+
+Engine loops call `stop_debug_console` before teardown to restore temporary
+pacing and publish interrupted command/batch results. Custom loops using engine
+debug commands must do the same. `console.stop_remote` handles only transport
+cleanup and cannot restore an engine frame-cap override. See
+`rune/core/debug_commands.odin`, `rune/core/core.odin`, and
+`docs/runtime-console.md` (Custom console loops and result ownership).
+
+Sender fixtures are optional and use only Python 3's standard library:
+
+```text
+python tools/console_sender_validation.py --help
+python tools/console_sender_validation.py --sender windows
+python tools/console_sender_validation.py --sender sh --shell /path/to/sh
+```
+
+The `windows` mode requires Windows Script Host; `--shell` selects a POSIX shell,
+including Git for Windows. These fixtures inspect published request bytes and
+provide replies to test parsing, failures, and timeout cleanup. They do not run
+the engine, and Python is not required by the aggregate validation helpers.
+
+On 2026-10-24, the pinned October Odin compiler with MSVC passed the headless
+console/core checks on Windows AMD64. Hidden-window batch capture/profile checks
+passed with GLFW and OpenGL 3.3 on an NVIDIA RTX 5070. Python 3.10 sender fixtures
+passed against the Windows JScript sender and Git for Windows `sh`; the Windows
+fixtures invoke the JScript body with the batch wrapper's argument environment.
+The shell fixtures also passed on Ubuntu under WSL with Python 3.12 and GNU Awk
+5.2.1 using the Windows-mounted checkout.
+
+Linux engine checks on 2026-10-24 used Ubuntu 24.04.2 WSL2, glibc 2.39, the same
+pinned compiler, and static raylib, at `8bcea68` plus the working-tree batch
+implementation. All 84 console tests and six focused core tests passed, as did
+the headless inbox validator and rendered capture/profile checks. Rendering used
+isolated Xvfb, GLFW/X11, and Mesa 25.2.8 llvmpipe. Additional actual callback and
+scene-loop checks exercised deferred step/profile completion, mid-batch quit,
+and `request_exit` between entries or during `step 600`/`profile 600`; scene
+shutdown callbacks observed the finalized reply before teardown. The Linux
+sender also passed against the freshly built Hello World scene engine with
+`pause`, `step 60`, `profile 3`, `status`, and `quit`, plus an incomplete quit
+prefix. See `rune/core/core.odin` for the loop cleanup ordering.
+
+Fast-step validation on 2026-10-24 used the same pinned compiler and static
+raylib, at `8bcea68` plus the batch and fast-step working-tree changes. All 35
+core, 20 input, and 84 console tests passed serially on Windows and Ubuntu WSL2;
+the rendered debug-console and player-profile validators passed on both too.
+`fast_step_validation --runtime` passed 33 real-loop cases on each platform,
+covering both loops, 1/7/8/9/600 ticks, injected edges, capture/profile ordering,
+interruption, V-Sync flag preservation, and a queued save processed before the
+next tick. A 600-tick fast command used 75 simulation frames. With V-Sync off,
+the cap checks measured about 0.31–0.39 ms per fast frame on Windows and
+1.05–1.15 ms under Xvfb/llvmpipe; afterward frames took about 16.67 ms at 60 FPS
+and 33.33 ms when a runtime setter changed the desired cap to 30 during stepping.
+These small hidden-window fixtures establish native cap removal/restoration in
+the tested backends, not a general performance bound or V-Sync presentation rate.
+
+The Linux checks used the Windows-mounted checkout and do not establish filename
+casing on a native Linux filesystem, physical window-manager close events,
+native Wayland, or hardware GPU behavior. They do not establish timing
+equivalence between batched and separate requests. Compare deterministic
+component and simulation values rather than frame counters, FPS, or profiling
+measurements.
 
 ## Identify the source snapshot and executable
 

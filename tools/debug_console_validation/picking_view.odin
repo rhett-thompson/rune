@@ -21,6 +21,7 @@ validate_debug_picking_view :: proc(registry: ^ecs.Component_Registry) {
 	defer rl.CloseWindow()
 	rl.SetExitKey(rl.KeyboardKey(0))
 	validate_console_cursor()
+	validate_batch_capture_profile()
 	assert(os.make_directory_all("build/captures") == nil || os.exists("build/captures"))
 	world := ecs.init()
 	defer ecs.destroy(&world)

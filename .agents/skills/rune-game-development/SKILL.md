@@ -118,6 +118,20 @@ for a small feature. Check installed source signatures before inventing calls.
   Custom commands can supply read-only argument completion callbacks. See
   [console inspection](references/project-workflow.md#inspect-gameplay-through-the-console)
   for interactive use and the local command inbox.
+- Use the console helpers' `--batch-file` for ordered inspection sequences.
+  Commands advance one per frame and wait for deferred completion; inspect the
+  batch's `complete`, `ok`, and per-entry `data`. Compare deterministic component
+  values in controlled paused runs, since frame counters and timing output can
+  differ from separate requests. A timeout does not cancel a claimed batch;
+  inspect its outcome before retrying side effects. See the console inspection
+  reference for file limits, result ownership, and custom-loop cleanup.
+- Use `step --fast [count]` for controlled paused simulation checks that can
+  group up to eight complete ticks per rendered frame. Update systems still run
+  per tick; UI, input polling, audio, and drawing remain per frame. Frame-driven
+  game logic and raw raylib input can differ from normal stepping. Fast stepping
+  temporarily removes only the software cap and restores the latest runtime
+  setting. See the console inspection and lifecycle references for input edges,
+  deterministic comparisons, and custom-loop cleanup.
 
 ## Verify the game, then report the result
 

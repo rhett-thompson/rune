@@ -62,6 +62,9 @@ Context :: struct {
 	widgets, previous_widgets: [dynamic]u32,
 	scroll_panels, previous_scroll_panels: [dynamic]Scroll_Panel_Frame,
 	scroll_stack: [dynamic]int,
+	scroll_focus_ancestors: [dynamic]Scroll_Focus_Ancestor,
+	scroll_floating_depths: [dynamic]int,
+	reveal_focus: bool,
 	scroll_drag_id, scroll_hover_id: u32,
 	scroll_drag_axis: int,
 	scroll_drag_offset: f32,
@@ -93,6 +96,8 @@ init :: proc(ui: ^Context, font := rl.Font{}, measure: Measure_Proc = nil) -> bo
 	ui.scroll_panels = make([dynamic]Scroll_Panel_Frame, 0, 4)
 	ui.previous_scroll_panels = make([dynamic]Scroll_Panel_Frame, 0, 4)
 	ui.scroll_stack = make([dynamic]int, 0, 4)
+	ui.scroll_focus_ancestors = make([dynamic]Scroll_Focus_Ancestor, 0, 16)
+	ui.scroll_floating_depths = make([dynamic]int, 0, 4)
 	previous := clay.GetCurrentContext()
 	defer clay.SetCurrentContext(previous)
 	size := clay.MinMemorySize()
@@ -114,6 +119,7 @@ destroy :: proc(ui: ^Context) {
 	delete(ui.widgets)
 	delete(ui.previous_widgets)
 	delete(ui.scroll_panels); delete(ui.previous_scroll_panels); delete(ui.scroll_stack)
+	delete(ui.scroll_focus_ancestors); delete(ui.scroll_floating_depths)
 	mem.dynamic_arena_destroy(&ui.scratch)
 	ui^ = {}
 }
@@ -142,6 +148,7 @@ begin :: proc(ui: ^Context, dimensions: [2]f32, inputs: Inputs, dt: f32) -> bool
 	ui.ready = false
 	ui.error_length = 0
 	ui.inputs = inputs
+	ui.reveal_focus = false
 	clay.SetLayoutDimensions({dimensions[0], dimensions[1]})
 	clay.SetPointerState(inputs.pointer, inputs.pointer_down && !inputs.blocked)
 	scroll_owned := scroll_bars_input(ui)
@@ -166,6 +173,7 @@ begin :: proc(ui: ^Context, dimensions: [2]f32, inputs: Inputs, dt: f32) -> bool
 			if inputs.next {index += 1} else {index = len(ui.previous_widgets) - 1 if index < 0 else index - 1}
 			index = (index + len(ui.previous_widgets)) % len(ui.previous_widgets)
 			ui.focus_id = ui.previous_widgets[index]
+			ui.reveal_focus = true
 		}
 	} else {
 		ui.active_id = 0
@@ -175,6 +183,7 @@ begin :: proc(ui: ^Context, dimensions: [2]f32, inputs: Inputs, dt: f32) -> bool
 	mem.dynamic_arena_reset(&ui.scratch)
 	resize(&ui.widgets, 0)
 	resize(&ui.scroll_panels, 0); resize(&ui.scroll_stack, 0)
+	resize(&ui.scroll_focus_ancestors, 0); resize(&ui.scroll_floating_depths, 0)
 	ui.building = true
 	active_context = ui
 	ui.depth = 0
@@ -191,13 +200,16 @@ finish :: proc(ui: ^Context) -> bool {
 	ui.commands = clay.EndLayout()
 	ui.building = false
 	active_context = nil
-	clay.SetCurrentContext(ui.previous_context)
 	found := false
 	for id in ui.widgets {if id == ui.focus_id {found = true; break}}
 	if !found {ui.focus_id = ui.widgets[0] if len(ui.widgets) > 0 else 0}
 	found = false
 	for id in ui.widgets {if id == ui.active_id {found = true; break}}
 	if !found {ui.active_id = 0}
+	// Modal widgets may replace begin's navigation target. Reveal their final
+	// focus only; the next layout applies the updated ancestor scroll offsets.
+	if ui.reveal_focus {scroll_reveal_focus(ui)}
+	clay.SetCurrentContext(ui.previous_context)
 	ui.widgets, ui.previous_widgets = ui.previous_widgets, ui.widgets
 	ui.scroll_panels, ui.previous_scroll_panels = ui.previous_scroll_panels, ui.scroll_panels
 	ui.ready = ui.error_length == 0
@@ -211,6 +223,7 @@ panel :: proc(ui: ^Context, id: string, declaration: Element) {
 	clay._OpenElement()
 	clay.ConfigureOpenElement(config)
 	ui.depth += 1
+	scroll_focus_open(ui,config)
 }
 
 end_panel :: proc(ui: ^Context) {
@@ -221,6 +234,7 @@ end_panel :: proc(ui: ^Context) {
 	}
 	clay._CloseElement()
 	ui.depth -= 1
+	scroll_focus_close(ui)
 }
 
 // Open a clipped viewport with automatic scrollbars in reserved edge gutters.
@@ -323,6 +337,7 @@ widget :: proc(ui: ^Context, id: string, enabled: bool) -> u32 {
 	key := clay.ID(id).id
 	if enabled {
 		append(&ui.widgets, key)
+		scroll_focus_widget(ui,key)
 		if ui.focus_id == 0 {ui.focus_id = key}
 	}
 	return key

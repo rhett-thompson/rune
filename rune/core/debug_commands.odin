@@ -13,6 +13,7 @@ import "rune:scene"
 import rl "vendor:raylib"
 
 Max_Debug_Frames :: 600
+Fast_Steps_Per_Frame :: 8
 
 Debug_State :: struct {
 	world: ^ecs.World,
@@ -22,6 +23,7 @@ Debug_State :: struct {
 	paused: bool,
 	steps_remaining: int,
 	steps_requested: int,
+	fast_step: bool,
 	frame: u64,
 	simulation_time: f64,
 	simulation_updates: u64,
@@ -49,7 +51,7 @@ register_debug_commands :: proc(dev: ^console.Console) {
 	console.register(dev, "inspect", "Current data: inspect <entity-id> [component].", inspect_command, debug_argument_completion)
 	console.register(dev, "pause", "Pause simulation while rendering and console continue.", pause_command)
 	console.register(dev, "resume", "Resume simulation.", resume_command)
-	console.register(dev, "step", "Advance paused simulation: step [count, 1..600].", step_command)
+	console.register(dev, "step", "Advance paused simulation: step [--fast] [count, 1..600].", step_command, debug_argument_completion)
 	console.register(dev, "input", "Override action: input <action> press|release|clear.", input_command, debug_argument_completion)
 	console.register(dev, "pads", "List connected gamepads and live axis values.", pads_command)
 	console.register(dev, "quit", "Exit the active engine loop.", quit_command)
@@ -155,7 +157,7 @@ bind_debug_console :: proc(engine: ^Engine, world: ^ecs.World) {
 finish_exit_console :: proc(engine: ^Engine) {
 	if !engine.exit_requested {return}
 	engine.console.frame_metadata = debug_frame_metadata(engine)
-	console.finish_remote(&engine.console)
+	stop_debug_console(engine)
 }
 
 command_engine :: proc(dev: ^console.Console) -> (^Engine, bool) {
@@ -392,10 +394,16 @@ step_command :: proc(dev: ^console.Console, arguments: string) {
 		console.error(dev, "Pause simulation before stepping.")
 		return
 	}
-	count, valid := debug_frame_count(dev, arguments, 1)
+	count_arguments := arguments
+	option, rest := take_word(arguments)
+	fast := option == "--fast"
+	if fast {count_arguments = rest}
+	count, valid := debug_frame_count(dev, count_arguments, 1)
 	if !valid {return}
 	engine.debug.steps_remaining = count
 	engine.debug.steps_requested = count
+	engine.debug.fast_step = fast
+	set_step_uncapped(engine, fast)
 	dev.defer_reply = true
 }
 
@@ -475,6 +483,32 @@ profile_command :: proc(dev: ^console.Console, arguments: string) {
 	dev.defer_reply = true
 }
 
+// Snapshot once per rendered frame. A queued save or exit may end the frame's
+// ticks early; normal stepping and ordinary simulation retain one update/frame.
+debug_simulation_budget :: proc(engine: ^Engine) -> int {
+	when Player_Build {return 1}
+	if engine.debug.fast_step {return min(Fast_Steps_Per_Frame, engine.debug.steps_remaining)}
+	return 1
+}
+
+// Live input is sampled once per frame. Additional fast ticks must not replay
+// cached button edges or mouse displacement. Injection is applied afterward by
+// debug_simulation_tick, so commands issued during simulation retain their edge.
+debug_prepare_simulation_tick :: proc(engine: ^Engine, tick_index: int) {
+	when Player_Build {return}
+	if engine.debug.fast_step && tick_index > 0 {input.clear_transients(&engine.input)}
+}
+
+// Stop engine-owned commands before loop teardown. Custom engine loops use this
+// instead of console.stop_remote alone to release temporary pacing overrides.
+stop_debug_console :: proc(engine: ^Engine) {
+	if engine == nil {return}
+	set_step_uncapped(engine, false)
+	engine.debug.fast_step = false
+	engine.debug.steps_remaining = 0
+	console.stop_remote(&engine.console)
+}
+
 // Select a simulation tick only after console commands have been dispatched.
 // Paused frames still sample real input, draw, poll files, and accept commands.
 debug_simulation_tick :: proc(engine: ^Engine) -> bool {
@@ -501,6 +535,8 @@ debug_simulation_finished :: proc(engine: ^Engine) {
 	if engine.debug.steps_remaining > 0 {
 		engine.debug.steps_remaining -= 1
 		if engine.debug.steps_remaining == 0 {
+			engine.debug.fast_step = false
+			set_step_uncapped(engine, false)
 			engine.console.defer_reply = false
 			console.info(&engine.console, fmt.tprintf("Advanced %d simulation steps.", engine.debug.steps_requested))
 			debug_status(engine)

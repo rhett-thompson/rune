@@ -114,12 +114,14 @@ in registration order within each phase. `start` runs after a World exists;
 replacement, and loop exit. Structural hot reload follows the separate callback
 path described below.
 
-- `ui_update` runs before simulation, including while paused.
+- `ui_update` runs once per rendered frame before simulation, including while
+  paused.
 - `fixed_update` precedes navigation and native physics. Use
   `game.fixed_delta_time`; consume contact/sensor events in `post_physics` after
   each step, rather than once per rendered frame.
 - `update` uses `game.delta_time`. Sprite animation follows it; consume sprite
-  markers in `post_animation` before particles and audio are serviced.
+  markers in `post_animation` before particles and lifetimes are advanced. Audio
+  servicing follows simulation once per rendered frame.
 - `pre_draw`, automatic 2D scene rendering, `draw`, and gizmos draw into the
   game canvas. `draw_ui` follows canvas presentation at native UI resolution.
 
@@ -132,6 +134,18 @@ must be integrated explicitly. Use
 `examples/animation_events_2d/main.odin`
 instead of assuming every attached component runs automatically.
 
+Paused `step [count]` runs one complete simulation tick per frame with
+`delta_time = fixed_delta_time`. `step --fast [count]` groups up to eight complete
+ticks per frame: each repeats the fixed pipeline, update systems, camera updates,
+sprite animation, `post_animation`, particles, and lifetimes. The callback loop
+calls `on_update` per tick. UI, input polling, audio, and drawing retain their
+frame cadence. This is distinct from ordinary fixed-update catch-up, which runs
+multiple fixed steps within one simulation update. The fast loop yields for
+requested exit or queued save/load actions so boundary processing can run next frame.
+Use controlled workloads independent of frame/UI callbacks, live input, and wall
+time when comparing normal and fast step results. See `docs/runtime-console.md`
+(Fast paused stepping) for pacing and completion semantics.
+
 ## Separate frame input from fixed-step commands
 
 input.odin (`rune/input/input.odin`) samples actions once per rendered
@@ -140,6 +154,16 @@ frame can execute zero or several fixed steps. For a one-shot that must neither
 repeat across steps nor disappear before the next step, latch it once in a frame
 callback and consume it once in `fixed_update`. Define when pause or menus clear
 pending commands. Continuous movement can read held actions each step.
+
+Fast paused stepping applies injected actions once per complete simulation tick,
+so an injected press or release reaches its next tick. Before additional ticks
+within a rendered frame, Rune clears cached physical `pressed`/`released` edges
+and mouse-delta/wheel axes while retaining held actions and continuous/rate axes.
+This prevents a single sampled physical edge or displacement from repeating
+across those ticks. Raw raylib input queries still report frame state and bypass
+the filtering. Use Rune's cached input or explicit simulation commands for
+controlled fast-step checks; frame callbacks that feed gameplay state can still
+change the result when fewer frames are rendered.
 
 Call `input.capture` every frame a modal menu owns gameplay input. For UI actions
 during pause, use the frame APIs described in

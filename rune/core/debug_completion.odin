@@ -17,6 +17,8 @@ debug_argument_completion :: proc(dev: ^console.Console, request: console.Comple
 	if engine == nil {return}
 	world := engine.debug.world
 	switch request.command {
+	case "step":
+		if request.argument_index == 0 {append(candidates, "--fast")}
 	case "window":
 		if request.argument_index == 0 {append(candidates, "windowed", "borderless", "fullscreen")}
 	case "input":

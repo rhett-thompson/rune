@@ -108,7 +108,7 @@ test_example launcher
 test_example relay_multiplayer
 
 if [ "$runtime" -eq 1 ]; then
-    for name in overlay_3d_validation scene_overlay_validation audio_stop_validation static_mesh_material_validation light_shafts_validation volumetric_fog_validation light_shadow_validation cloud_volume_validation billboard_validation procedural_material_validation material_shader_validation material_wrap_validation navigation_3d_validation save_validation asset_validation terrain_validation skybox_validation post_processing_validation model_animation_validation sprite_animation_validation particle_validation component_features_validation collider_2d_validation polygon_2d_validation resolution_validation ui_validation window_validation mixer_validation console_validation; do
+    for name in overlay_3d_validation scene_overlay_validation audio_stop_validation static_mesh_material_validation light_shafts_validation volumetric_fog_validation light_shadow_validation cloud_volume_validation billboard_validation procedural_material_validation material_shader_validation material_wrap_validation navigation_3d_validation save_validation asset_validation terrain_validation skybox_validation post_processing_validation model_animation_validation sprite_animation_validation particle_validation component_features_validation collider_2d_validation polygon_2d_validation resolution_validation ui_validation window_validation mixer_validation console_validation debug_console_validation fast_step_validation; do
         case " $built_validators " in *" $name "*) ;; *) continue ;; esac
         stdout="build/$name.runtime.stdout.log"
         stderr="build/$name.runtime.stderr.log"

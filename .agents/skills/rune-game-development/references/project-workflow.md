@@ -305,9 +305,9 @@ ID, name, hierarchy, and current component values without editing the command
 draft or history. Picking uses the attached scene's active cameras and rejects
 letterbox bars. A supported 3D hit takes priority over a 2D hit; 2D objects follow
 draw order. It remains available while paused, except while a `step`, `profile`,
-or local inbox reply is pending. Queries use geometry bounds rather than visible
-pixels. Amber corner brackets follow the picked entity's own rendered bounds,
-independently of F3 gizmos. The native debug overlay draws after game UI and is
+or local inbox reply (including an entire batch) is pending. Queries use geometry
+bounds rather than visible pixels. Amber corner brackets follow the picked
+entity's own rendered bounds, independently of F3 gizmos. The native debug overlay draws after game UI and is
 excluded from `capture`; it does not change game materials, depth state, or scene
 data. Closing the console, clicking empty canvas, replacing the attached scene,
 or deleting the entity clears the selection. Disabling the entity or an ancestor
@@ -358,7 +358,8 @@ $reply.data
 On Linux the equivalent helper is `sh "$rune_root/tools/console.sh"` with the
 same arguments. Check each reply's `ok` and parse structured `data`; JSON key
 order and human-readable log formatting are not contracts. Pass each line below
-as a separate `--command` value, adapting entity IDs and mapped action names:
+as a separate `--command` value, or save them as a UTF-8 batch file, adapting
+entity IDs and mapped action names:
 
 ```text
 pause
@@ -373,12 +374,80 @@ input move_right clear
 resume
 ```
 
-`step` advances simulation while remaining paused. `release` forces an action up;
-`clear` returns it to physical input. Restore injected actions and the intended
+For a saved file such as `build/inspection.txt`, use:
+
+```powershell
+$reply = & "$runeRoot/tools/console.bat" --directory build/console/inspection --batch-file build/inspection.txt --json | ConvertFrom-Json
+$reply.complete
+$reply.ok
+$reply.results
+```
+
+`--batch-file` and `--command` are mutually exclusive. Batch files accept an
+optional UTF-8 BOM, LF or CRLF endings, blank lines, and comment lines starting
+with `#` after whitespace. Invalid UTF-8 rejects the whole file.
+Each command line is limited to 256 UTF-8 bytes excluding its line ending; its
+JSON quotes are literal file content. The file limit is 1 MiB and 4096 physical
+lines, including blank/comment lines; a final newline does not add a line.
+Overlong or invalid commands fail individually and the queue continues. Files
+exceeding the total limits are rejected before execution.
+
+A batch executes at most one command per frame and waits for each command's
+final result. The 100 ms idle inbox scan delay does not apply between entries.
+Single requests wait for the batch to finish; interactive submission, picking,
+and external `console.execute` dispatch are blocked while it runs. The reply
+envelope has `ok`, `complete`, `requested`, `completed`, `error`, and `results`;
+each entry contains `command`, `ok`, `lines`, and `data`. Check both completion
+and success. Failed entries count
+as completed; unexecuted commands after an early exit are omitted. An empty
+batch succeeds with zero counts and no entries. See `docs/runtime-console.md`
+(Batch commands) and `rune/console/remote.odin` for the full protocol.
+
+`step [--fast] [count]` advances simulation while remaining paused, defaulting to
+one tick and accepting 1–600. Normal stepping runs one tick per rendered frame.
+`--fast` runs up to eight complete simulation ticks per frame, including fixed
+and update systems, animation, particles, and lifetimes; callback loops call
+`on_update` per tick. UI, input polling, audio, and rendering remain per frame.
+The native software cap is temporarily zero, while `game.window.target_fps`
+retains the desired runtime setting. `rune.set_target_fps` during a fast step
+updates the cap restored on completion or shutdown, and V-Sync is unchanged.
+The tick loop yields early for exit or queued save/load actions. Eight ticks bound
+work count, not wall time; absent early yields, N ticks take `ceil(N / 8)`
+simulation frames. Normal `step` with runtime cap zero preserves its original
+frame cadence while removing software pacing. See `docs/runtime-console.md`
+(Fast paused stepping) and the gameplay reference's input timing guidance.
+
+`release` forces an action up; `clear` returns it to physical input. Restore
+injected actions and the intended
 pause state when done. Open the returned capture path to inspect the completed
 frame; its metadata identifies the scene and simulation step. `step`/`profile`
-reply after completion, so adjust `--timeout-seconds` when needed. A timeout can
-leave a claimed command running; inspect the result before repeating it.
+reply after completion. The helper defaults to 10 seconds for single commands
+and 300 seconds for batches; `--timeout-seconds` accepts 1–300. A timeout does
+not cancel a claimed command or batch. Removing the request before dispatch
+prevents repeated polling, not repeated effects from a republished request;
+inspect the outcome before retrying.
+
+Batching preserves order and completion boundaries, but changes idle frame
+counts. Compare relevant deterministic component values from `inspect` in a
+controlled paused simulation. Frame numbers, FPS, profiling, and time-dependent
+effects are not byte-identical across transports; `status` is only a summary.
+For normal-versus-fast step comparisons, also exclude game logic driven by
+frame/UI callbacks, live input, wall time, and other frame services. Injected
+edges apply per tick; additional ticks clear cached physical input transients,
+but raw raylib frame queries bypass that filtering.
+
+Custom handlers still borrow command arguments for the current call and use
+`console.set_result` for frame-scratch results. Deferred handlers set their
+result on the completion frame. The batch transport retains its own copy of
+each completed entry. Custom loops call `console.update` once per frame,
+`console.finish_frame` after game drawing, and, when using engine debug commands,
+`rune.stop_debug_console(&game)` before exiting to finalize interrupted commands,
+restore a fast-step frame cap, and release batch storage. Engine-owned loops and
+shutdown handle this automatically. Standalone consoles use
+`console.stop_remote` for transport cleanup; it does not restore engine pacing
+state. See `rune/console/results.odin`,
+`rune/console/batch.odin`, `rune/console/remote.odin`, and
+`rune/core/debug_commands.odin`.
 
 `set` changes runtime fields and `reload` discards runtime scene edits. To persist
 an authored edit, change the scene source JSON directly or save it through the

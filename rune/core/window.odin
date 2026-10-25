@@ -16,8 +16,10 @@ Window_State :: struct {
 	saved: bool,
 	geometry_pending_until: f64,
 	pending_maximize: bool,
-	// Runtime frame cap; project.window retains the startup settings.
+	// Requested runtime cap; fast stepping can temporarily leave pacing uncapped.
+	// project.window retains the startup settings.
 	target_fps: i32,
+	step_uncapped: bool,
 }
 
 Window_Metrics :: struct {
@@ -204,12 +206,20 @@ set_vsync :: proc(engine: ^Engine, enabled: bool) -> bool {
 }
 
 // Independent of V-Sync. Zero disables the software cap; negatives are invalid.
-// Runtime setters leave the loaded project settings unchanged.
+// Runtime setters leave the loaded project settings unchanged. During fast
+// stepping the new value is retained and applied when the override is released.
 set_target_fps :: proc(engine: ^Engine, fps: i32) -> bool {
 	if engine == nil || !rl.IsWindowReady() || fps < 0 {return false}
-	rl.SetTargetFPS(fps)
+	rl.SetTargetFPS(0 if engine.window.step_uncapped else fps)
 	engine.window.target_fps = fps
 	return true
+}
+
+@(private)
+set_step_uncapped :: proc(engine: ^Engine, enabled: bool) {
+	if engine.window.step_uncapped == enabled {return}
+	engine.window.step_uncapped = enabled
+	if rl.IsWindowReady() {rl.SetTargetFPS(0 if enabled else engine.window.target_fps)}
 }
 
 toggle_borderless :: proc(engine: ^Engine) -> bool {

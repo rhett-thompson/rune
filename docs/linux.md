@@ -27,6 +27,28 @@ passed all three startup modes and linked Hello World and the blank template.
 This is software-rendered WSLg coverage; the native-desktop status below still
 applies. See [display settings](display.md) for the window API and test commands.
 
+Focused batch-console validation on 2026-10-24 used Ubuntu 24.04.2 WSL2, glibc
+2.39, the pinned October compiler, static raylib, and `8bcea68` plus the
+working-tree batch implementation. Console and focused core tests passed, along
+with capture/profile rendering under isolated Xvfb and Mesa llvmpipe. Actual
+callback and scene loops completed deferred commands and flushed partial replies
+on mid-batch `quit` or `request_exit` between entries and during `step`/`profile`.
+The Linux sender also passed against the freshly built Hello World engine.
+This verifies the tested loop shutdown paths, not physical window-manager close
+events, native Wayland, or hardware GPU behavior. See
+[batch commands](runtime-console.md#batch-commands) for the protocol.
+
+Fast-step checks on 2026-10-24 used that same WSL2/Xvfb configuration and
+`8bcea68` plus the batch and fast-step working-tree changes. All 35 core, 20
+input, and 84 console tests passed, together with the debug-console and player
+profile validators. `fast_step_validation --runtime` passed 33 actual callback
+and scene-loop cases, including deferred replies, input edges, queued saves,
+interruption, and V-Sync flag preservation. Fast stepping completed 600 ticks in
+75 simulation frames; native pacing returned to 60 FPS or the updated runtime
+cap of 30 FPS after completion. This does not verify physical window-manager
+close events or synchronized presentation under V-Sync. See
+[fast paused stepping](runtime-console.md#fast-paused-stepping).
+
 The [Deck staging helper](steam-deck.md) built all 39 optimized static examples
 and the launcher. All 40 binaries require at most `GLIBC_2.38` and resolved their
 system libraries without the isolated build environment. This verifies builds,
@@ -146,6 +168,7 @@ when changing build, validation, or release behavior.
 | Create a project | `sh tools/new_project.sh --path ../MyGame --name 'My Game'` |
 | Build a generated project | `sh /path/to/MyGame/build.sh --rune-root /path/to/rune` |
 | Send a console command | `sh tools/console.sh --directory build/console --command status --json` |
+| Send a console batch | `sh tools/console.sh --directory build/console --batch-file commands.txt --json` |
 
 The Linux build helpers produce extensionless executables; Windows helpers use
 `.exe`. The importer rebuild helper supports `--target Linux`; its Windows target

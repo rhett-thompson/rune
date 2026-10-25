@@ -104,6 +104,16 @@ during update or between frames, before drawing. They change the active window's
 timing settings and leave the loaded startup settings intact. Pass 0 to
 `set_target_fps` to remove the software cap; V-Sync remains independent.
 
+The console's `step --fast` temporarily removes the native software cap while
+retaining the desired runtime value in `game.window.target_fps`. Calls to
+`set_target_fps` during a fast step update that desired value; the native cap
+stays zero until the command completes or is interrupted by shutdown. Cleanup
+restores the latest runtime value, which may differ from the startup setting.
+V-Sync is unchanged. Engine-owned loops handle cleanup; custom loops using engine
+debug commands call `rune.stop_debug_console(&game)` on exit. Frame/FPS summaries
+can include measurements from before restoration and do not establish the
+configured cap. See [fast paused stepping](runtime-console.md#fast-paused-stepping).
+
 The developer console and opt-in inbox expose:
 
 ```powershell

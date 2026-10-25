@@ -232,6 +232,10 @@ submit :: proc(console: ^Console) {
 // the line the user is currently typing. Arguments are borrowed for this call.
 execute :: proc(console: ^Console, command_line: string) -> bool {
 	when profile.Player_Build {return false}
+	if console.remote.batch != nil && !console.remote.batch_dispatch {
+		warning(console, "A console batch is still running.")
+		return false
+	}
 	if console.defer_reply {
 		warning(console, "A step/profile command is still running.")
 		return false

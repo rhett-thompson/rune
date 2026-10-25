@@ -53,10 +53,13 @@ append_tube :: proc(mesh: ^Mesh, points: [][3]f32, radius: f32, sides: int = 8, 
 		}
 		previous_tangent=tangent
 		last_tangent=tangent
-		second:=linalg.cross(tangent,axis)
+		// Float32 frame products can exceed unit length by an ulp even when
+		// both inputs were normalized. Keep generated normals inside the mesh
+		// validity contract instead of passing that drift to the side rings.
+		second:=linalg.normalize(linalg.cross(tangent,axis))
 		for side in 0..<sides {
 			angle:=f32(2*math.PI)*f32(side)/f32(sides)
-			normal:=axis*math.cos(angle)+second*math.sin(angle)
+			normal:=linalg.normalize(axis*math.cos(angle)+second*math.sin(angle))
 			append(&tube.vertices,Vertex{position=p+normal*radius,normal=normal,color=color})
 		}
 	}

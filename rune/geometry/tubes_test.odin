@@ -52,6 +52,44 @@ tubes_follow_bent_paths_deterministically_without_frame_flips :: proc(t: ^testin
 }
 
 @(test)
+tubes_accept_shallow_diagonal_segments_with_unit_side_normals :: proc(t: ^testing.T) {
+	// This floor-conduit segment formerly generated a Y normal of
+	// 1.000000119 and failed strict mesh validation with four sides.
+	regression:=[2][3]f32{{-6.75,0.04,2.25},{-2.625,0.04,2.625}}
+	translations:=[3][3]f32{{0,0,0},{10,4,-8},{128,-32,256}}
+	side_counts:=[3]int{4,8,16}
+	for translation in translations {
+		for plane in 0..<3 {
+			for reverse in ([2]bool{false,true}) {
+				points: [2][3]f32
+				for &point,i in points {
+					original:=regression[1-i] if reverse else regression[i]
+					for axis in 0..<3 {point[(axis+plane)%3]=original[axis]}
+					point+=translation
+				}
+				for sides in side_counts {
+					mesh: Mesh
+					prefix:=[2][3]f32{{0,0,0},{0,2,0}}
+					if !testing.expect(t,append_tube(&mesh,prefix[:],0.05)) {destroy_mesh(&mesh);continue}
+					before_vertices,before_indices:=len(mesh.vertices),len(mesh.indices)
+					before_vertex,before_index:=mesh.vertices[0],mesh.indices[0]
+					if testing.expect(t,append_tube(&mesh,points[:],0.04,sides),"a shallow supported segment must generate a valid tube") {
+						testing.expect(t,mesh.vertices[0]==before_vertex && mesh.indices[0]==before_index,"a successful append preserves existing mesh data")
+						for vertex,i in mesh.vertices[before_vertices:before_vertices+sides*2] {
+							testing.expect(t,abs(linalg.length(vertex.normal)-1)<1e-6,"side normals remain unit length after frame rounding")
+							testing.expect(t,abs(linalg.length(vertex.position-points[i/sides])-0.04)<0.0001,"normal repair preserves the requested tube radius")
+						}
+						for index in mesh.indices[before_indices:] {testing.expect(t,index>=u32(before_vertices),"appended segments reference only their own vertices")}
+						expect_tube_winding(t,mesh)
+					}
+					destroy_mesh(&mesh)
+				}
+			}
+		}
+	}
+}
+
+@(test)
 tubes_reject_invalid_input_without_mutating_existing_buffers :: proc(t: ^testing.T) {
 	good:=[2][3]f32{{0,0,0},{0,0,5}}
 	mesh: Mesh; defer destroy_mesh(&mesh)

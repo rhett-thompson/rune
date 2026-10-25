@@ -12,8 +12,9 @@ import rl "vendor:raylib"
 
 measure :: proc(text: string, size, spacing: f32) -> [2]f32 {return {f32(len(text))*size*0.5,size}}
 
-scroll_layout :: proc(ctx: ^ui.Context, wheel: f32) {
-	assert(ui.begin(ctx,{400,300},{pointer={10,10},scroll={0,wheel}},1.0/60))
+scroll_layout :: proc(ctx: ^ui.Context, wheel: f32, controls: ui.Inputs = {pointer={10,10}}) {
+	inputs:=controls; inputs.scroll={0,wheel}
+	assert(ui.begin(ctx,{400,300},inputs,1.0/60))
 	ui.scroll_panel(ctx,"scroll",{layout={sizing={width=ui.fixed(200),height=ui.fixed(100)},layoutDirection=.TopToBottom}})
 	for i in 0..<8 {ui.button(ctx,fmt.tprintf("scroll_%d",i),"Scroll item")}
 	ui.end_panel(ctx)
@@ -176,7 +177,30 @@ validate_rendering :: proc() {
 	assert(rl.GetImageColor(clipped,150,50)==rl.BLACK,"outer clip remains active")
 	assert(rl.GetImageColor(clipped,80,50)==rl.Color{255,0,0,255},"outer clip is restored after inner ends")
 	assert(rl.GetImageColor(clipped,30,30)==rl.Color{0,255,0,255},"inner content draws inside clip")
+	validate_scroll_focus_rendering(&ctx)
 	validate_panel_fill(&ctx)
+}
+
+validate_scroll_focus_rendering :: proc(ctx: ^ui.Context) {
+	ui.reset_focus(ctx)
+	scroll_layout(ctx,0)
+	for _ in 0..<7 {scroll_layout(ctx,0,{pointer={10,10},next=true})}
+	scroll_layout(ctx,0)
+	assert(ui.focused(ctx,"scroll_7"),"navigation reaches the last scroll item")
+	viewport,found:=ui.bounds(ctx,"scroll")
+	row,row_found:=ui.bounds(ctx,"scroll_7")
+	assert(found && row_found && row.y>=viewport.y && row.y+row.height<=viewport.y+viewport.height+0.01,
+		"navigation reveals the last item in the rendered viewport")
+	for _ in 0..<3 {
+		rl.BeginDrawing()
+		rl.ClearBackground(rl.BLACK)
+		assert(ui.draw(ctx))
+		rl.EndDrawing()
+	}
+	image:=rl.LoadImageFromScreen()
+	defer rl.UnloadImage(image)
+	pixel:=rl.GetImageColor(image,i32(row.x+1),i32(row.y+row.height/2))
+	assert(pixel==rl.Color{93,225,189,255},"the revealed controller focus border is rendered inside the clip")
 }
 
 validate_panel_fill :: proc(ctx: ^ui.Context) {

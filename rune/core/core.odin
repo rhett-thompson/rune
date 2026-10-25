@@ -588,6 +588,8 @@ run_callbacks :: proc(engine: ^Engine, on_update: Update_Proc, on_draw: Draw_Pro
 	frame_arena: mem.Dynamic_Arena
 	mem.dynamic_arena_init(&frame_arena)
 	defer mem.dynamic_arena_destroy(&frame_arena)
+	// Publish interrupted batches while the loop's scratch allocator is alive.
+	defer stop_debug_console(engine)
 
 	for !engine.exit_requested && !window_should_close(engine) {
 		context.temp_allocator = mem.dynamic_arena_allocator(&frame_arena)
@@ -598,12 +600,17 @@ run_callbacks :: proc(engine: ^Engine, on_update: Update_Proc, on_draw: Draw_Pro
 		}
 		begin_frame(engine)
 		if engine.exit_requested {break}
-		if debug_simulation_tick(engine) {
+		simulation_budget := debug_simulation_budget(engine)
+		for tick_index in 0..<simulation_budget {
+			if engine.exit_requested {break}
+			debug_prepare_simulation_tick(engine, tick_index)
+			if !debug_simulation_tick(engine) {break}
 			started := rl.GetTime()
 			on_update(engine)
-			engine.debug.sample.update_ms = (rl.GetTime() - started) * 1000
+			engine.debug.sample.update_ms += (rl.GetTime() - started) * 1000
 			if engine.debug.steps_remaining > 0 {engine.debug.fixed_steps += 1}
 			debug_simulation_finished(engine)
+			if engine.save_request.action != .None {break}
 		}
 
 		draw_started := rl.GetTime()
@@ -666,6 +673,7 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 	frame_arena: mem.Dynamic_Arena
 	mem.dynamic_arena_init(&frame_arena)
 	defer mem.dynamic_arena_destroy(&frame_arena)
+	defer stop_debug_console(engine)
 	for !engine.exit_requested && !window_should_close(engine) {
 		// Scratch results belong to this frame; keep blocks for reuse without
 		// resetting temporary allocations owned by the caller of run_scene.
@@ -688,10 +696,14 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 		for system in engine.systems {
 			if system.ui_update != nil {system.ui_update(engine, world)}
 		}
-		if debug_simulation_tick(engine) {
+		simulation_budget := debug_simulation_budget(engine)
+		for tick_index in 0..<simulation_budget {
+			if engine.exit_requested {break}
+			debug_prepare_simulation_tick(engine, tick_index)
+			if !debug_simulation_tick(engine) {break}
 			fixed_started := rl.GetTime()
 			run_fixed_pipeline(engine, world)
-			engine.debug.sample.fixed_update_ms = (rl.GetTime() - fixed_started) * 1000
+			engine.debug.sample.fixed_update_ms += (rl.GetTime() - fixed_started) * 1000
 			update_started := rl.GetTime()
 			update_orbit_cameras_3d(engine, world)
 			run_update_systems(engine, world)
@@ -706,8 +718,11 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 			}
 			ecs.update_particles_2d(world, engine.delta_time)
 			ecs.update_lifetimes(world, engine.delta_time)
-			engine.debug.sample.update_ms = (rl.GetTime() - update_started) * 1000
+			engine.debug.sample.update_ms += (rl.GetTime() - update_started) * 1000
 			debug_simulation_finished(engine)
+			// Process queued saves/loads at the next frame boundary before another
+			// simulation tick, just as ordinary stepping does.
+			if engine.save_request.action != .None {break}
 		}
 		audio.update(&engine.audio, world, engine.frame_delta_time)
 
@@ -973,12 +988,7 @@ shutdown :: proc(engine: ^Engine) {
 		delete(engine.save_request.name)
 		engine.save_request = {}
 		save.destroy(&engine.saves)
-		if engine.console.defer_reply {
-			engine.console.defer_reply = false
-			engine.console.result_data = {}
-			console.error(&engine.console, "Engine stopped before the command completed.")
-			console.finish_remote(&engine.console)
-		}
+		stop_debug_console(engine)
 		if engine.has_active_world {
 			ecs.destroy(&engine.active_world)
 			engine.has_active_world = false

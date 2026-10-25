@@ -259,9 +259,12 @@ input to an overflowing ancestor. `Inputs.blocked` disables wheel, track clicks,
 active drag. `ui.reset_focus` also cancels dragging. Scrollbar presses and releases
 are consumed before buttons or sliders, without changing keyboard focus.
 
-The wrapper applies Clay's stored scroll position. Keyboard focus does not yet
-automatically scroll a control into view. Direct Clay access is available through the vendored Odin package;
-do not call its `BeginLayout`/`EndLayout` inside a Rune-owned layout. The renderer
+The wrapper applies Clay's stored scroll position. Keyboard and controller
+next/previous navigation scroll the focused widget into view within its containing
+scroll panels; the following layout applies the updated offsets. Idle focus
+leaves wheel-scrolled positions unchanged. Direct Clay access is available through
+the vendored Odin package; do not call its `BeginLayout`/`EndLayout` inside a
+Rune-owned layout. The renderer
 intersects nested scissors and restores the outer clip after each inner one.
 
 The renderer handles rectangles with independent corner radii, borders, text,
@@ -281,8 +284,9 @@ odin build tools/ui_validation -linker:msvc -collection:rune=rune "-out:build/ui
 & "./build/ui_validation$exe" --runtime
 ```
 
-Headless checks cover the native ABI/layout, resizing, focus traversal, disabled
-widgets, clicks and canceled clicks, dragging, bounded memory, context ownership,
+Headless checks cover the native ABI/layout, resizing, focus traversal and scroll
+reveal through nested viewports, disabled widgets, clicks and canceled clicks,
+dragging, bounded memory, context ownership,
 input capture, UI input while paused, and independent pause/step controls.
 Headless dropdown tests also cover pointer and keyboard selection, focus and
 scroll reveal, dismissal ownership, disabled/empty state, and floating placement.
