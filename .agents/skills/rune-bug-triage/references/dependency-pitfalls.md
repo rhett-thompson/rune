@@ -80,15 +80,53 @@ Relevant files: `rune/core/window*.odin`, `rune/core/core.odin`,
 - Startup creates a hidden native window through initial sizing and mode setup.
   `rune.init(path, defer_window_show = true)` and
   `rune.init_project(defer_window_show = true)` keep it hidden through game asset
-  and preference loading; false remains the default and reveals before return.
+  and preference loading; false remains the default and reveals before return
+  unless project `window.hidden` is true.
   Built-in scene/callback loops reveal after the first completed `EndDrawing`;
   custom loops call `rune.show_window(&game)` after their first full
   `EndDrawing`. Its later calls do nothing, preserving an intentionally hidden
-  window. Win32 exclusive fullscreen forces visibility, so that startup mode is
-  queued until reveal while windowed/borderless changes apply hidden. Use
+  window. It also respects persistent hiding. Win32 exclusive fullscreen forces
+  visibility, so that startup mode is queued until reveal while windowed/borderless
+  changes apply during deferred startup. Use
   `rune.window_mode(&game)` for the queued request and the no-argument query for
   native state. `tools/window_validation --deferred-startup-runtime` covers the
   lifecycle; inspect visible startup separately on the affected desktop.
+- Project `window.hidden: true` keeps both engine-owned loops hidden.
+  `rune.set_window_hidden` and `window hidden` / `window show` change runtime
+  visibility. Mode changes while persistently hidden are queued. Hiding an
+  exclusive-fullscreen window leaves native fullscreen and retains the requested
+  mode for reveal: GLFW ignores a direct fullscreen hide, even though raylib sets
+  its cached hidden flag. Inspect native visibility in addition to `hidden`, and
+  distinguish `window_metrics(&game).mode` from its `requested_mode`.
+- In the pinned raylib 6 backend, `RestoreWindow` acts only on resizable windows.
+  Rune's explicit show temporarily enables resizing for restoration and then
+  restores the original setting; see `rune/core/window.odin`. On 2026-10-25,
+  combined hidden/deferred-startup checks passed with static and shared raylib
+  on Windows/GLFW at 100% scaling (NVIDIA RTX 5070, OpenGL 3.3, pinned October
+  Odin/MSVC). They checked both cached `IsWindowMinimized` and native `IsIconic`
+  after explicit show, retained resizable/always-run settings, and native-hidden
+  startup of the next engine. This does not establish minimized restoration on
+  other desktop backends.
+- Closing while still minimized, including while hidden, retains raylib's
+  minimized flag across `CloseWindow`. A subsequent engine in the same process
+  can replay minimization and expose the startup surface. This remains a pinned
+  backend limitation: a native restore can map/focus the window, so shutdown
+  does not attempt it solely to clear retained state. Prefer hidden automation
+  over minimization, or explicitly `window show` before shutdown/reinitialization
+  to restore a minimized window. Separate process-per-run launches do not
+  inherit this state. Check `rune/core/core.odin`, `rune/core/window.odin`, and
+  `tools/window_validation/main.odin` when changing this lifecycle.
+- Console capture reads the drawn framebuffer before presentation and rejects
+  hidden windows at command acceptance and execution with
+  `data.error: "capture_window_hidden"`. Failures must finish transport/batch
+  replies and leave no PNG. A visible flag does not guarantee settled buffers:
+  `tools/window_validation/main.odin` allows multiple frames for readback after
+  mode changes. Do not infer a compositor or driver failure from a deliberate
+  hidden-capture rejection, or promise capture readiness after exactly one frame.
+- Hidden does not mean headless or physically input-isolated. The graphics
+  context still needs a display backend, and Rune continues gamepad sampling.
+  Hidden/occluded swap pacing may differ; fixed paused simulation delta does not
+  make frame callbacks or wall-time-driven game logic deterministic.
 
 Use the shared window validator link check and relevant runtime transitions.
 Distinguish WSLg/X11 software-rendering coverage from native Wayland, desktop

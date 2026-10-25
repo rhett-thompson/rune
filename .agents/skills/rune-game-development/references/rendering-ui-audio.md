@@ -157,7 +157,9 @@ Geometry and coordinate tests live in `rune/render/picking_2d_test.odin`,
 `rune/render/selection_3d_test.odin`, `rune/core/debug_picking_test.odin`, and
 `rune/core/debug_selection_test.odin`.
 `tools/debug_console_validation` also accepts `--runtime` to check picks against
-rendered pixels and selection overlays in a hidden raylib window. Verified on
+rendered pixels and selection overlays. Console captures require a non-hidden
+window; the validator reveals for successful capture cases and separately checks
+hidden capture errors. Earlier pixel checks were verified on
 Windows with OpenGL 3.3/NVIDIA at 1000x800 logical and framebuffer resolution,
 using a 400x400 fit canvas and perspective and orthographic 3D cameras. These
 fixtures check live bounds, unchanged object surface colors and pixels outside
@@ -165,6 +167,13 @@ the brackets, visible amber markers, and clean console frame captures. This does
 not establish coverage for custom drawing, animated model deformation, other
 graphics backends, or physical HiDPI displays; headless coordinate tests cover
 simulated framebuffer scaling separately.
+
+For console-driven runs, project `window.hidden: true` retains the graphics
+context while suppressing automatic reveal. Use `rune.set_window_hidden` for
+runtime visibility, and reveal/settle before console capture. Readback happens
+before presentation; requiring visibility is a supported capture contract, not
+a claim that every hidden framebuffer read fails. See `docs/display.md` and
+`rune/console/capture.odin`.
 
 ## Live material authoring
 

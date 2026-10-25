@@ -8,7 +8,7 @@ description: "Verify tester reports and investigate or fix regressions in the Ru
 Locate the Rune checkout from the current workspace or the user's supplied path.
 Paths below and in references are relative to that checkout. Read the relevant
 entries in [dependency-pitfalls.md](references/dependency-pitfalls.md) when the
-report concerns DPI/cameras, window modes/linking, audio, Clay, or R3D.
+report concerns DPI/cameras, window modes/visibility/linking, audio, Clay, or R3D.
 Use [build-and-validation.md](references/build-and-validation.md) for Windows
 linker requirements, choosing validation coverage, and identifying the exact
 source snapshot and executable being tested.
@@ -37,6 +37,11 @@ installed personal copy synchronized when updating this package.
 - Verify claimed defaults, version regressions, and first-bad commits independently.
   Use pinned upstream source when local source is insufficient. Keep source
   findings, runtime reproduction, and remaining uncertainty distinct.
+- For hidden-window reports, distinguish deferred startup from persistent
+  visibility and requested fullscreen from native mode. A raylib hidden flag is
+  not proof of native visibility; test native state as well as console results.
+  Console capture deliberately rejects hidden windows. See the window notes
+  and `docs/display.md` before interpreting a capture failure.
 
 ## Reproduce the relevant condition
 

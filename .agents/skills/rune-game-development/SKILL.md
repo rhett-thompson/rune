@@ -132,6 +132,13 @@ for a small feature. Check installed source signatures before inventing calls.
   temporarily removes only the software cap and restores the latest runtime
   setting. See the console inspection and lifecycle references for input edges,
   deterministic comparisons, and custom-loop cleanup.
+- For console-driven runs, project `window.hidden: true` keeps initialization
+  and engine-owned loops hidden. Use `rune.set_window_hidden` or `window hidden`
+  / `window show` for runtime visibility; `show_window` remains a startup helper.
+  Reveal and settle any mode transition before `capture`, which rejects hidden
+  windows with `data.error: "capture_window_hidden"`. A graphics context/display
+  is still required, and hiding does not isolate physical gamepad input. See
+  the project workflow and `docs/display.md` for mode and pacing contracts.
 
 ## Verify the game, then report the result
 

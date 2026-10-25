@@ -126,7 +126,6 @@ run_case :: proc(project, directory: string, scene_loop, fast: bool, count: int,
 	game, loaded := rune.init(project, defer_window_show=true)
 	assert(loaded)
 	defer rune.shutdown(&game)
-	game.window.show_pending = false
 	game.debug.paused = true
 	if kind == .Vsync {rl.SetWindowState({.VSYNC_HINT})}
 	if kind == .Save_Boundary {
@@ -144,7 +143,7 @@ run_case :: proc(project, directory: string, scene_loop, fast: bool, count: int,
 	step := fmt.tprintf("step %s%d", "--fast " if fast else "", count)
 	commands := fmt.tprintf("%s\nvalidate_step\nquit", step)
 	if kind == .Capture_Profile {
-		commands = fmt.tprintf("%s\ncapture %s\nprofile 3\nvalidate_step\nquit", step, capture)
+		commands = fmt.tprintf("%s\nwindow show\ncapture %s\nwindow hidden\nprofile 3\nvalidate_step\nquit", step, capture)
 	} else if kind == .Restore_Cap || kind == .Change_Cap {
 		commands = fmt.tprintf("%s\nprofile 12\nvalidate_step\nquit", step)
 	} else if kind == .Quit_Prefix {
@@ -198,11 +197,15 @@ run_case :: proc(project, directory: string, scene_loop, fast: bool, count: int,
 			assert(reply.ok && reply.complete && state.checked)
 			extra_frames := 1
 			if kind == .Capture_Profile {
-				extra_frames = 5
-				assert(reply.completed == 5)
-				capture_data := reply.results[1].data.(json.Object)
-				assert(capture_data["metadata"].(json.Object)["frame"].(json.Integer) == i64(simulation_frames+1))
-				assert(reply.results[2].data.(json.Object)["frames"].(json.Integer) == 3)
+				extra_frames = 7
+				assert(reply.completed == 7)
+				assert(!reply.results[1].data.(json.Object)["hidden"].(json.Boolean))
+				assert(reply.results[1].data.(json.Object)["requested_mode"].(json.String) == "windowed")
+				capture_data := reply.results[2].data.(json.Object)
+				assert(capture_data["metadata"].(json.Object)["frame"].(json.Integer) == i64(simulation_frames+2))
+				assert(reply.results[3].data.(json.Object)["hidden"].(json.Boolean))
+				assert(reply.results[3].data.(json.Object)["requested_mode"].(json.String) == "windowed")
+				assert(reply.results[4].data.(json.Object)["frames"].(json.Integer) == 3)
 				path_c, _ := strings.clone_to_cstring(capture, context.temp_allocator)
 				image := rl.LoadImage(path_c)
 				assert(image.data != nil && image.width == 320 && image.height == 240)
@@ -231,7 +234,7 @@ run_case :: proc(project, directory: string, scene_loop, fast: bool, count: int,
 main :: proc() {
 	runtime := false
 	for argument in os.args[1:] {if argument == "--runtime" {runtime = true}}
-	if !runtime {fmt.println("Fast-step runtime validation requires --runtime (hidden window)."); return}
+	if !runtime {fmt.println("Fast-step runtime validation requires --runtime (briefly reveals capture cases)."); return}
 	arena: mem.Dynamic_Arena
 	mem.dynamic_arena_init(&arena)
 	defer mem.dynamic_arena_destroy(&arena)
@@ -246,7 +249,7 @@ main :: proc() {
 	defer os.remove(controls)
 	scene := fmt.tprintf("%s/empty.scene.json", directory)
 	defer os.remove(scene)
-	assert(os.write_entire_file(project, `{"name":"Fast step validation","window":{"width":320,"height":240,"target_fps":0,"vsync":false},"input":"input.json","background_color":[20,40,80,255],"hot_reload":{"enabled":false}}`) == nil)
+	assert(os.write_entire_file(project, `{"name":"Fast step validation","window":{"width":320,"height":240,"target_fps":0,"vsync":false,"hidden":true},"input":"input.json","background_color":[20,40,80,255],"hot_reload":{"enabled":false}}`) == nil)
 	assert(os.write_entire_file(controls, `{"actions":{"fire":[{"type":"keyboard","key":"SPACE"}]},"axes":{}}`) == nil)
 	assert(os.write_entire_file(scene, `{"name":"Empty validation scene","entities":[]}`) == nil)
 	for scene_loop in ([2]bool{false, true}) {

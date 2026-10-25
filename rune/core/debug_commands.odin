@@ -45,7 +45,7 @@ Profile_Sample :: struct {
 register_debug_commands :: proc(dev: ^console.Console) {
 	console.register(dev, "enable", "Enable entity subtree: enable <entity-id>.", enable_command, debug_argument_completion)
 	console.register(dev, "disable", "Suspend entity subtree: disable <entity-id>.", disable_command, debug_argument_completion)
-	console.register(dev, "window", "Inspect display or change mode: window [windowed|borderless|fullscreen].", window_command, debug_argument_completion)
+	console.register(dev, "window", "Inspect display or change mode/visibility: window [windowed|borderless|fullscreen|hidden|show].", window_command, debug_argument_completion)
 	console.register(dev, "status", "Report scene, timing, camera, entity count, and errors.", status_command)
 	console.register(dev, "entities", "List entities: entities [component].", entities_command, debug_argument_completion)
 	console.register(dev, "inspect", "Current data: inspect <entity-id> [component].", inspect_command, debug_argument_completion)

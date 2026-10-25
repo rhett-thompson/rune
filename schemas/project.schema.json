@@ -30,6 +30,7 @@
         "mode": { "type": "string", "enum": ["windowed", "borderless", "fullscreen"], "description": "Overrides the legacy fullscreen flag." },
         "high_dpi": { "type": "boolean", "default": true },
         "resizable": { "type": "boolean", "default": false },
+        "hidden": { "type": "boolean", "default": false, "description": "Keep the window hidden until explicitly shown. Rendering and console processing continue; a display and graphics context are still required." },
         "fullscreen": { "type": "boolean", "default": false, "deprecated": true },
         "vsync": { "type": "boolean", "default": false, "description": "Request display-synchronized buffer swaps through raylib's V-Sync hint; independent of target_fps." },
         "target_fps": { "type": "integer", "minimum": 0, "maximum": 2147483647, "default": 0, "description": "Software frame-rate cap in frames per second. Zero disables the cap; independent of vsync." },

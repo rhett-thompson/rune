@@ -240,7 +240,7 @@ validate_window :: proc(report: ^Report, file: string, project: json.Object) {
 		if _, title_ok := value.(json.String);
 		   !title_ok {add(report, file, "$.window.title", "must be a string")}
 	}
-	for field in ([]string{"fullscreen", "high_dpi", "resizable", "vsync", "msaa_4x", "show_fps"}) {
+	for field in ([]string{"fullscreen", "high_dpi", "resizable", "hidden", "vsync", "msaa_4x", "show_fps"}) {
 		if value, found := settings[field]; found {
 			if _, ok := value.(json.Boolean); !ok {add(report, file, field_path("$.window", field), "must be a boolean")}
 		}

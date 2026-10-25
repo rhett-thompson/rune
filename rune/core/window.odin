@@ -8,6 +8,11 @@ Window_Mode :: enum {Windowed, Borderless, Fullscreen}
 Window_State :: struct {
 	// Startup remains hidden through the first presented frame when requested.
 	show_pending: bool,
+	// Persistent visibility is independent of the one-time startup reveal.
+	hidden: bool,
+	// Preserve the application's minimized-window event policy across hiding.
+	hidden_always_run: bool,
+	// Requested mode while startup or persistent hiding defers native changes.
 	startup_mode: Window_Mode,
 	// Native client size and desktop position, retained across mode changes.
 	size: [2]i32,
@@ -30,6 +35,10 @@ Window_Metrics :: struct {
 	high_dpi: bool,
 	resizable: bool,
 	vsync: bool,
+	// mode and dimensions describe native state; requested_mode includes a
+	// deferred mode when window_metrics receives an Engine.
+	requested_mode: string,
+	hidden: bool,
 }
 
 parse_window_mode :: proc(name: string) -> (Window_Mode, bool) {
@@ -50,10 +59,10 @@ window_mode_name :: proc(mode: Window_Mode) -> string {
 	return ""
 }
 
-// With an engine, include an exclusive mode queued until startup is revealed.
+// With an engine, include a mode queued until the window is revealed.
 // Without one, report the actual native window state.
 window_mode :: proc(engine: ^Engine = nil) -> Window_Mode {
-	if engine != nil && engine.window.show_pending {return engine.window.startup_mode}
+	if engine != nil && (engine.window.show_pending || engine.window.hidden) {return engine.window.startup_mode}
 	if rl.IsWindowFullscreen() {return .Fullscreen}
 	if rl.IsWindowState({.WINDOW_UNDECORATED}) || rl.IsWindowState({.BORDERLESS_WINDOWED_MODE}) {return .Borderless}
 	return .Windowed
@@ -63,12 +72,23 @@ window_mode :: proc(engine: ^Engine = nil) -> Window_Mode {
 // Changes runtime state only; project.json remains the startup configuration.
 set_window_mode :: proc(engine: ^Engine, mode: Window_Mode) -> bool {
 	if engine == nil || !rl.IsWindowReady() || window_mode_name(mode) == "" {return false}
+	if engine.window.hidden {
+		// Native mode changes (including maximize/monitor attachment) can show
+		// the surface. Preserve all requests until explicitly revealed.
+		engine.window.startup_mode = mode
+		return true
+	}
 	if engine.window.show_pending && mode == .Fullscreen {
 		engine.window.startup_mode = mode
 		// GLFW's Win32 monitor attachment shows even a hidden window. Wait
 		// until a complete frame has been painted before entering fullscreen.
 		return true
 	}
+	return apply_window_mode(engine, mode)
+}
+
+@(private)
+apply_window_mode :: proc(engine: ^Engine, mode: Window_Mode, restore_maximized: bool = true) -> bool {
 	previous := window_mode()
 	if previous == mode {
 		if engine.window.show_pending {engine.window.startup_mode = mode}
@@ -102,10 +122,16 @@ set_window_mode :: proc(engine: ^Engine, mode: Window_Mode) -> bool {
 	case .Windowed:
 		engine.window.geometry_pending_until = rl.GetTime()+1
 		if engine.window.maximized {
-			when ODIN_OS == .Windows {rl.MaximizeWindow()} else {
-				// Let the WM restore decorations and normal bounds before asking
-				// it to calculate the maximized client area on a later frame.
+			if !restore_maximized {
+				// Hiding fullscreen must not briefly show/focus a maximized
+				// surface on the way out. Apply it after an explicit reveal.
 				engine.window.pending_maximize = true
+			} else {
+				when ODIN_OS == .Windows {rl.MaximizeWindow()} else {
+					// Let the WM restore decorations and normal bounds before asking
+					// it to calculate the maximized client area on a later frame.
+					engine.window.pending_maximize = true
+				}
 			}
 		}
 	case .Borderless:
@@ -128,21 +154,70 @@ set_window_mode :: proc(engine: ^Engine, mode: Window_Mode) -> bool {
 // Built-in loops call this after the first EndDrawing. Custom loops should do
 // the same when using init(..., defer_window_show=true). Later calls are no-ops,
 // preserving windows deliberately hidden by the application after startup.
+// Persistent hidden mode also suppresses this automatic reveal. Use
+// set_window_hidden(engine, false) for an explicit runtime reveal.
 show_window :: proc(engine: ^Engine) -> bool {
 	if engine == nil || !rl.IsWindowReady() {return false}
-	if !engine.window.show_pending {return true}
-	mode := engine.window.startup_mode
+	if !engine.window.show_pending || engine.window.hidden {return true}
+	return set_window_hidden(engine, false)
+}
+
+// Call during update or between frames, before BeginDrawing. Hiding retains
+// the requested mode, exits exclusive fullscreen, and keeps event polling alive
+// even if the window was minimized. Showing applies the latest requested mode.
+// Runtime changes leave project.window.hidden unchanged.
+set_window_hidden :: proc(engine: ^Engine, hidden: bool) -> bool {
+	if engine == nil || !rl.IsWindowReady() {return false}
+	if hidden {
+		if engine.window.hidden {return rl.IsWindowHidden()}
+		mode := window_mode(engine)
+		if rl.IsWindowFullscreen() {
+			// GLFW ignores hiding exclusive fullscreen. Hide the Win32 surface
+			// before detaching the monitor, then use the normal raylib hide path.
+			when ODIN_OS == .Windows {ShowWindow(rl.GetWindowHandle(), 0)}
+			if !apply_window_mode(engine, .Windowed, restore_maximized = false) {return false}
+		} else {
+			remember_windowed_geometry(engine)
+		}
+		engine.window.startup_mode = mode
+		engine.window.hidden_always_run = rl.IsWindowState({.WINDOW_ALWAYS_RUN})
+		rl.SetWindowState({.WINDOW_ALWAYS_RUN, .WINDOW_HIDDEN})
+		engine.window.hidden = true
+		return rl.IsWindowHidden()
+	}
+	if !engine.window.hidden && !engine.window.show_pending && !rl.IsWindowHidden() && !rl.IsWindowMinimized() {return true}
+	mode := window_mode(engine)
+	was_hidden, was_pending := engine.window.hidden, engine.window.show_pending
+	engine.window.hidden = false
 	engine.window.show_pending = false
+	if rl.IsWindowMinimized() {
+		// raylib 6 gates RestoreWindow on GLFW_RESIZABLE, even for restoring
+		// an iconified fixed-size window. Enable it only around explicit show.
+		resizable := rl.IsWindowState({.WINDOW_RESIZABLE})
+		if !resizable {rl.SetWindowState({.WINDOW_RESIZABLE})}
+		rl.RestoreWindow()
+		if !resizable {rl.ClearWindowState({.WINDOW_RESIZABLE})}
+	}
 	if !set_window_mode(engine, mode) {
-		engine.window.show_pending = true
+		engine.window.hidden = was_hidden
+		engine.window.show_pending = was_pending
+		engine.window.startup_mode = mode
+		rl.SetWindowState({.WINDOW_HIDDEN})
 		return false
 	}
 	rl.ClearWindowState({.WINDOW_HIDDEN})
-	return true
+	if was_hidden {restore_hidden_event_policy(engine)}
+	return !rl.IsWindowHidden()
+}
+
+@(private)
+restore_hidden_event_policy :: proc(engine: ^Engine) {
+	if !engine.window.hidden_always_run {rl.ClearWindowState({.WINDOW_ALWAYS_RUN})}
 }
 
 @(private)
 update_window_state :: proc(engine: ^Engine) {
+	if engine.window.hidden {return}
 	if engine.window.pending_maximize && rl.IsWindowReady() && window_mode() == .Windowed {
 		if (rl.IsWindowResized() && native_window_size() == engine.window.size) ||
 		   rl.GetTime() >= engine.window.geometry_pending_until {
@@ -223,28 +298,35 @@ set_step_uncapped :: proc(engine: ^Engine, enabled: bool) {
 }
 
 toggle_borderless :: proc(engine: ^Engine) -> bool {
-	return set_window_mode(engine, .Windowed if window_mode() == .Borderless else .Borderless)
+	return set_window_mode(engine, .Windowed if window_mode(engine) == .Borderless else .Borderless)
 }
 
 // screen matches raylib drawing/mouse coordinates. framebuffer is for GPU
 // render targets. Do not multiply screen coordinates by DPI a second time.
-window_metrics :: proc() -> Window_Metrics {
+window_metrics :: proc(engine: ^Engine = nil) -> Window_Metrics {
 	if !rl.IsWindowReady() {return {}}
-	return {window_mode_name(window_mode()),
-		{rl.GetScreenWidth(), rl.GetScreenHeight()},
-		{rl.GetRenderWidth(), rl.GetRenderHeight()}, rl.GetWindowScaleDPI(),
-		rl.IsWindowState({.WINDOW_HIGHDPI}), rl.IsWindowState({.WINDOW_RESIZABLE}),
-		rl.IsWindowState({.VSYNC_HINT})}
+	return {
+		mode = window_mode_name(window_mode()),
+		screen = {rl.GetScreenWidth(), rl.GetScreenHeight()},
+		framebuffer = {rl.GetRenderWidth(), rl.GetRenderHeight()}, dpi = rl.GetWindowScaleDPI(),
+		high_dpi = rl.IsWindowState({.WINDOW_HIGHDPI}), resizable = rl.IsWindowState({.WINDOW_RESIZABLE}),
+		vsync = rl.IsWindowState({.VSYNC_HINT}),
+		requested_mode = window_mode_name(window_mode(engine)), hidden = rl.IsWindowHidden(),
+	}
 }
 
 @(private)
 window_command :: proc(dev: ^console.Console, arguments: string) {
 	engine, ok := command_engine(dev)
 	if !ok {return}
-	if arguments != "" {
+	switch arguments {
+	case "hidden", "show":
+		if !set_window_hidden(engine, arguments == "hidden") {console.error(dev, "Window visibility change failed"); return}
+	case "":
+	case:
 		mode, valid := parse_window_mode(arguments)
-		if !valid {console.error(dev, "Usage: window [windowed|borderless|fullscreen]"); return}
+		if !valid {console.error(dev, "Usage: window [windowed|borderless|fullscreen|hidden|show]"); return}
 		if !set_window_mode(engine, mode) {console.error(dev, "Window mode change failed"); return}
 	}
-	console.set_result(dev, window_metrics())
+	console.set_result(dev, window_metrics(engine))
 }

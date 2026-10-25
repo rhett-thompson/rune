@@ -9,7 +9,7 @@ import "rune:console"
 import rune "rune:core"
 import rl "vendor:raylib"
 
-// Called with the validator's hidden window. Both capture's before-overlay
+// Called with the validator's visible window. Both capture's before-overlay
 // completion and profile's after-presentation completion must hold the queue.
 validate_batch_capture_profile :: proc() {
 	arena: mem.Dynamic_Arena

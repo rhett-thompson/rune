@@ -176,7 +176,7 @@ and when completing a token:
 | `set`: `Component.field` | Fields on the selected entity, including nested object fields and array indices after a dot, such as `Transform.position.0`. |
 | `input`: action, then operation | Configured action names, then `press`, `release`, or `clear`. |
 | `step`: first argument | `--fast`. |
-| `window`: mode | `windowed`, `borderless`, or `fullscreen`. |
+| `window`: mode or visibility | `windowed`, `borderless`, `fullscreen`, `hidden`, or `show`. |
 | `navmesh`: mode, then entity | `on` or `off`, then entity IDs/handles with `NavMesh3D` after `on`; `@picked` when the picked entity qualifies. |
 
 For example, type `inspect ` and press Tab to cycle entity IDs, or type
@@ -295,7 +295,7 @@ Available engine commands:
 | `entities [component]` | Sorted entity IDs, names, parents, and component names; optionally filter by registered component. |
 | `inspect <entity-id> [component]` | Current runtime component values and hierarchy. Runtime-only entities use the `@handle` returned by `entities`; handles expire on reload. |
 | `enable <entity-id>` / `disable <entity-id>` | Change the entity's local activation setting without saving files. Disabled ancestors keep descendants inactive; descendants retain their own local settings. See [entity activation](entity_features.md#entity-activation). |
-| `window [windowed\|borderless\|fullscreen]` | Inspect the current display or change window mode. Return mode, screen and framebuffer dimensions, DPI, high-DPI support, and resizable state. Changes do not save project settings. See [display settings](display.md#code-and-console). |
+| `window [windowed\|borderless\|fullscreen\|hidden\|show]` | Inspect the display or change mode/visibility. Return native `mode`, `requested_mode`, backend `hidden` flag, dimensions, DPI, high-DPI support, resizable state, and V-Sync. Mode changes while persistently hidden apply on reveal. Changes do not save project settings. See [display settings](display.md#code-and-console). |
 | `pause` / `resume` | Stop/start simulation updates while rendering, console polling, hot reload, and audio servicing continue. |
 | `step [--fast] [count]` | While paused, advance 1–600 complete simulation ticks using the fixed timestep. Default: 1. Normally one tick per rendered frame; `--fast` runs up to eight and temporarily removes the software frame cap. Reply arrives after completion; the game remains paused. |
 | `input <action> press\|release\|clear` | Override a mapped input action. Edges are consumed by simulation, so a press while paused reaches the next step. `release` holds the action up; `clear` restores physical input. |
@@ -304,7 +304,7 @@ Available engine commands:
 | `logs [since-sequence]` | Return log entries with sequence/level/message, a `next_sequence` cursor, and a `truncated` flag when older entries were dropped. |
 | `profile [frames]` | Measure 1–600 rendered frames (default: 120). Return mean/max/p95 milliseconds for frame duration, update, fixed update, and render submission. Frame duration includes presentation/wait; these are CPU timings, not GPU measurements. |
 | `navmesh [on [entity-id]\|off]` | Show translucent baked 3D surfaces and triangle edges; blocked triangles are red. Optional stable NavMesh3D scene ID filters the display. No arguments reports `{enabled, entity}`; empty entity means all. Independent of F3. Requires an active Camera3D or custom-camera debug drawing. |
-| `capture [path.png]` | Return the saved absolute path, dimensions, frame number, simulation time, fixed-step count, scene, and active cameras. Frame details are under `data.metadata`. |
+| `capture [path.png]` | Return the saved absolute path, dimensions, frame number, simulation time, fixed-step count, scene, and active cameras. Frame details are under `data.metadata`. Hidden windows fail with `ok: false` and `data.error: "capture_window_hidden"`. |
 
 Example repeatable inspection workflow:
 
@@ -339,8 +339,18 @@ are outside the engine's scope; see the
   unless the game is launched with `--console-dir=<directory>`.
 - `capture [path.png]` saves the completed game frame before the developer
   console and picked-object brackets. Game UI and enabled gizmos are included.
+  Readback happens before presentation. A hidden window is rejected both when
+  queuing and when executing the capture, with `ok: false` and
+  `data.error: "capture_window_hidden"`; no PNG is written and batch processing
+  can continue. Use `window show` first and allow any mode transition to settle
+  before capturing. Exactly one frame is not a cross-platform readiness guarantee.
   Relative paths resolve from the game's working directory; parent directories
   are created.
+- Set project `window.hidden` to true for automated runs that should never
+  auto-reveal. `window hidden` re-hides at runtime. The inbox and injected input
+  keep working; a display backend is still required, and gamepad sampling is
+  not disabled. See [persistent hidden windows](display.md#persistent-hidden-windows)
+  for pacing, requested/native mode, and visibility limits.
 - The helper waits for a reply, prints console output, and reports command
   failures. Its default timeout is 10 seconds for `--command` and 300 seconds
   for `--batch-file`; `--timeout-seconds` accepts 1–300 seconds. A timeout removes

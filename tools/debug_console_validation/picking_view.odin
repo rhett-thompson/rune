@@ -21,6 +21,10 @@ validate_debug_picking_view :: proc(registry: ^ecs.Component_Registry) {
 	defer rl.CloseWindow()
 	rl.SetExitKey(rl.KeyboardKey(0))
 	validate_console_cursor()
+	validate_window_visibility_commands()
+	validate_hidden_capture_contract()
+	// Successful console captures require a visible window.
+	rl.ClearWindowState({.WINDOW_HIDDEN})
 	validate_batch_capture_profile()
 	assert(os.make_directory_all("build/captures") == nil || os.exists("build/captures"))
 	world := ecs.init()

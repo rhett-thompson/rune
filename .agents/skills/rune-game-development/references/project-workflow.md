@@ -221,11 +221,27 @@ display preferences hidden. The default is false and reveals before returning.
 Built-in scene/callback loops reveal after their first completed `EndDrawing`;
 custom loops call `rune.show_window(&engine)` after their first full
 `EndDrawing`. It returns success and later calls do nothing, including when the
-game deliberately hides the window after startup. Windowed/borderless changes
-apply while hidden; exclusive fullscreen waits until reveal because its Win32
+game deliberately hides the window after startup. During deferred startup,
+windowed/borderless changes apply while hidden; exclusive fullscreen waits until reveal because its Win32
 transition forces visibility. Query `rune.window_mode(&engine)` for the requested
 startup mode, including queued fullscreen; the no-argument query reports native
 state. See `docs/display.md` and `rune/core/window.odin`.
+
+For persistent hidden runs, set project `window.hidden` to true (default false).
+Both initializers and both engine-owned loops honor it; `show_window` does not
+override it. Use `rune.set_window_hidden(&engine, hidden)` or console
+`window hidden` / `window show` to change visibility. Mode requests while
+persistently hidden are queued; hiding fullscreen leaves native exclusive mode
+and remembers the requested mode for reveal. `rune.window_metrics(&engine)` and
+the `window` command distinguish native `mode` from `requested_mode` and report
+the backend `hidden` flag. This flag is not an independent native visibility
+or occlusion measurement.
+
+Hidden runs retain the graphics context and need a working display backend.
+The inbox and injected input continue, but physical gamepad input is still
+sampled. Hidden/occluded windows may not be V-Sync throttled; use `target_fps`
+for a software cap when needed. Fixed paused steps control simulation delta,
+not wall time, live input, or frame callbacks. See `docs/display.md`.
 
 For manual Odin commands, use Rune's compiler-lock wrappers
 `tools/odin.ps1`, `tools/odin.bat`, or `sh tools/odin.sh`; supply
@@ -426,6 +442,13 @@ and 300 seconds for batches; `--timeout-seconds` accepts 1–300. A timeout does
 not cancel a claimed command or batch. Removing the request before dispatch
 prevents repeated polling, not repeated effects from a republished request;
 inspect the outcome before retrying.
+
+Console capture requires a non-hidden window. Reveal with `window show` and
+allow any queued mode transition to settle before capture; one frame is not a
+portable settling guarantee. Capture reads the drawn framebuffer before
+presentation and rechecks visibility when the queued request executes. Hidden
+requests return `ok: false` with `data.error: "capture_window_hidden"`, write no
+PNG, and complete normally for batch ordering. Re-hide after capture if needed.
 
 Batching preserves order and completion boundaries, but changes idle frame
 counts. Compare relevant deterministic component values from `inspect` in a

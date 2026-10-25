@@ -29,6 +29,7 @@ Window_Settings :: struct {
 	mode:       string,
 	high_dpi:   bool,
 	resizable:  bool,
+	hidden:     bool,
 	vsync:      bool,
 	// Independent software frame cap. Zero disables frame limiting.
 	target_fps: i32,
@@ -321,6 +322,10 @@ init :: proc(project_path: string, defer_window_show: bool = false) -> (Engine, 
 	mode := Window_Mode.Fullscreen if project.window.fullscreen else Window_Mode.Windowed
 	if project.window.mode != "" {mode, _ = parse_window_mode(project.window.mode)}
 	set_window_mode(&engine, mode)
+	if project.window.hidden && !set_window_hidden(&engine, true) {
+		shutdown(&engine)
+		return {}, false
+	}
 	if !defer_window_show {show_window(&engine)}
 	return engine, true
 }
@@ -1018,6 +1023,7 @@ shutdown :: proc(engine: ^Engine) {
 			ShowWindow(rl.GetWindowHandle(), 0) // SW_HIDE
 		}
 		reset_window_mode()
+		if engine.window.hidden {restore_hidden_event_policy(engine)}
 		rl.CloseWindow()
 		engine.is_running = false
 	}

@@ -43,7 +43,7 @@ finishes and releases the compiler lock; Windows outputs use `.exe`.
 | Dropdown/UI layout or input | Serial `rune/ui` tests; `tools/ui_validation` | `ui_validation --runtime` for rendered pixels, clipping, and MSAA |
 | Camera2D, particles, or DPI alignment | `tools/particle_validation` for simulation/configuration | `particle_validation --runtime` for camera/UI/gizmo and offscreen pixels; verify actual non-unit DPI and add picking checks when relevant |
 | 2D canvas scaling or mouse mapping | `tools/resolution_validation` for layout/mapping math | `resolution_validation --runtime` for framebuffer pixels |
-| Window modes or shared-raylib linking | `tools/window_validation` for settings; compile a separate shared target with `-define:RAYLIB_SHARED=true` | `window_validation --runtime`; run `--startup-windowed`, `--startup-borderless`, and `--startup-fullscreen` in separate processes when startup modes matter |
+| Window modes, visibility, or shared-raylib linking | `tools/window_validation` for settings; compile a separate shared target with `-define:RAYLIB_SHARED=true` | `window_validation --runtime`; run `--startup-windowed`, `--startup-borderless`, and `--startup-fullscreen` in separate processes when startup modes matter; use `--hidden-runtime` for persistent visibility |
 | Audio ownership, mixing, stopping, or preload | `tools/mixer_validation` and `tools/audio_stop_validation` for configuration | Both validators with `--runtime`, using a working playback backend |
 | Navmesh bake coverage or path detours | `rune/navigation` tests, `tools/navigation_bake_validation`, and headless `tools/navigation_3d_validation`; compare actual route lengths on the reported bake/query settings | `navigation_3d_validation --runtime` when visible agent motion or rendered navigation is the symptom |
 | Terrain editing or reload retention | `tools/terrain_validation` for PNG/R16 decoding, CPU data ownership, native collision, corrupt-heightmap retention and recovery | `terrain_validation --runtime` for GPU chunk replacement, invalid-reload retention, materials and instanced details |
@@ -93,6 +93,51 @@ executable with `--runtime` to check capture pixels, profile completion after
 presentation, and retained batch results across frame-arena resets. Both
 aggregate helpers include this validator when `--runtime` is selected; it
 requires a display.
+
+Persistent visibility checks use `tools/window_validation --hidden-runtime`.
+Cover both engine-owned loops, configured hidden startup, repeated hide/show,
+mode changes while hidden, fullscreen restoration, minimized-to-hidden behavior,
+and engine reinitialization. Check native visibility where supported rather than
+trusting raylib's cached hidden flag. Successful console captures now require a
+non-hidden window; the debug-console validator also checks named hidden-capture
+errors and continuation after failed captures. Historical hidden-readback results
+below predate this conservative capture contract and do not override it.
+
+On 2026-10-25, the debug-console runtime validator passed hidden-capture checks
+on Windows AMD64 with static raylib 6, GLFW/Win32, OpenGL 3.3, and an NVIDIA
+RTX 5070 at 100% scaling. It rejected both a command issued while hidden and a
+queued capture hidden before readback, created no output directory or PNG,
+cleared the pending request, and completed a batch containing a failed capture
+followed by successful inspection. Successful capture cases revealed the window.
+These checks do not establish other backends or cross-platform settling time
+after a mode transition.
+
+The same 2026-10-25 Windows setup, pinned Odin `dev-2026-10-nightly:84bc3fc`, and
+MSVC linker passed combined `window_validation --hidden-runtime
+--deferred-startup-runtime` runs in one process with both static and shared
+raylib. Six 65-frame hidden cases covered both engine-owned loops and all
+startup modes, native `IsWindowVisible` checks, repeated hide/show, queued modes,
+and reinitialization. Actual minimized-to-hidden/show checks confirmed cached
+`IsWindowMinimized` and native `IsIconic` cleared after show, resizable and
+`WINDOW_ALWAYS_RUN` settings were preserved, and the next engine initialized
+hidden. The existing full window regression suite passed before the final
+minimized-restoration adjustment; final combined runs covered visibility and
+lifecycle. All 33 fast-step runtime cases and the debug-console visibility-command
+batch also passed during this change. These results cover native Windows;
+other desktop backends require separate validation.
+
+On 2026-10-25, Ubuntu 24.04.2 WSL2 with pinned Odin
+`dev-2026-10-nightly:84bc3fc` passed static/shared window configuration and
+combined hidden/deferred-startup checks under isolated Xvfb, GLFW/X11, Mesa
+25.2.8 llvmpipe (LLVM 20.1.2), and OpenGL 4.5. Both builds exercised six 65-frame
+callback/scene-loop and startup-mode cases plus reinitialization. Debug-console
+visibility payloads, hidden-capture rejection, successful captures, batch
+continuation, and all 33 fast-step runtime cases passed too. There was no window
+manager, so minimization checks were skipped; native visibility assertions are
+Windows-only. The Linux binaries preceded the final direct-minimized-show fast
+path adjustment, which these runs did not exercise. These results establish the
+tested X11 paths, not minimized restoration, native Wayland, hardware GPU
+behavior, or case sensitivity on a native Linux filesystem.
 
 For `step --fast`, also run the focused `fast_step_*` core tests and
 `clear_transients_*` input tests. They cover argument validation and completion,

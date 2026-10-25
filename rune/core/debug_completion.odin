@@ -20,7 +20,7 @@ debug_argument_completion :: proc(dev: ^console.Console, request: console.Comple
 	case "step":
 		if request.argument_index == 0 {append(candidates, "--fast")}
 	case "window":
-		if request.argument_index == 0 {append(candidates, "windowed", "borderless", "fullscreen")}
+		if request.argument_index == 0 {append(candidates, "windowed", "borderless", "fullscreen", "hidden", "show")}
 	case "input":
 		if request.argument_index == 0 {
 			for action in engine.input.mappings.actions {append(candidates, action)}

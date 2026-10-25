@@ -23,6 +23,7 @@ capture_command :: proc(console: ^Console, arguments: string) {
 		error(console, "A frame capture is already pending.")
 		return
 	}
+	if rl.IsWindowHidden() {reject_hidden_capture(console); return}
 	path := arguments
 	if len(path) == 0 {
 		path = fmt.tprintf("build/captures/frame-%d.png", time.to_unix_nanoseconds(time.now()))
@@ -39,6 +40,12 @@ capture_command :: proc(console: ^Console, arguments: string) {
 // inside BeginDrawing/EndDrawing. Flush raylib's batch before reading pixels.
 finish_frame :: proc(console: ^Console) {
 	when profile.Player_Build {return}
+	// Visibility can change after the request was accepted. Reject before any
+	// filesystem work or GPU readback, and still complete the transport reply.
+	if console.capture.len > 0 && rl.IsWindowHidden() {
+		reject_hidden_capture(console)
+		console.capture.len = 0
+	}
 	if console.capture.len > 0 {
 		path := string(console.capture.path[:console.capture.len])
 		directory, _ := filepath.split(path)
@@ -68,6 +75,12 @@ finish_frame :: proc(console: ^Console) {
 		console.capture.len = 0
 	}
 	finish_remote(console)
+}
+
+@(private)
+reject_hidden_capture :: proc(console: ^Console) {
+	error(console, "Capture requires a visible window.")
+	set_result(console, struct {error: string}{"capture_window_hidden"})
 }
 
 // The pinned Odin toolchain returns .Exist for an existing directory on Linux.

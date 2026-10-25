@@ -15,6 +15,7 @@ when ODIN_OS == .Windows {
 	foreign {
 		GetWindowLongW :: proc(handle: rawptr, index: i32) -> i32 ---
 		IsWindowVisible :: proc(handle: rawptr) -> i32 ---
+		IsIconic :: proc(handle: rawptr) -> i32 ---
 	}
 }
 
@@ -55,6 +56,7 @@ validate_settings :: proc() {
 	write_project(`{}`)
 	project, ok := rune.load_project(fixture)
 	assert(ok && project.window.high_dpi && !project.window.resizable)
+	assert(!project.window.hidden,"window visibility defaults to visible")
 	assert(!project.window.vsync && project.window.target_fps == 0,"frame pacing defaults to V-Sync off and no software cap")
 	rune.destroy_project(&project)
 	for settings in ([]string{
@@ -64,6 +66,12 @@ validate_settings :: proc() {
 		write_project(settings)
 		project, ok = rune.load_project(fixture)
 		assert(ok)
+		rune.destroy_project(&project)
+	}
+	for hidden in ([]bool{false,true}) {
+		write_project(fmt.tprint(`{"hidden":`,hidden,`}`))
+		project, ok = rune.load_project(fixture)
+		assert(ok && project.window.hidden == hidden,"persistent hidden setting decodes independently")
 		rune.destroy_project(&project)
 	}
 	for fps in ([]i32{0, 1, 60, 144, 2147483647}) {
@@ -76,6 +84,7 @@ validate_settings :: proc() {
 	}
 	for settings in ([]string{`{"mode":"invalid"}`,`{"mode":false}`,`{"mode":""}`,
 		`{"high_dpi":"true"}`,`{"resizable":1}`,`{"fullscreen":null}`,
+		`{"hidden":1}`,`{"hidden":"true"}`,`{"hidden":null}`,
 		`{"vsync":1}`,`{"vsync":"true"}`,`{"vsync":null}`,
 		`{"target_fps":-1}`,`{"target_fps":1.5}`,`{"target_fps":2147483648}`,
 		`{"target_fps":true}`,`{"target_fps":"144"}`,`{"target_fps":null}`}) {
@@ -86,6 +95,7 @@ validate_settings :: proc() {
 	uninitialized: rune.Engine
 	assert(!rune.set_vsync(nil,true) && !rune.set_target_fps(nil,144),"nil engine rejected")
 	assert(!rune.set_vsync(&uninitialized,true) && !rune.set_target_fps(&uninitialized,144),"frame pacing requires a ready window")
+	assert(!rune.set_window_hidden(nil,true) && !rune.set_window_hidden(&uninitialized,true),"visibility changes require an engine and a ready window")
 }
 
 frame_pacing_sample :: proc(label: string) -> f64 {
@@ -382,7 +392,9 @@ deferred_mode: rune.Window_Mode
 validate_startup_visibility :: proc(hidden: bool) {
 	assert(rl.IsWindowState({.WINDOW_HIDDEN}) == hidden,"startup hidden flag matches presentation state")
 	when ODIN_OS == .Windows {
-		assert((IsWindowVisible(rl.GetWindowHandle()) == 0) == hidden,"native startup visibility matches presentation state")
+		assert((IsWindowVisible(rl.GetWindowHandle()) == 0) == hidden,
+			fmt.tprint("native visibility must match hidden:",hidden,"minimized:",rl.IsWindowMinimized(),
+				"maximized:",rl.IsWindowMaximized(),"fullscreen:",rl.IsWindowFullscreen(),"deferred frames:",deferred_frames))
 	}
 }
 
@@ -464,6 +476,171 @@ validate_deferred_startup_runtime :: proc() {
 	fmt.println("Deferred startup: native hidden state, saved modes, both frame loops and reinitialization passed")
 }
 
+hidden_frames: int
+hidden_mode: rune.Window_Mode
+hidden_expected: bool
+
+validate_hidden_state :: proc(game: ^rune.Engine, hidden: bool, requested: rune.Window_Mode) {
+	validate_startup_visibility(hidden)
+	metrics := rune.window_metrics(game)
+	assert(metrics.hidden == hidden,"engine-aware metrics report native hidden state")
+	assert(metrics.requested_mode == rune.window_mode_name(requested),"metrics retain the requested mode while hidden")
+	assert(metrics.mode == rune.window_mode_name(rune.window_mode()),"metrics keep the actual native mode distinct from its queued request")
+	assert(rune.window_mode(game) == requested,"engine mode query reports the requested mode")
+	assert(rune.window_metrics().hidden == hidden,"window metrics expose visibility without an engine")
+	if !hidden {assert(rune.window_mode() == requested,"revealing applies the requested native mode")}
+}
+
+hidden_update :: proc(game: ^rune.Engine) {
+	validate_hidden_state(game,hidden_expected,hidden_mode)
+	assert(game.project.window.hidden,"runtime visibility changes preserve the project setting")
+	switch hidden_frames {
+	case 0,40:
+		// Repeated hidden mode changes must not briefly enter fullscreen or
+		// apply borderless geometry. Only the final request is applied on show.
+		actual := rune.window_mode()
+		size := rune.window_metrics().framebuffer
+		for mode in ([]rune.Window_Mode{.Fullscreen,.Borderless,.Windowed,hidden_mode}) {
+			assert(rune.set_window_mode(game,mode))
+			validate_hidden_state(game,true,mode)
+			assert(rune.window_mode() == actual && rune.window_metrics().framebuffer == size,"mode changes while hidden only update the queued request")
+		}
+	case 32,44:
+		assert(rune.set_window_hidden(game,false))
+		hidden_expected = false
+		validate_hidden_state(game,false,hidden_mode)
+		assert(rune.set_window_hidden(game,false),"show is idempotent")
+	case 36,48:
+		assert(rune.set_window_hidden(game,true))
+		hidden_expected = true
+		validate_hidden_state(game,true,hidden_mode)
+		assert(rune.set_window_hidden(game,true),"hide is idempotent")
+		assert(rune.show_window(game),"startup completion still succeeds after runtime hide")
+		validate_hidden_state(game,true,hidden_mode)
+	case 64: rune.request_exit(game)
+	}
+}
+
+hidden_draw :: proc(game: ^rune.Engine) {
+	validate_hidden_state(game,hidden_expected,hidden_mode)
+	rl.ClearBackground(rl.BLACK)
+	hidden_frames += 1
+}
+
+hidden_scene_update :: proc(game: ^rune.Engine, world: ^ecs.World) {hidden_update(game)}
+hidden_scene_draw :: proc(game: ^rune.Engine, world: ^ecs.World) {hidden_draw(game)}
+
+validate_hidden_loop :: proc(mode: rune.Window_Mode, scene_loop: bool) {
+	write_project(fmt.tprintf(`{{"width":320,"height":240,"mode":"%s","high_dpi":false,"hidden":true}}`,rune.window_mode_name(mode)))
+	// The persistent setting must take precedence even over init's default
+	// immediate reveal, as well as the built-in loop's per-frame startup path.
+	game, ok := rune.init(fixture)
+	assert(ok)
+	validate_hidden_state(&game,true,mode)
+	assert(!rune.set_window_hidden(nil,false),"nil engine rejected while a native window is ready")
+	hidden_mode=mode; hidden_frames=0; hidden_expected=true
+	if scene_loop {
+		assert(rune.register_system(&game,{name="hidden_visibility",ui_update=hidden_scene_update,draw=hidden_scene_draw}))
+		assert(os.write_entire_file("build/window-validation.scene.json",`{"name":"Hidden validation","entities":[]}`)==nil)
+		defer os.remove("build/window-validation.scene.json")
+		assert(rune.load_active_scene(&game,"window-validation.scene.json"))
+		assert(rune.run(&game))
+	} else {rune.run(&game,hidden_update,hidden_draw)}
+	assert(hidden_frames >= 64 && !rl.IsWindowReady(),"hidden loops continue presenting and shut down cleanly")
+	fmt.println("Persistent hidden loop passed:",mode,"scene loop:",scene_loop,"frames:",hidden_frames)
+}
+
+hidden_present :: proc(game: ^rune.Engine) {
+	rune.begin_frame(game)
+	rl.BeginDrawing()
+	rl.ClearBackground(rl.BLACK)
+	rl.EndDrawing()
+	assert(rune.show_window(game))
+}
+
+validate_hidden_minimized :: proc(game: ^rune.Engine) {
+	resizable := rl.IsWindowState({.WINDOW_RESIZABLE})
+	// Poll the asynchronous minimize event without blocking preparation. Drop
+	// that override before hiding, so hidden mode must provide its own pacing
+	// protection and restore the previous value when shown again.
+	rl.SetWindowState({.WINDOW_ALWAYS_RUN})
+	rl.MinimizeWindow()
+	for _ in 0..<30 {
+		if rl.IsWindowMinimized() {break}
+		hidden_present(game)
+		rl.WaitTime(0.01)
+	}
+	if !rl.IsWindowMinimized() {
+		rl.RestoreWindow()
+		rl.ClearWindowState({.WINDOW_ALWAYS_RUN})
+		fmt.println("Minimized hidden roundtrip skipped: desktop backend did not minimize the window")
+		return
+	}
+	// Explicit show also restores an ordinary minimized window that has not
+	// been hidden through Rune's visibility API.
+	assert(rune.set_window_hidden(game,false))
+	assert(!rl.IsWindowMinimized(),"show restores a minimized window without requiring a preceding hide")
+	assert(rl.IsWindowState({.WINDOW_RESIZABLE}) == resizable)
+	when ODIN_OS == .Windows {assert(IsIconic(rl.GetWindowHandle()) == 0)}
+	rl.MinimizeWindow()
+	for _ in 0..<30 {
+		if rl.IsWindowMinimized() {break}
+		hidden_present(game)
+		rl.WaitTime(0.01)
+	}
+	assert(rl.IsWindowMinimized(),"prepare the minimized-to-hidden roundtrip")
+	rl.ClearWindowState({.WINDOW_ALWAYS_RUN})
+	assert(rune.set_window_hidden(game,true))
+	for _ in 0..<16 {
+		validate_hidden_state(game,true,.Windowed)
+		hidden_present(game)
+	}
+	assert(rune.set_window_hidden(game,false))
+	validate_hidden_state(game,false,.Windowed)
+	assert(!rl.IsWindowMinimized(),"show restores a minimized window even when it is not resizable")
+	assert(rl.IsWindowState({.WINDOW_RESIZABLE}) == resizable,"show preserves the window's resize policy")
+	when ODIN_OS == .Windows {assert(IsIconic(rl.GetWindowHandle()) == 0,"show restores the native minimized window")}
+	assert(!rl.IsWindowState({.WINDOW_ALWAYS_RUN}),"show restores the normal minimized-window pacing policy")
+	// An application that already requested continuous processing keeps it.
+	rl.SetWindowState({.WINDOW_ALWAYS_RUN})
+	assert(rune.set_window_hidden(game,true) && rune.set_window_hidden(game,false))
+	assert(rl.IsWindowState({.WINDOW_ALWAYS_RUN}),"show preserves a preexisting always-run flag")
+	rl.ClearWindowState({.WINDOW_ALWAYS_RUN})
+	for _ in 0..<3 {hidden_present(game)}
+}
+
+validate_hidden_reset :: proc() {
+	// Closing a persistently hidden fullscreen request must not leak either
+	// hidden or exclusive flags into the next default-visible initializer.
+	write_project(`{"width":320,"height":240,"mode":"fullscreen","hidden":true}`)
+	game, ok := rune.init(fixture,defer_window_show=true)
+	assert(ok)
+	validate_hidden_state(&game,true,.Fullscreen)
+	rune.shutdown(&game)
+	write_project(`{"width":320,"height":240,"mode":"windowed"}`)
+	game, ok = rune.init(fixture)
+	assert(ok && !game.project.window.hidden)
+	defer rune.shutdown(&game)
+	validate_hidden_state(&game,false,.Windowed)
+	assert(!rl.IsWindowState({.WINDOW_ALWAYS_RUN}),"hidden shutdown does not leak its event-polling override into a new engine")
+	assert(rune.set_window_hidden(&game,true))
+	for _ in 0..<16 {hidden_present(&game); validate_hidden_state(&game,true,.Windowed)}
+	assert(!game.project.window.hidden,"runtime hide leaves visible startup configuration unchanged")
+	assert(rune.set_window_hidden(&game,false))
+	validate_hidden_state(&game,false,.Windowed)
+	validate_hidden_minimized(&game)
+}
+
+validate_hidden_runtime :: proc() {
+	for scene_loop in ([]bool{false,true}) {
+		for mode in ([]rune.Window_Mode{.Windowed,.Borderless,.Fullscreen}) {
+			validate_hidden_loop(mode,scene_loop)
+		}
+	}
+	validate_hidden_reset()
+	fmt.println("Persistent hidden runtime: startup modes, both loops, repeated visibility changes, queued modes and reinitialization passed")
+}
+
 main :: proc() {
 	defer os.remove(fixture)
 	validate_settings()
@@ -475,6 +652,7 @@ main :: proc() {
 			validate_runtime()
 		case "--frame-pacing-runtime": validate_frame_pacing_runtime()
 		case "--deferred-startup-runtime": validate_deferred_startup_runtime()
+		case "--hidden-runtime": validate_hidden_runtime()
 		case "--startup-windowed": validate_startup_mode(.Windowed)
 		case "--startup-borderless": validate_startup_mode(.Borderless)
 		case "--startup-fullscreen": validate_startup_mode(.Fullscreen)

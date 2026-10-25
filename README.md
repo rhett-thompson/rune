@@ -415,6 +415,8 @@ to the game's working directory, and parent directories are created as needed.
 The capture includes game UI and gizmos but excludes the developer console and
 picked-object brackets.
 It runs after drawing completes, so the success message means the PNG was saved.
+Hidden windows reject capture with `data.error: "capture_window_hidden"`.
+Use `window show` and allow any mode transition to settle before capturing.
 
 For local tools or coding agents, enable a command inbox when launching a game:
 
@@ -741,6 +743,13 @@ High-DPI rendering is enabled by default. Configure `window.mode` as `windowed`,
 The engine fits the initial window to the desktop and restores its geometry
 after runtime mode changes. See [display settings](docs/display.md) for JSON,
 runtime APIs, coordinate conventions, and the `window` console command.
+
+Set `window.hidden` to `true` for console-driven runs that stay hidden through
+startup and the engine loop. Use `rune.set_window_hidden(&game, hidden)` or
+`window hidden` / `window show` at runtime. A hidden window retains its graphics
+context and still requires a display backend; see
+[persistent hidden windows](docs/display.md#persistent-hidden-windows) for
+fullscreen handling, capture requirements, input, and pacing limits.
 
 Set `window.vsync` to `true` to request display-synchronized buffer swaps.
 It defaults to `false` and does not impose a 60 FPS cap. `window.target_fps`

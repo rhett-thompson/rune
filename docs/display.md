@@ -11,6 +11,7 @@ An explicit `high_dpi: false` opts out. This applies to game rendering as well a
   "width": 1280,
   "height": 720,
   "mode": "windowed",
+  "hidden": false,
   "high_dpi": true,
   "resizable": true,
   "vsync": true,
@@ -38,6 +39,9 @@ for compatibility with games that assume a fixed window size.
 `vsync` defaults to false. Setting it to true requests display-synchronized
 buffer swaps through raylib's `VSYNC_HINT`; it does not impose a 60 FPS cap.
 The graphics driver or desktop compositor can override synchronization behavior.
+Hidden or fully occluded windows may not be V-Sync throttled. Use `target_fps`
+when a software cap is needed during automated runs; hiding does not change its
+requested value. Frame counts, FPS, and wall-time behavior can differ while hidden.
 
 `target_fps` sets an independent software frame-rate cap. It accepts integers
 from 0 to 2147483647 and defaults to 0, which disables the cap. For example,
@@ -70,13 +74,56 @@ game, ok := rune.init_project(defer_window_show = true)
 The built-in scene and callback loops reveal the window after their first
 completed `EndDrawing`. Custom loops must call `rune.show_window(&game)` after
 their first full `EndDrawing`. It returns success; later calls do nothing, so
-they do not reveal a window deliberately hidden after startup.
+they do not reveal a window deliberately hidden after startup. This startup
+helper also respects the persistent hidden setting described below.
 
-`set_window_mode` applies windowed and borderless changes while hidden. Exclusive
+During deferred startup, `set_window_mode` applies windowed and borderless changes
+while hidden. Exclusive
 fullscreen is queued until reveal because the Win32 fullscreen transition shows
 the native window. Use `rune.window_mode(&game)` when loading display preferences
 to include that pending mode; `rune.window_mode()` reports the current native
 state. See `rune/core/core.odin` and `rune/core/window.odin` for lifecycle details.
+
+## Persistent hidden windows
+
+Set `"hidden": true` inside the project's `window` object to keep the window
+hidden through initialization and every frame of either engine-owned loop.
+The default is false. This is a window with a graphics context, and still
+requires a working display backend. It is intended for console-driven runs.
+The local console inbox, rendering, and injected input continue to advance.
+
+Use `rune.set_window_hidden(&game, true)` to hide at runtime and pass false to
+reveal, or use `window hidden` and `window show` in the console. These operations
+are idempotent and do not change the loaded project settings. Mode changes while
+persistently hidden are queued until reveal. Hiding exclusive fullscreen leaves
+native fullscreen while retaining the requested mode, which is restored on
+reveal; GLFW cannot hide an exclusive-fullscreen window directly. Use Rune's
+setters consistently rather than changing raylib visibility flags yourself.
+
+Prefer hiding over minimizing for automated runs. The pinned raylib 6 backend
+retains the minimized flag across `CloseWindow`; closing an engine while still
+minimized, including while hidden, can cause a later engine in the same process
+to replay minimization and expose its startup window. Before same-process
+reinitialization, use `window show` to restore a minimized window before closing
+it. Separate process-per-run launches do not inherit this retained state.
+Rune's explicit show temporarily enables resizing when needed because this
+raylib version's restore operation otherwise ignores nonresizable windows; it
+restores the original resizable setting afterward.
+
+A hidden window has no normal keyboard/mouse focus, but visibility does not
+isolate physical input: Rune still samples gamepads. Forced paused steps use a
+fixed simulation delta; game logic that observes live input, wall time, or
+per-frame callbacks can still differ. See
+[fast paused stepping](runtime-console.md#fast-paused-stepping).
+
+Console `capture` rejects hidden windows with `ok: false` and
+`data.error: "capture_window_hidden"`. Reveal first, allow the window and any
+queued mode change to settle, then capture a drawn frame. There is no portable
+guarantee that one frame after a mode change is sufficient. Capture reads the
+drawn framebuffer before presentation; visibility is a conservative support
+requirement, not a guarantee against all minimized, occluded, or driver-specific
+readback limitations. A failed hidden capture creates no output file. See
+[console capture](runtime-console.md#ai-inspection-and-control).
 
 ## Code and console
 
@@ -89,7 +136,9 @@ rune.set_window_mode(&game, .Windowed)
 rune.toggle_borderless(&game)
 rune.set_vsync(&game, true)
 rune.set_target_fps(&game, 120)
-display := rune.window_metrics()
+rune.set_window_hidden(&game, true)
+rune.set_window_hidden(&game, false)
+display := rune.window_metrics(&game)
 ```
 
 Setters return success, and setting the current mode does nothing. Use the Rune
@@ -120,11 +169,18 @@ The developer console and opt-in inbox expose:
 .\tools\console.bat --directory build/console/demo --command 'window' --json
 .\tools\console.bat --directory build/console/demo --command 'window borderless' --json
 .\tools\console.bat --directory build/console/demo --command 'window windowed' --json
+.\tools\console.bat --directory build/console/demo --command 'window hidden' --json
+.\tools\console.bat --directory build/console/demo --command 'window show' --json
 ```
 
-The response contains `mode`, `screen`, `framebuffer`, `dpi`, `high_dpi`,
-`resizable`, and the requested `vsync` state. The Clay example maps F11 to
-borderless/windowed switching.
+The response contains native `mode`, `requested_mode`, `hidden`, `screen`,
+`framebuffer`, `dpi`, `high_dpi`, `resizable`, and the requested `vsync` state.
+`requested_mode` includes a mode queued while hidden; dimensions describe the
+current native window. `hidden` reports the backend's hidden flag, not an
+independent window-manager visibility or occlusion measurement.
+`rune.window_metrics(&game)` returns the same fields. Without an engine,
+`rune.window_metrics()` reports native mode in both mode fields. The Clay example
+maps F11 to borderless/windowed switching.
 
 ## Drawing coordinates and resolution
 
@@ -209,7 +265,28 @@ scaling. Multi-monitor DPI moves, native Wayland, and macOS still require testin
 On 2026-10-21, deferred startup checks passed on native Windows/GLFW at 100%
 scaling with static and shared raylib. These cover native visibility through the
 first frame, queued fullscreen, both built-in loops, and engine reinitialization.
-Deferred startup visibility on other desktops still requires runtime testing.
+Later isolated Linux/X11 coverage is recorded below; native Wayland and macOS
+startup visibility still require runtime testing.
+
+On 2026-10-25, combined persistent-hidden and deferred-startup checks passed in
+the same process on native Windows/GLFW at 100% scaling with both static and
+shared raylib, OpenGL 3.3, an NVIDIA RTX 5070, and the pinned October Odin
+compiler/MSVC linker. Each build exercised six 65-frame cases across both
+engine-owned loops and all startup modes, native visibility, repeated hide/show,
+queued modes, and reinitialization. Minimized-to-hidden/show checks confirmed
+native restoration, preserved resizable/always-run settings, and hidden startup
+of the next engine. The full window regression suite also passed before the
+final minimized-restore adjustment; the final combined runs focus on visibility
+and lifecycle. This does not establish other desktop backends.
+
+Linux checks on 2026-10-25 passed configuration and combined persistent-hidden /
+deferred-startup runs with static and shared raylib on Ubuntu 24.04.2 WSL2,
+isolated Xvfb/GLFW/X11, Mesa 25.2.8 llvmpipe, and OpenGL 4.5. They exercised the
+six 65-frame loop/mode cases and reinitialization, plus console visibility,
+capture/batch checks, and all 33 fast-step runtime cases. Xvfb had no window
+manager, so minimized-window checks were skipped; native visibility assertions
+remain Windows-only. These results cover the exercised X11 paths, not native
+Wayland, minimized restoration, or hardware GPU behavior.
 
 ```powershell
 # Windows PowerShell; on Linux omit .exe and -linker:msvc, and use ./build/...
@@ -223,6 +300,7 @@ odin build tools/window_validation -linker:msvc -collection:rune=rune "-out:buil
 & "./build/window_validation$exe" --startup-borderless
 & "./build/window_validation$exe" --startup-fullscreen
 & "./build/window_validation$exe" --deferred-startup-runtime
+& "./build/window_validation$exe" --hidden-runtime
 ```
 
 The validation helpers also compile this validator with
@@ -242,3 +320,11 @@ and tearing separately on 60 Hz and high-refresh-rate displays.
 `--deferred-startup-runtime` checks hidden initialization, preference changes,
 and reveal after drawing. A passing lifecycle check alone does not prove that
 every desktop compositor presents the first frame without a flash.
+
+`--hidden-runtime` exercises persistent hidden startup in both engine-owned
+loops, requested/native mode reporting, repeated hide/show, fullscreen
+restoration, minimized-to-hidden handling, and reinitialization. It briefly
+reveals windows and switches display modes. Native visibility checks supplement
+raylib's flag on Windows; validate other desktop/window-manager combinations
+separately. `tools/debug_console_validation --runtime` checks hidden capture
+rejection and batch continuation, as well as successful visible captures.
