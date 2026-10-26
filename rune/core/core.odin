@@ -929,7 +929,7 @@ begin_frame :: proc(engine: ^Engine) {
 		}
 	}
 	input.update(&engine.input)
-	discard_cursor_mouse_delta(engine)
+	sync_cursor_activity(engine)
 	sync_console_cursor(engine)
 	console_was_open := console.is_open(&engine.console)
 	console.update(&engine.console)
@@ -1014,6 +1014,7 @@ shutdown :: proc(engine: ^Engine) {
 		delete(engine.systems)
 		input.destroy(&engine.input)
 		destroy_project(&engine.project)
+		restore_shutdown_cursor(engine)
 		// CloseWindow retains config flags. A retained fullscreen flag would
 		// bypass hidden creation when another engine starts in this process.
 		rl.SetWindowState({.WINDOW_HIDDEN})

@@ -47,5 +47,9 @@ when PRE_TRANSPARENCY_SHADERS_SUPPORTED {
 	foreign stable_shadow_lib {
 		@(link_name="Rune_R3D_SetPreTransparencyShaderChain")
 		set_pre_transparency_shader_chain :: proc(shaders: [^]^r3d.ScreenShader, count: i32) ---
+		@(link_name="Rune_R3D_BeginLinearViewCapture")
+		begin_linear_view_capture :: proc(inherit_lights: bool) -> bool ---
+		@(link_name="Rune_R3D_EndLinearViewCapture")
+		end_linear_view_capture :: proc(color, depth: ^rl.Texture2D) -> bool ---
 	}
 }

@@ -71,6 +71,58 @@ their world geometry, while model self-occlusion uses its isolated depth. Later
 depth-driven effects such as DOF still sample world depth. Games needing a
 separate foreground focus policy should avoid world DOF for that composition.
 
+## Regular foreground render views
+
+Use `r3d_bridge.Render_View3D` for foreground geometry that needs the regular
+R3D material, lighting and screen-space effect pipeline. Each view owns its
+camera, output target and `ecs.PostProcessing` settings. It uses the same native
+SSAO implementation as the world; there is no separate overlay AO shader.
+
+```odin
+settings := r3d_bridge.default_render_view_3d_settings(foreground_camera)
+settings.post_processing = foreground_profile
+layer := r3d_bridge.render_view_3d(&foreground, ctx, framebuffer,
+                                settings, draw_geometry, user_data)
+// Return layer from the scene_overlay callback.
+```
+
+The draw callback receives `ctx` and `user_data` and submits ordinary R3D model,
+mesh and particle draws. Reuse the bridge's model/material caches. Call outside
+an active R3D session, normally from `Scene3D_Settings.scene_overlay`, before
+the world begins. Nested render views are rejected.
+
+Each view can configure native SSAO, SSIL, SSGI, SSR, fog, DOF and HDR bloom.
+Its profile is a borrowed value, so rendering does not rewrite authored ECS
+components. Tone mapping, color grading, antialiasing and grain run once on the
+combined scene. Auto exposure remains final-only because the native renderer
+has one adaptation history. Fog affects foreground surfaces without adding a
+sky to uncovered pixels.
+
+Existing world lights are isolated by default. `inherit_lights` deliberately
+shares them; `lights` selects explicit native light handles. `ambient_color`
+and `ambient_energy` supply independent ambient illumination. Native environment,
+light enabled states and shader chains are restored after the view.
+
+The output is caller-owned RGBA16F scene-linear color with coverage alpha.
+Opaque geometry and zero-alpha additive effects are supported. Ordinary
+partially transparent materials need the legacy color-overlay path until a
+separate coverage policy is provided. Native HDR/depth are copied before the
+world can overwrite them; nearby world geometry never occludes the foreground.
+Borrow the returned texture only until this view's next draw, resize or cleanup.
+
+The native internal resolution follows the world render quality; foreground
+output targets can resize independently without reallocating that shared
+working set every frame. Call `destroy_render_view_3d` before shutting down the
+bridge or graphics context. Invalid or unsupported views return an empty layer,
+so an earlier frame is never composed accidentally. The owned native capture
+hook is supplied by Rune's Windows AMD64 and Linux AMD64 objects.
+
+Legacy `render.Overlay3D` remains available for lightweight raylib drawing and
+partial-alpha color layers. It retains isolated depth and color composition,
+without maintaining a second geometry-effect implementation.
+
+## Emission masks
+
 For an emission mask, draw non-emissive geometry black to establish depth, then
 draw the emitting surfaces in their emission colors. Present that layer with
 `end_overlay_3d(&emission_layer, glow={strength=2, radius=3})`. The optional glow
@@ -83,7 +135,8 @@ R3D world bloom settings. Shader and texture ownership remain with the layer.
 GPU checks (run from the Rune root):
 
 ```powershell
-odin run tools/overlay_3d_validation -linker:msvc -collection:rune=rune -out:build/overlay_3d_validation.exe -- --runtime
+tools/odin.bat build tools/overlay_3d_validation -o:none -linker:msvc -collection:rune=rune -out:build/overlay_3d_validation.exe
+build/overlay_3d_validation.exe --runtime
 ```
 
 The hidden-window check verifies world depth isolation, self-occlusion, clear and
@@ -99,3 +152,12 @@ build/scene_overlay_validation.exe
 The hidden-window check verifies shared color adjustment, exposure and bloom,
 sampling-crop alignment, isolated depth, HUD ordering, missing-frame handling,
 premultiplied transparency and additive particles.
+
+For regular foreground render-view checks:
+
+```powershell
+tools/odin.bat build tools/foreground_view_validation -o:none -linker:msvc -collection:rune=rune -collection:r3d=third_party/r3d-odin -out:build/foreground_view_validation.exe
+build/foreground_view_validation.exe --runtime
+```
+
+Add `--capture` to save the fixture images under `build/foreground-view-validation/`.

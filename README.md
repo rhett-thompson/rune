@@ -833,6 +833,9 @@ Keyboard names currently include letters, digits, arrows, `SPACE`, `ESCAPE`,
 The trigger button names provide discrete actions; trigger axes remain available
 for analog values. See [gamepad input](docs/gamepads.md) for mappings, menu
 navigation, camera controls, diagnostics, and the default hold-START exit.
+Games can opt in to [gamepad cursor auto-hide](docs/gamepads.md#device-activity-and-cursor-visibility)
+with `rune.set_gamepad_cursor_auto_hide(&game, true)`: gamepad activity hides a
+free pointer, and mouse use reveals it, including in menus and the console.
 
 ## Runtime key rebinding
 

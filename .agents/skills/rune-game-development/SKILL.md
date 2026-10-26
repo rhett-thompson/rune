@@ -115,6 +115,11 @@ for a small feature. Check installed source signatures before inventing calls.
   `enable @picked`. Console focus temporarily releases
   and shows the mouse, then restores the desired gameplay mode. Use
   `rune.set_cursor_mode` for visible, hidden-free, or captured gameplay cursors.
+  For controller use, opt in with `rune.set_gamepad_cursor_auto_hide(game, true)`:
+  gamepad activity hides a free pointer, and mouse use reveals it across menus
+  and the console without changing gameplay capture. See `docs/gamepads.md`.
+  Keep `rune.shutdown` in normal cleanup; it releases capture and shows the cursor
+  before hiding and destroying the window, without system pointer-counter hacks.
   Custom commands can supply read-only argument completion callbacks. See
   [console inspection](references/project-workflow.md#inspect-gameplay-through-the-console)
   for interactive use and the local command inbox.

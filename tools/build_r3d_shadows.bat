@@ -80,6 +80,10 @@ try {
     run(["git", "-C", source, "apply", "--check", transparencyPatch]);
     run(["git", "-C", source, "apply", transparencyPatch]);
     run(["git", "-C", source, "apply", "--reverse", "--check", transparencyPatch]);
+    var viewPatch = fs.BuildPath(nativeRoot, "foreground-view.patch");
+    run(["git", "-C", source, "apply", "--check", viewPatch]);
+    run(["git", "-C", source, "apply", viewPatch]);
+    run(["git", "-C", source, "apply", "--reverse", "--check", viewPatch]);
     var headerRoot = fs.BuildPath(work, "headers"); mkdir(headerRoot);
     for (var i = 0; i < headers.length; ++i) fs.CopyFile(fs.BuildPath(raylibHeaders, headers[i]), fs.BuildPath(headerRoot, headers[i]), true);
     fs.CopyFile(fs.BuildPath(nativeRoot, "r3d_config.h"), fs.BuildPath(headerRoot, "r3d_config.h"), true);

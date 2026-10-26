@@ -2,6 +2,7 @@ package r3d_bridge
 
 import "core:math"
 import "core:math/linalg"
+import "core:slice"
 import "rune:assets"
 import "rune:ecs"
 import r3d "r3d:r3d"
@@ -13,6 +14,7 @@ Projected_Occluder :: struct {
 	count: int,
 	low,high: [2]f32,
 	far_depth,area,screen_area: f32,
+	selection_order: int,
 }
 Occlusion_State :: struct {
 	view_projection: rl.Matrix,
@@ -111,22 +113,87 @@ bounds_occluded :: proc(bounds:rl.BoundingBox,state:^Occlusion_State) -> bool {
 	return false
 }
 
+// Higher screen area wins; equal-area faces retain their first-seen order.
+// The bounded heap keeps the worst retained candidate at its root.
+occluder_precedes :: proc(a,b:Projected_Occluder) -> bool {
+	return a.screen_area>b.screen_area || (a.screen_area==b.screen_area && a.selection_order<b.selection_order)
+}
+
+select_occluder :: proc(state:^Occlusion_State,candidate:Projected_Occluder) {
+	if state.count<len(state.occluders) {
+		index:=state.count;state.count+=1;state.occluders[index]=candidate
+		for index>0 {
+			parent:=(index-1)/2
+			if !occluder_precedes(state.occluders[parent],state.occluders[index]) {break}
+			state.occluders[parent],state.occluders[index]=state.occluders[index],state.occluders[parent]
+			index=parent
+		}
+		return
+	}
+	if !occluder_precedes(candidate,state.occluders[0]) {return}
+	state.occluders[0]=candidate
+	index:=0
+	for {
+		child:=index*2+1
+		if child>=state.count {break}
+		if child+1<state.count && occluder_precedes(state.occluders[child],state.occluders[child+1]) {child+=1}
+		if !occluder_precedes(state.occluders[index],state.occluders[child]) {break}
+		state.occluders[index],state.occluders[child]=state.occluders[child],state.occluders[index]
+		index=child
+	}
+}
+
+occlusion_frustum_valid :: proc(frustum:^r3d.Frustum) -> bool {
+	if frustum==nil {return false}
+	for plane in frustum.planes {
+		for value in plane {if math.is_nan(value) || math.is_inf(value) {return false}}
+		length_squared:=plane[0]*plane[0]+plane[1]*plane[1]+plane[2]*plane[2]
+		if !(length_squared>0) || math.is_inf(length_squared) {return false}
+	}
+	return true
+}
+
+// Bounds are already padded by static_world_bounds. Unusable bounds/frusta
+// fail open and leave the existing per-face projection proof in charge.
+occlusion_bounds_in_frustum :: proc(frustum:^r3d.Frustum,bounds:rl.BoundingBox) -> bool {
+	if frustum==nil {return true}
+	for axis in 0..<3 {
+		if math.is_nan(bounds.min[axis]) || math.is_inf(bounds.min[axis]) ||
+		   math.is_nan(bounds.max[axis]) || math.is_inf(bounds.max[axis]) || bounds.min[axis]>bounds.max[axis] {return true}
+	}
+	return r3d.FrustumIntersectsBoundingBox(frustum,bounds)
+}
+
 prepare_occlusion :: proc(ctx:^Context,w:^ecs.World,manager:^assets.Asset_Manager,camera:rl.Camera3D) {
 	if !ctx.occlusion_enabled {return}
-	state:=&ctx.occlusion
 	width,height:i32; r3d.GetResolution(&width,&height)
 	if width<=0 || height<=0 {return}
 	render_camera:=r3d.CameraFromRL(camera)
 	// Use the backend's exact current view, including its fitted viewport.
 	view_projection:=r3d.GetMatrixViewProjection()
+	frustum:=r3d.GetFrustum()
+	prepare_occlusion_view(ctx,w,manager,camera.position,view_projection,&frustum,u32(render_camera.cullMask),width,height)
+}
+
+prepare_occlusion_view :: proc(ctx:^Context,w:^ecs.World,manager:^assets.Asset_Manager,camera:[3]f32,view_projection:rl.Matrix,frustum:^r3d.Frustum,cull_mask:u32,width,height:i32) {
+	state:=&ctx.occlusion
+	tested_frustum:=frustum
+	if !occlusion_frustum_valid(frustum) {tested_frustum=nil}
 	revision:u64; if manager!=nil {revision=manager.material_revision}
-	state.dirty=state.dirty || !state.prepared || state.view_projection!=view_projection || state.camera_position!=camera.position || state.width!=width || state.height!=height || state.material_revision!=revision
+	state.dirty=state.dirty || !state.prepared || state.view_projection!=view_projection || state.camera_position!=camera || state.width!=width || state.height!=height || state.material_revision!=revision
 	for e,&cache in ctx.static_meshes {
+		// A completely offscreen mesh cannot supply an accepted projected face
+		// or a visible occlusion target. Skip its material work and face loading.
+		if !cache.enabled || !cache.valid || !occlusion_bounds_in_frustum(tested_frustum,cache.bounds) {
+			if cache.occlusion_opaque || cache.occlusion_eligible {state.dirty=true}
+			cache.occlusion_opaque=false;cache.occlusion_eligible=false;cache.occluded=false
+			continue
+		}
 		opaque,eligible,cull:=occlusion_material(ctx,w,manager,e)
-		opaque=opaque && u32(cache.mesh.layerMask)&u32(render_camera.cullMask)!=0
+		opaque=opaque && u32(cache.mesh.layerMask)&cull_mask!=0
 		if cache.occlusion_opaque!=opaque || cache.occlusion_eligible!=eligible || cache.occlusion_cull!=cull {state.dirty=true}
 		cache.occlusion_opaque=opaque; cache.occlusion_eligible=eligible; cache.occlusion_cull=cull
-		if !cache.occlusion_faces_ready {
+		if opaque && !cache.occlusion_faces_ready {
 			if data,present:=w.static_meshes[e]; present && data.revision==cache.revision {
 				cache.occlusion_faces=extract_occlusion_faces(data.data)
 				cache.occlusion_faces_ready=true; state.dirty=true
@@ -134,25 +201,22 @@ prepare_occlusion :: proc(ctx:^Context,w:^ecs.World,manager:^assets.Asset_Manage
 		}
 	}
 	if !state.dirty {ctx.frame_stats.occlusion_cache_reused=true; return}
-	state.view_projection=view_projection; state.camera_position=camera.position
+	state.view_projection=view_projection; state.camera_position=camera
 	state.width=width; state.height=height; state.material_revision=revision; state.count=0
+	selection_order:=0
 	for _,cache in ctx.static_meshes {
 		if !cache.enabled || !cache.valid || !cache.occlusion_opaque {continue}
 		for face in cache.occlusion_faces {
-			projected,valid:=project_occlusion_face(face,cache.transform,view_projection,camera.position,cache.occlusion_cull)
+			projected,valid:=project_occlusion_face(face,cache.transform,view_projection,camera,cache.occlusion_cull)
 			if !valid {continue}
 			// Prioritize large on-screen blockers; a budget can only miss culls.
 			score:=max(0,min(projected.high[0],1)-max(projected.low[0],-1))*max(0,min(projected.high[1],1)-max(projected.low[1],-1))
 			projected.screen_area=score
-			if state.count==len(state.occluders) && score<=state.occluders[state.count-1].screen_area {continue}
-			position:=state.count
-			for j in 0..<state.count {if score>state.occluders[j].screen_area {position=j; break}}
-			if position==len(state.occluders) {continue}
-			state.count=min(state.count+1,len(state.occluders))
-			for j:=state.count-1; j>position; j-=1 {state.occluders[j]=state.occluders[j-1]}
-			state.occluders[position]=projected
+			projected.selection_order=selection_order;selection_order+=1
+			select_occluder(state,projected)
 		}
 	}
+	slice.sort_by(state.occluders[:state.count],occluder_precedes)
 	for _,&cache in ctx.static_meshes {
 		cache.occluded=false
 		if cache.enabled && cache.valid && cache.occlusion_eligible {

@@ -71,6 +71,26 @@ Relevant files: `rune/core/window*.odin`, `rune/core/core.odin`,
   Win32/X11 queries. Avoid direct calls into raylib's private GLFW instance or
   linking another GLFW copy to operate on its state. Treat native handles
   according to the backend's documented type.
+- `rune.shutdown` restores a visible, unlocked cursor through raylib before
+  hiding or destroying its window, and resets the tracked cursor state directly
+  so console ownership cannot restore capture during teardown. Keep normal
+  shutdown in the cleanup path when investigating pointer reports; forced
+  process termination does not run it. Check `rune/core/cursor.odin` and the
+  shutdown ordering in `rune/core/core.odin`. Do not compensate with system
+  pointer settings or Win32 `ShowCursor` counter loops.
+  Run `./build/window_validation.exe --cursor-shutdown-runtime` after building
+  the validator; `--runtime` includes it too. All seven native Windows/GLFW
+  cases passed on 2026-10-25, covering windowed visible/hidden/captured/raw
+  capture/console ownership and borderless/fullscreen capture. The fixture waits
+  up to 30 seconds for actual foreground ownership, which Windows can deny.
+  A transparent remote-desktop cursor may retain `CURSOR_SHOWING`, so the test
+  also checks its handle changed. Initial confinement is asserted only in
+  windowed capture cases; borderless/fullscreen bounds may already equal the
+  desktop. All modes must restore the original desktop bounds on shutdown.
+  Post-destruction cursor assertions observe global desktop state after the
+  test window relinquishes ownership. If they fail, inspect the native query's
+  return value, flags, handle, clip bounds, and foreground owner separately;
+  failure in the visible baseline alone does not establish a capture-release bug.
 - Window-mode fixes must retain ordinary borderless behavior, fullscreen,
   restored geometry/maximization, DPI, and frame pacing. Native resize and window
   decoration callbacks can lag a request; cached dimensions may be stale.

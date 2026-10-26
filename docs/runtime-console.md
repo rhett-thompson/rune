@@ -145,6 +145,10 @@ locks and hides it for mouse look. `rune.cursor_mode(game)` returns that desired
 mode, including while the console temporarily overrides it. A mode change while
 the console is open updates what will be restored when it closes.
 
+The opt-in [gamepad cursor policy](gamepads.md#device-activity-and-cursor-visibility)
+also applies here: gamepad activity hides the free pointer, and mouse movement,
+buttons, or scrolling reveals it. Keyboard input does not hide the pointer.
+
 Mapped gameplay input is captured through the opening and closing frames, and
 mouse-delta axes discard the recapture warp before mouse look resumes. Raw
 raylib input remains available; game systems reading it directly must respect
@@ -154,6 +158,11 @@ raylib's public cursor query reports both as hidden. An untracked hidden cursor
 is assumed captured for compatibility with raw `DisableCursor` calls. Use Rune's
 setter consistently because later raw changes between hidden-free and captured
 modes cannot be detected from visibility alone.
+
+`rune.shutdown` releases capture and shows the cursor before hiding or destroying
+the window. It resets the tracked mode to `.visible` directly, so a saved console
+restore mode cannot recapture the pointer during teardown. Games do not need
+system pointer settings or native cursor-counter workarounds for normal shutdown.
 
 `rune.begin_frame` manages console cursor ownership for custom loops too.
 Advanced loops that call `console.update` directly should call

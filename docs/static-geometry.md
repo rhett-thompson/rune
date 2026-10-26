@@ -131,6 +131,13 @@ entire projected bounds fit strictly inside one blocker and its nearest depth
 is behind the blocker's farthest depth, with extra depth and pixel margins.
 This intentionally retains meshes when several surfaces jointly hide them.
 
+Preparation skips material checks and blocker-face extraction for meshes whose
+cached world bounds lie wholly outside the camera frustum. Invalid bounds or
+frustum data retain the conservative path, and meshes becoming visible are
+checked again. A bounded heap selects the 128 largest projected blockers before
+sorting that small set; equal-area faces retain their original encounter order.
+These internal work limits preserve the same coverage and depth tests.
+
 Transparent/alpha-textured surfaces, billboards, and custom surface shaders do
 not supply blockers. Billboards and custom shaders also remain in the scene.
 Near-plane intersections and uncertain coverage fail open. Hidden shadow

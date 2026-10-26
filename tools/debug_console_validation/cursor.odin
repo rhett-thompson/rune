@@ -54,5 +54,46 @@ validate_console_cursor :: proc() {
 	game.console.is_open=false
 	rune.sync_console_cursor(&game)
 	assert(rl.IsCursorHidden() && rune.cursor_mode(&game)==.captured)
+	// Synthetic device activity exercises actual raylib visibility with this
+	// native window; hardware sampling/deadzones have separate pure tests.
+	rune.set_cursor_mode(&game,.visible)
+	rune.set_gamepad_cursor_auto_hide(&game,true)
+	rune.begin_frame(&game)
+	rl.SetMousePosition(137,97)
+	pointer:=rl.GetMousePosition()
+	game.input.activity={gamepad=true}
+	rune.sync_cursor_activity(&game)
+	assert(rl.IsCursorHidden() && rune.cursor_mode(&game)==.visible && rl.GetMousePosition()==pointer)
+	rune.set_cursor_mode(&game,.visible)
+	assert(rl.IsCursorHidden() && rl.GetMousePosition()==pointer,"a repeated menu request keeps gamepad visibility and pointer position")
+	game.console.is_open=true
+	rune.sync_console_cursor(&game)
+	pointer=rl.GetMousePosition()
+	assert(rl.IsCursorHidden() && rune.cursor_mode(&game)==.visible,"the unlocked console also follows gamepad visibility")
+	game.input.activity={mouse_moved=true}
+	rune.sync_cursor_activity(&game)
+	assert(rl.IsCursorHidden(),"opening the console cannot reveal a gamepad-hidden pointer through its centering warp")
+	game.input.activity={mouse_moved=true,gamepad=true}
+	rune.sync_cursor_activity(&game)
+	assert(!rl.IsCursorHidden() && rl.GetMousePosition()==pointer,"mouse wins and reveals at the same position")
+	game.input.activity={gamepad=true}
+	rune.sync_cursor_activity(&game)
+	game.console.is_open=false
+	rune.sync_console_cursor(&game)
+	assert(rl.IsCursorHidden() && rune.cursor_mode(&game)==.visible,"closing the console preserves the gamepad preference")
+	for mode in ([2]rune.Cursor_Mode{.hidden,.captured}) {
+		rune.set_cursor_mode(&game,mode)
+		game.input.activity={mouse_button_or_wheel=true}
+		rune.sync_cursor_activity(&game)
+		assert(rl.IsCursorHidden() && rune.cursor_mode(&game)==mode,"mouse activity cannot override explicit gameplay hiding/capture")
+	}
+	rune.set_cursor_mode(&game,.visible)
+	assert(!rl.IsCursorHidden())
+	game.input.activity={gamepad=true}
+	rune.sync_cursor_activity(&game)
+	pointer=rl.GetMousePosition()
+	rune.set_gamepad_cursor_auto_hide(&game,false)
+	assert(!rl.IsCursorHidden() && rl.GetMousePosition()==pointer,"disabling the policy reveals without warping")
 	fmt.println("Console cursor: visible/hidden/captured restoration, live mode requests, raw FPS compatibility, and mouse-delta suppression passed")
+	fmt.println("Gamepad cursor: opt-in hiding, mouse reveal/priority, no-warp setters, console and gameplay capture passed (synthetic activity)")
 }

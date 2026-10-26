@@ -292,12 +292,19 @@ slider :: proc(ui: ^Context, id: string, value: ^f32, minimum, maximum: f32,
 	}
 	value^ = clamp(value^, minimum, maximum)
 	t := clamp((value^ - minimum) / (maximum - minimum), 0, 1)
+	highlighted := enabled && !ui.inputs.blocked && (key == ui.focus_id || key == ui.hovered_id || key == ui.active_id)
+	background, fill := ui.style.surface, ui.style.accent
+	if !enabled {fill = ui.style.disabled}
+	else if highlighted {
+		background = ui.style.pressed if key == ui.active_id else ui.style.hover
+		fill = ui.style.text
+	}
 	panel(ui, id, {layout = {sizing = {width = grow({}), height = fixed(24)}},
-		backgroundColor = ui.style.surface, cornerRadius = corners(4),
-		border = {color = ui.style.accent, width = clay.BorderOutside(2 if enabled && ui.focus_id == key && !ui.inputs.blocked else 0)}})
+		backgroundColor = background, cornerRadius = corners(4),
+		border = {color = ui.style.text, width = clay.BorderOutside(2 if highlighted else 0)}})
 	clay._OpenElement()
 	clay.ConfigureOpenElement({layout = {sizing = {width = percent(t), height = grow({})}},
-		backgroundColor = ui.style.accent if enabled else ui.style.disabled, cornerRadius = corners(4)})
+		backgroundColor = fill, cornerRadius = corners(4)})
 	clay._CloseElement()
 	end_panel(ui)
 	return before != value^

@@ -3,11 +3,22 @@
 This is an altered build of R3D's native light, shader, and draw modules. The exact
 changes are in [stable-projection.patch](stable-projection.patch),
 [receiver-plane.patch](receiver-plane.patch),
-[ssao-reconstruction.patch](ssao-reconstruction.patch), and
-[pre-transparency.patch](pre-transparency.patch). Rune's bridge loads the included
+[ssao-reconstruction.patch](ssao-reconstruction.patch),
+[pre-transparency.patch](pre-transparency.patch), and
+[foreground-view.patch](foreground-view.patch). Rune's bridge loads the included
 objects on Windows AMD64 and Linux AMD64. They replace three members of the
 bundled native archive without modifying the r3d-odin submodule or its bindings.
 Other targets retain the upstream shadow and screen-space sampling behavior.
+
+`foreground-view.patch` adds Rune's HDR render-view capture hook. It runs the
+ordinary R3D geometry, lighting and HDR effect passes, then exposes borrowed
+scene color and depth before output conversion. The bridge immediately copies
+them into a caller-owned foreground target. Per-view capture isolates and
+restores existing light enabled states and screen shader chains; the bridge
+restores the environment. Auto exposure stays on the final scene because the
+native renderer has one adaptation history. This hook introduces no second
+SSAO algorithm or shader. See `rune/r3d_bridge/render_view.odin` and
+`docs/overlays-3d.md` for the profile and ownership contracts.
 
 R3D fits directional shadows around a sphere centered halfway along the camera's
 view. Turning the camera moves that sphere and its caster clipping planes.
@@ -79,7 +90,7 @@ The build shares Rune's exact R3D, raylib header, and Zig pins in
 The private core and shader states use the pinned CMake defaults recorded in
 [r3d_config.h](r3d_config.h), including `R3D_MAX_SCREEN_SHADERS=4`. Rebuild and
 revalidate all three objects when upgrading the bundled native library. The build
-applies the four patches in the order listed above.
+applies the five patches in the order listed above.
 
 Ordinary Odin builds use the checked-in objects. Rebuilding exports the pinned
 revision into a fresh directory under `build/`, verifies the raylib header

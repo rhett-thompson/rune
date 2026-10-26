@@ -348,7 +348,9 @@ The console temporarily shows and releases the mouse, then restores the desired
 gameplay cursor mode. After `rune.init`, use `rune.set_cursor_mode(game, .captured)` for first-person
 look, `.hidden` for a hidden free cursor, or `.visible` for a visible free cursor.
 Mode changes while the console is open update the restore mode; query it with
-`rune.cursor_mode(game)`. Direct raylib hidden/captured modes cannot be distinguished
+`rune.cursor_mode(game)`. Opt-in gamepad cursor auto-hide also applies in the
+console; mouse use reveals the free pointer again (`docs/gamepads.md`).
+Direct raylib hidden/captured modes cannot be distinguished
 by its public query, so use Rune's setter for exact restoration. Mapped gameplay
 input remains captured through the closing frame and recapture mouse deltas are
 discarded. Raw raylib readers must still respect console focus. `rune.begin_frame`

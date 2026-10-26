@@ -33,6 +33,17 @@ For relocatable games, pass `game.project_directory` as the bridge's root after
 `rune.init_project()` (or explicit `rune.init`). The bridge has its own root;
 hard-coded example paths do not become portable just because core startup is.
 
+Camera-local 3D foreground views use `r3d_bridge.Render_View3D` and
+`render_view_3d` with their own camera and `ecs.PostProcessing` profile. Submit
+ordinary R3D geometry through its callback and reuse the bridge model/material
+caches. Native SSAO, lighting and HDR effects run through the regular pipeline;
+scene-linear foreground color joins the world before shared output effects.
+Existing lights are isolated by default and native state is restored after each
+view. Use this from `Scene3D_Settings.scene_overlay` before the world session,
+and call `destroy_render_view_3d` before bridge shutdown. Legacy
+`render.Overlay3D` remains available for raylib and partial-alpha layers.
+See `docs/overlays-3d.md` for profile, coverage and ownership contracts.
+
 ## Orbit navigation in tool viewports
 
 `ecs.OrbitCamera3D` stores a world-space target/distance and yaw/pitch in degrees.
@@ -139,6 +150,8 @@ and never retains scene pointers. Console
 focus temporarily shows a free cursor, allowing picks in first-person games;
 set the desired gameplay cursor mode with `rune.set_cursor_mode` so closing the
 console restores it. See `docs/runtime-console.md` (Cursor ownership).
+If gamepad cursor auto-hide is enabled, mouse movement, buttons, or scrolling
+reveals the free pointer before picking (`docs/gamepads.md`).
 
 For the same CPU-only bounds, use
 `render.scene_selection_bounds_2d(world, assets, entity, camera)` or
@@ -240,6 +253,11 @@ reveals focused widgets inside their containing scroll panels, including nested
 viewports; idle focus preserves mouse-wheel scroll positions. The context input
 overload above adds controller left-stick navigation and repeat to mapped D-pad
 and keyboard actions.
+
+`ui.slider` highlights pointer hover, keyboard/controller focus, and dragging
+while enabled and unblocked. Its fill and outline use `style.text`, preserving
+selection feedback even at minimum or maximum values; keep that color distinct
+from `style.accent` in custom themes. See `docs/ui.md`.
 
 Text inputs clip their contents and each consumes a native Clay scroll entry.
 Rune's patched header sizes these entries by the element limit, supporting

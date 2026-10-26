@@ -128,7 +128,7 @@ the simulation pause condition, then call `ui.draw` during drawing.
 | `ui.label(ctx, text, color, size = 0)` | Wrapped text; zero size uses the context style. |
 | `ui.button(ctx, id, text, enabled = true)` | True on pointer release inside the pressed button or focused accept. |
 | `ui.dropdown(ctx, id, &state, &selected, options, enabled = true, height = 240)` | Floating, scrollable option picker; returns true when the zero-based selection changes. |
-| `ui.slider(ctx, id, &value, min, max, step = 0.05, enabled = true)` | A bar slider; returns true when value changes. Left/right uses `step`; pointer dragging is continuous. |
+| `ui.slider(ctx, id, &value, min, max, step = 0.05, enabled = true)` | A bar slider; returns true when value changes. Left/right uses `step`; pointer dragging is continuous. Focus, hover, and dragging brighten the fill and outline, including at minimum and maximum values. |
 | `ui.text_input(ctx, id, &field, enabled = true)` | Single-line UTF-8 field; returns `changed`, `committed`, and `canceled`. Click or focused accept activates editing. |
 | `ui.text_area(ctx, id, &area, enabled = true, height = 160)` | Multiline UTF-8 editing with both scrollbars; Enter inserts a newline, Ctrl+Enter commits, Escape cancels. |
 | `ui.image(ctx, id, texture, size, tint)` | A borrowed texture stretched to a rectangle. |

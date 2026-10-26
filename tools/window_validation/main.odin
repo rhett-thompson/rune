@@ -650,6 +650,8 @@ main :: proc() {
 			validate_frame_pacing_runtime()
 			validate_borderless_shutdown_reset()
 			validate_runtime()
+			validate_cursor_shutdown_runtime()
+		case "--cursor-shutdown-runtime": validate_cursor_shutdown_runtime()
 		case "--frame-pacing-runtime": validate_frame_pacing_runtime()
 		case "--deferred-startup-runtime": validate_deferred_startup_runtime()
 		case "--hidden-runtime": validate_hidden_runtime()

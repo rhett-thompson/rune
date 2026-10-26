@@ -183,6 +183,20 @@ still respect console focus. Rune's setter preserves the distinction between
 hidden-free and captured modes that raylib's public cursor query cannot report.
 See `docs/runtime-console.md` (Cursor ownership) and `rune/core/cursor.odin`.
 
+Opt in to `rune.set_gamepad_cursor_auto_hide(game, true)` to hide a free pointer
+on gamepad activity and reveal it on mouse use, including menus and the console.
+The desired gameplay mode stays unchanged; visibility switches do not warp the
+pointer. `input.update` samples `input.activity` independently of mappings and
+modal capture. `rune.begin_frame` applies the policy; custom loops call
+`rune.sync_cursor_activity(game)` after input sampling. See `docs/gamepads.md`
+(Device activity and cursor visibility) for deadzones and device precedence.
+
+Normal `rune.shutdown` restores a visible free cursor before hiding and destroying
+the native window, and resets tracked cursor state even if the console is open.
+Keep it in cleanup with `defer rune.shutdown(&game)`; this does not depend on a
+game's system shutdown callback releasing capture. Use Rune/raylib cursor APIs,
+not system pointer settings or Win32 `ShowCursor` counter loops.
+
 Cursor policy tests are in `rune/core/cursor_test.odin`; the hidden-window
 `tools/debug_console_validation --runtime` fixture checks visible/hidden/captured
 mode restoration, console input capture, live mode changes, and the next sampled

@@ -84,6 +84,12 @@ the native window. Use `rune.window_mode(&game)` when loading display preference
 to include that pending mode; `rune.window_mode()` reports the current native
 state. See `rune/core/core.odin` and `rune/core/window.odin` for lifecycle details.
 
+`rune.shutdown` restores a visible, free cursor before hiding and destroying the
+window, including when gameplay or the console previously requested capture.
+Keep normal shutdown in the game's cleanup path, such as
+`defer rune.shutdown(&game)`. Cursor cleanup uses raylib's exported APIs rather
+than changing system pointer settings or Win32 `ShowCursor` counters.
+
 ## Persistent hidden windows
 
 Set `"hidden": true` inside the project's `window` object to keep the window
@@ -295,6 +301,7 @@ $exe = '.exe'
 odin build tools/window_validation -linker:msvc -collection:rune=rune "-out:build/window_validation$exe"
 & "./build/window_validation$exe"
 & "./build/window_validation$exe" --frame-pacing-runtime
+& "./build/window_validation$exe" --cursor-shutdown-runtime
 & "./build/window_validation$exe" --runtime
 & "./build/window_validation$exe" --startup-windowed
 & "./build/window_validation$exe" --startup-borderless
@@ -316,6 +323,15 @@ reinitialization. Reported swap timing depends on the driver and compositor.
 drawing/scissor pixels, and raylib mouse coordinates against Clay bounds. It
 briefly opens windows and switches display modes. Verify visible frame pacing
 and tearing separately on 60 Hz and high-refresh-rate displays.
+
+`--cursor-shutdown-runtime` runs only cursor teardown checks; `--runtime` also
+includes them. On 2026-10-25, all seven cases passed on native Windows/GLFW:
+visible, hidden, captured, raw raylib capture, and console-owned cursors in
+windowed mode, plus capture in borderless and fullscreen modes. They inspect the
+native pointer and restored desktop clipping bounds after shutdown. The tool
+waits up to 30 seconds for actual foreground ownership because Windows may
+reject focus stealing; bring its test window forward when needed. Other desktop
+backends still require native validation.
 
 `--deferred-startup-runtime` checks hidden initialization, preference changes,
 and reveal after drawing. A passing lifecycle check alone does not prove that

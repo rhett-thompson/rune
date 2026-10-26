@@ -41,6 +41,9 @@ Mappings :: struct {
 Input :: struct {
 	// UI capture lasts for one rendered frame and gates gameplay queries.
 	captured:         bool,
+	// Physical device activity remains available while menus capture actions.
+	activity:         Device_Activity,
+	activity_state:   Device_Activity_State,
 	injected:         map[string]Injected_Action,
 	mappings:         Mappings,
 	actions:          map[string]Action_State,
@@ -190,7 +193,11 @@ update :: proc(input: ^Input) {
 		input.actions[action_name] = resolve_action_edges(state, input.actions[action_name])
 	}
 	mouse_delta := rl.GetMouseDelta()
-	mouse_wheel := rl.GetMouseWheelMove()
+	mouse_wheel_vector := rl.GetMouseWheelMoveV()
+	// Preserve raylib's scalar wheel convention for existing mapped axes.
+	mouse_wheel := mouse_wheel_vector.y
+	if abs(mouse_wheel_vector.x) > abs(mouse_wheel_vector.y) {mouse_wheel = mouse_wheel_vector.x}
+	sample_device_activity(input, mouse_delta, mouse_wheel_vector)
 	for axis_name, axis_data in input.mappings.axes {
 		if axis_data.type == "mouse_delta" {
 			value := mouse_delta.x if axis_data.axis == "x" else mouse_delta.y

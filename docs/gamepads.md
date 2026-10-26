@@ -80,6 +80,31 @@ Programs without an engine can use `input.nav_update(&state, dt)` directly.
 Only the dominant axis emits; neutral/disconnect resets the hold and direction
 changes emit immediately. At most one repeat occurs per sample.
 
+## Device activity and cursor visibility
+
+`input.update` fills `controls.activity` each frame, independently of action
+mappings and `input.capture`. Its `mouse_moved`, `mouse_button_or_wheel`, and
+`gamepad` flags describe physical activity, including pads 0–3 used by menus.
+Gamepad buttons use press/release edges, including digital trigger buttons, so
+signed analog triggers resting at -1 do not count as activity. Sticks use a 0.2
+deadzone and meaningful changes; drift, a stationary hold, or connecting a
+controller alone does not claim activity. Invalid stick values are ignored.
+
+Games can opt in with `rune.set_gamepad_cursor_auto_hide(game, true)`; the default
+is disabled. Gamepad activity hides a free pointer in gameplay, menus, and the
+console. Mouse movement, button input, or scrolling reveals it, with mouse input
+winning when both devices act in the same frame. Keyboard input does not change
+this visibility policy. Hide/reveal does not warp or capture the pointer, and
+the requested `.visible`, `.hidden`, or `.captured` gameplay mode stays separate.
+`rune.cursor_mode(game)` still returns that requested mode.
+Use `rune.set_cursor_mode` consistently with auto-hide: a later raw raylib capture
+cannot be distinguished from a pointer that is already hidden by gamepad use.
+
+The engine samples and applies this policy in `rune.begin_frame`. Custom loops
+call `input.update(rune.input_state(game))`, then `rune.sync_cursor_activity(game)`;
+keep the [console cursor hooks](runtime-console.md#cursor-ownership) when updating
+the console directly. Normal `rune.shutdown` always restores a visible, free cursor.
+
 ## Exit, saved bindings, and diagnostics
 
 Hold START on a single controller for one second to request engine exit. This
