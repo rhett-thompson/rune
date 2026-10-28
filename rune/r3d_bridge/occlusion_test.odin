@@ -97,7 +97,7 @@ occlusion_skips_offscreen_face_preparation_and_rechecks_visibility_on_rotation :
 	w:=ecs.init();defer ecs.destroy(&w)
 	r:=ecs.init_registry();defer ecs.destroy_registry(&r);assert(ecs.register_builtin_components(&r))
 	ctx:=new(Context);ctx.static_meshes=make(map[ecs.Entity]Static_Mesh_Cache)
-	defer {for _,cache in ctx.static_meshes {delete(cache.occlusion_faces)};delete(ctx.static_meshes);free(ctx)}
+	defer {for _,&cache in ctx.static_meshes {release_occlusion_faces(&cache)};delete(ctx.static_meshes);free(ctx)}
 	front:=occlusion_test_cached_quad(ctx,&w,&r,-3,1.2)
 	target:=occlusion_test_cached_quad(ctx,&w,&r,-7,0.25)
 	back:=occlusion_test_cached_quad(ctx,&w,&r,3,1.2,true)

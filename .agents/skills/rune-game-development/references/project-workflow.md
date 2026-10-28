@@ -421,6 +421,12 @@ as completed; unexecuted commands after an early exit are omitted. An empty
 batch succeeds with zero counts and no entries. See `docs/runtime-console.md`
 (Batch commands) and `rune/console/remote.odin` for the full protocol.
 
+Use `profile --step [count]` for continuous moving-frame measurements while
+paused. It advances one fixed tick per measured frame, preserves frame pacing,
+and replies once after the final presentation. The result's `stepped_frames`
+confirms the controlled tick count. Release injected movement afterward; use
+ordinary `profile` to measure rendering without advancing paused simulation.
+
 `step [--fast] [count]` advances simulation while remaining paused, defaulting to
 one tick and accepting 1–600. Normal stepping runs one tick per rendered frame.
 `--fast` runs up to eight complete simulation ticks per frame, including fixed

@@ -36,9 +36,12 @@ terrain_detail_staging_is_counted_and_released :: proc(t: ^testing.T) {
 	append(&cache.details,Terrain_Detail_Batch{
 		positions=make([]rl.Vector3,10),rotations=make([]rl.Quaternion,10),
 		scales=make([]rl.Vector3,10),colors=make([]rl.Color,10),
+		candidates=make([]Terrain_Detail_Candidate,10),
+		chunks=make([]Terrain_Detail_Chunk,3),
+		blocks=make([]Terrain_Detail_Block,4),packed_indices=make([]int,10),
 	})
 	ctx.terrains[ecs.Entity(1)]=cache
-	expected:=u64(cap(cache.details)*size_of(Terrain_Detail_Batch)+10*(2*size_of(rl.Vector3)+size_of(rl.Quaternion)+size_of(rl.Color)))
+	expected:=u64(cap(cache.details)*size_of(Terrain_Detail_Batch)+10*(2*size_of(rl.Vector3)+size_of(rl.Quaternion)+size_of(rl.Color)+size_of(Terrain_Detail_Candidate)+size_of(int))+3*size_of(Terrain_Detail_Chunk)+4*size_of(Terrain_Detail_Block))
 	testing.expect(t,memory_stats(&ctx).cache_array_bytes==expected)
 	release_terrains(&ctx)
 	testing.expect(t,memory_stats(&ctx).cache_array_bytes==0)

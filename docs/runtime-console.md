@@ -311,7 +311,7 @@ Available engine commands:
 | `set <entity-id> <Component.field> <JSON-value>` | Validate and replace an existing runtime field without saving files. Dotted numeric segments address arrays, e.g. `Transform.position.0`. Entire vectors can be supplied as JSON arrays. |
 | `reload` | Reload the active scene from disk, discard runtime scene edits, and invoke scene-reload callbacks. Invalid scene data leaves the current World intact. |
 | `logs [since-sequence]` | Return log entries with sequence/level/message, a `next_sequence` cursor, and a `truncated` flag when older entries were dropped. |
-| `profile [frames]` | Measure 1–600 rendered frames (default: 120). Return mean/max/p95 milliseconds for frame duration, update, fixed update, and render submission. Frame duration includes presentation/wait; these are CPU timings, not GPU measurements. |
+| `profile [--step] [frames]` | Measure 1–600 rendered frames (default: 120). Return mean/max/p95 milliseconds for frame duration, update, fixed update, and render submission. Frame duration includes presentation/wait; these are CPU timings, not GPU measurements. `--step` requires pause and advances one simulation tick per measured frame, then remains paused. `stepped_frames` is the controlled tick count, or zero for ordinary profiling. |
 | `navmesh [on [entity-id]\|off]` | Show translucent baked 3D surfaces and triangle edges; blocked triangles are red. Optional stable NavMesh3D scene ID filters the display. No arguments reports `{enabled, entity}`; empty entity means all. Independent of F3. Requires an active Camera3D or custom-camera debug drawing. |
 | `capture [path.png]` | Return the saved absolute path, dimensions, frame number, simulation time, fixed-step count, scene, and active cameras. Frame details are under `data.metadata`. Hidden windows fail with `ok: false` and `data.error: "capture_window_hidden"`. |
 
@@ -343,6 +343,14 @@ documents are the source of truth; game editors own creating and saving them,
 and Rune owns loading and instantiation. Scene export APIs and console commands
 are outside the engine's scope; see the
 [scene authoring boundary](../README.md#scene-authoring-boundary).
+
+For a continuous, repeatable moving-frame measurement, pause, inject a held
+movement action, and run `profile --step 120`. Every measured frame advances one
+complete simulation tick using `fixed_delta_time`; there are no inserted idle
+frames between steps. The single final timing reply includes the last frame's
+presentation. The game remains paused, and the injected action remains held
+until `input <action> release` or `clear`. This mode preserves V-Sync and the
+configured software frame cap.
 
 - Use a separate inbox directory for each running game. The inbox is disabled
   unless the game is launched with `--console-dir=<directory>`.

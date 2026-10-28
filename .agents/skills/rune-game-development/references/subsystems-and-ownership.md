@@ -47,6 +47,20 @@ transfer borrowed slices or frame scratch, or free aliases after a successful
 transfer. Optional collision geometry remains caller-owned and is copied by
 native physics. See `docs/static-geometry.md` and `docs/memory.md`.
 
+Use `ecs.set_static_mesh_opacity(world, entity, opacity)` for runtime fades of
+installed geometry without rebuilding buffers or changing collision. Finite
+values in `[0,1]` multiply per-draw material alpha; replacement resets opacity
+to one. Games own timing and cleanup. See `docs/static-geometry.md` for blending
+and shadow behavior.
+
+Static-mesh occlusion owns local, world-space, and stable-basis clip face caches;
+mesh replacement/removal and bridge shutdown release all three. Current-view
+coverage proofs retain the conservative depth and pixel margins. Games may opt
+into `Context.occlusion_adaptive_enabled` to budget checks that hide no meshes
+or lights: skipped views render fully, useful probes stay active, and scene
+changes or stopping after a skipped view force fresh checks. See
+`docs/static-geometry.md`.
+
 `ecs.set_navigation_mesh_3d` instead borrows arrays for a `NavMesh3D` configured
 with `runtime=true`. Keep those arrays alive and unchanged until the binding is
 cleared/replaced, its component/entity is removed, or the World is destroyed.
@@ -54,6 +68,15 @@ Unbind with `ecs.clear_navigation_mesh_3d` before freeing them. Update blocked
 triangles through `ecs.set_navigation_triangle_blocked_3d` so revisions invalidate
 routes; do not mutate the borrowed mesh directly. Runtime mesh bindings are not
 serialized, so rebuild/rebind them when a new or restored World needs them.
+
+Terrain detail batches own cached candidate poses, bounded contiguous chunks,
+eight-root block bounds, packed source indices, and staging arrays. Camera
+movement reuses proven ranges and updates changed GPU prefixes while preserving
+exact distance selection and grass fading. Terrain pose or alignment changes
+rebuild the caches; successful terrain edits replace the batch. Transparent
+materials retain a single ordered draw range. All owned arrays are included in
+renderer cache memory estimates and released with the batch. See
+`docs/terrain.md` for selection, upload, and timing counters.
 
 ## Interpret memory measurements
 

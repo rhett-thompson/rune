@@ -82,6 +82,9 @@ Context :: struct {
 	static_optimizations_disabled: bool,
 	// Conservative CPU occlusion of static meshes/local lights; opt in per game.
 	occlusion_enabled: bool,
+	// Probe periodically when occlusion has recently hidden nothing. Skipped
+	// moving views retain all meshes/lights instead of reusing an old proof.
+	occlusion_adaptive_enabled: bool,
 	occlusion: Occlusion_State,
 	frame_stats: Render_Stats,
 	static_frame: u64,
@@ -360,6 +363,7 @@ draw_scene_ex :: proc(
 	if distortion_enabled || overlay_enabled {r3d.SetScreenShaderChain(.SCENE, nil, 0)}
 	if compatibility_overlay_post {r3d.SetScreenShaderChain(.POST,nil,0)}
 	draw_debug_overlays(world, visible_camera, settings)
+	finish_occlusion_frame(ctx)
 	ctx.frame_stats.scene_cpu_ms=(rl.GetTime()-started)*1000
 	return true
 }

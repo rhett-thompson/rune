@@ -8,8 +8,43 @@ import "rune:terrain"
 import rl "vendor:raylib"
 import r3d "r3d:r3d"
 
+Terrain_Detail_Candidate :: struct {
+	position: rl.Vector3,
+	rotation: rl.Quaternion,
+}
+
+Terrain_Detail_Chunk_Capacity :: 64
+Terrain_Detail_Chunk_Span :: f32(8)
+Terrain_Detail_Block_Capacity :: 8
+
+Terrain_Detail_Block :: struct {
+	offset, count: int,
+	bounds: rl.BoundingBox,
+	camera: [3]f32,
+	camera_reuse_radius: f32,
+	ready, outside, full: bool,
+}
+
+Terrain_Detail_Chunk :: struct {
+	offset, count: int,
+	block_offset, block_count: int,
+	bounds: rl.BoundingBox,
+	visible_count: i32,
+	camera: [3]f32,
+	camera_reuse_radius: f32,
+	ready, dirty, full: bool,
+}
+
 Terrain_Detail_Batch :: struct {
 	instances: [dynamic]terrain.Detail_Instance,
+	// Scattered roots stay immutable until the terrain revision is rebuilt.
+	// Cache their world poses independently of the packed visible prefix.
+	candidates: []Terrain_Detail_Candidate,
+	candidate_transform: ecs.Transform,
+	candidates_ready, candidate_align_to_normal, candidate_chunked: bool,
+	chunks: []Terrain_Detail_Chunk,
+	blocks: []Terrain_Detail_Block,
+	packed_indices: []int,
 	buffer: r3d.InstanceBuffer,
 	visible_count:i32,
 	positions: []rl.Vector3,
@@ -19,8 +54,8 @@ Terrain_Detail_Batch :: struct {
 	view: Terrain_Detail_View,
 	view_ready: bool,
 	cached_visible_count: i32,
-	// Conservative movement radius around view.camera in which selection and
-	// distance-faded scales cannot change. No per-instance cache is added.
+	candidates_tested: int,
+	// The intersection of chunk reuse balls, anchored at view.camera.
 	camera_reuse_radius: f32,
 }
 
@@ -30,12 +65,16 @@ Terrain_Detail_View :: struct {
 	transform: ecs.Transform,
 	camera: [3]f32,
 	draw_distance: f32,
-	grass, align_to_normal: bool,
+	grass, align_to_normal, chunked: bool,
 }
 
 release_detail_batch :: proc(batch:^Terrain_Detail_Batch) {
 	if batch.buffer.capacity>0 {r3d.UnloadInstanceBuffer(batch.buffer)}
 	delete(batch.instances)
+	delete(batch.candidates)
+	delete(batch.chunks)
+	delete(batch.blocks)
+	delete(batch.packed_indices)
 	delete(batch.positions); delete(batch.rotations); delete(batch.scales); delete(batch.colors)
 	batch^={}
 }
@@ -64,19 +103,169 @@ detail_transform :: proc(t:ecs.Transform) -> rl.Matrix {
 		rl.QuaternionToMatrix(rotation_quaternion(t))*rl.MatrixScale(t.scale[0],t.scale[1],t.scale[2])
 }
 
+detail_candidates_current :: proc(batch:^Terrain_Detail_Batch,t:ecs.Transform,align_to_normal:bool,chunked:bool=true) -> bool {
+	return batch.candidates_ready && len(batch.candidates)==len(batch.instances) &&
+		batch.candidate_transform==t && batch.candidate_align_to_normal==align_to_normal && batch.candidate_chunked==chunked
+}
+
+make_detail_chunk :: proc(candidates:[]Terrain_Detail_Candidate,offset:int,chunked:bool) -> Terrain_Detail_Chunk {
+	chunk:=Terrain_Detail_Chunk{offset=offset,count=1,
+		bounds={min=candidates[offset].position,max=candidates[offset].position}}
+	end:=min(offset+Terrain_Detail_Chunk_Capacity,len(candidates)) if chunked else len(candidates)
+	for index in offset+1..<end {
+		bounds:=chunk.bounds
+		fits:=true
+		for axis in 0..<3 {
+			bounds.min[axis]=min(bounds.min[axis],candidates[index].position[axis])
+			bounds.max[axis]=max(bounds.max[axis],candidates[index].position[axis])
+			fits=fits && bounds.max[axis]-bounds.min[axis]<=Terrain_Detail_Chunk_Span
+		}
+		// Keep row wraps and separated scatter regions out of a shared broad box.
+		// Contiguous source ranges preserve ordering without a spatial sort.
+		if chunked && !fits {break}
+		chunk.bounds=bounds;chunk.count+=1
+	}
+	return chunk
+}
+
+prepare_detail_candidates :: proc(batch:^Terrain_Detail_Batch,t:ecs.Transform,align_to_normal:bool,chunked:bool=true) {
+	if detail_candidates_current(batch,t,align_to_normal,chunked) {return}
+	poses_current:=batch.candidates_ready && len(batch.candidates)==len(batch.instances) &&
+		batch.candidate_transform==t && batch.candidate_align_to_normal==align_to_normal
+	if len(batch.candidates)!=len(batch.instances) {
+		delete(batch.candidates)
+		batch.candidates=make([]Terrain_Detail_Candidate,len(batch.instances))
+	}
+	if len(batch.packed_indices)!=len(batch.instances) {
+		delete(batch.packed_indices)
+		batch.packed_indices=make([]int,len(batch.instances))
+	}
+	if !poses_current {
+		transform:=detail_transform(t)
+		terrain_rotation:=rotation_quaternion(t)
+		for instance,index in batch.instances {
+			rotation:=rl.QuaternionFromAxisAngle({0,1,0},instance.yaw)
+			if align_to_normal {
+				// Inverse scale keeps the surface normal correct on stretched terrain.
+				normal:=linalg.normalize(instance.normal/t.scale)
+				rotation=rl.QuaternionFromVector3ToVector3({0,1,0},normal)*rotation
+			}
+			batch.candidates[index]={position=rl.Vector3Transform(instance.position,transform),rotation=terrain_rotation*rotation}
+		}
+	}
+	chunk_count,offset:=0,0
+	for offset<len(batch.candidates) {
+		chunk:=make_detail_chunk(batch.candidates,offset,chunked)
+		offset+=chunk.count;chunk_count+=1
+	}
+	if len(batch.chunks)!=chunk_count {
+		delete(batch.chunks)
+		batch.chunks=make([]Terrain_Detail_Chunk,chunk_count)
+	}
+	offset=0
+	block_count:=0
+	for &chunk in batch.chunks {
+		chunk=make_detail_chunk(batch.candidates,offset,chunked)
+		chunk.block_offset=block_count
+		chunk.block_count=(chunk.count+Terrain_Detail_Block_Capacity-1)/Terrain_Detail_Block_Capacity
+		block_count+=chunk.block_count
+		offset+=chunk.count
+	}
+	if len(batch.blocks)!=block_count {
+		delete(batch.blocks)
+		batch.blocks=make([]Terrain_Detail_Block,block_count)
+	}
+	for chunk in batch.chunks {
+		for index in 0..<chunk.block_count {
+			start:=chunk.offset+index*Terrain_Detail_Block_Capacity
+			count:=min(Terrain_Detail_Block_Capacity,chunk.offset+chunk.count-start)
+			bounds:=rl.BoundingBox{min=batch.candidates[start].position,max=batch.candidates[start].position}
+			for candidate in batch.candidates[start+1:start+count] {
+				for axis in 0..<3 {bounds.min[axis]=min(bounds.min[axis],candidate.position[axis]);bounds.max[axis]=max(bounds.max[axis],candidate.position[axis])}
+			}
+			batch.blocks[chunk.block_offset+index]={offset=start,count=count,bounds=bounds}
+		}
+	}
+	batch.candidate_transform=t
+	batch.candidate_align_to_normal=align_to_normal
+	batch.candidate_chunked=chunked
+	batch.candidates_ready=true
+}
+
+// Root bounds, rather than prototype geometry bounds, match the exact existing
+// distance test. These squared extrema classify whole chunks conservatively.
+detail_chunk_distances :: proc(bounds:rl.BoundingBox,camera:[3]f32) -> (near_squared,far_squared:f32) {
+	// This fixed-size hot path also runs in unoptimized development builds.
+	// Keep the original X/Y/Z accumulation order without a dynamic axis loop.
+	lx,hx:=bounds.min.x-camera.x,bounds.max.x-camera.x
+	ly,hy:=bounds.min.y-camera.y,bounds.max.y-camera.y
+	lz,hz:=bounds.min.z-camera.z,bounds.max.z-camera.z
+	nx,ny,nz:=max(lx,0)+min(hx,0),max(ly,0)+min(hy,0),max(lz,0)+min(hz,0)
+	fx,fy,fz:=max(abs(lx),abs(hx)),max(abs(ly),abs(hy)),max(abs(lz),abs(hz))
+	near_squared=(nx*nx+ny*ny)+nz*nz
+	far_squared=(fx*fx+fy*fy)+fz*fz
+	return
+}
+
+detail_block_classification :: proc(block:^Terrain_Detail_Block,camera:[3]f32,draw_distance,cutoff_squared,fade_start,margin:f32,grass,allow_reuse:bool) -> (outside,full:bool,reuse_radius:f32) {
+	if allow_reuse && block.ready {
+		movement:=camera-block.camera
+		movement_squared:=#force_inline linalg.dot(movement,movement)
+		if camera==block.camera || (block.camera_reuse_radius>0 && movement_squared<block.camera_reuse_radius*block.camera_reuse_radius) {
+			movement_distance:=#force_inline math.sqrt(movement_squared)
+			return block.outside,block.full,max(f32(0),block.camera_reuse_radius-movement_distance)
+		}
+	}
+	block.camera=camera
+	block.ready=false;block.outside=false;block.full=false;block.camera_reuse_radius=0
+	near_squared,far_squared:=#force_inline detail_chunk_distances(block.bounds,camera)
+	if near_squared>=cutoff_squared {
+		near_distance:=#force_inline math.sqrt(near_squared)
+		block.ready=true;block.outside=true
+		block.camera_reuse_radius=max(f32(0),near_distance-draw_distance-margin)
+		return true,false,block.camera_reuse_radius
+	}
+	far_distance:=#force_inline math.sqrt(far_squared)
+	if far_squared<cutoff_squared && (!grass || far_distance<fade_start-margin) {
+		block.ready=true;block.full=true
+		radius:=fade_start-far_distance if grass else draw_distance-far_distance
+		block.camera_reuse_radius=max(f32(0),radius-margin)
+		return false,true,block.camera_reuse_radius
+	}
+	// Boundary selections and distance-faded grass still use exact root tests.
+	return
+}
+
+pack_detail_candidate :: proc(batch:^Terrain_Detail_Batch,slot,source:int,scale:f32,t:ecs.Transform,force:bool) -> bool {
+	changed:=force || batch.packed_indices[slot]!=source
+	if changed {
+		batch.positions[slot]=batch.candidates[source].position
+		batch.rotations[slot]=batch.candidates[source].rotation
+		shade:=u8(batch.instances[source].shade*255)
+		batch.colors[slot]={shade,shade,shade,255}
+		batch.packed_indices[slot]=source
+	}
+	world_scale:=t.scale*scale
+	if force || batch.scales[slot]!=world_scale {batch.scales[slot]=world_scale;changed=true}
+	return changed
+}
+
 // Returns true only when packed instance streams change. Camera motion inside
 // the cached safe region does no candidate scan or GPU upload. A scan outside
 // that region still retains streams when the exact selection/scales are equal.
-upload_visible_details :: proc(batch:^Terrain_Detail_Batch,detail:terrain.Detail,t:ecs.Transform,camera:[3]f32) -> bool {
+pack_visible_details :: proc(batch:^Terrain_Detail_Batch,detail:terrain.Detail,t:ecs.Transform,camera:[3]f32,chunked:bool=true) -> bool {
+	batch.candidates_tested=0
 	view:=Terrain_Detail_View{transform=t,camera=camera,draw_distance=detail.draw_distance,
-		grass=detail.kind=="grass",align_to_normal=detail.align_to_normal}
+		grass=detail.kind=="grass",align_to_normal=detail.align_to_normal,chunked=chunked}
 	previous:=batch.view
 	previous.camera=camera
-	static_unchanged:=batch.view_ready && previous==view
+	static_unchanged:=batch.view_ready && previous==view && detail_candidates_current(batch,t,detail.align_to_normal,chunked)
 	if static_unchanged {
 		movement:=camera-batch.view.camera
-		if camera==batch.view.camera || len(batch.instances)==0 ||
-		   (batch.camera_reuse_radius>0 && linalg.dot(movement,movement)<batch.camera_reuse_radius*batch.camera_reuse_radius) {
+		movement_squared:=#force_inline linalg.dot(movement,movement)
+		if camera==batch.view.camera || (batch.camera_reuse_radius>0 &&
+		   movement_squared<batch.camera_reuse_radius*batch.camera_reuse_radius) {
+			for &chunk in batch.chunks {chunk.dirty=false}
 			batch.visible_count=batch.cached_visible_count
 			return false
 		}
@@ -85,67 +274,166 @@ upload_visible_details :: proc(batch:^Terrain_Detail_Batch,detail:terrain.Detail
 	changed:=!static_unchanged
 	batch.view=view; batch.view_ready=true
 	batch.visible_count=0
-	batch.camera_reuse_radius=0
+	batch.camera_reuse_radius=math.inf_f32(1)
+	prepare_detail_candidates(batch,t,detail.align_to_normal,chunked)
+	if !static_unchanged {for &block in batch.blocks {block.ready=false}}
 	if len(batch.instances)==0 {batch.cached_visible_count=0; return changed || previous_count!=0}
-	transform:=detail_transform(t)
-	terrain_rotation:=rotation_quaternion(t)
-	// The triangle inequality guarantees that moving less than the nearest
-	// boundary distance cannot change any root's inside/outside classification.
-	// Built-in grass has a second boundary where smooth fading starts.
-	reuse_radius:=math.inf_f32(1)
 	fade_start:=detail.draw_distance*0.8
-	for instance in batch.instances {
-		world:=rl.Vector3Transform(instance.position,transform)
-		delta:=world-camera
-		distance_squared:=linalg.dot(delta,delta)
-		distance:=math.sqrt(distance_squared)
-		reuse_radius=min(reuse_radius,abs(distance-detail.draw_distance))
-		if view.grass {
-			reuse_radius=min(reuse_radius,abs(distance-fade_start))
-			// Every moving view changes the scales of roots already in the fade
-			// band, so those batches keep exact per-root distance evaluation.
-			if distance>=fade_start && distance_squared<detail.draw_distance*detail.draw_distance {reuse_radius=0}
+	cutoff_squared:=detail.draw_distance*detail.draw_distance
+	margin:=max(f32(0.0001),detail.draw_distance*0.00001)
+	for &chunk in batch.chunks {
+		chunk.dirty=false
+		movement:=camera-chunk.camera
+		movement_squared:=#force_inline linalg.dot(movement,movement)
+		if static_unchanged && chunk.ready && (camera==chunk.camera ||
+		   (chunk.camera_reuse_radius>0 && movement_squared<chunk.camera_reuse_radius*chunk.camera_reuse_radius)) {
+			batch.visible_count+=chunk.visible_count
+			// A reused chunk keeps its old anchor; account for the radius already
+			// consumed. Fresh proofs below are centered on the current camera.
+			movement_distance:=#force_inline math.sqrt(movement_squared)
+			remaining:=max(f32(0),chunk.camera_reuse_radius-movement_distance)
+			batch.camera_reuse_radius=min(batch.camera_reuse_radius,remaining)
+			continue
 		}
-		if distance_squared>=detail.draw_distance*detail.draw_distance {continue}
-		i:=int(batch.visible_count)
-		// R3D applies its mesh transform BEFORE the instance rotation/scale.
-		// Upload world-space roots and draw with an identity mesh transform so
-		// random rotation and distance fading can never move a root off terrain.
-		if !static_unchanged || i>=int(previous_count) || batch.positions[i]!=world {
-			changed=true
-			batch.positions[i]=world
-			rotation:=rl.QuaternionFromAxisAngle({0,1,0},instance.yaw)
-			if detail.align_to_normal {
-				// Inverse scale keeps the surface normal correct on stretched terrain.
-				normal:=linalg.normalize(instance.normal/t.scale)
-				rotation=rl.QuaternionFromVector3ToVector3({0,1,0},normal)*rotation
+		old_count:=chunk.visible_count
+		force:=!static_unchanged || !chunk.ready
+		chunk.camera=camera;chunk.ready=true
+		near_squared,far_squared:=#force_inline detail_chunk_distances(chunk.bounds,camera)
+		if near_squared>=cutoff_squared {
+			chunk.visible_count=0
+			chunk.full=false
+			near_distance:=#force_inline math.sqrt(near_squared)
+			chunk.camera_reuse_radius=max(f32(0),near_distance-detail.draw_distance-margin)
+			batch.camera_reuse_radius=min(batch.camera_reuse_radius,chunk.camera_reuse_radius)
+			changed=changed || old_count!=0
+			continue
+		}
+		far_distance:=#force_inline math.sqrt(far_squared)
+		full:=far_squared<cutoff_squared && (!view.grass || far_distance<fade_start-margin)
+		if full && chunk.full && !force && old_count==i32(chunk.count) {
+			// Every root remains fully visible: retain this immutable stream range.
+			radius:=fade_start-far_distance if view.grass else detail.draw_distance-far_distance
+			chunk.camera_reuse_radius=max(f32(0),radius-margin)
+			batch.camera_reuse_radius=min(batch.camera_reuse_radius,chunk.camera_reuse_radius)
+			batch.visible_count+=chunk.visible_count
+			continue
+		}
+		chunk.visible_count=0
+		reuse_radius:=math.inf_f32(1)
+		for &block in batch.blocks[chunk.block_offset:chunk.block_offset+chunk.block_count] {
+			block_outside,block_full,block_radius:=#force_inline detail_block_classification(&block,camera,detail.draw_distance,cutoff_squared,fade_start,margin,view.grass,!force)
+			if block_outside {
+				reuse_radius=min(reuse_radius,block_radius)
+				continue
 			}
-			batch.rotations[i]=terrain_rotation*rotation
-			shade:=u8(instance.shade*255)
-			batch.colors[i]={shade,shade,shade,255}
+			if block_full {
+				reuse_radius=min(reuse_radius,block_radius)
+				slot:=chunk.offset+int(chunk.visible_count)
+				// Selected source indices are strictly increasing. A range of n
+				// slots with consecutive endpoints therefore contains every source
+				// in this block, allowing unchanged model streams to stay untouched.
+				if !view.grass && !force && int(chunk.visible_count)+block.count<=int(old_count) &&
+				   batch.packed_indices[slot]==block.offset &&
+				   batch.packed_indices[slot+block.count-1]==block.offset+block.count-1 {
+					chunk.visible_count+=i32(block.count)
+					continue
+				}
+				for source in block.offset..<block.offset+block.count {
+					i:=chunk.offset+int(chunk.visible_count)
+					if #force_inline pack_detail_candidate(batch,i,source,batch.instances[source].scale,t,force || chunk.visible_count>=old_count) {chunk.dirty=true}
+					chunk.visible_count+=1
+				}
+				continue
+			}
+			batch.candidates_tested+=block.count
+			for source in block.offset..<block.offset+block.count {
+				instance:=batch.instances[source]
+				delta:=batch.candidates[source].position-camera
+				distance_squared:=#force_inline linalg.dot(delta,delta)
+				distance:=#force_inline math.sqrt(distance_squared)
+				reuse_radius=min(reuse_radius,abs(distance-detail.draw_distance)-margin)
+				if view.grass {
+					reuse_radius=min(reuse_radius,abs(distance-fade_start)-margin)
+					if distance>=fade_start && distance_squared<cutoff_squared {reuse_radius=0}
+				}
+				if distance_squared>=cutoff_squared {continue}
+				i:=chunk.offset+int(chunk.visible_count)
+				scale:=instance.scale
+				if view.grass {scale*=clamp((detail.draw_distance-distance)/(detail.draw_distance*0.2),0,1)}
+				if #force_inline pack_detail_candidate(batch,i,source,scale,t,force || chunk.visible_count>=old_count) {chunk.dirty=true}
+				chunk.visible_count+=1
+			}
 		}
-		scale:=instance.scale
-		if view.grass {
-			// Reduce distant tufts smoothly while keeping their base on the surface.
-			fade:=clamp((detail.draw_distance-distance)/(detail.draw_distance*0.2),0,1)
-			scale*=fade
-		}
-		world_scale:=t.scale*scale
-		if !static_unchanged || batch.scales[i]!=world_scale {batch.scales[i]=world_scale; changed=true}
-		batch.visible_count+=1
+		chunk.camera_reuse_radius=max(f32(0),reuse_radius)
+		batch.camera_reuse_radius=min(batch.camera_reuse_radius,chunk.camera_reuse_radius)
+		chunk.full=full
+		changed=changed || chunk.dirty || chunk.visible_count!=old_count
+		batch.visible_count+=chunk.visible_count
 	}
-	// Leave a small numerical margin and use a strict movement bound: roots on
-	// the culling boundary are excluded exactly as in the original draw path.
-	batch.camera_reuse_radius=max(f32(0),reuse_radius-max(f32(0.0001),detail.draw_distance*0.00001))
 	batch.cached_visible_count=batch.visible_count
 	changed=changed || batch.visible_count!=previous_count
-	if !changed {return false}
-	if batch.visible_count==0 {return true}
-	r3d.UploadInstances(batch.buffer,{.POSITION},0,batch.visible_count,raw_data(batch.positions),true)
-	r3d.UploadInstances(batch.buffer,{.ROTATION},0,batch.visible_count,raw_data(batch.rotations),true)
-	r3d.UploadInstances(batch.buffer,{.SCALE},0,batch.visible_count,raw_data(batch.scales),true)
-	r3d.UploadInstances(batch.buffer,{.COLOR},0,batch.visible_count,raw_data(batch.colors),true)
-	return true
+	return changed
+}
+
+upload_visible_details :: proc(batch:^Terrain_Detail_Batch,detail:terrain.Detail,t:ecs.Transform,camera:[3]f32,stats:^Render_Stats=nil,chunked:bool=true) -> (changed,uploaded:bool) {
+	started:=rl.GetTime()
+	changed=pack_visible_details(batch,detail,t,camera,chunked)
+	if stats!=nil {
+		stats.terrain_detail_pack_cpu_ms+=(rl.GetTime()-started)*1000
+		stats.terrain_detail_candidates_tested+=batch.candidates_tested
+	}
+	if !changed {return}
+	if batch.visible_count==0 {return}
+	started=rl.GetTime()
+	for chunk in batch.chunks {
+		if !chunk.dirty || chunk.visible_count==0 {continue}
+		uploaded=true
+		if stats!=nil {stats.terrain_detail_chunk_uploads+=1}
+		offset:=chunk.offset;count:=chunk.visible_count
+		// Discarding would orphan ranges still used by unchanged chunks.
+		r3d.UploadInstances(batch.buffer,{.POSITION},i32(offset),count,raw_data(batch.positions[offset:]),false)
+		r3d.UploadInstances(batch.buffer,{.ROTATION},i32(offset),count,raw_data(batch.rotations[offset:]),false)
+		r3d.UploadInstances(batch.buffer,{.SCALE},i32(offset),count,raw_data(batch.scales[offset:]),false)
+		r3d.UploadInstances(batch.buffer,{.COLOR},i32(offset),count,raw_data(batch.colors[offset:]),false)
+	}
+	if stats!=nil {stats.terrain_detail_upload_cpu_ms+=(rl.GetTime()-started)*1000}
+	return
+}
+
+// Coalesce adjacent visible prefixes without crossing any reserved hole. The
+// original candidate order is retained, including for transparent materials.
+detail_visible_range :: proc(batch:^Terrain_Detail_Batch,start_chunk:int) -> (offset,count,next_chunk:int) {
+	next_chunk=start_chunk
+	for next_chunk<len(batch.chunks) && batch.chunks[next_chunk].visible_count==0 {next_chunk+=1}
+	if next_chunk==len(batch.chunks) {return}
+	chunk:=batch.chunks[next_chunk]
+	offset=chunk.offset;count=int(chunk.visible_count);next_chunk+=1
+	for next_chunk<len(batch.chunks) {
+		chunk=batch.chunks[next_chunk]
+		if chunk.visible_count==0 || chunk.offset!=offset+count {break}
+		count+=int(chunk.visible_count);next_chunk+=1
+	}
+	return
+}
+
+draw_detail_ranges :: proc(batch:^Terrain_Detail_Batch,mesh:r3d.Mesh,material:r3d.Material,stats:^Render_Stats=nil) {
+	started:=rl.GetTime()
+	index:=0
+	for index<len(batch.chunks) {
+		offset,count,next:=detail_visible_range(batch,index)
+		if count>0 {
+			r3d.DrawMeshInstancedEx(mesh,material,batch.buffer,i32(offset),i32(count))
+			if stats!=nil {stats.terrain_detail_draw_ranges+=1}
+		}
+		index=next
+	}
+	if stats!=nil {stats.terrain_detail_draw_cpu_ms+=(rl.GetTime()-started)*1000}
+}
+
+detail_chunking_enabled :: proc(material:r3d.Material) -> bool {
+	// Native sorting may reorder separate transparent submissions, even when
+	// their material matches. Keep those instances in one ordered draw range.
+	return material.transparencyMode==.DISABLED
 }
 
 draw_terrain_details :: proc(ctx:^Context,world:^ecs.World,manager:^assets.Asset_Manager,camera:[3]f32) {
@@ -157,19 +445,18 @@ draw_terrain_details :: proc(ctx:^Context,world:^ecs.World,manager:^assets.Asset
 		for &batch,i in cache.details {
 			if i>=len(data.description.details) {continue}
 			detail:=data.description.details[i]
-			if upload_visible_details(&batch,detail,t,camera) {
-				ctx.frame_stats.terrain_detail_rebuilds+=1
-				if batch.visible_count>0 {ctx.frame_stats.terrain_detail_uploads+=1}
-			}
-			if batch.visible_count==0 {continue}
 			material:=material_from_path(ctx,manager,detail.material,{255,255,255,255})
 			if detail.material=="" {material.orm.roughness=0.9}
+			changed,uploaded:=upload_visible_details(&batch,detail,t,camera,&ctx.frame_stats,detail_chunking_enabled(material))
+			if changed {ctx.frame_stats.terrain_detail_rebuilds+=1}
+			if uploaded {ctx.frame_stats.terrain_detail_uploads+=1}
+			if batch.visible_count==0 {continue}
 			if detail.kind=="model" {
 				model,loaded:=load_model(ctx,manager,detail.model); if !loaded {continue}
 				for mesh_index:i32=0; mesh_index<model.meshCount; mesh_index+=1 {
 					mesh:=model.meshes[mesh_index]
 					mesh.shadowCastMode=.ON_DOUBLE_SIDED if detail.shadows else .DISABLED
-					r3d.DrawMeshInstanced(mesh,material,batch.buffer,batch.visible_count)
+					draw_detail_ranges(&batch,mesh,material,&ctx.frame_stats)
 				}
 			} else {
 				kind:=0 if detail.kind=="grass" else (1 if detail.kind=="tree" else 2)
@@ -178,7 +465,7 @@ draw_terrain_details :: proc(ctx:^Context,world:^ecs.World,manager:^assets.Asset
 				if !r3d.IsMeshValid(mesh) {continue}
 				mesh.shadowCastMode=.ON_DOUBLE_SIDED if detail.shadows else .DISABLED
 				if kind==0 {material.cullMode=.NONE}
-				r3d.DrawMeshInstanced(mesh,material,batch.buffer,batch.visible_count)
+				draw_detail_ranges(&batch,mesh,material,&ctx.frame_stats)
 			}
 		}
 	}

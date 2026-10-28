@@ -187,7 +187,9 @@ Opt in to `rune.set_gamepad_cursor_auto_hide(game, true)` to hide a free pointer
 on gamepad activity and reveal it on mouse use, including menus and the console.
 The desired gameplay mode stays unchanged; visibility switches do not warp the
 pointer. `input.update` samples `input.activity` independently of mappings and
-modal capture. `rune.begin_frame` applies the policy; custom loops call
+modal capture. A newly connected controller establishes its baseline, including
+already held buttons, before later gestures count as activity.
+`rune.begin_frame` applies the policy; custom loops call
 `rune.sync_cursor_activity(game)` after input sampling. See `docs/gamepads.md`
 (Device activity and cursor visibility) for deadzones and device precedence.
 

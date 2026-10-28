@@ -105,6 +105,16 @@ for that. Material edits reuse the installed mesh and collision body. The
 `MeshRenderer` can be serialized, but `primitive: "static"` alone creates no
 surface: the game still installs the runtime mesh after loading the scene.
 
+Use `ecs.set_static_mesh_opacity(world, entity, opacity)` for transient fades.
+It accepts finite values from zero to one on installed geometry, multiplies
+the draw-local material alpha, and leaves shared materials, mesh buffers,
+GPU upload revisions, and collision unchanged. Opacity zero skips drawing;
+partially transparent meshes cannot occlude geometry or local lights. An
+otherwise opaque material switches to alpha blending while fading (without
+shadow/depth writes); authored alpha/prepass modes remain intact. Installing
+or replacing runtime geometry resets opacity to one. Opacity is runtime-only;
+games own fade timing, pause behavior, and removal after a fade completes.
+
 These meshes are runtime data, not serialized scene components. Recreate them
 from game-owned data after scene reload. This API does not generate gameplay
 meaning, navigation graphs, or scene JSON.
@@ -138,6 +148,22 @@ checked again. A bounded heap selects the 128 largest projected blockers before
 sorting that small set; equal-area faces retain their original encounter order.
 These internal work limits preserve the same coverage and depth tests.
 
+World-space face vertices and normals are cached until the mesh transform or
+geometry changes. A stable camera projection/orientation also caches the linear
+part of each vertex's clip coordinates; camera translation supplies the current
+translation term. Changing camera bases, moving meshes, and nonfinite matrices
+use the full projection path. Coverage and depth proofs always use the current
+view. The bridge owns and releases local, world, and clip face arrays together;
+`memory_stats().occlusion_face_bytes` includes all three.
+
+`Context.occlusion_adaptive_enabled=true` additionally budgets unproductive
+camera-motion checks. After two completed probes hide no meshes or local lights,
+up to three changed views render fully before another probe. Skipped views clear
+hidden-mesh decisions and supply no light blockers. Useful mesh or light proofs
+keep checks active. Scene, material, resolution, or policy changes force a probe;
+stopping after a skipped view also refreshes once before normal cache reuse.
+This option defaults to false.
+
 Transparent/alpha-textured surfaces, billboards, and custom surface shaders do
 not supply blockers. Billboards and custom shaders also remain in the scene.
 Near-plane intersections and uncertain coverage fail open. Hidden shadow
@@ -166,7 +192,7 @@ are not actual GPU draw counts. `scene_cpu_ms` includes all bridge scene work,
 Set `Context.static_optimizations_disabled=true` to compare against per-mesh
 hierarchy resolution and submission without clusters or early rejection.
 Occlusion adds `occlusion_cpu_ms`, `occlusion_tests`, `occlusion_occluders`,
-`occlusion_cache_reused`, `static_meshes_occluded`, `static_shadow_only`, and
+`occlusion_cache_reused`, `occlusion_probe_skipped`, `static_meshes_occluded`, `static_shadow_only`, and
 `static_scene_triangles_avoided`. Shadow-only triangles remain included in the
 submitted triangle count; the avoided counter describes main-scene work.
 `local_lights` counts synchronized active local lights before backend frustum

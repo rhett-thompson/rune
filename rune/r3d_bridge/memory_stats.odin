@@ -50,6 +50,8 @@ memory_stats :: proc(ctx: ^Context) -> Memory_Stats {
 	for _, cache in ctx.static_meshes {
 		result.mesh_gpu_bytes_estimate += mesh_bytes_estimate(cache.mesh)
 		result.occlusion_face_bytes += u64(len(cache.occlusion_faces)*size_of(Occlusion_Face))
+		result.occlusion_face_bytes += u64(len(cache.occlusion_world_faces)*size_of(Occlusion_World_Face))
+		result.occlusion_face_bytes += u64(len(cache.occlusion_clip_faces)*size_of(Occlusion_Clip_Face))
 	}
 	for _, group in ctx.static_groups {result.cache_array_bytes += u64(cap(group.members)*size_of(u64))}
 	for _, batch in ctx.prop_batches {
@@ -62,6 +64,9 @@ memory_stats :: proc(ctx: ^Context) -> Memory_Stats {
 		for mesh in cache.chunks {result.mesh_gpu_bytes_estimate += mesh_bytes_estimate(mesh)}
 		for batch in cache.details {
 			result.cache_array_bytes += u64(cap(batch.instances)*size_of(terrain.Detail_Instance))
+			result.cache_array_bytes += u64(len(batch.candidates)*size_of(Terrain_Detail_Candidate))
+			result.cache_array_bytes += u64(len(batch.chunks)*size_of(Terrain_Detail_Chunk))
+			result.cache_array_bytes += u64(len(batch.blocks)*size_of(Terrain_Detail_Block)+len(batch.packed_indices)*size_of(int))
 			result.cache_array_bytes += u64((len(batch.positions)+len(batch.scales))*size_of([3]f32) +
 				len(batch.rotations)*size_of([4]f32) + len(batch.colors)*size_of([4]u8))
 			result.instance_gpu_bytes_estimate += instance_bytes_estimate(batch.buffer)

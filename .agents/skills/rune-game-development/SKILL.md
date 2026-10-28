@@ -95,6 +95,10 @@ for a small feature. Check installed source signatures before inventing calls.
   existing renderer caches without changing files. Clone borrowed material data,
   save JSON through the tool, and clear previews when live authoring ends. See
   the rendering reference for ownership and save ordering.
+- Fade installed runtime geometry with `ecs.set_static_mesh_opacity`; it changes
+  per-draw material alpha without replacing geometry or changing collision.
+  Games own timing and cleanup; mesh replacement resets opacity to one. See
+  the subsystem reference and `docs/static-geometry.md` for blend behavior.
 - Reacquire scene entities and borrowed state after reload or restoration.
   Frame scratch and borrowed component strings/collections are not persistent
   game storage. Keep durable game state in owned storage or configured saves.

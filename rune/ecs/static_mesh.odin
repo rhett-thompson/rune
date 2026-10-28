@@ -9,6 +9,7 @@ Static_Mesh :: struct {
 	data: geometry.Mesh,
 	mesh: ^b3.MeshData,
 	revision: u64,
+	opacity: f32,
 	body_transform: Transform,
 	body_layers: u64,
 }
@@ -72,8 +73,19 @@ install_static_mesh :: proc(world: ^World, entity: Entity, data: geometry.Mesh, 
 	}
 	remove_static_mesh(world,entity)
 	world.static_mesh_revision += 1
-	world.static_meshes[entity] = {data=copy_data,mesh=mesh,revision=world.static_mesh_revision}
+	world.static_meshes[entity] = {data=copy_data,mesh=mesh,revision=world.static_mesh_revision,opacity=1}
 	world.physics_3d.needs_sync=true
+	return true
+}
+
+// Runtime draw opacity only: geometry, native collision, and their revisions
+// remain unchanged. Installing/replacing a mesh resets opacity to one.
+set_static_mesh_opacity :: proc(world: ^World, entity: Entity, opacity: f32) -> bool {
+	if world==nil || !is_alive(world,entity) || !(opacity>=0 && opacity<=1) {return false}
+	state,found:=world.static_meshes[entity]
+	if !found {return false}
+	state.opacity=opacity
+	world.static_meshes[entity]=state
 	return true
 }
 

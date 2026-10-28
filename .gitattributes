@@ -8,3 +8,4 @@ third_party/r3d-compat/bindings.patch text eol=lf
 third_party/r3d-compat/files.blobs text eol=lf
 # Blank context lines in unified patches retain their leading marker space.
 third_party/r3d-shadows/foreground-view.patch text eol=lf whitespace=-blank-at-eol
+third_party/r3d-shadows/light-scissor.patch text eol=lf whitespace=-blank-at-eol

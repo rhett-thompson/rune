@@ -213,6 +213,21 @@ Relevant files: `rune/audio/audio.odin`, `rune/audio/preload.odin`,
 Use the mixer ownership regression and audio runtime validators as appropriate;
 record whether an actual playback backend was available.
 
+## Local-light rectangles at viewport edges
+
+On 2026-10-27, pinned R3D `86303391c92e32418181a8133848a15ba02f060d`
+reproduced rectangular direct-light cutoffs during small camera turns on Windows
+AMD64/GLFW/OpenGL 3.3 with an RTX 5070. This remained with shadows and screen
+effects disabled. Projecting an influence AABB's eight corners is not conservative
+when it crosses the camera near/eye plane. Rune's owned native
+`third_party/r3d-shadows/light-scissor.patch` retains the whole target for those
+bounds and rounds wholly front-facing rectangles outward. Rebuild the native
+objects through `tools/build_r3d_shadows.bat` or `.sh`; editing Odin or the patch
+alone does not update an already linked game. Use
+`tools/light_scissor_validation` for headless native bounds checks and its
+`--runtime` hidden receiver/edge/camera-turn regression. See the native README
+for exact validation coverage; a Windows run does not establish Linux behavior.
+
 ## R3D preparation and apparently dirty submodules
 
 Relevant files: `third_party/r3d-compat/README.md`,

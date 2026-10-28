@@ -7,6 +7,8 @@ import r3d "r3d:r3d"
 // native light and shader modules replace the corresponding bundled R3D
 // archive members. Surface taps follow the receiver plane to keep small shadows
 // without grazing-angle self-occlusion. Required objects link before archives.
+// The light module also keeps local-light screen scissors conservative when
+// influence bounds cross the camera near/eye plane.
 // See third_party/r3d-shadows/README.md for the exact source pin and rebuild.
 when ODIN_ARCH == .amd64 && ODIN_OS == .Windows {
 	// Raw objects retain native code even when callers only use pure Odin

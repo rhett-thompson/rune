@@ -39,10 +39,37 @@ device_activity_stick_gestures_survive_holds_noise_and_device_changes :: proc(t:
 }
 
 @(test)
+device_activity_button_edges_start_after_connection_and_reconnection :: proc(t: ^testing.T) {
+	state: Device_Activity_State
+	sample: Device_Activity_Sample
+	for _ in 0..<2 {
+		sample.pads[1] = {available=true,button_edge=true}
+		testing.expect(t, !device_activity_tick(&state,sample).gamepad,
+			"a held button reported as pressed on connection only establishes the device baseline")
+		sample.pads[1].button_edge = false
+		testing.expect(t, !device_activity_tick(&state,sample).gamepad, "holding the connected button is idle")
+		sample.pads[1].button_edge = true
+		testing.expect(t, device_activity_tick(&state,sample).gamepad, "releasing the connected button reports activity")
+		sample.pads[1].button_edge = false
+		testing.expect(t, !device_activity_tick(&state,sample).gamepad, "a released button remains idle")
+		sample.pads[1].button_edge = true
+		testing.expect(t, device_activity_tick(&state,sample).gamepad, "a later button press reports activity")
+		sample.pads[1] = {button_edge=true}
+		testing.expect(t, !device_activity_tick(&state,sample).gamepad,
+			"disconnect clears the baseline without manufacturing a release gesture")
+	}
+}
+
+@(test)
 device_activity_mouse_and_button_edges_remain_independent_of_capture :: proc(t: ^testing.T) {
 	controls := Input{captured=true}
-	sample := Device_Activity_Sample{mouse_delta={2,-1},mouse_wheel={1,0},mouse_button_edge=true}
-	sample.pads[2] = {available=true,button_edge=true}
+	sample: Device_Activity_Sample
+	sample.pads[2].available = true
+	testing.expect(t, device_activity_tick(&controls.activity_state,sample)==Device_Activity{}, "connect the controller before testing live input edges")
+	sample.mouse_delta = {2,-1}
+	sample.mouse_wheel = {1,0}
+	sample.mouse_button_edge = true
+	sample.pads[2].button_edge = true
 	controls.activity = device_activity_tick(&controls.activity_state,sample)
 	testing.expect(t, controls.captured && controls.activity==Device_Activity{mouse_moved=true,mouse_button_or_wheel=true,gamepad=true},
 		"activity reports all simultaneous devices without modal capture or mappings choosing a winner")

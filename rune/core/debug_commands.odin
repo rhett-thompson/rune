@@ -33,6 +33,7 @@ Debug_State :: struct {
 	navmesh_entity: string,
 	profile_count: int,
 	profile_target: int,
+	profile_stepping: bool,
 	profile_samples: [Max_Debug_Frames]Profile_Sample,
 	sample: Profile_Sample,
 	frame_started: f64,
@@ -57,7 +58,7 @@ register_debug_commands :: proc(dev: ^console.Console) {
 	console.register(dev, "quit", "Exit the active engine loop.", quit_command)
 	console.register(dev, "set", "Runtime edit: set <id> <Component.field> <JSON-value>.", set_command, debug_argument_completion)
 	console.register(dev, "reload", "Reload the active scene from disk; discard runtime edits.", reload_command)
-	console.register(dev, "profile", "Sample CPU/frame timings: profile [frames, 1..600].", profile_command)
+	console.register(dev, "profile", "Sample CPU/frame timings: profile [--step] [frames, 1..600].", profile_command)
 	console.register(dev, "memory", "Known World/asset backing buffers and texture GPU estimates.", memory_command)
 	console.register(dev, "navmesh", "Show navigation surfaces: navmesh [on [entity-id]|off].", navmesh_command, debug_argument_completion)
 }
@@ -476,10 +477,24 @@ reload_command :: proc(dev: ^console.Console, arguments: string) {
 profile_command :: proc(dev: ^console.Console, arguments: string) {
 	engine, ok := command_engine(dev)
 	if !ok {return}
-	count, valid := debug_frame_count(dev, arguments, 120)
+	option, rest := take_word(arguments)
+	stepping := option == "--step"
+	if stepping && !is_paused(engine) {
+		console.error(dev, "Pause simulation before profiling steps.")
+		return
+	}
+	count_arguments := rest if stepping else arguments
+	count, valid := debug_frame_count(dev, count_arguments, 120)
 	if !valid {return}
 	engine.debug.profile_count = 0
 	engine.debug.profile_target = count
+	engine.debug.profile_stepping = stepping
+	if stepping {
+		engine.debug.steps_requested = count
+		engine.debug.steps_remaining = count
+		engine.debug.fast_step = false
+		set_step_uncapped(engine, false)
+	}
 	dev.defer_reply = true
 }
 
@@ -506,6 +521,8 @@ stop_debug_console :: proc(engine: ^Engine) {
 	set_step_uncapped(engine, false)
 	engine.debug.fast_step = false
 	engine.debug.steps_remaining = 0
+	engine.debug.profile_target = 0
+	engine.debug.profile_stepping = false
 	console.stop_remote(&engine.console)
 }
 
@@ -537,9 +554,13 @@ debug_simulation_finished :: proc(engine: ^Engine) {
 		if engine.debug.steps_remaining == 0 {
 			engine.debug.fast_step = false
 			set_step_uncapped(engine, false)
-			engine.console.defer_reply = false
-			console.info(&engine.console, fmt.tprintf("Advanced %d simulation steps.", engine.debug.steps_requested))
-			debug_status(engine)
+			// A stepped profile owns the result until this tick's frame has been
+			// drawn and presented; an ordinary step can finish at simulation time.
+			if !engine.debug.profile_stepping {
+				engine.console.defer_reply = false
+				console.info(&engine.console, fmt.tprintf("Advanced %d simulation steps.", engine.debug.steps_requested))
+				debug_status(engine)
+			}
 		}
 	}
 }
@@ -552,11 +573,14 @@ timing_summary :: proc(values: []f64) -> Timing_Summary {
 	return {sum / f64(len(values)), values[len(values)-1], values[(len(values)*95+99)/100-1]}
 }
 
-debug_profile_finished_frame :: proc(engine: ^Engine) {
+debug_profile_finished_frame :: proc(engine: ^Engine, completed_at: f64 = -1) {
 	when Player_Build {return}
 	debug := &engine.debug
 	if debug.profile_target == 0 {return}
-	debug.sample.frame_ms = (rl.GetTime() - debug.frame_started) * 1000
+	if debug.profile_stepping && debug.profile_count >= debug.steps_requested-debug.steps_remaining {return}
+	finished_at := completed_at
+	if finished_at < 0 {finished_at = rl.GetTime()}
+	debug.sample.frame_ms = (finished_at - debug.frame_started) * 1000
 	debug.profile_samples[debug.profile_count] = debug.sample
 	debug.profile_count += 1
 	if debug.profile_count < debug.profile_target {return}
@@ -570,9 +594,12 @@ debug_profile_finished_frame :: proc(engine: ^Engine) {
 	}
 	console.set_result(&engine.console, struct {
 		frames: int,
+		stepped_frames: int,
 		frame, update, fixed_update, render_submission: Timing_Summary,
-	}{debug.profile_count, timing_summary(frame), timing_summary(update), timing_summary(fixed), timing_summary(render)})
+	}{debug.profile_count, debug.steps_requested if debug.profile_stepping else 0,
+		timing_summary(frame), timing_summary(update), timing_summary(fixed), timing_summary(render)})
 	debug.profile_target = 0
+	debug.profile_stepping = false
 	engine.console.defer_reply = false
 	console.info(&engine.console, "Profile complete (CPU timings; frame includes presentation/wait).")
 	console.finish_remote(&engine.console)

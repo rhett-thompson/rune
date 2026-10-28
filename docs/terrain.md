@@ -216,21 +216,35 @@ is measured from the camera in world units (default 60 for grass, 250 otherwise)
 Grass shrinks smoothly through the last 20% of that distance; other details are
 culled at the limit. Terrain supports at most 32 detail definitions, 100,000
 candidates per definition, and 250,000 candidates total. Increase counts with
-care: dense shadow-casting geometry has a rendering cost. Cached visibility
-includes a conservative camera movement radius derived from each root's distance
-to the culling boundary. Moving inside that radius reuses instance streams without
-scanning or uploading them; fully in-range model/tree/rock batches can therefore
-reuse the same buffers while walking. Outside that radius, exact root selection
-is checked again, and unchanged selections still avoid GPU uploads and repeated
-rotation/color construction. Terrain transforms and successful descriptor edits
-invalidate the cache. Built-in grass also respects the fade-start boundary;
-batches with visible fading grass continue evaluating distance-dependent scales
-as the camera moves. Camera rotation alone does not change this distance-based
-selection. CPU staging arrays are
-retained with each batch and included in the renderer's cache memory estimate.
+care: dense shadow-casting geometry has a rendering cost. Candidate world
+positions and rotations are cached until the terrain transform or normal
+alignment changes; successful terrain edits replace the batch.
+
+Opaque details retain their source order in contiguous chunks of at most 64
+roots, with root bounds spanning at most eight world units per axis. Eight-root
+blocks within each chunk provide finer distance bounds. Whole groups known to
+be inside or outside the cutoff skip individual distance tests and cache their
+own conservative movement proofs. Boundary and fading blocks still evaluate
+their roots exactly. Conservative
+camera movement radii reuse proven selections, and unchanged contiguous source
+ranges avoid repacking. Boundary roots still use the exact distance test;
+built-in grass keeps its smooth scaling through the outer fade band.
+
+Each chunk reserves a range in the existing instance buffer. Only changed
+prefixes are uploaded, preserving other ranges, and adjacent visible ranges
+coalesce into a draw. Transparent materials retain one ordered range because
+the native renderer can reorder separate transparent submissions. Camera
+rotation alone does not change distance selection. Candidate poses, chunk and
+block bounds, source indices, and staging arrays are owned by the batch and
+included in renderer cache memory estimates.
+
 `Context.frame_stats.terrain_detail_rebuilds` counts batches whose packed instance
-data changed; `terrain_detail_uploads` counts nonempty batches whose four instance
-streams were uploaded that frame.
+data or visible counts changed; `terrain_detail_uploads` counts batches with an
+actual GPU write. `terrain_detail_chunk_uploads`, `terrain_detail_draw_ranges`,
+and `terrain_detail_candidates_tested` report changed prefixes, submitted ranges,
+and individual root cutoff tests. The `terrain_detail_pack_cpu_ms`,
+`terrain_detail_upload_cpu_ms`, and `terrain_detail_draw_cpu_ms` counters separate
+CPU selection, GPU buffer updates, and draw submission time.
 
 These details are decorative: they do not create colliders, navigation obstacles,
 or individually interactable entities. Use regular scene/prefab entities for
@@ -239,7 +253,8 @@ height/slope rules rather than painted density maps or terrain layer weights.
 
 Invalid descriptor edits retain the working terrain and detail buffers. Model
 and material assets use their existing hot-reload paths. Removing a terrain or
-replacing the scene releases its detail instance buffers.
+replacing the scene releases its detail instance buffers and owned CPU arrays,
+including cached candidate poses.
 
 ## Geometry and collision
 

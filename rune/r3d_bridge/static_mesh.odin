@@ -15,12 +15,18 @@ Static_Mesh_Cache :: struct {
 	node_version: u64,
 	enabled, valid, shadows: bool,
 	occlusion_faces: []Occlusion_Face,
+	occlusion_world_faces: []Occlusion_World_Face,
+	occlusion_world_transform: rl.Matrix,
+	occlusion_world_ready: bool,
+	occlusion_clip_faces: []Occlusion_Clip_Face,
+	occlusion_clip_basis: rl.Matrix,
+	occlusion_clip_ready: bool,
 	occlusion_faces_ready, occlusion_opaque, occlusion_eligible, occluded: bool,
 	occlusion_cull: r3d.CullMode,
 }
 
 release_static_meshes :: proc(ctx: ^Context) {
-	for _,cache in ctx.static_meshes {r3d.UnloadMesh(cache.mesh); delete(cache.occlusion_faces)}
+	for _,&cache in ctx.static_meshes {r3d.UnloadMesh(cache.mesh); release_occlusion_faces(&cache)}
 	clear(&ctx.static_meshes)
 	clear(&ctx.static_nodes)
 	for _,group in ctx.static_groups {delete(group.members)}
@@ -32,7 +38,11 @@ prepare_static_meshes :: proc(ctx: ^Context, world: ^ecs.World) {
 	if ctx.static_mesh_generation!=world.generation {release_static_meshes(ctx); ctx.static_mesh_generation=world.generation}
 	removed := make([dynamic]ecs.Entity,context.temp_allocator)
 	for entity in ctx.static_meshes {if _,ok:=world.static_meshes[entity]; !ok {append(&removed,entity)}}
-	for entity in removed {r3d.UnloadMesh(ctx.static_meshes[entity].mesh); delete(ctx.static_meshes[entity].occlusion_faces); delete_key(&ctx.static_meshes,entity); ctx.occlusion.dirty=true}
+	for entity in removed {
+		cache:=ctx.static_meshes[entity]
+		r3d.UnloadMesh(cache.mesh); release_occlusion_faces(&cache)
+		delete_key(&ctx.static_meshes,entity); ctx.occlusion.dirty=true
+	}
 	for entity,state in world.static_meshes {
 		if old,ok:=ctx.static_meshes[entity]; ok && old.revision==state.revision {continue}
 		vertices:=make([]r3d.Vertex,len(state.data.vertices))
@@ -45,7 +55,7 @@ prepare_static_meshes :: proc(ctx: ^Context, world: ^ecs.World) {
 		delete(vertices)
 		if !r3d.IsMeshValid(mesh) {continue}
 		mesh.shadowCastMode=.ON_DOUBLE_SIDED
-		if old,ok:=ctx.static_meshes[entity]; ok {r3d.UnloadMesh(old.mesh); delete(old.occlusion_faces)}
+		if old,ok:=ctx.static_meshes[entity]; ok {r3d.UnloadMesh(old.mesh); release_occlusion_faces(&old)}
 		ctx.static_meshes[entity]={mesh=mesh,revision=state.revision}
 		ctx.frame_stats.static_uploads += 1
 		ctx.occlusion.dirty=true
@@ -108,13 +118,30 @@ draw_static_meshes :: proc(ctx: ^Context, world: ^ecs.World, manager:^assets.Ass
 	}
 }
 
+// A draw-local material preserves the shared authored asset and GPU mesh.
+static_mesh_opacity_material :: proc(base:r3d.Material,opacity:f32) -> r3d.Material {
+	material:=base
+	if opacity>=1 {return material}
+	material.albedo.color.a=u8(f32(base.albedo.color.a)*opacity)
+	if material.transparencyMode==.DISABLED {material.transparencyMode=.ALPHA}
+	if material.blendMode==.PREMULTIPLIED_ALPHA {
+		for i in 0..<3 {material.albedo.color[i]=u8(f32(base.albedo.color[i])*opacity)}
+		material.emission.energy*=opacity
+	}
+	return material
+}
+
 submit_static_mesh :: proc(ctx:^Context,world:^ecs.World,manager:^assets.Asset_Manager,entity:ecs.Entity,cache:Static_Mesh_Cache,transform:rl.Matrix,uncached_pose:^ecs.Transform=nil,shadow_only:=false) {
+	opacity:=f32(1)
+	if state,found:=world.static_meshes[entity]; found {opacity=state.opacity}
+	if opacity<=0 {return}
 	material:=r3d.GetDefaultMaterial()
 	mesh:=cache.mesh
 	if renderer,found:=ecs.get_mesh_renderer(world,entity); found && renderer.primitive=="static" {
 		material=material_from_path(ctx,manager,renderer.material,renderer.color)
 		mesh.shadowCastMode=.ON_DOUBLE_SIDED if renderer.shadows else .DISABLED
 	}
+	material=static_mesh_opacity_material(material,opacity)
 	if shadow_only {mesh.shadowCastMode=.ONLY_DOUBLE_SIDED}
 	if uncached_pose!=nil {
 		pose:=uncached_pose^

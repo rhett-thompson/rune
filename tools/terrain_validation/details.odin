@@ -134,19 +134,45 @@ validate_detail_rendering :: proc(ctx:^bridge.Context,manager:^assets.Asset_Mana
 validate_detail_visibility :: proc(batch:^bridge.Terrain_Detail_Batch,detail:terrain.Detail,t:ecs.Transform,camera:[3]f32) {
 	transform:=bridge.detail_transform(t)
 	count:=0
+	chunk_index,chunk_slot:=0,0
 	for instance in batch.instances {
 		world:=rl.Vector3Transform(rl.Vector3(instance.position),transform)
 		delta:=world-rl.Vector3(camera)
 		distance_squared:=delta[0]*delta[0]+delta[1]*delta[1]+delta[2]*delta[2]
 		if distance_squared>=detail.draw_distance*detail.draw_distance {continue}
 		assert(count<int(batch.visible_count),"visibility cannot omit an in-range root")
-		assert(rl.Vector3Distance(batch.positions[count],world)<0.00001,"packed instances preserve source order and transformed root positions")
+		for chunk_index<len(batch.chunks) && chunk_slot>=int(batch.chunks[chunk_index].visible_count) {
+			chunk_index+=1;chunk_slot=0
+		}
+		assert(chunk_index<len(batch.chunks),"visible chunk prefixes contain every selected root")
+		slot:=batch.chunks[chunk_index].offset+chunk_slot
+		assert(rl.Vector3Distance(batch.positions[slot],world)<0.00001,"reserved chunk ranges preserve source order and transformed root positions")
 		scale:=instance.scale
 		if detail.kind=="grass" {scale*=clamp((detail.draw_distance-math.sqrt(distance_squared))/(detail.draw_distance*0.2),0,1)}
-		assert(rl.Vector3Distance(batch.scales[count],rl.Vector3(t.scale*scale))<0.00001,"cached scales preserve exact grass fading and terrain scale")
-		count+=1
+		assert(rl.Vector3Distance(batch.scales[slot],rl.Vector3(t.scale*scale))<0.00001,"cached scales preserve exact grass fading and terrain scale")
+		count+=1;chunk_slot+=1
 	}
 	assert(count==int(batch.visible_count),"out-of-range roots remain excluded from the packed stream")
+	// Drawing may join adjacent full ranges, but it must not cross reserved holes.
+	range_count,index:=0,0
+	for index<len(batch.chunks) {
+		offset,visible,next:=bridge.detail_visible_range(batch,index)
+		assert(next>index,"draw-range enumeration always advances")
+		if visible>0 {
+			assert(offset>=0 && offset+visible<=len(batch.positions),"visible draws stay inside the shared instance buffer")
+			range_count+=visible
+		}
+		index=next
+	}
+	assert(range_count==count,"draw ranges cover exactly the selected chunk prefixes")
+}
+
+// Selection/count changes and GPU writes are separate results. Removing a
+// visible suffix may change a draw count while retaining every buffer byte.
+detail_streams_changed :: proc(batch:^bridge.Terrain_Detail_Batch,detail:terrain.Detail,t:ecs.Transform,camera:[3]f32) -> bool {
+	changed,uploaded:=bridge.upload_visible_details(batch,detail,t,camera)
+	assert(!uploaded || (changed && batch.visible_count>0),"unchanged or empty selections perform no GPU uploads")
+	return changed
 }
 
 validate_model_detail_camera_reuse :: proc(batch:^bridge.Terrain_Detail_Batch,detail:terrain.Detail,t:ecs.Transform,camera:[3]f32) {
@@ -155,13 +181,14 @@ validate_model_detail_camera_reuse :: proc(batch:^bridge.Terrain_Detail_Batch,de
 	copy(positions[:],batch.positions); copy(rotations[:],batch.rotations); copy(scales[:],batch.scales); copy(colors[:],batch.colors)
 	anchor:=batch.view.camera
 	assert(batch.camera_reuse_radius>1,"fully in-range model details have a conservative walking region")
+	allocator_before_tracking,temp_before_tracking:=context.allocator,context.temp_allocator
 	tracker:mem.Tracking_Allocator
 	mem.tracking_allocator_init(&tracker,context.allocator); defer mem.tracking_allocator_destroy(&tracker)
 	context.allocator=mem.tracking_allocator(&tracker); context.temp_allocator=context.allocator
 	for step in 0..<32 {
 		phase:=f32(step)*0.3
 		walking:=camera+[3]f32{f32(step)*0.12,math.sin(phase)*0.025,math.cos(phase)*0.1}
-		assert(!bridge.upload_visible_details(batch,detail,t,walking),"walking and head bob retain fully visible custom-model GPU streams")
+		assert(!detail_streams_changed(batch,detail,t,walking),"walking and head bob retain fully visible custom-model GPU streams")
 		assert(batch.view.camera==anchor,"safe walking skips the candidate scan instead of just avoiding its upload")
 		validate_detail_visibility(batch,detail,t,walking)
 		for instance in 0..<32 {
@@ -172,29 +199,39 @@ validate_model_detail_camera_reuse :: proc(batch:^bridge.Terrain_Detail_Batch,de
 	// fallback updates its anchor without sending unchanged data to the GPU.
 	outside:=[3]f32{80,0,0}
 	assert(rl.Vector3Distance(rl.Vector3(anchor),rl.Vector3(outside))>batch.camera_reuse_radius)
-	assert(!bridge.upload_visible_details(batch,detail,t,outside) && batch.visible_count==32,"an exact scan with unchanged selection also skips GPU uploads")
+	assert(!detail_streams_changed(batch,detail,t,outside) && batch.visible_count==32,"an exact scan with unchanged selection also skips GPU uploads")
 	assert(batch.view.camera==outside,"an unchanged fallback scan refreshes its conservative camera anchor")
 	validate_detail_visibility(batch,detail,t,outside)
 	partial:=[3]f32{100,0,0}
-	assert(bridge.upload_visible_details(batch,detail,t,partial) && batch.visible_count>0 && batch.visible_count<32,"crossing the culling boundary rebuilds a genuinely partial selection")
+	assert(detail_streams_changed(batch,detail,t,partial) && batch.visible_count>0 && batch.visible_count<32,"crossing the culling boundary rebuilds a genuinely partial selection")
 	validate_detail_visibility(batch,detail,t,partial)
-	assert(!bridge.upload_visible_details(batch,detail,t,partial+[3]f32{0,0.0001,0}),"head bob that preserves a partial selection keeps its GPU data too")
+	assert(!detail_streams_changed(batch,detail,t,partial+[3]f32{0,0.0001,0}),"head bob that preserves a partial selection keeps its GPU data too")
 	validate_detail_visibility(batch,detail,t,partial+[3]f32{0,0.0001,0})
 	boundary:=rl.Vector3Transform(rl.Vector3(batch.instances[0].position),bridge.detail_transform(t))+rl.Vector3{detail.draw_distance,0,0}
-	bridge.upload_visible_details(batch,detail,t,boundary)
+	detail_streams_changed(batch,detail,t,boundary)
 	validate_detail_visibility(batch,detail,t,boundary)
 	far:=[3]f32{1000,1000,1000}
-	assert(bridge.upload_visible_details(batch,detail,t,far) && batch.visible_count==0,"leaving the visible population produces an empty selection")
-	assert(!bridge.upload_visible_details(batch,detail,t,far+[3]f32{1,-0.02,0.6}) && batch.visible_count==0,"walking outside the draw radius retains the empty cache")
-	assert(bridge.upload_visible_details(batch,detail,t,camera) && batch.visible_count==32,"returning from an empty cache restores all visible roots")
+	assert(detail_streams_changed(batch,detail,t,far) && batch.visible_count==0,"leaving the visible population produces an empty selection")
+	assert(!detail_streams_changed(batch,detail,t,far+[3]f32{1,-0.02,0.6}) && batch.visible_count==0,"walking outside the draw radius retains the empty cache")
+	assert(detail_streams_changed(batch,detail,t,camera) && batch.visible_count==32,"returning from an empty cache restores all visible roots")
 	validate_detail_visibility(batch,detail,t,camera)
+	assert(tracker.total_allocation_count==0,"walking, partial culling and empty model views allocate no heap or scratch storage")
+	// Layout rebuilds may replace metadata allocated before tracking began.
+	// Use its original allocator for that ownership-changing work.
+	context.allocator=allocator_before_tracking;context.temp_allocator=temp_before_tracking
 	moved:=t; moved.position+={3,2,-1}; moved.rotation={12,37,-7}; moved.scale={1.4,0.8,1.1}
-	assert(bridge.upload_visible_details(batch,detail,moved,camera),"translation, rotation and scale invalidate world-space model streams")
+	assert(detail_streams_changed(batch,detail,moved,camera),"translation, rotation and scale invalidate world-space model streams")
 	validate_detail_visibility(batch,detail,moved,camera)
+	// A new spatial layout can resize chunk metadata once; its warmed view is
+	// still required to allocate nothing and preserve all existing GPU streams.
+	allocations_after_transform:=tracker.total_allocation_count
+	context.allocator=mem.tracking_allocator(&tracker);context.temp_allocator=context.allocator
+	assert(!detail_streams_changed(batch,detail,moved,camera),"the refreshed transformed view reuses its GPU streams")
+	assert(tracker.total_allocation_count==allocations_after_transform,"a stable transformed view allocates no additional storage")
+	context.allocator=allocator_before_tracking;context.temp_allocator=temp_before_tracking
 	aligned:=detail; aligned.align_to_normal=!detail.align_to_normal
-	assert(bridge.upload_visible_details(batch,aligned,moved,camera),"surface alignment invalidates instance rotations")
-	assert(bridge.upload_visible_details(batch,detail,t,camera),"restore the original model streams before later rendered checks")
-	assert(tracker.total_allocation_count==0,"walking, partial culling and transformed model views allocate no heap or scratch storage")
+	assert(detail_streams_changed(batch,aligned,moved,camera),"surface alignment invalidates instance rotations")
+	assert(detail_streams_changed(batch,detail,t,camera),"restore the original model streams before later rendered checks")
 	fmt.println("PASS custom-model walking/head-bob reuse, unchanged fallback, exact radius boundary, partial/empty transitions and transforms")
 }
 
@@ -223,11 +260,11 @@ validate_model_detail_zero_root_boundary :: proc(data:terrain.Data,detail:terrai
 	// visible slot still needs its quaternion, scale and color initialized.
 	batch.instances[0]={position={},normal={0,1,0},yaw=0.7,scale=1.2,shade=0.91}
 	transform:=ecs.default_transform()
-	assert(bridge.upload_visible_details(batch,one,transform,{100,0,0}) && batch.visible_count==0)
-	assert(bridge.upload_visible_details(batch,one,transform,{99.99,0,0}) && batch.visible_count==1,"a root entering from the draw boundary creates a real visible instance")
+	assert(detail_streams_changed(batch,one,transform,{100,0,0}) && batch.visible_count==0)
+	assert(detail_streams_changed(batch,one,transform,{99.99,0,0}) && batch.visible_count==1,"a root entering from the draw boundary creates a real visible instance")
 	assert(batch.positions[0]==rl.Vector3{} && batch.rotations[0]!=rl.Quaternion{} && batch.scales[0]==rl.Vector3{1.2,1.2,1.2} && batch.colors[0].a==255 && batch.colors[0].r>0,"new origin roots initialize every GPU stream despite matching a zero stored position")
-	assert(bridge.upload_visible_details(batch,one,transform,{100,0,0}) && batch.visible_count==0,"moving exactly to draw_distance excludes the previously visible root")
-	assert(!bridge.upload_visible_details(batch,one,transform,{100.01,0,0}) && batch.visible_count==0,"an unchanged empty selection avoids uploading after its exact boundary scan")
+	assert(detail_streams_changed(batch,one,transform,{100,0,0}) && batch.visible_count==0,"moving exactly to draw_distance excludes the previously visible root")
+	assert(!detail_streams_changed(batch,one,transform,{100.01,0,0}) && batch.visible_count==0,"an unchanged empty selection avoids uploading after its exact boundary scan")
 	fmt.println("PASS newly visible origin streams and strict draw-distance boundary equality")
 }
 
@@ -241,12 +278,12 @@ validate_dense_model_detail_walk :: proc(data:terrain.Data,detail:terrain.Detail
 	defer bridge.release_terrain_cache(&cache)
 	batch:=&cache.details[0]
 	anchor:=[3]f32{0,1.6,0}
-	assert(bridge.upload_visible_details(batch,dense,t,anchor) && batch.visible_count==42000)
+	assert(detail_streams_changed(batch,dense,t,anchor) && batch.visible_count==42000)
 	started:=rl.GetTime()
 	for step in 0..<120 {
 		phase:=f32(step)*0.25
 		camera:=[3]f32{-4+f32(step)*0.1,1.6+math.sin(phase)*0.025,4+math.cos(phase)*0.1}
-		assert(!bridge.upload_visible_details(batch,dense,t,camera),"dense walking population does not rebuild or upload stable model streams")
+		assert(!detail_streams_changed(batch,dense,t,camera),"dense walking population does not rebuild or upload stable model streams")
 		assert(batch.view.camera==anchor && batch.visible_count==42000,"dense walking stays in the constant-time cached region")
 	}
 	fmt.printf("PASS 42,000 model details / 120 walking views: %.3f ms preparation CPU, zero rebuilds/uploads after warm-up\n",(rl.GetTime()-started)*1000)
@@ -264,17 +301,17 @@ validate_detail_staging :: proc(batch:^bridge.Terrain_Detail_Batch,detail:terrai
 	rotations:=raw_data(batch.rotations)
 	scales:=raw_data(batch.scales)
 	colors:=raw_data(batch.colors)
-	for _ in 0..<8 {assert(!bridge.upload_visible_details(batch,detail,t,camera),"unchanged detail inputs skip all rebuilding/uploading")}
-	assert(bridge.upload_visible_details(batch,detail,t,camera+[3]f32{1,0,0}),"moving the camera invalidates the view")
+	for _ in 0..<8 {assert(!detail_streams_changed(batch,detail,t,camera),"unchanged detail inputs skip all rebuilding/uploading")}
+	assert(detail_streams_changed(batch,detail,t,camera+[3]f32{1,0,0}),"moving the camera invalidates the view")
 	moved:=t; moved.position[1]+=2
-	assert(bridge.upload_visible_details(batch,detail,moved,camera),"moving terrain invalidates the streams")
+	assert(detail_streams_changed(batch,detail,moved,camera),"moving terrain invalidates the streams")
 	assert(batch.positions[0][1]==t.position[1]+2,"reused staging contains the new world position")
 	clipped:=detail; clipped.draw_distance=1
-	assert(bridge.upload_visible_details(batch,clipped,t,camera) && batch.visible_count==0,"draw distance changes invalidate visibility")
-	assert(!bridge.upload_visible_details(batch,clipped,t,camera),"all-culled batches reuse their empty result")
+	assert(detail_streams_changed(batch,clipped,t,camera) && batch.visible_count==0,"draw distance changes invalidate visibility")
+	assert(!detail_streams_changed(batch,clipped,t,camera),"all-culled batches reuse their empty result")
 	aligned:=detail; aligned.align_to_normal=!detail.align_to_normal
-	assert(bridge.upload_visible_details(batch,aligned,t,camera),"alignment changes invalidate rotations")
-	assert(bridge.upload_visible_details(batch,detail,t,camera),"restore the original streams")
+	assert(detail_streams_changed(batch,aligned,t,camera),"alignment changes invalidate rotations")
+	assert(detail_streams_changed(batch,detail,t,camera),"restore the original streams")
 	assert(batch.visible_count==32)
 	assert(raw_data(batch.positions)==positions && raw_data(batch.rotations)==rotations && raw_data(batch.scales)==scales && raw_data(batch.colors)==colors,"changed views reuse staging storage")
 	assert(tracker.total_allocation_count==0,"stable and moving detail views use no per-frame heap or scratch allocations")

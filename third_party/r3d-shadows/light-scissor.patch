@@ -1,0 +1,60 @@
+diff --git a/src/modules/r3d_light.c b/src/modules/r3d_light.c
+--- a/src/modules/r3d_light.c
++++ b/src/modules/r3d_light.c
+@@ -13,6 +13,7 @@
+ #include <string.h>
+ #include <assert.h>
+ #include <float.h>
++#include <math.h>
+ 
+ #include "../r3d_core_state.h"
+ 
+@@ -564,22 +565,36 @@
+         };
+         Vector4 clip = r3d_vector4_transform(corner, viewProj);
+ 
+-        float w = clip.w;
+-        if (fabsf(w) < 1e-4f)
+-        {
+-            w = (w < 0.0f) ? -1e-4f : 1e-4f;
+-        }
+-
+-        Vector2 ndc = Vector2Scale((Vector2){clip.x, clip.y}, 1.0f / w);
++        // A box crossing the near/eye plane has projected extrema on its
++        // clipped edges, not necessarily at its original eight corners. Fail
++        // open rather than clipping a valid point/spot light contribution.
++        if (!isfinite(clip.x) || !isfinite(clip.y) ||
++            !isfinite(clip.z) || !isfinite(clip.w) ||
++            clip.w <= 1e-4f || clip.z <= -clip.w)
++        {
++            return (r3d_rect_t){0, 0, w, h};
++        }
++
++        Vector2 ndc = Vector2Scale((Vector2){clip.x, clip.y}, 1.0f / clip.w);
++        if (!isfinite(ndc.x) || !isfinite(ndc.y))
++        {
++            return (r3d_rect_t){0, 0, w, h};
++        }
+         minNDC = Vector2Min(minNDC, ndc);
+         maxNDC = Vector2Max(maxNDC, ndc);
+     }
+ 
+-    // NDC to screen
+-    int x = (int)fmaxf((minNDC.x * 0.5f + 0.5f) * w, 0.0f);
+-    int y = (int)fmaxf((minNDC.y * 0.5f + 0.5f) * h, 0.0f);
+-    int rectW = (int)fminf((maxNDC.x * 0.5f + 0.5f) * w, (float)w) - x;
+-    int rectH = (int)fminf((maxNDC.y * 0.5f + 0.5f) * h, (float)h) - y;
++    // Clamp before integer conversion and round outward: a partially covered
++    // edge pixel must receive the light too. Double keeps large finite NDC
++    // values and the integer target dimensions representable during clamping.
++    double left = fmax(0.0, fmin((double)w, ((double)minNDC.x * 0.5 + 0.5) * w));
++    double bottom = fmax(0.0, fmin((double)h, ((double)minNDC.y * 0.5 + 0.5) * h));
++    double right = fmax(0.0, fmin((double)w, ((double)maxNDC.x * 0.5 + 0.5) * w));
++    double top = fmax(0.0, fmin((double)h, ((double)maxNDC.y * 0.5 + 0.5) * h));
++    int x = (int)floor(left);
++    int y = (int)floor(bottom);
++    int rectW = (int)ceil(right) - x;
++    int rectH = (int)ceil(top) - y;
+ 
+     // Security: Invalid dimensions = skip
+     if (rectW <= 0 || rectH <= 0)

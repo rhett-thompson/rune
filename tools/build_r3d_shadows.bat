@@ -68,6 +68,10 @@ try {
     run(["git", "-C", source, "apply", "--check", patch]);
     run(["git", "-C", source, "apply", patch]);
     run(["git", "-C", source, "apply", "--reverse", "--check", patch]);
+    var scissorPatch = fs.BuildPath(nativeRoot, "light-scissor.patch");
+    run(["git", "-C", source, "apply", "--check", scissorPatch]);
+    run(["git", "-C", source, "apply", scissorPatch]);
+    run(["git", "-C", source, "apply", "--reverse", "--check", scissorPatch]);
     var receiverPatch = fs.BuildPath(nativeRoot, "receiver-plane.patch");
     run(["git", "-C", source, "apply", "--check", receiverPatch]);
     run(["git", "-C", source, "apply", receiverPatch]);

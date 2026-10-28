@@ -87,8 +87,10 @@ mappings and `input.capture`. Its `mouse_moved`, `mouse_button_or_wheel`, and
 `gamepad` flags describe physical activity, including pads 0–3 used by menus.
 Gamepad buttons use press/release edges, including digital trigger buttons, so
 signed analog triggers resting at -1 do not count as activity. Sticks use a 0.2
-deadzone and meaningful changes; drift, a stationary hold, or connecting a
-controller alone does not claim activity. Invalid stick values are ignored.
+deadzone and meaningful changes; drift and a stationary hold do not claim
+activity. A newly connected or reconnected controller establishes a baseline;
+buttons already held at connection do not count as activity until a later
+press or release. Invalid stick values are ignored.
 
 Games can opt in with `rune.set_gamepad_cursor_auto_hide(game, true)`; the default
 is disabled. Gamepad activity hides a free pointer in gameplay, menus, and the

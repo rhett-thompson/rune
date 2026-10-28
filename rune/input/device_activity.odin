@@ -49,7 +49,6 @@ device_activity_tick :: proc(state: ^Device_Activity_State, sample: Device_Activ
 	for pad, index in sample.pads {
 		previous := &state.pads[index]
 		if !pad.available {previous^ = {}; continue}
-		result.gamepad ||= pad.button_edge
 		if !previous.available {
 			previous.available = true
 			for raw, axis in pad.sticks {
@@ -57,6 +56,9 @@ device_activity_tick :: proc(state: ^Device_Activity_State, sample: Device_Activ
 			}
 			continue
 		}
+		// Native polling can report a held button as pressed on connection.
+		// Only edges after the connection baseline describe a new gesture.
+		result.gamepad ||= pad.button_edge
 		for raw, axis in pad.sticks {
 			value, valid := device_activity_stick(raw)
 			if !valid {continue}

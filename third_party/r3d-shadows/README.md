@@ -1,7 +1,8 @@
-# Stable R3D directional shadows, SSAO, and atmospheric composition
+# Stable R3D shadows, local-light clipping, SSAO, and atmospheric composition
 
 This is an altered build of R3D's native light, shader, and draw modules. The exact
 changes are in [stable-projection.patch](stable-projection.patch),
+[light-scissor.patch](light-scissor.patch),
 [receiver-plane.patch](receiver-plane.patch),
 [ssao-reconstruction.patch](ssao-reconstruction.patch),
 [pre-transparency.patch](pre-transparency.patch), and
@@ -9,6 +10,16 @@ changes are in [stable-projection.patch](stable-projection.patch),
 objects on Windows AMD64 and Linux AMD64. They replace three members of the
 bundled native archive without modifying the r3d-odin submodule or its bindings.
 Other targets retain the upstream shadow and screen-space sampling behavior.
+
+Local point/spot lighting uses a screen-space scissor rectangle. Projecting all
+eight influence-box corners is only conservative when the box is entirely in
+front of the near plane. The upstream path also divided corners behind the
+camera by negative clip W, which could remove valid illumination in rectangular
+strips along any viewport edge as the camera turned. `light-scissor.patch`
+retains the whole target when a bound crosses the near/eye plane or projects to
+nonfinite coordinates. Fully front-facing bounds keep their tight rectangle,
+clamped before integer conversion and rounded outward to include edge pixels.
+This fixes direct-light clipping independently of shadows and post effects.
 
 `foreground-view.patch` adds Rune's HDR render-view capture hook. It runs the
 ordinary R3D geometry, lighting and HDR effect passes, then exposes borrowed
@@ -115,6 +126,23 @@ version directives; include fragments such as `include/user/scene.vert` must
 never replace the same-named scene entry point.
 
 ## Validation
+
+`tools/light_scissor_validation` calls the actual pinned native rectangle
+function for 30 headless bounds checks. Build it with Rune's compiler guard,
+the Rune/R3D collections, and the platform linker. Run the executable with
+`--runtime` for 24 hidden point-light/opaque-receiver cases covering all four
+viewport edges, front-only controls, and camera turns of -1, 0, and +1 degrees.
+Shadows, post effects, and Rune's optional occlusion are disabled. An optional
+output-directory argument saves on/off captures and `report.json`; `--observe`
+records a broken baseline without asserting the rendered result.
+
+On 2026-10-27, Windows AMD64, pinned October Odin/MSVC, GLFW/OpenGL 3.3 and an
+RTX 5070 reproduced zero light contribution in all 12 crossing cases before the
+fix. All 30 bounds checks and 24 rendered cases passed afterward; all 12
+front-only control gains were unchanged. Existing light-shadow runtime checks
+(including 2,592 directional orientations) and foreground-view rendering passed.
+Windows and Linux AMD64 objects were rebuilt with the pinned helper; these
+runtime observations cover Windows, not Linux.
 
 ```powershell
 odin build tools/light_shadow_validation -o:none -thread-count:2 -collection:rune=rune -collection:r3d=third_party/r3d-odin -linker:msvc -out:build/light_shadow_validation.exe

@@ -52,6 +52,14 @@ finishes and releases the compiler lock; Windows outputs use `.exe`.
 
 The table names tool packages; runtime commands refer to the executables built
 from them. UI pixel checks do not replace the serial dropdown/input tests.
+
+For terrain-detail upload regressions, run `rune/r3d_bridge` tests with
+`-define:RUNE_TERRAIN_DETAIL_GPU_TESTS=true`, `-define:ODIN_TEST_THREADS=1`, and
+`-define:ODIN_TEST_NAMES=r3d_bridge.terrain_detail_partial_uploads_preserve_other_gpu_ranges`
+alongside the normal collections and platform linker flags. Check that one test
+was selected. This requires a display and reads GPU streams to verify that
+partial uploads preserve neighboring instance ranges.
+
 Camera runtime checks can pass at 100% DPI, which does not exercise scale loss.
 Audio runtime validators intentionally mute playback, so passing them does not
 establish audible output.
