@@ -16,7 +16,19 @@ RigidBody3D :: struct {
 
 Physics3D_Fixed_Delta: f32 : 1.0 / 60.0
 Physics3D_Gravity: f32 : -9.8
+Physics3D_Max_Workers :: b3.MAX_WORKERS
 Radians_Per_Degree: f32 : 0.017453292519943295
+
+// Configure an initialized World before its first 3D physics query or step.
+// The count includes the calling thread. Box3D owns its additional workers and
+// joins them when the native world is destroyed. Existing native worlds cannot
+// change count through this API; reapplying the same count is harmless.
+configure_physics_3d :: proc(world: ^World, worker_count: int) -> bool {
+	if world == nil || world.generation == 0 || worker_count < 1 || worker_count > Physics3D_Max_Workers {return false}
+	if !b3.IS_NULL(world.box3d_world) && worker_count != world.physics_3d_worker_count {return false}
+	world.physics_3d_worker_count = worker_count
+	return true
+}
 
 rigid_body_3d_from_json :: proc(data: json.Value) -> (RigidBody3D, bool) {
 	object, ok := data.(json.Object)
@@ -115,6 +127,7 @@ ensure_box3d_world :: proc(world: ^World) {
 	if !b3.IS_NULL(world.box3d_world) {return}
 	def := b3.DefaultWorldDef()
 	def.gravity = {0, Physics3D_Gravity, 0}
+	def.workerCount = u32(world.physics_3d_worker_count)
 	world.box3d_world = b3.CreateWorld(def)
 }
 

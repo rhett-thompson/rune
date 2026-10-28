@@ -41,6 +41,43 @@ Drawing prepares a pose without advancing time or publishing simulation state.
 Engine pause/step therefore applies to animation too. Repeated draw calls and
 captures preserve the simulation state.
 
+## CPU pose jobs
+
+Enable the optional project `jobs.worker_count` and pass
+`worker_pool = game.worker_pool` to `r3d_bridge.init` to allow parallel pose
+evaluation across characters. The default has no pool; small workloads and
+unavailable queue capacity use the calling thread. This changes scheduling,
+not playback timing, marker order, or when the pose becomes available.
+The bridge selects the parallel path only when at least two players need a new
+pose and their skeletons total at least 2048 bones. Players whose cached pose
+can be reused do not count toward this threshold. Dispatch overhead varies by
+workload and platform; see the [animation worker benchmark](../tools/animation_worker_benchmark/README.md).
+
+The bridge finishes model and animation-library reloads before gathering pose
+work. The owner advances timelines, publishes events, and prepares each player.
+Workers compute that player's local pose, optional blend, and model-space pose
+using its private buffers and shared read-only skeleton/clip data. Each batch
+joins before the owner uploads skin textures, releases finished blend storage,
+and publishes evaluated players to its cache. Playback state and marker events
+are updated on the owner during gathering. GPU creation, upload and destruction,
+imports, asset diagnostics, and World mutation stay on the owner.
+
+Keep the borrowed pool alive until bridge shutdown. Do not update the same
+bridge concurrently, or mutate a borrowed `animation_player` while the bridge
+is preparing poses. Custom R3D trees and arbitrary native animation entrypoints
+are outside this worker boundary. See [CPU jobs](jobs.md) for queue and
+allocator ownership.
+
+`Context.animation_stats` describes the most recent pose preparation:
+`players_evaluated`, `bones_evaluated`, `job_batches`, `pose_cpu_ms`, and
+`upload_cpu_ms`. Drawing also prepares poses and resets these values, so inspect
+update statistics before the next draw when measuring simulation work.
+`pose_cpu_ms` includes the CPU batch barrier; `upload_cpu_ms` covers the owner
+upload/cleanup/cache-commit loop. These are elapsed owner timings, not summed
+worker time, GPU execution time, or a guaranteed frame-rate improvement.
+`job_batches` counts selection of the parallel
+batch path; a saturated pool can still leave all work on the calling thread.
+
 ## Playback controls
 
 All controls take `world` and `entity` first. Mutating controls return a success
@@ -123,14 +160,16 @@ components; R3D remains available for those advanced uses.
 ## Example and checks
 
 ```powershell
-# Windows PowerShell; on Linux omit .exe and -linker:msvc, and use ./build/...
+# Windows PowerShell
 New-Item -ItemType Directory -Force build | Out-Null
-$exe = '.exe'
-odin build examples/skeletal_animation_3d -o:none -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin "-out:build/skeletal_animation_3d$exe"
-& "./build/skeletal_animation_3d$exe"
-odin build tools/model_animation_validation -collection:rune=rune -linker:msvc -collection:r3d=third_party/r3d-odin "-out:build/model_animation_validation$exe"
-& "./build/model_animation_validation$exe" --runtime
+./tools/odin.ps1 -OdinArguments @('build', 'examples/skeletal_animation_3d', '-o:none', '-collection:rune=rune', '-linker:msvc', '-collection:r3d=third_party/r3d-odin', '-out:build/skeletal_animation_3d.exe')
+./build/skeletal_animation_3d.exe
+./tools/odin.ps1 -OdinArguments @('build', 'tools/model_animation_validation', '-collection:rune=rune', '-linker:msvc', '-collection:r3d=third_party/r3d-odin', '-out:build/model_animation_validation.exe')
+./build/model_animation_validation.exe --runtime
 ```
+
+On Linux use `sh tools/odin.sh build ...` with the same collections, omit
+`-linker:msvc` and the `.exe` suffix, then run `./build/model_animation_validation --runtime`.
 
 The example shows three instances of an original two-joint glTF model alongside
 a looping Strut Walking character loaded directly from the shared FBX asset.
@@ -150,3 +189,20 @@ The normal validator checks component, serialization, control, and scene-reload
 behavior without opening a window. `--runtime` additionally uses a hidden
 graphics window to verify native playback, independent players, draw stability,
 reverse/end behavior, and resource replacement.
+It also runs the worker suite; `--runtime-jobs` selects that suite alone.
+The worker checks compare serial/parallel poses and rendered results, preserve
+timeline/event behavior, and exercise resource reload and shared-pool contention.
+
+On 2026-10-28, both runtime modes passed on Windows AMD64 with Odin `84bc3fc`,
+MSVC, GLFW Win32, static raylib 6/R3D, and an NVIDIA GTX 1060 using OpenGL 3.3.
+The worker fixture compares 48 actors and 2496 bones at 20 checkpoints, including
+exact playback/event/native-pose results and actual RGBA16F skin-texture
+readbacks. Checks also cover ordinary crowd draws, paused draws, reverse/end
+poses, blends, model/external-clip reloads, removal and World replacement.
+Full-queue and occupied-worker/free-queue cases return before watchdogs release
+unrelated gated callbacks.
+
+The benchmark above isolates local/blended/model CPU evaluation. Its native
+concurrency probes pass on Windows AMD64 and Linux AMD64 under WSL2; they do
+not exercise GPU upload, graphics contexts, or full game frame time. Linux
+scheduler and CPU benchmark checks passed; Linux GPU behavior remains unverified.

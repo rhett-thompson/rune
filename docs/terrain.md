@@ -5,6 +5,24 @@ height at each X/Z coordinate, a descriptor supplies its dimensions and material
 and a scene entity places it in the world. The first version supports fixed
 resolution mesh chunks, lighting/shadows, static collision, and live asset reload.
 
+Projects may set `"jobs": {"worker_count": 3}` and forward
+`worker_pool = game.worker_pool` when calling `r3d_bridge.init`. Terrain CPU
+vertices and indices are then built in waves of at most eight chunks using
+independent output buffers. The owner joins each wave, uploads in the same Z/X
+order, and frees its CPU buffers before the next wave. Detail types also scatter
+in parallel while preserving each type's deterministic candidate order. GPU
+creation, cache replacement, and World changes remain on the owning thread.
+Failed GPU installation keeps the last working cache. A nil pool retains the
+synchronous serial path; no job survives the current preparation stage or a
+scene reload. See [CPU jobs](jobs.md) for pool and allocator ownership.
+
+Bridge `frame_stats.terrain_prepare_cpu_ms` measures CPU construction/scatter
+and batch waits; `terrain_upload_cpu_ms` measures chunk upload and detail-buffer
+allocation on the render thread. These are elapsed CPU-side times, not GPU
+execution times. `terrain_chunks_built` counts generated chunks and
+`terrain_job_batches` counts pool-enabled batches. They reset for each draw;
+unchanged terrain reuses its cache and reports no rebuild work.
+
 ```json
 "Transform": {"position": [-128, 0, -128]},
 "Terrain": {"asset": "assets/hills.terrain.json"}
@@ -220,6 +238,25 @@ care: dense shadow-casting geometry has a rendering cost. Candidate world
 positions and rotations are cached until the terrain transform or normal
 alignment changes; successful terrain edits replace the batch.
 
+Optional `density_distance` and `density_min` settings thin any detail kind,
+including custom models, as the camera moves away:
+
+```json
+"density_distance": [12, 90],
+"density_min": 0.25
+```
+
+This keeps full density through 12 world units, progressively removes roots
+between 12 and 90 units, then retains approximately 25% until `draw_distance`.
+Each root has a stable seeded selection, so returning to a distance restores
+the same subset without moving or reshuffling the grass. Removed roots briefly
+shrink before culling to soften the transition. The retained fraction is
+statistical; small populations need not match it exactly. The near/far endpoints
+must satisfy `0 <= near < far <= draw_distance`, and `density_min` must be in
+`[0,1]`. The default `density_distance: [0,0]` disables thinning and preserves
+existing rendering; the default minimum fraction is `0.25`. A minimum of zero
+can remove all roots by the far endpoint, while one retains full density.
+
 Opaque details retain their source order in contiguous chunks of at most 64
 roots, with root bounds spanning at most eight world units per axis. Eight-root
 blocks within each chunk provide finer distance bounds. Whole groups known to
@@ -229,6 +266,14 @@ their roots exactly. Conservative
 camera movement radii reuse proven selections, and unchanged contiguous source
 ranges avoid repacking. Boundary roots still use the exact distance test;
 built-in grass keeps its smooth scaling through the outer fade band.
+
+Density-enabled batches compact into one contiguous instance range, so thinning
+does not turn sparse chunk prefixes into thousands of draw submissions. Their
+changed selections upload that range; stationary views still reuse the buffer.
+Per-root dropout thresholds are cached with candidate poses. Replacing a sole
+range discards the previous GPU stream storage to avoid waiting for its frame;
+partial chunk updates preserve all other ranges.
+Details without density thinning retain the chunk policy below.
 
 Each chunk reserves a range in the existing instance buffer. Only changed
 prefixes are uploaded, preserving other ranges, and adjacent visible ranges
@@ -345,6 +390,14 @@ verify image/material layer colors, normal and ORM blending, point filtering,
 atlas mip isolation, eight material slots/control channels, reload retention,
 noise continuity and shader cleanup. It runs as part of
 `.\tools\validate.bat --all-examples`.
+
+Run `terrain_validation --runtime-jobs` to repeat the native GPU checks with a
+three-thread shared pool and a one-slot queue. It also checks rebuild counters
+and unchanged-cache reuse, exercising caller fallback as well as background
+construction. CPU-only serial/parallel equality and output ownership are covered
+by `rune/r3d_bridge/terrain_jobs_test.odin`. On 2026-10-28, both passed with the
+pinned Odin toolchain and MSVC on Windows AMD64, hidden GLFW/Win32, NVIDIA GTX
+1060, and OpenGL 3.3. This does not establish Linux behavior or terrain speedups.
 
 To run its GPU checks independently:
 

@@ -5,7 +5,9 @@ import "core:strings"
 import r3d "r3d:r3d"
 import "rune:assets"
 import "rune:ecs"
+import "rune:jobs"
 import "rune:profile"
+import "rune:render"
 import "rune:shadows"
 import rl "vendor:raylib"
 
@@ -52,6 +54,12 @@ R3D_Material_Asset :: struct {
 	material:       r3d.Material,
 	signature:      u64,
 	asset_revision: u64,
+	// Advances only when a complete GPU material is installed. Attempted
+	// fingerprints can advance after failures while these resources stay live.
+	installed_revision: u64,
+	dependency_fingerprint, path_revision: u64,
+	orm_manager: ^assets.Asset_Manager,
+	orm_key: u64,
 	authored: bool,
 	source_manager: ^assets.Asset_Manager,
 	owns_albedo:    bool,
@@ -63,6 +71,15 @@ R3D_Material_Asset :: struct {
 }
 
 Context :: struct {
+	// Borrowed, optional CPU pool. Batch barriers precede World/GPU mutations.
+	worker_pool: ^jobs.Pool,
+	material_reloads: map[string]^Material_Reload_Request,
+	material_reload_retries: map[^assets.Asset_Manager]bool,
+	material_reload_tick: u64,
+	material_reload_uploads: int,
+	// Force immediate owner-thread material replacement while retaining the
+	// pool for geometry. Change between draws; pending inputs remain owned.
+	material_reload_synchronous: bool,
 	instancing_enabled: bool,
 	prop_batches: map[Prop_Batch_Key]Prop_Batch,
 	prop_buffer_pool: [dynamic]r3d.InstanceBuffer,
@@ -135,6 +152,8 @@ Context :: struct {
 	sphere_no_shadow: r3d.Mesh,
 	models:           map[string]Model_Asset,
 	animation_players: map[ecs.Entity]Model_Player,
+	// Last animation preparation, including update calls and zero-delta draws.
+	animation_stats: Animation_Stats,
 	animation_world_generation: u32,
 	r3d_materials:    map[string]R3D_Material_Asset,
 	retained_paths:   map[string]string,
@@ -147,10 +166,17 @@ is_available :: proc() -> bool {
 	return true
 }
 
-init :: proc(root: string, width, height: i32) -> (Context, bool) {
+init :: proc(root: string, width, height: i32, settings: render.Settings_3D = render.Default_Settings_3D, worker_pool: ^jobs.Pool = nil) -> (Context, bool) {
+	if !render.settings_3d_valid(settings) {return {}, false}
+	// Set every type on each initialization so a new renderer starts with its
+	// own settings. R3D clamps hints to the active GPU's texture-size limit.
+	r3d.SetHint(.SHADOW_DIR_SIZE, settings.shadows.directional_resolution)
+	r3d.SetHint(.SHADOW_SPOT_SIZE, settings.shadows.spot_resolution)
+	r3d.SetHint(.SHADOW_OMNI_SIZE, settings.shadows.omni_resolution)
 	if !r3d.Init(width, height) {return {}, false}
 	r3d.SetAntiAliasingMode(.FXAA)
 	result := Context {
+		worker_pool = worker_pool,
 		scene_shadow_defaults = make(map[ecs.Entity]shadows.Settings),
 		scene_shadow_settings = make(map[ecs.Entity]shadows.Settings),
 		light_properties = make(map[ecs.Entity]Light_Properties),
@@ -189,6 +215,7 @@ init :: proc(root: string, width, height: i32) -> (Context, bool) {
 
 shutdown :: proc(ctx: ^Context) {
 	if !ctx.initialized {return}
+	release_material_jobs(ctx)
 	release_gpu_timing(ctx)
 	release_render_cache(ctx)
 	release_prop_buffer_pool(ctx)
@@ -267,6 +294,7 @@ draw_scene_ex :: proc(
 	started:=rl.GetTime()
 	ctx.frame_stats={}
 	if !ctx.initialized {return false}
+	pump_material_jobs(ctx)
 	prepare_gpu_timing(ctx)
 	if ctx.match_framebuffer {
 		size := scaled_framebuffer_dimensions({rl.GetRenderWidth(), rl.GetRenderHeight()}, ctx.render_scale)
@@ -726,14 +754,17 @@ material_from_path :: proc(
 ) -> r3d.Material {
 	ctx.frame_stats.material_requests+=1
 	if !ctx.render_optimizations_disabled && path!="" {
-		if cached,found:=ctx.r3d_materials[path]; found && cached.authored && cached.source_manager==asset_manager && cached.asset_revision==assets.material_asset_revision(asset_manager) {
+		if cached,found:=ctx.r3d_materials[path]; found && cached.authored && cached.source_manager==asset_manager && cached.path_revision==assets.material_path_revision(asset_manager,path) {
 			ctx.frame_stats.material_cache_hits+=1
 			return cached.material
 		}
 	}
 	if material, loaded := assets.material_data(asset_manager, path); loaded {
 		result:=material_from_data(ctx, asset_manager, path, material)
-		cached:=ctx.r3d_materials[path]; cached.authored=true; cached.source_manager=asset_manager
+		cached:=ctx.r3d_materials[path]; cached.authored=true
+		if cached.source_manager==asset_manager && cached.dependency_fingerprint==assets.material_dependency_fingerprint(asset_manager,path,material) {
+			cached.path_revision=assets.material_path_revision(asset_manager,path)
+		} else {cached.path_revision=0}
 		ctx.r3d_materials[path]=cached
 		return result
 	}
@@ -751,27 +782,39 @@ material_from_data :: proc(
 	ctx.frame_stats.material_hashes+=1
 	signature := material_signature(data)
 	asset_revision := assets.material_asset_revision(asset_manager)
+	dependency_fingerprint := assets.material_dependency_fingerprint(asset_manager,path,data)
 	previous: R3D_Material_Asset
 	has_previous := false
 	if len(path) > 0 {
 		if cached, found := ctx.r3d_materials[path]; found {
-			if cached.signature == signature && cached.asset_revision == asset_revision {
+			if cached.source_manager==asset_manager && cached.signature == signature && cached.dependency_fingerprint == dependency_fingerprint {
 				cached.authored=false; ctx.r3d_materials[path]=cached
 				return cached.material
 			}
 			previous, has_previous = cached, true
 		}
 	}
+	prepared:^Material_Reload_Request
+	if has_previous {
+		deferred:bool
+		prepared,deferred=prepare_material_reload(ctx,asset_manager,path,data,signature,dependency_fingerprint,previous)
+		if deferred {return ctx.r3d_materials[path].material}
+	}
+	defer if prepared!=nil {finish_material_reload(ctx,path,prepared)}
+	upload_started:=rl.GetTime()
+	defer if prepared!=nil {ctx.frame_stats.material_reload_upload_cpu_ms+=(rl.GetTime()-upload_started)*1000}
 	shader, shader_ok := load_material_surface_shader(ctx, asset_manager, path, data, has_previous)
-	if !shader_ok && has_previous && previous.owns_shader {
+	if !shader_ok && has_previous {
 		// Keep the last working material after a shader edit fails. Record the
 		// attempted revision so the compiler retries only after another asset edit.
 		previous.signature, previous.asset_revision = signature, asset_revision
+		previous.source_manager=asset_manager
+		previous.dependency_fingerprint = dependency_fingerprint
 		previous.authored = false
 		ctx.r3d_materials[path] = previous
 		return previous.material
 	}
-	if has_previous {unload_owned_material_maps(previous)}
+	maps_valid:=true
 
 	material := r3d.GetDefaultMaterial()
 	material.albedo.color = rl.Color {
@@ -782,17 +825,21 @@ material_from_data :: proc(
 	}
 	asset := R3D_Material_Asset {
 		signature      = signature,
+		source_manager = asset_manager,
 		asset_revision = asset_revision,
+		installed_revision = previous.installed_revision+1,
+		dependency_fingerprint = dependency_fingerprint,
 		owns_shader    = shader != nil,
 		shader_time    = shader != nil && data.surface_shader_time,
 	}
 	material.shader = shader
 	if asset_manager != nil && len(data.texture) > 0 {
-		if albedo, loaded := load_albedo_map(ctx, data); loaded {
+		if albedo, loaded := load_albedo_map(ctx, data, prepared); loaded {
 			material.albedo = albedo
 			asset.owns_albedo = true
 			assets.resolve_asset_failure(asset_manager, path, "$.albedo", data.texture)
 		} else {
+			maps_valid=false
 			assets.report_failure(
 				asset_manager,
 				assets.Diagnostic {
@@ -807,11 +854,12 @@ material_from_data :: proc(
 		}
 	}
 	if asset_manager != nil && len(data.normal) > 0 {
-		if normal, loaded := load_normal_map(ctx, data); loaded {
+		if normal, loaded := load_normal_map(ctx, data, prepared); loaded {
 			material.normal = normal
 			asset.owns_normal = true
 			assets.resolve_asset_failure(asset_manager, path, "$.normal", data.normal)
 		} else {
+			maps_valid=false
 			assets.report_failure(
 				asset_manager,
 				assets.Diagnostic {
@@ -834,11 +882,12 @@ material_from_data :: proc(
 	}
 	material.emission.energy = data.emission_energy
 	if asset_manager != nil && len(data.emission) > 0 {
-		if emission, loaded := load_emission_map(ctx, data); loaded {
+		if emission, loaded := load_emission_map(ctx, data, prepared); loaded {
 			material.emission = emission
 			asset.owns_emission = true
 			assets.resolve_asset_failure(asset_manager, path, "$.emission", data.emission)
 		} else {
+			maps_valid=false
 			assets.report_failure(
 				asset_manager,
 				assets.Diagnostic {
@@ -854,12 +903,13 @@ material_from_data :: proc(
 	}
 	has_orm_texture := false
 	if asset_manager != nil && len(data.orm_texture) > 0 {
-		if orm, loaded := load_orm_map(ctx, data); loaded {
+		if orm, loaded := load_orm_map(ctx, data, prepared); loaded {
 			material.orm = orm
 			has_orm_texture = true
 			asset.owns_orm = true
 			assets.resolve_asset_failure(asset_manager, path, "$.orm", data.orm_texture)
 		} else {
+			maps_valid=false
 			assets.report_failure(
 				asset_manager,
 				assets.Diagnostic {
@@ -873,8 +923,9 @@ material_from_data :: proc(
 			)
 		}
 	} else if asset_manager != nil {
-		if orm, loaded := assets.material_orm_texture(asset_manager, data, path); loaded {
+		if orm, key, loaded := assets.lease_material_orm_texture(asset_manager, data, path); loaded {
 			material.orm.texture = orm
+			asset.orm_manager,asset.orm_key=asset_manager,key
 			has_orm_texture = true
 		}
 	}
@@ -882,7 +933,7 @@ material_from_data :: proc(
 		material.orm.occlusion = data.ao_strength
 	}
 	if data.procedural.enabled && len(path) > 0 {
-		apply_procedural_material(&material, &asset, data)
+		if !apply_procedural_material(&material, &asset, data, prepared) {maps_valid=false}
 	}
 	material.orm.roughness = data.roughness
 	material.orm.metalness = data.metallic
@@ -894,6 +945,20 @@ material_from_data :: proc(
 	material.billboardMode = billboard_mode_from_name(data.billboard)
 	material.unlit = !data.lighting
 	asset.material = material
+	if has_previous && !maps_valid {
+		unload_owned_material_maps(asset)
+		remember_material_reload_attempt(ctx,asset_manager,path,previous,signature,dependency_fingerprint)
+		return previous.material
+	}
+	assets.resolve_asset_failure(asset_manager,path,"material",path)
+	if has_previous {unload_owned_material_maps(previous)}
+	if prepared!=nil {
+		ctx.frame_stats.material_reload_completed+=1
+		// Rebuild owner-side material snapshots/terrain atlases after a GPU
+		// replacement. Per-material dependency fingerprints remain selective.
+		assets.bump_material_revision(asset_manager)
+		asset.asset_revision=assets.material_asset_revision(asset_manager)
+	}
 	if len(path) > 0 {
 		ctx.r3d_materials[retain_path(ctx, path)] = asset
 	}
@@ -921,7 +986,8 @@ destroy_retained_paths :: proc(ctx: ^Context) {
 	for path in paths {delete(path)}
 }
 
-load_albedo_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.AlbedoMap, bool) {
+load_albedo_map :: proc(ctx: ^Context, data: assets.Material_Data, prepared:^Material_Reload_Request=nil) -> (r3d.AlbedoMap, bool) {
+	if prepared!=nil {texture,ok:=prepared_material_texture(prepared,0,data,true);return {texture=texture,color={data.base_color[0],data.base_color[1],data.base_color[2],data.base_color[3]}},ok}
 	full_path := resolve_path(ctx, data.texture)
 	cpath, _ := strings.clone_to_cstring(full_path)
 	defer delete(cpath)
@@ -934,7 +1000,8 @@ load_albedo_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.Albed
 	return result, true
 }
 
-load_normal_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.NormalMap, bool) {
+load_normal_map :: proc(ctx: ^Context, data: assets.Material_Data, prepared:^Material_Reload_Request=nil) -> (r3d.NormalMap, bool) {
+	if prepared!=nil {texture,ok:=prepared_material_texture(prepared,1,data,false);return {texture=texture,scale=data.normal_scale},ok}
 	full_path := resolve_path(ctx, data.normal)
 	cpath, _ := strings.clone_to_cstring(full_path)
 	defer delete(cpath)
@@ -944,7 +1011,8 @@ load_normal_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.Norma
 	return result, true
 }
 
-load_emission_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.EmissionMap, bool) {
+load_emission_map :: proc(ctx: ^Context, data: assets.Material_Data, prepared:^Material_Reload_Request=nil) -> (r3d.EmissionMap, bool) {
+	if prepared!=nil {texture,ok:=prepared_material_texture(prepared,2,data,true);return {texture=texture,color={data.emission_color[0],data.emission_color[1],data.emission_color[2],data.emission_color[3]},energy=data.emission_energy},ok}
 	full_path := resolve_path(ctx, data.emission)
 	cpath, _ := strings.clone_to_cstring(full_path)
 	defer delete(cpath)
@@ -963,7 +1031,8 @@ load_emission_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.Emi
 	return result, true
 }
 
-load_orm_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.OrmMap, bool) {
+load_orm_map :: proc(ctx: ^Context, data: assets.Material_Data, prepared:^Material_Reload_Request=nil) -> (r3d.OrmMap, bool) {
+	if prepared!=nil {texture,ok:=prepared_material_texture(prepared,3,data,false);return {texture=texture,occlusion=data.ao_strength,roughness=data.roughness,metalness=data.metallic,specular=data.specular},ok}
 	full_path := resolve_path(ctx, data.orm_texture)
 	cpath, _ := strings.clone_to_cstring(full_path)
 	defer delete(cpath)
@@ -974,6 +1043,7 @@ load_orm_map :: proc(ctx: ^Context, data: assets.Material_Data) -> (r3d.OrmMap, 
 }
 
 unload_owned_material_maps :: proc(asset: R3D_Material_Asset) {
+	if asset.orm_manager!=nil {assets.release_material_orm_texture(asset.orm_manager,asset.orm_key)}
 	if asset.owns_shader {r3d.UnloadSurfaceShader(asset.material.shader)}
 	if asset.owns_albedo {
 		r3d.UnloadAlbedoMap(asset.material.albedo)

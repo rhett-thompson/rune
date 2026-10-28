@@ -18,7 +18,7 @@ bridge: r3d_bridge.Context
 initialize_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if bridge.initialized { return }
 	bridge_ok: bool
-	bridge, bridge_ok = r3d_bridge.init("examples/solar_system", rl.GetScreenWidth(), rl.GetScreenHeight())
+	bridge, bridge_ok = r3d_bridge.init("examples/solar_system", rl.GetScreenWidth(), rl.GetScreenHeight(), settings = game.project.render_3d, worker_pool = game.worker_pool)
 	if !bridge_ok { fmt.eprintln("Could not initialize r3d") }
 }
 

@@ -2,6 +2,7 @@ package geometry
 
 import "core:testing"
 import "core:math/linalg"
+import "rune:jobs"
 
 // Expand extracted rectangles into unit faces to compare coverage independently
 // of greedy merge boundaries and triangle counts.
@@ -56,4 +57,36 @@ chunk_extraction_omits_empty_chunks_and_rejects_invalid_input :: proc(t: ^testin
 	_,ok=surface_chunks(v,colors[:],{0,2,2}); testing.expect(t,!ok)
 	v.cells[0]=2; _,ok=surface_chunks(v,colors[:],{2,2,2}); testing.expect(t,!ok,"invalid palettes are checked before extraction")
 	v.cells[0]=0; for &cell in v.cells {cell=0}; _,ok=surface_chunks(v,colors[:],{2,2,2}); testing.expect(t,!ok,"fully empty volume matches surface's no-mesh result")
+}
+
+@(test)
+parallel_chunk_extraction_matches_serial_vertices_indices_and_order :: proc(t:^testing.T) {
+	pool:=jobs.create(3,1)
+	if !testing.expect(t,pool!=nil) {return}
+	defer jobs.destroy(pool)
+	v:=Volume{size={19,11,23},spacing=0.25,origin={-3,1,7},cells=make([]u8,19*11*23)};defer delete(v.cells)
+	colors:=[4][4]u8{{},{80,110,150,255},{190,95,45,255},{220,230,240,255}}
+	fill_box(v,{3,1,2},{19,11,23},1)
+	fill_box(v,{6,3,4},{16,9,20},0)
+	fill_box(v,{15,1,2},{19,3,23},2)
+	fill_box(v,{3,9,2},{5,11,23},3)
+	for chunk_size in ([3][3]int{{4,3,5},{1,1,1},{8,8,8}}) {
+		serial,ok:=surface_chunks(v,colors[:],chunk_size)
+		if !testing.expect(t,ok) {destroy_mesh_chunks(&serial);continue}
+		for _ in 0..<3 {
+			parallel,parallel_ok:=surface_chunks(v,colors[:],chunk_size,pool)
+			testing.expect(t,parallel_ok && len(parallel)==len(serial))
+			for chunk,index in parallel {
+				if index>=len(serial) {break}
+				expected:=serial[index]
+				testing.expect(t,chunk.coordinate==expected.coordinate && chunk.low==expected.low && chunk.high==expected.high,
+					"parallel output keeps serial Z/Y/X ordering and clipped logical bounds")
+				testing.expect(t,len(chunk.mesh.vertices)==len(expected.mesh.vertices) && len(chunk.mesh.indices)==len(expected.mesh.indices))
+				for vertex,i in chunk.mesh.vertices {testing.expect(t,vertex==expected.mesh.vertices[i],"vertex bytes retain their serial order and values")}
+				for value,i in chunk.mesh.indices {testing.expect(t,value==expected.mesh.indices[i],"indices retain their serial order and values")}
+			}
+			destroy_mesh_chunks(&parallel)
+		}
+		destroy_mesh_chunks(&serial)
+	}
 }

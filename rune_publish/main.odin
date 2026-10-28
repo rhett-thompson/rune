@@ -233,7 +233,7 @@ path_is_present :: proc(path: string) -> bool {
 
 native_source_pins :: proc(root: string) -> map[string]json.Value {
 	result := make(map[string]json.Value)
-	for relative in ([]string{"third_party/r3d-importer/sources.json", "third_party/r3d-shadows/sources.json"}) {
+	for relative in ([]string{"third_party/r3d-importer/sources.json", "third_party/r3d-shadows/sources.json", "third_party/rune-image/sources.json"}) {
 		bytes, read_error := os.read_entire_file(fmt.aprintf("%s/%s", root, relative), context.allocator)
 		if read_error != nil {continue}
 		value, error := json.parse(bytes)

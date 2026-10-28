@@ -72,6 +72,8 @@ Material_Asset :: struct {
 
 // Asset paths are the first asset identifiers. Stable IDs can be layered on later.
 Asset_Manager :: struct {
+	// Stable heap-owned requests; configure only on the owning game thread.
+	texture_reloads: ^Texture_Reload_State,
 	shadow_profiles: map[string]Shadow_Profile_Asset,
 	navmeshes:                map[string]NavMesh_Asset,
 	root:                     string,
@@ -88,6 +90,10 @@ Asset_Manager :: struct {
 	tilesets:                 map[string]Tileset_Asset,
 	generated_orm_textures:   map[u64]Texture_Asset,
 	material_texture_watches: map[string]i64,
+	material_file_versions:   map[string]u64,
+	material_dependencies:    map[string]Material_Dependency_State,
+	generated_orm_states:     map[u64]Generated_ORM_State,
+	generated_orm_epoch:      u64,
 	material_revision:        u64,
 	missing_textures:         map[string]i64,
 	missing_texture:          rl.Texture2D,
@@ -246,6 +252,7 @@ material_data :: proc(manager: ^Asset_Manager, path: string) -> (Material_Data, 
 authored_material_data :: proc(manager: ^Asset_Manager, path: string) -> (Material_Data, bool) {
 	if manager == nil || len(path) == 0 {return {}, false}
 	if asset, found := manager.materials[path]; found {
+		if material_path_revision(manager,path)==0 {update_material_path_dependencies(manager,path,asset.data)}
 		return asset.data, true
 	}
 	full_path := resolve_path(manager, path)
@@ -270,6 +277,7 @@ authored_material_data :: proc(manager: ^Asset_Manager, path: string) -> (Materi
 		modified_time = modified_time(full_path),
 	}
 	watch_material_textures(manager, data)
+	refresh_visible_material_dependencies(manager,path)
 	return data, true
 }
 
@@ -394,33 +402,43 @@ material_orm_texture :: proc(
 	   len(data.metallic_texture) == 0 {
 		return {}, false
 	}
+	texture,key,loaded:=ensure_generated_orm_texture(manager,data,material_path)
+	if loaded {record_generated_orm_borrow(manager,key,material_path)}
+	return texture,loaded
+}
+
+ensure_generated_orm_texture :: proc(manager: ^Asset_Manager,data: Material_Data,material_path:string) -> (rl.Texture2D,u64,bool) {
+	if manager==nil || data.orm_texture!="" || (data.ao_texture=="" && data.roughness_texture=="" && data.metallic_texture=="") {return {},0,false}
+	watch_material_textures(manager,data)
 	key := generated_orm_key(manager, data)
 	if asset, found := manager.generated_orm_textures[key]; found {
-		return asset.texture, true
+		return asset.texture,key,true
 	}
 	texture, loaded := generate_orm_texture(manager, data, material_path)
-	if !loaded {return {}, false}
+	if !loaded {return {},0,false}
 	manager.generated_orm_textures[key] = Texture_Asset {
 		texture = texture,
 	}
-	return texture, true
+	register_generated_orm(manager,key,data)
+	return texture,key,true
 }
 
 generated_orm_key :: proc(manager: ^Asset_Manager, data: Material_Data) -> u64 {
 	result := hash_string(0xcbf29ce484222325, data.ao_texture)
-	ao_time := path_modified_time(manager, data.ao_texture)
+	ao_time := material_file_version(manager, data.ao_texture)
 	result = hash_value(result, ao_time)
 	result = hash_string(result, data.roughness_texture)
-	roughness_time := path_modified_time(manager, data.roughness_texture)
+	roughness_time := material_file_version(manager, data.roughness_texture)
 	result = hash_value(result, roughness_time)
 	result = hash_string(result, data.metallic_texture)
-	metallic_time := path_modified_time(manager, data.metallic_texture)
+	metallic_time := material_file_version(manager, data.metallic_texture)
 	result = hash_value(result, metallic_time)
 	result = hash_value(result, data.roughness)
 	result = hash_value(result, data.metallic)
 	result = hash_string(result, data.filter)
 	result = hash_string(result, data.wrap)
 	result = hash_value(result, data.mipmaps)
+	if manager!=nil {result=hash_value(result,manager.generated_orm_epoch)}
 	return result
 }
 
@@ -584,7 +602,8 @@ scalar_to_channel :: proc(value: f32) -> u8 {
 // refresh reloads cached textures whose on-disk modified time changed. Invalid
 // replacement files leave the currently working texture in place.
 refresh :: proc(manager: ^Asset_Manager) {
-	orm_sources_changed := false
+	if manager == nil {return}
+	drain_texture_reloads(manager)
 	recovered_textures := make([dynamic]string)
 	defer delete(recovered_textures)
 	for path, failed_time in manager.missing_textures {
@@ -604,7 +623,7 @@ refresh :: proc(manager: ^Asset_Manager) {
 		}
 		append(&recovered_textures, path)
 		resolve_asset_path_failures(manager, path)
-		orm_sources_changed = true
+		material_texture_committed(manager, path, current_time)
 	}
 	for path in recovered_textures {
 		delete_key(&manager.missing_textures, path)
@@ -635,8 +654,12 @@ refresh :: proc(manager: ^Asset_Manager) {
 		updated_asset.texture = replacement
 		updated_asset.modified_time = current_time
 		manager.textures[path] = updated_asset
-		orm_sources_changed = true
+		material_texture_committed(manager, path, current_time)
 	}
+	refresh_fonts(manager)
+}
+
+refresh_fonts :: proc(manager: ^Asset_Manager) {
 	for path, asset in manager.fonts {
 		full_path := resolve_path(manager, path)
 		current_time := modified_time(full_path)
@@ -663,9 +686,6 @@ refresh :: proc(manager: ^Asset_Manager) {
 		updated_asset.font = replacement
 		updated_asset.modified_time = current_time
 		manager.fonts[path] = updated_asset
-	}
-	if orm_sources_changed {
-		clear_generated_orm_textures(manager)
 	}
 }
 
@@ -700,18 +720,17 @@ refresh_materials :: proc(manager: ^Asset_Manager) {
 		}
 		destroy_material_data(&previous_data)
 		watch_material_textures(manager, data)
+		refresh_visible_material_dependencies(manager,path)
+		retire_generated_orm_material(manager,path)
 		materials_changed = true
 	}
 	for path, previous_time in manager.material_texture_watches {
 		current_time := modified_time(resolve_path(manager, path))
 		if current_time == previous_time {continue}
-		manager.material_texture_watches[path] = current_time
-		materials_changed = true
+		if material_dependency_source_changed(manager,path,current_time) {materials_changed = true}
 	}
 	if materials_changed {
-		clear_generated_orm_textures(manager)
-		manager.material_revision += 1
-		if manager.material_revision == 0 {manager.material_revision = 1}
+		bump_material_revision(manager)
 	}
 }
 
@@ -729,32 +748,15 @@ refresh_models :: proc(manager: ^Asset_Manager) {
 }
 
 watch_material_textures :: proc(manager: ^Asset_Manager, data: Material_Data) {
-	paths := [9]string {
-		data.surface_shader,
-		data.texture,
-		data.normal,
-		data.emission,
-		data.orm_texture,
-		data.roughness_texture,
-		data.metallic_texture,
-		data.ao_texture,
-		data.height_texture,
-	}
-	for path in paths {
-		if len(path) == 0 {continue}
-		if _, watched := manager.material_texture_watches[path]; watched {continue}
-		owned_path := retain_path(manager, path)
-		manager.material_texture_watches[owned_path] = modified_time(resolve_path(manager, path))
-	}
+	if manager==nil {return}
+	for path in material_dependency_paths(data) {watch_material_source(manager,path)}
 }
 
 clear_generated_orm_textures :: proc(manager: ^Asset_Manager) {
-	for _, asset in manager.generated_orm_textures {
-		if rl.IsTextureValid(asset.texture) {
-			rl.UnloadTexture(asset.texture)
-		}
-	}
-	clear(&manager.generated_orm_textures)
+	manager.generated_orm_epoch+=1
+	keys:=make([dynamic]u64);defer delete(keys)
+	for key in manager.generated_orm_textures {append(&keys,key)}
+	for key in keys {retire_generated_orm_entry(manager,key)}
 }
 
 material_data_signature :: proc(data: Material_Data) -> u64 {
@@ -1132,7 +1134,8 @@ path_modified_time :: proc(manager: ^Asset_Manager, path: string) -> i64 {
 
 shutdown :: proc(manager: ^Asset_Manager) {
 	if manager == nil {return}
-	clear_generated_orm_textures(manager)
+	shutdown_texture_reloads(manager)
+	shutdown_material_dependencies(manager)
 	for _, asset in manager.textures {
 		rl.UnloadTexture(asset.texture)
 	}

@@ -7,6 +7,65 @@ collect events at the fixed-step boundary.
 For 3D character movement, see [CharacterController3D](character-controller-3d.md):
 a fixed-step query capsule with slopes, stairs, crouching, and moving supports.
 
+## 3D physics workers
+
+Projects can opt into Box3D's internal worker scheduler in `project.json`:
+
+```json
+"physics_3d": { "worker_count": 4 }
+```
+
+`worker_count` is an integer from 1 through 32 and defaults to 1. The count
+includes the calling thread: 4 uses three additional native workers. Configure
+it when starting the project; engine scene loads, transitions, reloads, and
+checkpoint restoration carry that setting into each new World. Box3D creates
+workers when the World's native 3D physics state is first needed and joins them
+when that state is shut down or the World is destroyed.
+
+The fixed step still completes synchronously. Rune collects events and copies
+native body poses back into components after Box3D finishes its worker tasks.
+Registered game systems, 3D character-controller queries, 2D physics, rendering,
+and UI retain their existing execution order. Call World and engine APIs on the
+owning game thread; configuring physics workers does not make shared component
+maps or native world creation/destruction safe to access concurrently.
+
+For a standalone World, configure it before its first 3D query or step:
+
+```odin
+world := ecs.init()
+assert(ecs.configure_physics_3d(&world, 4))
+defer ecs.destroy(&world)
+```
+
+`configure_physics_3d` rejects invalid counts and changes to an already-created
+native world, leaving the prior setting intact. Reapplying the same count is
+allowed. `scene.load_with_layers` accepts
+`scene.Load_Options{physics_3d_worker_count=4}` for standalone scene loading;
+an omitted or zero options field selects 1. Do not assign the World's worker
+field directly.
+
+Measure representative gameplay before raising the count. Small simulations
+can cost more to coordinate than they save. The pinned Box3D documentation
+advises using performance cores; efficiency cores and hardware threads can
+reduce performance. See `rune/ecs/physics_3d.odin` and the installed
+`vendor:box3d` worker-count contract.
+
+On 2026-10-28, the pinned Odin toolchain and bundled Box3D passed the serial
+ECS suite on Windows AMD64 with MSVC, including four-worker contacts, queries,
+and scheduler recreation. Core tests verified three workers after initial
+loading, scene changes, structural and console reloads, save transitions, and
+checkpoint loading; player-profile loading/restoration also passed. These checks
+do not establish performance gains or Linux runtime behavior. See
+`rune/ecs/physics_3d_workers_test.odin` and `rune/core/project_settings_test.odin`.
+
+Use [the physics worker benchmark](../tools/physics_worker_benchmark/README.md)
+to compare 1, 2, 4, and 8 native workers on the same deterministic active-contact
+fixture. It requires an optimized build, excludes setup/warmup, records repeated
+trials with per-step mean/p95/max and correctness checks, and writes JSON under
+ignored `build/`. Its results describe the tested CPU/scene. For a game's actual
+frame cost, the console's `profile` includes separate `physics_3d` and other
+engine-stage timings; see [runtime profiling](runtime-console.md).
+
 ## 2D collider authoring
 
 `BoxCollider2D`, `CircleCollider2D`, `CapsuleCollider2D`, `PolygonCollider2D`,

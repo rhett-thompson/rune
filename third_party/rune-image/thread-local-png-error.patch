@@ -1,0 +1,11 @@
+--- a/stb_image.h
++++ b/stb_image.h
+@@ -5244,7 +5244,7 @@
+             if ((c.type & (1 << 29)) == 0) {
+                #ifndef STBI_NO_FAILURE_STRINGS
+                // not threadsafe
+-               static char invalid_chunk[] = "XXXX PNG chunk not known";
++               static STBI_THREAD_LOCAL char invalid_chunk[] = "XXXX PNG chunk not known";
+                invalid_chunk[0] = STBI__BYTECAST(c.type >> 24);
+                invalid_chunk[1] = STBI__BYTECAST(c.type >> 16);
+                invalid_chunk[2] = STBI__BYTECAST(c.type >>  8);

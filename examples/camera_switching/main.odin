@@ -23,7 +23,7 @@ side_camera: ecs.Entity
 initialize_cameras :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if !bridge.initialized {
 		bridge_ok: bool
-		bridge, bridge_ok = r3d_bridge.init("examples/camera_switching", rl.GetScreenWidth(), rl.GetScreenHeight())
+		bridge, bridge_ok = r3d_bridge.init("examples/camera_switching", rl.GetScreenWidth(), rl.GetScreenHeight(), settings = game.project.render_3d, worker_pool = game.worker_pool)
 		if !bridge_ok { fmt.eprintln("Could not initialize r3d") }
 	}
 	wide_camera, _ = ecs.find_entity_by_id(world, "wide_camera")

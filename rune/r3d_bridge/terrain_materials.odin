@@ -20,6 +20,7 @@ terrain_layer :: proc(ctx: ^Context, manager: ^assets.Asset_Manager, path, sourc
 	filter := "anisotropic_8x"
 	mipmaps := true
 	signature: u64
+	revision: u64
 	if terrain.blend_layer_is_material(path) {
 		data, ok := assets.material_data(manager, path)
 		if !ok {
@@ -36,7 +37,11 @@ terrain_layer :: proc(ctx: ^Context, manager: ^assets.Asset_Manager, path, sourc
 			return {},false
 		}
 		filter, mipmaps = data.filter, data.mipmaps
-		signature = assets.material_data_signature(data)
+		// Pending or failed replacements still return the installed material.
+		// Key the atlas by that installation rather than the desired edit or a
+		// manager-wide revision, preserving old atlases until an actual commit.
+		installed:=ctx.r3d_materials[path]
+		signature=installed.installed_revision
 	} else {
 		texture, ok := assets.material_texture(manager, path, filter, mipmaps, source, field)
 		if !ok {return {}, false}
@@ -44,8 +49,8 @@ terrain_layer :: proc(ctx: ^Context, manager: ^assets.Asset_Manager, path, sourc
 		// Plain images retain the base material's scalar surface response.
 		layer.orm.roughness, layer.orm.metalness, layer.orm.specular = base.orm.roughness, base.orm.metalness, base.orm.specular
 		signature = assets.hash_value(0, manager.textures[path].modified_time)
+		revision=u64(texture.id)
 	}
-	revision := assets.material_asset_revision(manager)
 	if cached, found := ctx.terrain_layers[path]; found && cached.signature == signature && cached.revision == revision {
 		result := cached
 		if !terrain.blend_layer_is_material(path) {

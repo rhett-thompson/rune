@@ -19,7 +19,7 @@ cube: ecs.Entity
 initialize_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if !bridge.initialized {
 		bridge_ok: bool
-		bridge, bridge_ok = r3d_bridge.init("examples/hello_3d", rl.GetScreenWidth(), rl.GetScreenHeight())
+		bridge, bridge_ok = r3d_bridge.init("examples/hello_3d", rl.GetScreenWidth(), rl.GetScreenHeight(), settings = game.project.render_3d, worker_pool = game.worker_pool)
 		if !bridge_ok { fmt.eprintln("Could not initialize r3d") }
 	}
 	cube, _ = ecs.find_entity_by_id(world, "cube")

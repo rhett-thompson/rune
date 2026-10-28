@@ -88,6 +88,27 @@ each frame. Replacements release the previous maps, and malformed JSON keeps
 the last working material. Higher resolutions cost more generation time and
 memory, so prefer 256 for interactive tweaking.
 
+Material reuse includes each path's texture/shader dependencies and the complete
+material variant. Editing or previewing one material preserves another
+material's maps and compiled shader when its own dependencies are unchanged.
+An authored-path cache hit reads its revision from manager metadata; it does not
+stat source files every draw. File polling and completed texture uploads update
+the affected dependency generations. A direct `material_from_data` call still
+distinguishes different filtering, wrapping, mipmap, and procedural settings
+under the same path. The manager retains its aggregate material revision for
+instance/batch invalidation.
+
+Packed ORM generated from separate AO/roughness/metallic files remains owned by
+the asset manager. Bridge materials retain leases while using those textures.
+An affected source edit retires the old entry, whose GPU handle stays alive
+until its final material lease is released. Replacing an editor variant releases
+unused leased entries; unrelated material edits do not clear the whole ORM
+cache. Advanced consumers can use `lease_material_orm_texture` and
+`release_material_orm_texture` for the same lifetime guarantee. The ordinary
+`material_orm_texture` API returns a borrowed handle that expires on an affected
+refresh or explicit clear. Release bridge resources and leases before shutting
+down the asset manager.
+
 Noise repeats across UV boundaries, including its normal map. It uses the
 mesh's UVs: UV stretching, cube face orientation, and sphere poles still affect
 the result. This is a baked UV texture, with no geometric displacement or
@@ -125,3 +146,10 @@ instance of that model and refresh through `refresh_materials`.
 Try [Procedural Materials 3D](../examples/procedural_material_3d/README.md) for
 nine presets on keys **1–9**: stone, moss, hammered metal, grass, granite, wood,
 sand, terracotta, and snow. All support independent resolution and sampling controls.
+
+`tools/material_reload_validation --runtime` checks selective cache reuse,
+own-source image/shader edits, failed-shader retention, sampler variants, and
+generated ORM lease retirement using actual GPU textures. On 2026-10-28 these
+checks and the serial asset tests passed with the pinned October Odin compiler,
+MSVC, Windows AMD64, GLFW/Win32, OpenGL 3.3, and an NVIDIA GTX 1060. Linux runtime
+behavior remains unverified by these runs.

@@ -15,12 +15,14 @@ Detail :: struct {
 	count,seed:int,
 	scale,height,slope:[2]f32,
 	draw_distance:f32,
+	density_distance:[2]f32,
+	density_min:f32,
 	align_to_normal,shadows:bool,
 }
 
 default_detail :: proc(kind:string="grass") -> Detail {
 	return {kind=kind,count=1000,scale={0.8,1.2},height={-100000,100000},slope={0,35},
-		draw_distance=60 if kind=="grass" else 250,align_to_normal=kind=="rock",shadows=kind!="grass"}
+		draw_distance=60 if kind=="grass" else 250,density_min=0.25,align_to_normal=kind=="rock",shadows=kind!="grass"}
 }
 
 details_valid :: proc(details:[]Detail) -> bool {
@@ -36,6 +38,9 @@ details_valid :: proc(details:[]Detail) -> bool {
 		if !(d.height[0]>=-100000 && d.height[1]<=100000 && d.height[0]<=d.height[1]) {return false}
 		if !(d.slope[0]>=0 && d.slope[1]<=90 && d.slope[0]<=d.slope[1]) {return false}
 		if !(d.draw_distance>=1 && d.draw_distance<=10000) {return false}
+		if !(d.density_min>=0 && d.density_min<=1) {return false}
+		if d.density_distance!=([2]f32{}) && !(d.density_distance[0]>=0 &&
+			d.density_distance[0]<d.density_distance[1] && d.density_distance[1]<=d.draw_distance) {return false}
 	}
 	return true
 }
@@ -48,9 +53,9 @@ details_json_valid :: proc(value:json.Value) -> bool {
 			switch key {
 			case "name","kind","model","material": if _,ok:=value.(json.String); !ok {return false}
 			case "count","seed": if _,ok:=value.(json.Integer); !ok {return false}
-			case "draw_distance": if _,ok:=jsonutil.number(value); !ok {return false}
+			case "draw_distance","density_min": if _,ok:=jsonutil.number(value); !ok {return false}
 			case "align_to_normal","shadows": if _,ok:=value.(json.Boolean); !ok {return false}
-			case "scale","height","slope":
+			case "scale","height","slope","density_distance":
 				values,ok:=value.(json.Array); if !ok || len(values)!=2 {return false}
 				for n in values {if _,ok:=jsonutil.number(n); !ok {return false}}
 			case: return false

@@ -1,6 +1,5 @@
 package r3d_bridge
 
-import "core:math/linalg"
 import "core:mem"
 import "core:strings"
 import "rune:assets"
@@ -65,14 +64,8 @@ prepare_terrains :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.Asse
 			if kind==2 {cache.layer_set=new(Terrain_Layer_Set)}
 			ok = cache.blend_shader != nil
 		}
-		for z := 0; z < d.resolution[1]-1 && ok; z += d.chunk_cells {
-			for x := 0; x < d.resolution[0]-1; x += d.chunk_cells {
-				mesh,valid := upload_terrain_chunk(data,x,z,min(d.chunk_cells,d.resolution[0]-1-x),min(d.chunk_cells,d.resolution[1]-1-z))
-				if !valid {ok=false; break}
-				append(&cache.chunks,mesh)
-			}
-		}
-		if ok {ok=prepare_detail_batches(&cache,data)}
+		if ok {ok=upload_terrain_chunks(ctx,&cache,data)}
+		if ok {ok=prepare_detail_batches(&cache,data,ctx.worker_pool,&ctx.frame_stats)}
 		if !ok {
 			release_terrain_cache(&cache)
 			value,_ := ecs.get_terrain(world,entity)
@@ -87,24 +80,9 @@ prepare_terrains :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.Asse
 }
 
 upload_terrain_chunk :: proc(data: terrain.Data, start_x,start_z,cells_x,cells_z: int) -> (r3d.Mesh,bool) {
-	w,h := cells_x+1,cells_z+1
-	vertices := make([]r3d.Vertex,w*h)
-	defer delete(vertices)
-	indices := make([]u32,cells_x*cells_z*6)
-	defer delete(indices)
-	d := data.description
-	for z in 0..<h {for x in 0..<w {
-		gx,gz := start_x+x,start_z+z
-		n := terrain.normal(data,gx,gz)
-		t := linalg.normalize([3]f32{n[1],-n[0],0})
-		vertices[z*w+x] = r3d.MakeVertex(terrain.position(data,gx,gz),
-			{f32(gx)/f32(d.resolution[0]-1)*d.uv_scale[0],f32(gz)/f32(d.resolution[1]-1)*d.uv_scale[1]},
-			n,{t[0],t[1],t[2],-1},rl.WHITE)
-	}}
-	i := 0
-	for z in 0..<cells_z {for x in 0..<cells_x {for index in terrain.cell_indices(x,z,w) {indices[i]=index; i+=1}}}
-	mesh := r3d.LoadMesh(.TRIANGLES,{vertices=raw_data(vertices),indices=raw_data(indices),vertexCount=i32(len(vertices)),indexCount=i32(len(indices)),vertexCapacity=i32(len(vertices)),indexCapacity=i32(len(indices))},nil)
-	return mesh,r3d.IsMeshValid(mesh)
+	chunk := build_terrain_chunk_cpu(data,start_x,start_z,cells_x,cells_z)
+	defer destroy_terrain_chunk_cpu(&chunk)
+	return upload_terrain_chunk_cpu(chunk)
 }
 
 draw_terrains :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.Asset_Manager) {

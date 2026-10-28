@@ -79,7 +79,9 @@ absolute path without opening a window. Existing `rune.init(path)` keeps explici
 CWD-relative/absolute path selection; successful initialization now retains an
 absolute `engine.project_directory`. Neither entry point changes CWD.
 
-Pass `engine.project_directory` to `r3d_bridge.init`, and resolve custom file reads
+Pass `engine.project_directory`, `settings = engine.project.render_3d`, and
+`worker_pool = engine.worker_pool` to `r3d_bridge.init` to apply project shadow
+map sizes and optional terrain CPU workers, and resolve custom file reads
 with `rune.resource_path(&engine, "assets/file.json")`. That helper returns an
 owned path; delete it with the allocator used to create it. It preserves explicit
 absolute paths and parent traversal for tools, so it does not enforce package
@@ -282,6 +284,14 @@ configuration. Generated/untracked games are marked unverified when the parent
 repository tracks no files under their root.
 Game code is included only when explicitly selected in `content`.
 
+Native source pins include `third_party/rune-image/sources.json` for Rune's
+private memory-image decoder, alongside the patched R3D components. Its private
+stb header, TLS patch, wrapper, build pins, and Windows/Linux AMD64 static
+archives are documented in [the decoder native README](../third_party/rune-image/README.md).
+Normal game builds link the selected checked-in archive and need no Zig/native
+rebuild step. There is no separate decoder DLL to stage; normal CRT/system
+dependency audits still apply, including Linux's `libm` dependency.
+
 Games using r3d receive its engine collection automatically. Additional game
 collections/defines use the same publishing workflow. A successful 2D template
 build is insufficient evidence that arbitrary game build requirements work.
@@ -413,6 +423,11 @@ results. Engine/toolchain notices are collected conservatively under the
 reserved `licenses/rune/` directory; game notices do not establish missing asset
 permissions. This reuses the [Deck staging](steam-deck.md) audit approach with a
 single-game package layout.
+The conservative engine notice set includes the private decoder's
+`LICENSE.stb_image`, README, source-pin JSON, and TLS patch under
+`licenses/rune/third_party/rune-image/`, together with Rune's root zlib notice.
+This private header has its own source pin; the Odin vendor stb notice retained
+for other engine paths does not replace it.
 
 ## Acceptance checks
 

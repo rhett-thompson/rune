@@ -22,11 +22,66 @@ Queries wider than the baked inset also enforce extra whole-segment clearance.
 Keep the agent's intended radius and height rather than changing its dimensions
 to influence route selection. See `docs/navigation-3d.md`.
 
+Opt-in project `jobs.worker_count` enables the engine CPU pool. Navigation uses
+it only for at least four due agent paths in a fixed step: the owning thread
+prepares immutable mesh/cache snapshots, waits for all searches, then applies
+paths and movement in entity-handle order. The same order is used serially.
+Custom loops can pass a borrowed pool to `ecs.update_navigation_3d(world, dt,
+pool)`; no work or pool pointer survives the call. Keep World APIs and runtime
+mesh edits on the owning thread. In particular, `ecs.find_navigation_path_3d`
+can lazily mutate caches and must not be called concurrently. See the navigation
+guide and `rune/ecs/navigation_3d_jobs.odin` for the barrier and buffer ownership.
+
 Inspect the actual path and current baked surface before assuming an agent
 should keep a constant heading: an obstacle's baked inset can require a valid
 bend even when the endpoints align. For straight ramp cruise, verify a complete
 unobstructed route with the agent's authored options before checking facing or
 speed; see `tools/navigation_3d_validation/ramp_facing.odin`.
+
+## Configure 3D physics workers before native use
+
+`project.json` can set `physics_3d.worker_count` to an integer from 1 through 32;
+the default 1 preserves serial Box3D simulation. The count includes the game
+thread. Engine scene loads, reloads, transitions, and checkpoint restoration
+carry the project setting into each World. Standalone Worlds use
+`ecs.configure_physics_3d` before their first 3D query or step, or
+`scene.Load_Options.physics_3d_worker_count` when loading a scene. The configuration
+API rejects count changes after native world creation.
+
+Box3D owns and joins its workers. Rune still completes each native step before
+publishing events and transforms; game systems, controller queries, 2D physics,
+rendering and UI keep their existing order. Keep World/engine access on its
+owning thread, and use independent storage for any game-owned jobs. Worker
+configuration does not permit concurrent native world creation/destruction or
+shared component mutation. Profile representative scenes before opting in;
+additional workers can increase overhead. See `docs/physics.md` and
+`rune/ecs/physics_3d.odin` for the supported configuration and ownership contract.
+
+## Run CPU work with independent storage
+
+`rune:jobs` provides stable allocated `^jobs.Pool` workers and a bounded queue.
+Project `jobs.worker_count` counts additional threads (0 disables, default 0;
+maximum 32); `queue_capacity` defaults to 256 and accepts 1..4096. The engine
+owns `game.worker_pool`; standalone callers use `jobs.create` / `jobs.destroy`.
+Shutdown drains accepted work and joins workers. Keep World, asset, GPU, input,
+and UI access on their owning thread. See `docs/jobs.md` and `rune/jobs/jobs.odin`.
+
+Prefer synchronous `jobs.parallel_for(pool,count,proc(index:int,data:rawptr),data)`
+over manual waits: it keeps input/output alive through a barrier, helps from the
+caller, falls back inline for nil/full pools, and handles nested worker batches.
+Callbacks write disjoint storage. Per-index scratch ends at callback return;
+retained outputs need persistent storage and their original allocator. Workers
+have fresh contexts, heap defaults, and private scratch, so never forward the
+engine frame arena or an unsynchronized tracking allocator. Plain slices do not
+retain their allocator; copy worker results on the owner or retain it explicitly.
+
+`geometry.surface_chunks(...,game.worker_pool)` parallelizes at least four
+logical chunks and gathers the exact serial Z/Y/X output. The volume and palette
+stay immutable until return; install the resulting owned meshes afterward on the
+World owner. See `docs/static-geometry.md`. Manually submitted jobs need a stable,
+uncopied zero-initialized `jobs.Group` and live input/result storage until
+`wait` / `is_complete`; submit the full batch before observing completion and
+reuse only after the prior batch is complete.
 
 ## Service network clients independently of gameplay traffic
 

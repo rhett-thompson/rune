@@ -141,9 +141,55 @@ tuning a wide-range point light. Verify both flat receivers and real caster
 shadows at the intended distances.
 
 Changing map update frequency does not reduce the number of enabled maps or
-their sampling cost. R3D defaults to 2048² for point/spot lights and 4096² for
-directional lights. Its public `SetHint` API can change each light type's shared
-resolution through `SHADOW_OMNI_SIZE`, `SHADOW_SPOT_SIZE`, and `SHADOW_DIR_SIZE`,
-provided the hints are set before `r3d_bridge.init` calls `R3D_Init`. There is no
-per-light resolution control, so shadow profiles do not expose map resolution.
-Disabling shadows retains native map memory for reuse.
+their sampling cost. Configure map resolution in `project.json`:
+
+```json
+"render_3d": {
+  "shadows": {
+    "directional_resolution": 2048,
+    "spot_resolution": 1024,
+    "omni_resolution": 512
+  }
+}
+```
+
+Omitted fields retain defaults: `directional_resolution` is `4096`, and
+`spot_resolution` / `omni_resolution` are `2048`. Values must be integer pixel
+dimensions from 2 through 8192; powers of two are conventional but not required.
+Each value is shared by all lights of that type. Omni resolution is the size of
+each point-light cubemap face. The backend clamps values to the GPU's texture
+size limit, which can be lower than Rune's upper bound. Larger maps increase
+memory and map-rendering work; halving the side length quarters the texel count.
+
+The game owns its optional 3D renderer. Forward the loaded project settings
+when initializing it, after Rune has created the graphics window:
+
+```odin
+renderer, ok := r3d_bridge.init(game.project_directory,
+    game.project.window.width, game.project.window.height, game.project.render_3d)
+```
+
+For a renderer without a loaded project, start with
+`render.default_settings_3d()` from `rune:render`, change the desired fields,
+and pass that value as the fourth argument. Omitting the argument preserves the
+4096/2048/2048 defaults. Invalid typed settings make initialization fail before
+native renderer access. The bridge sets all three native `SetHint` values before
+`R3D_Init`; resolution changes require shutting down and reinitializing the
+renderer. Project hot reload does not resize existing maps. There is no per-light
+resolution control, so shadow profiles do not expose map resolution. Disabling
+shadows retains native map memory for reuse.
+
+The settings and validation live in `rune/render/settings_3d.odin`; their native
+application is in `rune/r3d_bridge/r3d_bridge.odin`. A focused native check can run
+the `r3d_bridge.renderer_shadow_settings_reach_native_maps_and_reset_on_reinit`
+test with `RUNE_SHADOW_MAP_GPU_TESTS=true`, `ODIN_TEST_THREADS=1`, the usual Rune
+and R3D collection flags, and the platform linker. It requires a graphics context
+and checks native hint readback, enabled map allocation for all three light
+types, and default restoration after renderer reinitialization. It does not
+measure shadow quality or GPU performance.
+
+On 2026-10-28, that native check passed on Windows AMD64 with the pinned Odin
+toolchain, MSVC, a hidden GLFW/Win32 window, OpenGL 3.3, and an NVIDIA GTX 1060.
+It verified 256/128/64 hints and default restoration. Actual texture dimensions
+are not exposed by the public R3D API; Linux runtime behavior remains untested
+for these startup settings.

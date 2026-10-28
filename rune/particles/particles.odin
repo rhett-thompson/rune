@@ -81,19 +81,43 @@ clear :: proc(state: ^State) {
 // Scale affects diameter only. Existing particles never follow the emitter.
 emit :: proc(state: ^State, settings: Emitter2D, count: int, origin: [2]f32,
 	rotation: f32 = 0, scale: f32 = 1) -> int {
+	return emit_internal(state, settings, count, origin, rotation, scale, true)
+}
+
+@(private)
+reserve_storage :: proc(state: ^State, settings: Emitter2D) -> bool {
+	if state.particles.allocator.procedure == nil {
+		buffer, err := make([dynamic]Particle2D, 0, int(settings.max_particles))
+		if err != nil {return false}
+		state.particles = buffer
+	}
+	if cap(state.particles) < int(settings.max_particles) {
+		if reserve(&state.particles, int(settings.max_particles)) != nil {return false}
+	}
+	return true
+}
+
+// Call on the storage owner's thread before update_prepared. Reservation does
+// not initialize the random stream, consume credit, or alter live particles.
+// A failure is safe: update_prepared advances existing particles and drops any
+// births that would require unavailable storage, without retrying allocation.
+prepare_update :: proc(state: ^State, settings: Emitter2D, dt: f32) -> bool {
+	if dt <= 0 || math.is_nan(dt) || math.is_inf(dt) || !valid(settings) {return false}
+	if !settings.emitting || settings.rate == 0 || math.floor(state.credit + f64(settings.rate)*f64(dt)) < 1 {return true}
+	return reserve_storage(state, settings)
+}
+
+@(private)
+emit_internal :: proc(state: ^State, settings: Emitter2D, count: int, origin: [2]f32,
+	rotation, scale: f32, allocate: bool) -> int {
 	if count <= 0 || !valid(settings) {return 0}
 	if !state.initialized {
 		state.random = settings.seed if settings.seed != 0 else 1
 		state.initialized = true
 	}
-	if state.particles.allocator.procedure == nil {
-		buffer, err := make([dynamic]Particle2D, 0, int(settings.max_particles))
-		if err != nil {return 0}
-		state.particles = buffer
-	}
-	if cap(state.particles) < int(settings.max_particles) {
-		if reserve(&state.particles, int(settings.max_particles)) != nil {return 0}
-	}
+	if allocate {
+		if !reserve_storage(state, settings) {return 0}
+	} else if cap(state.particles) < int(settings.max_particles) {return 0}
 	available := max(0, int(settings.max_particles) - len(state.particles))
 	spawned := min(count, available)
 	for _ in 0 ..< spawned {
@@ -115,6 +139,19 @@ emit :: proc(state: ^State, settings: Emitter2D, count: int, origin: [2]f32,
 // Births are distributed across dt, so low frame rates do not create clumps.
 update :: proc(state: ^State, settings: Emitter2D, dt: f32, origin: [2]f32,
 	rotation: f32 = 0, scale: f32 = 1) {
+	update_internal(state, settings, dt, origin, rotation, scale, true)
+}
+
+// Exclusively borrow this State through return. Storage must be prepared on its
+// owner thread; this path never invokes its retained allocator, even on failure.
+update_prepared :: proc(state: ^State, settings: Emitter2D, dt: f32, origin: [2]f32,
+	rotation: f32 = 0, scale: f32 = 1) {
+	update_internal(state, settings, dt, origin, rotation, scale, false)
+}
+
+@(private)
+update_internal :: proc(state: ^State, settings: Emitter2D, dt: f32, origin: [2]f32,
+	rotation, scale: f32, allocate: bool) {
 	if dt <= 0 || math.is_nan(dt) || math.is_inf(dt) || !valid(settings) {return}
 	i := 0
 	for i < len(state.particles) {
@@ -136,7 +173,7 @@ update :: proc(state: ^State, settings: Emitter2D, dt: f32, origin: [2]f32,
 		age := f32((f64(count - index - 1) + state.credit) / f64(settings.rate))
 		// A guaranteed-dead birth need not allocate storage.
 		if age >= settings.lifetime[1] {continue}
-		if emit(state, settings, 1, origin, rotation, scale) == 0 {break}
+		if emit_internal(state, settings, 1, origin, rotation, scale, allocate) == 0 {break}
 		particle := &state.particles[len(state.particles) - 1]
 		advance(particle, age)
 		if particle.age >= particle.lifetime {pop(&state.particles)}

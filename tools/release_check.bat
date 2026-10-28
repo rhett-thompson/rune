@@ -188,7 +188,12 @@ try {
     var dependencyArchive = join(workspace, "r3d.tar");
     command("git", ["-C", dependencyRoot, "-c", "core.autocrlf=false", "archive", "--format=tar", "--output=" + dependencyArchive, dependencyCommit]);
     mkdir(join(exportRoot, submodule)); command("tar.exe", ["-xf", dependencyArchive, "-C", join(exportRoot, submodule)]);
-    var requiredFiles = ["toolchain.json", "tools/new_project.bat", "tools/validate.bat", "tools/console.bat", "tools/prepare_r3d.bat", "third_party/r3d-compat/bindings.patch", "third_party/r3d-compat/files.blobs", "third_party/r3d-importer/sources.json", "templates/blank_project/build.bat", "docs/asset_credits.json"];
+    var requiredFiles = ["toolchain.json", "tools/new_project.bat", "tools/validate.bat", "tools/console.bat", "tools/prepare_r3d.bat", "third_party/r3d-compat/bindings.patch", "third_party/r3d-compat/files.blobs", "third_party/r3d-importer/sources.json", "templates/blank_project/build.bat", "docs/asset_credits.json",
+        "rune/image_decode/image_decode.odin", "rune/image_decode/file.odin",
+        "third_party/rune-image/sources.json", "third_party/rune-image/README.md", "third_party/rune-image/LICENSE.stb_image",
+        "third_party/rune-image/image_decode.c", "third_party/rune-image/stb_image.h", "third_party/rune-image/thread-local-png-error.patch",
+        "third_party/rune-image/windows/image_decode.lib", "third_party/rune-image/linux/libimage_decode.a",
+        "tools/build_image_decode.ps1", "tools/build_image_decode.sh", "tools/audit_image_decode.py"];
     for (var requiredIndex = 0; requiredIndex < requiredFiles.length; requiredIndex++) {
         if (!filesystem.FileExists(join(exportRoot, requiredFiles[requiredIndex]))) fail("The exported commit is missing " + requiredFiles[requiredIndex] + ". Commit the release tooling, or use --working-tree to test it first.");
     }

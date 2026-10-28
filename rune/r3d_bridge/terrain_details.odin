@@ -4,6 +4,7 @@ import "core:math/linalg"
 import "core:math"
 import "rune:assets"
 import "rune:ecs"
+import "rune:jobs"
 import "rune:terrain"
 import rl "vendor:raylib"
 import r3d "r3d:r3d"
@@ -11,6 +12,7 @@ import r3d "r3d:r3d"
 Terrain_Detail_Candidate :: struct {
 	position: rl.Vector3,
 	rotation: rl.Quaternion,
+	density_fade_start, density_cutoff: f32,
 }
 
 Terrain_Detail_Chunk_Capacity :: 64
@@ -65,6 +67,9 @@ Terrain_Detail_View :: struct {
 	transform: ecs.Transform,
 	camera: [3]f32,
 	draw_distance: f32,
+	density_distance: [2]f32,
+	density_min: f32,
+	seed: int,
 	grass, align_to_normal, chunked: bool,
 }
 
@@ -79,10 +84,25 @@ release_detail_batch :: proc(batch:^Terrain_Detail_Batch) {
 	batch^={}
 }
 
-prepare_detail_batches :: proc(cache:^Terrain_Cache,data:terrain.Data) -> bool {
-	cache.details=make([dynamic]Terrain_Detail_Batch)
-	for detail in data.description.details {
-		batch:=Terrain_Detail_Batch{instances=terrain.scatter_details(data,detail)}
+Terrain_Detail_Work :: struct {data:terrain.Data,batches:[]Terrain_Detail_Batch}
+
+scatter_terrain_detail_job :: proc(index:int,pointer:rawptr) {
+	work:=(^Terrain_Detail_Work)(pointer)
+	work.batches[index].instances=terrain.scatter_details(work.data,work.data.description.details[index])
+}
+
+prepare_detail_batches :: proc(cache:^Terrain_Cache,data:terrain.Data,pool:^jobs.Pool=nil,stats:^Render_Stats=nil) -> bool {
+	cache.details=make([dynamic]Terrain_Detail_Batch,len(data.description.details))
+	work:=Terrain_Detail_Work{data=data,batches=cache.details[:]}
+	started:=rl.GetTime()
+	jobs.parallel_for(pool,len(cache.details),scatter_terrain_detail_job,&work)
+	if stats!=nil {
+		stats.terrain_prepare_cpu_ms+=(rl.GetTime()-started)*1000
+		if pool!=nil && len(cache.details)>1 {stats.terrain_job_batches+=1}
+	}
+	started=rl.GetTime()
+	defer if stats!=nil {stats.terrain_upload_cpu_ms+=(rl.GetTime()-started)*1000}
+	for &batch in cache.details {
 		if len(batch.instances)>0 {
 			batch.buffer=r3d.LoadInstanceBuffer(i32(len(batch.instances)),{.POSITION,.ROTATION,.SCALE,.COLOR})
 			if batch.buffer.capacity!=i32(len(batch.instances)) || batch.buffer.buffers[0]==0 {
@@ -93,7 +113,6 @@ prepare_detail_batches :: proc(cache:^Terrain_Cache,data:terrain.Data) -> bool {
 			batch.scales=make([]rl.Vector3,len(batch.instances))
 			batch.colors=make([]rl.Color,len(batch.instances))
 		}
-		append(&cache.details,batch)
 	}
 	return true
 }
@@ -207,7 +226,7 @@ detail_chunk_distances :: proc(bounds:rl.BoundingBox,camera:[3]f32) -> (near_squ
 	return
 }
 
-detail_block_classification :: proc(block:^Terrain_Detail_Block,camera:[3]f32,draw_distance,cutoff_squared,fade_start,margin:f32,grass,allow_reuse:bool) -> (outside,full:bool,reuse_radius:f32) {
+detail_block_classification :: proc(block:^Terrain_Detail_Block,camera:[3]f32,draw_distance,cutoff_squared,full_distance,margin:f32,distance_scaled,allow_reuse:bool) -> (outside,full:bool,reuse_radius:f32) {
 	if allow_reuse && block.ready {
 		movement:=camera-block.camera
 		movement_squared:=#force_inline linalg.dot(movement,movement)
@@ -226,9 +245,9 @@ detail_block_classification :: proc(block:^Terrain_Detail_Block,camera:[3]f32,dr
 		return true,false,block.camera_reuse_radius
 	}
 	far_distance:=#force_inline math.sqrt(far_squared)
-	if far_squared<cutoff_squared && (!grass || far_distance<fade_start-margin) {
+	if far_squared<cutoff_squared && (!distance_scaled || far_distance<full_distance-margin) {
 		block.ready=true;block.full=true
-		radius:=fade_start-far_distance if grass else draw_distance-far_distance
+		radius:=full_distance-far_distance if distance_scaled else draw_distance-far_distance
 		block.camera_reuse_radius=max(f32(0),radius-margin)
 		return false,true,block.camera_reuse_radius
 	}
@@ -255,11 +274,15 @@ pack_detail_candidate :: proc(batch:^Terrain_Detail_Batch,slot,source:int,scale:
 // that region still retains streams when the exact selection/scales are equal.
 pack_visible_details :: proc(batch:^Terrain_Detail_Batch,detail:terrain.Detail,t:ecs.Transform,camera:[3]f32,chunked:bool=true) -> bool {
 	batch.candidates_tested=0
+	// Sparse prefixes would leave a reserved hole in nearly every small chunk,
+	// multiplying instanced draws. Density batches compact into one ordered range.
+	use_chunks:=chunked && !detail_density_enabled(detail)
 	view:=Terrain_Detail_View{transform=t,camera=camera,draw_distance=detail.draw_distance,
-		grass=detail.kind=="grass",align_to_normal=detail.align_to_normal,chunked=chunked}
+		density_distance=detail.density_distance,density_min=detail.density_min,seed=detail.seed,
+		grass=detail.kind=="grass",align_to_normal=detail.align_to_normal,chunked=use_chunks}
 	previous:=batch.view
 	previous.camera=camera
-	static_unchanged:=batch.view_ready && previous==view && detail_candidates_current(batch,t,detail.align_to_normal,chunked)
+	static_unchanged:=batch.view_ready && previous==view && detail_candidates_current(batch,t,detail.align_to_normal,use_chunks)
 	if static_unchanged {
 		movement:=camera-batch.view.camera
 		movement_squared:=#force_inline linalg.dot(movement,movement)
@@ -275,10 +298,19 @@ pack_visible_details :: proc(batch:^Terrain_Detail_Batch,detail:terrain.Detail,t
 	batch.view=view; batch.view_ready=true
 	batch.visible_count=0
 	batch.camera_reuse_radius=math.inf_f32(1)
-	prepare_detail_candidates(batch,t,detail.align_to_normal,chunked)
+	prepare_detail_candidates(batch,t,detail.align_to_normal,use_chunks)
+	if density_enabled:=detail_density_enabled(detail); density_enabled && !static_unchanged {
+		for &candidate,source in batch.candidates {
+			candidate.density_fade_start,candidate.density_cutoff=detail_density_cutoff(detail,source)
+		}
+	}
 	if !static_unchanged {for &block in batch.blocks {block.ready=false}}
 	if len(batch.instances)==0 {batch.cached_visible_count=0; return changed || previous_count!=0}
 	fade_start:=detail.draw_distance*0.8
+	density:=detail_density_enabled(detail)
+	distance_scaled:=view.grass || density
+	full_distance:=fade_start if view.grass else detail.draw_distance
+	if density {full_distance=min(full_distance,detail.density_distance[0])}
 	cutoff_squared:=detail.draw_distance*detail.draw_distance
 	margin:=max(f32(0.0001),detail.draw_distance*0.00001)
 	for &chunk in batch.chunks {
@@ -309,10 +341,10 @@ pack_visible_details :: proc(batch:^Terrain_Detail_Batch,detail:terrain.Detail,t
 			continue
 		}
 		far_distance:=#force_inline math.sqrt(far_squared)
-		full:=far_squared<cutoff_squared && (!view.grass || far_distance<fade_start-margin)
+		full:=far_squared<cutoff_squared && (!distance_scaled || far_distance<full_distance-margin)
 		if full && chunk.full && !force && old_count==i32(chunk.count) {
 			// Every root remains fully visible: retain this immutable stream range.
-			radius:=fade_start-far_distance if view.grass else detail.draw_distance-far_distance
+			radius:=full_distance-far_distance if distance_scaled else detail.draw_distance-far_distance
 			chunk.camera_reuse_radius=max(f32(0),radius-margin)
 			batch.camera_reuse_radius=min(batch.camera_reuse_radius,chunk.camera_reuse_radius)
 			batch.visible_count+=chunk.visible_count
@@ -321,7 +353,7 @@ pack_visible_details :: proc(batch:^Terrain_Detail_Batch,detail:terrain.Detail,t
 		chunk.visible_count=0
 		reuse_radius:=math.inf_f32(1)
 		for &block in batch.blocks[chunk.block_offset:chunk.block_offset+chunk.block_count] {
-			block_outside,block_full,block_radius:=#force_inline detail_block_classification(&block,camera,detail.draw_distance,cutoff_squared,fade_start,margin,view.grass,!force)
+			block_outside,block_full,block_radius:=#force_inline detail_block_classification(&block,camera,detail.draw_distance,cutoff_squared,full_distance,margin,distance_scaled,!force)
 			if block_outside {
 				reuse_radius=min(reuse_radius,block_radius)
 				continue
@@ -332,7 +364,7 @@ pack_visible_details :: proc(batch:^Terrain_Detail_Batch,detail:terrain.Detail,t
 				// Selected source indices are strictly increasing. A range of n
 				// slots with consecutive endpoints therefore contains every source
 				// in this block, allowing unchanged model streams to stay untouched.
-				if !view.grass && !force && int(chunk.visible_count)+block.count<=int(old_count) &&
+				if !distance_scaled && !force && int(chunk.visible_count)+block.count<=int(old_count) &&
 				   batch.packed_indices[slot]==block.offset &&
 				   batch.packed_indices[slot+block.count-1]==block.offset+block.count-1 {
 					chunk.visible_count+=i32(block.count)
@@ -360,6 +392,13 @@ pack_visible_details :: proc(batch:^Terrain_Detail_Batch,detail:terrain.Detail,t
 				i:=chunk.offset+int(chunk.visible_count)
 				scale:=instance.scale
 				if view.grass {scale*=clamp((detail.draw_distance-distance)/(detail.draw_distance*0.2),0,1)}
+				if density {
+					candidate:=&batch.candidates[source]
+					density_scale,density_radius:=#force_inline detail_density_visibility(candidate.density_fade_start,candidate.density_cutoff,distance,margin)
+					reuse_radius=min(reuse_radius,density_radius)
+					if density_scale<=0 {continue}
+					scale*=density_scale
+				}
 				if #force_inline pack_detail_candidate(batch,i,source,scale,t,force || chunk.visible_count>=old_count) {chunk.dirty=true}
 				chunk.visible_count+=1
 			}
@@ -390,11 +429,13 @@ upload_visible_details :: proc(batch:^Terrain_Detail_Batch,detail:terrain.Detail
 		uploaded=true
 		if stats!=nil {stats.terrain_detail_chunk_uploads+=1}
 		offset:=chunk.offset;count:=chunk.visible_count
-		// Discarding would orphan ranges still used by unchanged chunks.
-		r3d.UploadInstances(batch.buffer,{.POSITION},i32(offset),count,raw_data(batch.positions[offset:]),false)
-		r3d.UploadInstances(batch.buffer,{.ROTATION},i32(offset),count,raw_data(batch.rotations[offset:]),false)
-		r3d.UploadInstances(batch.buffer,{.SCALE},i32(offset),count,raw_data(batch.scales[offset:]),false)
-		r3d.UploadInstances(batch.buffer,{.COLOR},i32(offset),count,raw_data(batch.colors[offset:]),false)
+		// A sole range replaces every live slot, so orphaning avoids waiting on
+		// the previous GPU frame. Partial updates must preserve other chunks.
+		discard:=len(batch.chunks)==1
+		r3d.UploadInstances(batch.buffer,{.POSITION},i32(offset),count,raw_data(batch.positions[offset:]),discard)
+		r3d.UploadInstances(batch.buffer,{.ROTATION},i32(offset),count,raw_data(batch.rotations[offset:]),discard)
+		r3d.UploadInstances(batch.buffer,{.SCALE},i32(offset),count,raw_data(batch.scales[offset:]),discard)
+		r3d.UploadInstances(batch.buffer,{.COLOR},i32(offset),count,raw_data(batch.colors[offset:]),discard)
 	}
 	if stats!=nil {stats.terrain_detail_upload_cpu_ms+=(rl.GetTime()-started)*1000}
 	return

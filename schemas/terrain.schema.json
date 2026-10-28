@@ -31,6 +31,8 @@
           "height": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "minimum": -100000, "maximum": 100000}, "default": [-100000,100000], "description": "Inclusive min/max terrain-local height."},
           "slope": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "minimum": 0, "maximum": 90}, "default": [0,35], "description": "Inclusive min/max terrain-local slope in degrees."},
           "draw_distance": {"type": "number", "minimum": 1, "maximum": 10000, "description": "World-space camera distance; defaults to 60 for grass, 250 otherwise. Grass shrinks over the last 20%."},
+          "density_distance": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "minimum": 0, "maximum": 10000}, "default": [0,0], "description": "World-space camera distances [full density, minimum density]. [0,0] disables thinning; otherwise increasing endpoints must end at or before draw_distance. Applies to built-in and custom model details."},
+          "density_min": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.25, "description": "Fraction of deterministic detail roots retained beyond density_distance's far endpoint, until draw_distance. Removed roots briefly shrink before culling. Ignored when thinning is disabled."},
           "align_to_normal": {"type": "boolean", "description": "Tilt to the terrain surface; defaults true for rocks and false otherwise."},
           "shadows": {"type": "boolean", "description": "Cast shadows; defaults false for grass and true otherwise."}
         }

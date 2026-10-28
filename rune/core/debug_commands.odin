@@ -2,6 +2,7 @@ package core
 
 import "core:encoding/json"
 import "core:fmt"
+import "core:mem"
 import "core:slice"
 import "core:strconv"
 import "core:strings"
@@ -34,13 +35,16 @@ Debug_State :: struct {
 	profile_count: int,
 	profile_target: int,
 	profile_stepping: bool,
-	profile_samples: [Max_Debug_Frames]Profile_Sample,
+	profile_samples: []Profile_Sample,
+	profile_allocator: mem.Allocator,
 	sample: Profile_Sample,
 	frame_started: f64,
 }
 
 Profile_Sample :: struct {
 	frame_ms, update_ms, fixed_update_ms, render_ms: f64,
+	physics_3d_ms, physics_2d_ms, navigation_3d_ms: f64,
+	terrain_sync_ms, asset_refresh_ms, scene_reload_ms, game_systems_ms: f64,
 }
 
 register_debug_commands :: proc(dev: ^console.Console) {
@@ -457,11 +461,13 @@ set_command :: proc(dev: ^console.Console, arguments: string) {
 reload_command :: proc(dev: ^console.Console, arguments: string) {
 	engine, world, ok := command_world(dev)
 	if !ok || !no_arguments(dev, arguments) {return}
+	started := debug_profile_started()
+	defer engine.debug.sample.scene_reload_ms += debug_profile_elapsed_ms(started)
 	if engine.active_scene_path == "" {
 		console.error(dev, "No scene path to reload.")
 		return
 	}
-	replacement, loaded := scene.load_with_layers(engine.active_scene_path, &engine.registry, engine.project.layers)
+	replacement, loaded := scene.load_with_layers(engine.active_scene_path, &engine.registry, engine.project.layers, project_scene_options(engine))
 	if !loaded {
 		console.error(dev, scene.last_load_error())
 		return
@@ -486,6 +492,14 @@ profile_command :: proc(dev: ^console.Console, arguments: string) {
 	count_arguments := rest if stepping else arguments
 	count, valid := debug_frame_count(dev, count_arguments, 120)
 	if !valid {return}
+	samples, allocation_error := make([]Profile_Sample, count, context.allocator)
+	if allocation_error != nil {
+		console.error(dev, "Could not allocate profile samples.")
+		return
+	}
+	debug_profile_release_samples(&engine.debug)
+	engine.debug.profile_samples = samples
+	engine.debug.profile_allocator = context.allocator
 	engine.debug.profile_count = 0
 	engine.debug.profile_target = count
 	engine.debug.profile_stepping = stepping
@@ -523,6 +537,7 @@ stop_debug_console :: proc(engine: ^Engine) {
 	engine.debug.steps_remaining = 0
 	engine.debug.profile_target = 0
 	engine.debug.profile_stepping = false
+	debug_profile_release_samples(&engine.debug)
 	console.stop_remote(&engine.console)
 }
 
@@ -584,20 +599,9 @@ debug_profile_finished_frame :: proc(engine: ^Engine, completed_at: f64 = -1) {
 	debug.profile_samples[debug.profile_count] = debug.sample
 	debug.profile_count += 1
 	if debug.profile_count < debug.profile_target {return}
-	frame := make([]f64, debug.profile_count, context.temp_allocator)
-	update := make([]f64, debug.profile_count, context.temp_allocator)
-	fixed := make([]f64, debug.profile_count, context.temp_allocator)
-	render := make([]f64, debug.profile_count, context.temp_allocator)
-	for index in 0..<debug.profile_count {
-		sample := debug.profile_samples[index]
-		frame[index], update[index], fixed[index], render[index] = sample.frame_ms, sample.update_ms, sample.fixed_update_ms, sample.render_ms
-	}
-	console.set_result(&engine.console, struct {
-		frames: int,
-		stepped_frames: int,
-		frame, update, fixed_update, render_submission: Timing_Summary,
-	}{debug.profile_count, debug.steps_requested if debug.profile_stepping else 0,
-		timing_summary(frame), timing_summary(update), timing_summary(fixed), timing_summary(render)})
+	console.set_result(&engine.console, debug_profile_summary(debug.profile_samples[:debug.profile_count],
+		debug.steps_requested if debug.profile_stepping else 0))
+	debug_profile_release_samples(debug)
 	debug.profile_target = 0
 	debug.profile_stepping = false
 	engine.console.defer_reply = false

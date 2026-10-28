@@ -228,6 +228,84 @@ alone does not update an already linked game. Use
 `--runtime` hidden receiver/edge/camera-turn regression. See the native README
 for exact validation coverage; a Windows run does not establish Linux behavior.
 
+## Native asset import and decoder boundaries
+
+Rune's importer pins are recorded in `third_party/r3d-importer/sources.json`;
+the wrapper and ownership boundary are in `rune/r3d_bridge/importer.odin`.
+`LoadModelFromImporter` converts the imported scene into meshes, skeleton
+textures, and material textures, using GPU calls and shared R3D scratch. Keep
+that conversion on the graphics owner. Pinned R3D's texture importer already
+starts decode workers before owner-thread uploads; a blocking top-level loader
+does not imply that its internals are serial or globally reentrant.
+
+At the pinned Assimp revision, its C interface uses a shared `gLastErrorString`
+for import failures and error retrieval. Independent property stores in Rune's
+FBX patch do not isolate that state. A proposed background import lane must
+cover all competing C import/error entrypoints, including synchronous model and
+animation calls, or use a native API with per-import error ownership. See
+[pinned Assimp.cpp](https://github.com/assimp/assimp/blob/cf7b652190827878a4726709f0998ce170e55ce8/code/Common/Assimp.cpp#L95).
+
+The pinned raylib texture module defines `STBI_NO_THREAD_LOCALS`; its image
+decoder error/settings state cannot be assumed private to a worker. See
+[pinned rtextures.c](https://github.com/raysan5/raylib/blob/c1ab645ca298a2801097931d1079b10ff7eb9df8/src/rtextures.c#L143).
+On 2026-10-28, Windows AMD64/MSVC artifact inspection found TLS state in Odin's
+standalone stb image archive and ordinary global state in static raylib. Actual
+MSVC link maps for a mixed-import probe and `tools/terrain_validation` resolved
+the `stbi_*` image calls to raylib's `rtextures.obj`. Importing
+`vendor:stb/image` therefore did not isolate decoding on that toolchain. Audit
+the final native symbol providers, compile flags, callbacks, and error paths
+before adding concurrent decode; a private symbol-prefixed decoder is one
+possible integration boundary. Linux symbol resolution and concurrent failure
+behavior were not validated by those Windows link checks.
+
+Raylib file/log callbacks and directory-path scratch also have shared native
+state. A Rune-only decoder lock does not automatically cover R3D's internal
+workers. Treat these as source/artifact constraints, not a reproduced runtime
+race. Rune's background path now uses `rune:image_decode` and
+`third_party/rune-image`: pinned STB 2.30 with internal decoder symbols and
+request-local copied errors. In addition to its failure pointer, the private
+build makes STB's mutable unknown-PNG-chunk message buffer thread-local. Both
+COFF/ELF archives are audited for private symbol providers and TLS; concurrent
+valid/malformed decode and pixel/format tests passed on Windows AMD64 and
+Ubuntu 26.04.1 WSL2 with pinned Odin `84bc3fc`. This does not make legacy
+raylib/R3D decode calls or Assimp imports safe on arbitrary workers. Keep cache
+publication and graphics calls on the owner. See the decoder README for pins,
+TLS patch, rebuild/audit commands, allocator ownership, and validation limits.
+
+## Skeletal pose worker boundary
+
+At R3D pin `86303391c92e32418181a8133848a15ba02f060d`, the inspected call graph
+of `R3D_ComputeAnimationLocalPose` and `R3D_ComputeAnimationModelPose` reads the
+player's animation library/skeleton and writes its own pose arrays. Channel
+interpolation and hierarchy accumulation use stack temporaries, with no shared
+scratch, allocation, callbacks or graphics calls. See pinned
+[r3d_animation_player.c](https://github.com/Bigfoot71/r3d/blob/86303391c92e32418181a8133848a15ba02f060d/src/r3d_animation_player.c#L225)
+and [common/r3d_anim.c](https://github.com/Bigfoot71/r3d/blob/86303391c92e32418181a8133848a15ba02f060d/src/common/r3d_anim.c#L121).
+This is a narrow boundary: player loading/unloading and
+`R3D_UploadAnimationPose` touch GL; animation-time advancement can invoke native
+callbacks. `R3D_UpdateAnimationPlayer` combines CPU work with upload and must
+not replace the two compute calls in a worker.
+
+Rune completes resource reloads before collecting independent player work,
+keeps model/library/player resources alive through the synchronous batch, and
+uploads and publishes the evaluated player cache only after the barrier. A model
+or clip reload releases all referencing players before its old skeleton/library.
+Review this ordering when
+changing `rune/r3d_bridge/animation.odin`, `load_model`, or native dependencies;
+matching source pins alone do not prove a bundled binary's concurrent behavior.
+See `docs/model-animation.md` for the public ownership contract.
+
+On 2026-10-28, `tools/animation_worker_benchmark` exercised the checked-in native
+archives on Windows AMD64/MSVC and Linux AMD64 under WSL2 with the pinned Odin
+compiler. Its gated probe verified distinct non-owner thread IDs, overlapping
+native CPU pose evaluation, and exact serial/parallel poses. It creates no
+graphics context and excludes import, skin upload, and drawing; those paths need
+their separate runtime checks. The tool's README describes workload and timing
+limits, including dispatch overhead on small batches.
+The bridge's runtime worker suite also passed native GPU readbacks and ordinary
+draws on Windows AMD64/GLFW Win32 with MSVC, static raylib 6/R3D, GTX 1060 and
+OpenGL 3.3; see `docs/model-animation.md`. Linux GPU behavior remains unverified.
+
 ## R3D preparation and apparently dirty submodules
 
 Relevant files: `third_party/r3d-compat/README.md`,

@@ -34,7 +34,7 @@ initialize_mouse :: proc(game: ^rune.Engine) {
 start :: proc(game:^rune.Engine,world:^ecs.World) {
 	if !bridge.initialized {
 		ok:bool
-		bridge,ok = r3d_bridge.init("examples/terrain_3d",rl.GetScreenWidth(),rl.GetScreenHeight())
+		bridge,ok = r3d_bridge.init("examples/terrain_3d",rl.GetScreenWidth(),rl.GetScreenHeight(), settings = game.project.render_3d, worker_pool = game.worker_pool)
 		if !ok {fmt.eprintln("Could not initialize r3d"); rune.request_exit(game)}
 		initialize_mouse(game)
 	}

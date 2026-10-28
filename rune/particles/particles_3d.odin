@@ -3,6 +3,7 @@
 package particles
 
 import "core:math"
+import "rune:jobs"
 
 Burst3D :: struct {
 	lifetime, speed: [2]f32,
@@ -69,17 +70,8 @@ emit_burst_3d :: proc(pool: ^Pool3D($N), settings: Burst3D, count: int, origin, 
 	return spawned
 }
 
-update_3d :: proc(pool: ^Pool3D($N), dt: f32) {
-	if dt<=0 || math.is_nan(dt) || math.is_inf(dt) {return}
-	i:=0
-	for i<pool.count {
-		p:=&pool.particles[i]
-		p.age+=dt
-		if p.age>=p.lifetime {pool.count-=1; pool.particles[i]=pool.particles[pool.count]; continue}
-		p.position+=p.velocity*dt+p.gravity*(0.5*dt*dt)
-		p.velocity+=p.gravity*dt
-		i+=1
-	}
+update_3d :: proc(pool: ^Pool3D($N), dt: f32, worker_pool: ^jobs.Pool = nil) {
+	pool.count = update_3d_slice(pool.particles[:pool.count], dt, worker_pool)
 }
 
 appearance_3d :: proc(p: Particle3D) -> (size: f32, color: [4]u8) {

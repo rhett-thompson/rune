@@ -126,6 +126,7 @@ prepare_animations :: proc(
 	dt: f32,
 	publish: bool,
 ) {
+	ctx.animation_stats={}
 	if !ctx.initialized {return}
 	if ctx.animation_world_generation != world.generation {
 		destroy_animation_players(ctx)
@@ -143,17 +144,30 @@ prepare_animations :: proc(
 			delete_key(&ctx.animation_players, entity)
 		}
 	}
+	if len(world.model_animators)==0 {return}
+	// Resolve all imports/reloads before borrowing players for the CPU batch.
+	// Reloading a model/library invalidates every player using that model.
+	available:=make(map[string]bool,context.temp_allocator)
+	for entity in world.model_animators {
+		if !ecs.is_enabled(world,entity) {continue}
+		renderer,found:=ecs.get_model_renderer(world,entity)
+		if !found {continue}
+		if _,seen:=available[renderer.model];seen {continue}
+		_,loaded:=load_model(ctx,manager,renderer.model)
+		available[renderer.model]=loaded && load_model_animations(ctx,manager,renderer.model)
+	}
+	work:=make([dynamic]Animation_Pose_Work,context.temp_allocator)
+	commits:=make([dynamic]Animation_Pose_Commit,context.temp_allocator)
 	for entity, animator in world.model_animators {
 		if !ecs.is_enabled(world, entity) {continue}
 		renderer, found := ecs.get_model_renderer(world, entity)
 		if !found {continue}
-		model, loaded := load_model(ctx, manager, renderer.model)
-		if !loaded || !load_model_animations(ctx, manager, renderer.model) {continue}
+		if !available[renderer.model] {continue}
 		asset := ctx.models[renderer.model]
 		cached, exists := ctx.animation_players[entity]
 		if !exists {
 			cached = Model_Player {
-				player     = r3d.LoadAnimationPlayer(model.skeleton, asset.animations),
+				player     = r3d.LoadAnimationPlayer(asset.model.skeleton, asset.animations),
 				path       = retain_path(ctx, renderer.model),
 				clip_index = -1,
 			}
@@ -220,24 +234,35 @@ prepare_animations :: proc(
 		if !state.playing {r3d.PauseAnimation(&cached.player)}
 		blending := len(cached.blend_pose)>0
 		if blending && publish && (state.playing || state.finished) {cached.blend_elapsed += dt}
-		if !cached.ready || cached.clip_index != index || cached.pose_time != state.elapsed || blending {
-			r3d.ComputeAnimationLocalPose(&cached.player)
-			if blending {
-				weight := clamp(cached.blend_elapsed/cached.blend_duration,0,1)
-				for pose, bone in cached.blend_pose {
-					cached.player.localPose[bone] = blend_local_pose(pose,cached.player.localPose[bone],weight)
-				}
-				if weight == 1 {delete(cached.blend_pose); cached.blend_pose=nil}
-			}
-			r3d.ComputeAnimationModelPose(&cached.player)
-			r3d.UploadAnimationPose(&cached.player)
-		}
+		needs_pose:=!cached.ready || cached.clip_index != index || cached.pose_time != state.elapsed || blending
 		cached.ready = true
 		cached.clip_index = index
 		cached.pose_time = state.elapsed
-		ctx.animation_players[entity] = cached
+		if needs_pose {
+			if len(work)==0 {
+				reserve(&work,len(world.model_animators));reserve(&commits,len(world.model_animators))
+			}
+			weight:=clamp(cached.blend_elapsed/cached.blend_duration,0,1) if blending else f32(0)
+			append(&work,Animation_Pose_Work{cached.player,cached.blend_pose,weight})
+			append(&commits,Animation_Pose_Commit{entity,cached,blending && weight==1})
+			ctx.animation_stats.bones_evaluated+=int(cached.player.skeleton.boneCount)
+		} else {ctx.animation_players[entity]=cached}
 		if publish {world.model_animation_states[entity] = state}
 	}
+	// Player buffers are stable and exclusive until the synchronous batch joins.
+	if len(work)==0 {return}
+	started:=rl.GetTime()
+	if evaluate_animation_poses(work[:],ctx.worker_pool) {ctx.animation_stats.job_batches=1}
+	ctx.animation_stats.pose_cpu_ms=(rl.GetTime()-started)*1000
+	ctx.animation_stats.players_evaluated=len(work)
+	started=rl.GetTime()
+	for commit in commits {
+		cached:=commit.cached
+		r3d.UploadAnimationPose(&cached.player)
+		if commit.finish_blend {delete(cached.blend_pose);cached.blend_pose=nil}
+		ctx.animation_players[commit.entity]=cached
+	}
+	ctx.animation_stats.upload_cpu_ms=(rl.GetTime()-started)*1000
 }
 
 // Borrowed native player; mutations to its state may be overwritten by the next

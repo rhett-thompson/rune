@@ -2,6 +2,7 @@ package ecs
 
 import "core:encoding/json"
 import "core:math"
+import "rune:jobs"
 import "rune:particles"
 
 ParticleEmitter2D :: particles.Emitter2D
@@ -83,7 +84,11 @@ particle_count_2d :: proc(world: ^World, entity: Entity) -> int {
 
 // Engine scene loops call this after game updates. Custom loops call it once
 // per simulation tick; rendering only reads particles and cannot advance them.
-update_particles_2d :: proc(world: ^World, dt: f32) {
+update_particles_2d :: proc(world: ^World, dt: f32, pool: ^jobs.Pool = nil) {
+	if pool != nil && len(world.particle_emitters_2d) > 1 {
+		update_particle_jobs_2d(world, dt, pool)
+		return
+	}
 	for entity, settings in world.particle_emitters_2d {
 		if !is_enabled(world, entity) {continue}
 		position, rotation, scale := particle_emitter_pose_2d(world, entity)

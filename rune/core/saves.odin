@@ -78,7 +78,7 @@ execute_save_request :: proc(engine: ^Engine, request: Save_Request) -> bool {
 	key, key_ok := save.scene_key(&engine.saves, path, save.allocator(&candidate))
 	if !key_ok {return false}
 	_, visited := candidate.document.scenes[key]
-	world, prepared := save.prepare_scene(&engine.saves, &candidate, key, &engine.registry, engine.project.layers)
+	world, prepared := save.prepare_scene(&engine.saves, &candidate, key, &engine.registry, engine.project.layers, project_scene_options(engine))
 	if !prepared {return false}
 	if engine.scene_loop_active {run_shutdown_systems(engine, &engine.active_world)}
 	ecs.destroy(&engine.active_world)
@@ -96,8 +96,10 @@ execute_save_request :: proc(engine: ^Engine, request: Save_Request) -> bool {
 }
 
 run_restore_systems :: proc(engine: ^Engine, world: ^ecs.World) {
-	ecs.sync_terrains(world, &engine.assets)
-	ecs.sync_navigation_3d(world, &engine.assets)
+	profiled_sync_terrains(engine, world)
+	profiled_sync_navigation_3d(engine, world)
+	started := debug_profile_started()
+	defer engine.debug.sample.game_systems_ms += debug_profile_elapsed_ms(started)
 	for system in engine.systems {
 		if system.on_save_restored != nil {system.on_save_restored(engine, world)}
 	}

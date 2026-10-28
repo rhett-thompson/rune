@@ -6,6 +6,7 @@ import "core:os"
 import "core:strings"
 import "rune:assets"
 import "rune:ecs"
+import "rune:jobs"
 import "rune:terrain"
 import bridge "rune:r3d_bridge"
 import rl "vendor:raylib"
@@ -19,14 +20,21 @@ render_frame :: proc(ctx:^bridge.Context,w:^ecs.World,manager:^assets.Asset_Mana
 	rl.EndDrawing()
 }
 
-validate_runtime :: proc(details_only:=false) {
+validate_runtime :: proc(details_only:=false,use_jobs:=false) {
 	rl.SetConfigFlags({.WINDOW_HIDDEN})
 	rl.InitWindow(640,360,"Terrain GPU validation")
 	defer rl.CloseWindow()
 	manager := assets.init(".")
 	defer assets.shutdown(&manager)
-	ctx,ready := bridge.init(".",640,360); assert(ready)
+	pool: ^jobs.Pool
+	if use_jobs {pool=jobs.create(3,1);assert(pool!=nil)}
+	defer jobs.destroy(pool)
+	ctx,ready := bridge.init(".",640,360,worker_pool=pool); assert(ready)
 	defer bridge.shutdown(&ctx)
+	// These assertions inspect material edits after one draw. Keep those
+	// replacements immediate while the pool exercises terrain preparation;
+	// material_async_validation covers cross-frame terrain material commits.
+	ctx.material_reload_synchronous=true
 	r3d.SetAntiAliasingMode(.NONE)
 	r := ecs.init_registry(); defer ecs.destroy_registry(&r)
 	assert(ecs.register_builtin_components(&r))
@@ -46,6 +54,11 @@ validate_runtime :: proc(details_only:=false) {
 	indices:i32
 	for mesh in cache.chunks {indices += mesh.indexCount}
 	assert(indices==16*16*6,"all terrain cells uploaded once")
+	if use_jobs {
+		assert(ctx.frame_stats.terrain_chunks_built==4 && ctx.frame_stats.terrain_job_batches>0,"configured terrain CPU batches reach GPU installation")
+		render_frame(&ctx,&w,&manager)
+		assert(ctx.frame_stats.terrain_chunks_built==0 && ctx.frame_stats.terrain_job_batches==0,"unchanged terrain reuses its installed cache")
+	}
 	initial := cache.revision
 	assert(write_fixture("build/terrain-test.terrain.json",`{"heightmap":"build/terrain-test.r16","resolution":[17,17],"size":[16,16],"height_scale":16,"height_offset":4,"chunk_cells":16}`)==nil)
 	assets.refresh_terrains(&manager)

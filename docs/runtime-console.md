@@ -311,7 +311,7 @@ Available engine commands:
 | `set <entity-id> <Component.field> <JSON-value>` | Validate and replace an existing runtime field without saving files. Dotted numeric segments address arrays, e.g. `Transform.position.0`. Entire vectors can be supplied as JSON arrays. |
 | `reload` | Reload the active scene from disk, discard runtime scene edits, and invoke scene-reload callbacks. Invalid scene data leaves the current World intact. |
 | `logs [since-sequence]` | Return log entries with sequence/level/message, a `next_sequence` cursor, and a `truncated` flag when older entries were dropped. |
-| `profile [--step] [frames]` | Measure 1–600 rendered frames (default: 120). Return mean/max/p95 milliseconds for frame duration, update, fixed update, and render submission. Frame duration includes presentation/wait; these are CPU timings, not GPU measurements. `--step` requires pause and advances one simulation tick per measured frame, then remains paused. `stepped_frames` is the controlled tick count, or zero for ordinary profiling. |
+| `profile [--step] [frames]` | Measure 1–600 rendered frames (default: 120). Return mean/max/p95 milliseconds for frame duration, update, fixed update, render submission, and the engine stages described below. Frame duration includes presentation/wait; these are CPU elapsed timings, not GPU measurements. `--step` requires pause and advances one simulation tick per measured frame, then remains paused. `stepped_frames` is the controlled tick count, or zero for ordinary profiling. |
 | `navmesh [on [entity-id]\|off]` | Show translucent baked 3D surfaces and triangle edges; blocked triangles are red. Optional stable NavMesh3D scene ID filters the display. No arguments reports `{enabled, entity}`; empty entity means all. Independent of F3. Requires an active Camera3D or custom-camera debug drawing. |
 | `capture [path.png]` | Return the saved absolute path, dimensions, frame number, simulation time, fixed-step count, scene, and active cameras. Frame details are under `data.metadata`. Hidden windows fail with `ok: false` and `data.error: "capture_window_hidden"`. |
 
@@ -351,6 +351,40 @@ frames between steps. The single final timing reply includes the last frame's
 presentation. The game remains paused, and the injected action remains held
 until `input <action> release` or `clear`. This mode preserves V-Sync and the
 configured software frame cap.
+
+The profile result preserves `frame`, `update`, `fixed_update`, and
+`render_submission`, and adds these stage summaries. Every summary contains
+`mean_ms`, `p95_ms` (nearest rank), and `max_ms`, calculated from per-rendered-frame
+totals. Multiple simulation ticks in one frame accumulate into that frame.
+The profiler allocates only the requested sample count and releases that storage
+after completion, interruption, or engine shutdown.
+
+| Field | Synchronous work measured in the engine scene loop |
+| --- | --- |
+| `physics_3d` | Rune's 3D physics update: native-body synchronization, Box3D step, event collection, pose synchronization, and character-controller queries |
+| `physics_2d` | Rune's 2D physics update, including its synchronization, native step, events, and controllers |
+| `navigation_3d` | Navigation asset binding synchronization and fixed-step agent update, including any worker join |
+| `terrain_sync` | ECS terrain data and collision synchronization; renderer chunk preparation/upload is measured separately by the renderer's terrain statistics |
+| `asset_refresh` | Begin-frame asset refresh calls and completed texture installations; background read/decode elapsed time is outside this owner-thread total |
+| `scene_reload` | Automatic scene/prefab change checks and reloads, or an explicit console reload |
+| `game_systems` | Time inside registered UI, fixed/update, post-physics/post-animation, draw, reload, and restore callbacks |
+
+These are overlapping views of elapsed wall time, so do not add the summaries
+to estimate frame cost. For example, `fixed_update` contains navigation, physics,
+and fixed game callbacks; `render_submission` includes game drawing callbacks;
+a callback can itself call a timed engine operation. Console reload also includes
+its terrain/navigation synchronization and reload callbacks. Native worker joins
+are included in the calling stage, rather than summed as worker CPU time.
+Presentation/frame limiting is included in `frame` and excluded from
+`render_submission`. Stages a loop does not invoke remain zero; invoked empty
+stages can include their call and validation overhead. Callback loops report
+their `on_update`/`on_draw` time in `game_systems`; manually invoked subsystem
+updates inside those callbacks are not separately instrumented.
+
+For a controlled Box3D worker-count comparison without rendering or frame pacing,
+use the [physics worker benchmark](../tools/physics_worker_benchmark/README.md).
+It measures the same synchronous 3D physics stage in an optimized standalone
+fixture with warmup, repeated trials, and correctness checks.
 
 - Use a separate inbox directory for each running game. The inbox is disabled
   unless the game is launched with `--console-dir=<directory>`.

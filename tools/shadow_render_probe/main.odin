@@ -9,6 +9,7 @@ import "core:strings"
 import "rune:assets"
 import "rune:ecs"
 import bridge "rune:r3d_bridge"
+import render_settings "rune:render"
 import r3d "r3d:r3d"
 import rl "vendor:raylib"
 
@@ -81,8 +82,8 @@ main :: proc() {
 	assert(os.make_directory(Output)==nil || os.is_dir(Output))
 	rl.SetConfigFlags({.WINDOW_HIDDEN})
 	rl.InitWindow(Width,Height,"Rune actual shadow render probe"); defer rl.CloseWindow()
-	r3d.SetHint(.SHADOW_DIR_SIZE,map_size)
-	ctx,ready:=bridge.init(".",Width,Height); assert(ready); defer bridge.shutdown(&ctx)
+	settings:=render_settings.default_settings_3d();settings.shadows.directional_resolution=map_size
+	ctx,ready:=bridge.init(".",Width,Height,settings); assert(ready); defer bridge.shutdown(&ctx)
 	m:=assets.init("."); defer assets.shutdown(&m)
 	r:=ecs.init_registry(); defer ecs.destroy_registry(&r); assert(ecs.register_builtin_components(&r))
 	w:=ecs.init(); defer ecs.destroy(&w)

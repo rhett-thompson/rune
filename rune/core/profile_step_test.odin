@@ -18,7 +18,10 @@ profile_step_test_frame :: proc(f:^Console_Batch_Test,finish_profile:bool=true) 
 	mem.dynamic_arena_reset(&f.arena)
 	f.engine.debug.frame+=1
 	f.engine.debug.frame_started=f64(f.engine.debug.frame)*0.01
-	f.engine.debug.sample={update_ms=f64(f.engine.debug.frame),fixed_update_ms=2*f64(f.engine.debug.frame),render_ms=3*f64(f.engine.debug.frame)}
+	frame:=f64(f.engine.debug.frame)
+	f.engine.debug.sample={update_ms=frame,fixed_update_ms=2*frame,render_ms=3*frame,
+		physics_3d_ms=0.25*frame,physics_2d_ms=0.5*frame,navigation_3d_ms=0.75*frame,
+		terrain_sync_ms=1.25*frame,asset_refresh_ms=1.5*frame,scene_reload_ms=1.75*frame,game_systems_ms=2.5*frame}
 	console.poll_remote(&f.engine.console,f64(f.engine.debug.frame)/60)
 	if debug_simulation_tick(&f.engine) {
 		pose,found:=ecs.get_transform(&f.world,f.entity);assert(found)
@@ -46,10 +49,12 @@ profile_step_parser_requires_pause_and_rejects_invalid_counts_atomically :: proc
 		count:=counts[index]
 		testing.expect(t,engine.console.error_count==0 && engine.console.defer_reply)
 		testing.expect(t,engine.debug.profile_target==count && engine.debug.profile_count==0)
+		testing.expect(t,len(engine.debug.profile_samples)==count,"only the requested sample buffer is allocated")
 		testing.expect(t,engine.debug.profile_stepping==(index<3))
 		testing.expect(t,engine.debug.steps_remaining==(count if index<3 else 0) && debug_simulation_budget(&engine)==1)
 		testing.expect(t,engine.debug.paused && !engine.debug.fast_step && !engine.window.step_uncapped && engine.window.target_fps==144)
 		stop_debug_console(&engine)
+		testing.expect(t,engine.debug.profile_samples==nil,"stopping releases the sample buffer")
 	}
 	for command in ([7]string{"profile --step 0","profile --step 601","profile --step -1","profile --step 1 extra","profile --step nope","profile --fast 1","profile --step 1.5"}) {
 		engine:Engine
@@ -89,9 +94,18 @@ profile_step_remote_reply_waits_for_the_final_presented_frame :: proc(t:^testing
 	testing.expect(t,valid && math.abs(f64(mean)-4)<0.000001,"the profile includes all three controlled fixed-update frames")
 	mean,valid=ecs.read_number(data["frame"].(json.Object)["mean_ms"])
 	testing.expect(t,valid && math.abs(f64(mean)-4)<0.000001,"frame duration includes the supplied presentation boundary")
+	expected_stages:=[7]f32{0.5,1,1.5,2.5,3,3.5,5}
+	for name,index in ([7]string{"physics_3d","physics_2d","navigation_3d","terrain_sync","asset_refresh","scene_reload","game_systems"}) {
+		stage,found:=data[name].(json.Object)
+		if !testing.expect(t,found,"stage summaries reach the final transport reply") {continue}
+		expected:=expected_stages[index]
+		stage_mean,stage_valid:=ecs.read_number(stage["mean_ms"])
+		testing.expect(t,stage_valid && math.abs(stage_mean-expected)<0.000001,name)
+	}
 	pose,_:=ecs.get_transform(&f.world,f.entity)
 	testing.expect(t,pose.position[0]==3 && f.engine.debug.fixed_steps==3 && f.engine.debug.simulation_updates==3)
 	testing.expect(t,f.engine.debug.paused && !f.engine.console.defer_reply && !f.engine.debug.profile_stepping && f.engine.debug.profile_target==0)
+	testing.expect(t,f.engine.debug.profile_samples==nil,"profile completion releases its owned samples")
 	profile_step_test_frame(&f)
 	testing.expect(t,!os.exists(f.reply_path) && f.engine.debug.simulation_updates==3,"completion cannot emit a second reply or advance another paused tick")
 }
@@ -127,6 +141,7 @@ profile_step_stop_cancels_pending_measurement_without_a_late_reply :: proc(t:^te
 	testing.expect(t,f.engine.debug.steps_remaining==599 && f.engine.debug.profile_count==1 && f.engine.console.defer_reply)
 	stop_debug_console(&f.engine)
 	testing.expect(t,f.engine.debug.steps_remaining==0 && f.engine.debug.profile_target==0 && !f.engine.debug.profile_stepping && !f.engine.console.defer_reply)
+	testing.expect(t,f.engine.debug.profile_samples==nil,"interrupted profiles release their sample buffer")
 	if !testing.expect(t,os.exists(f.reply_path)) {return}
 	reply:=console_batch_test_reply(&f);defer json.destroy_value(reply)
 	object:=reply.(json.Object)

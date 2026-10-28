@@ -36,7 +36,7 @@ sampling_backups: [PRESET_COUNT]Sampling_Backup
 start :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if !bridge.initialized {
 		ok: bool
-		bridge, ok = r3d_bridge.init("examples/procedural_material_3d", rl.GetRenderWidth(), rl.GetRenderHeight())
+		bridge, ok = r3d_bridge.init("examples/procedural_material_3d", rl.GetRenderWidth(), rl.GetRenderHeight(), settings = game.project.render_3d, worker_pool = game.worker_pool)
 		if !ok {fmt.eprintln("Could not initialize r3d")}
 		filtered_aa = r3d.GetAntiAliasingMode()
 	}

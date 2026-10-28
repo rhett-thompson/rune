@@ -81,6 +81,7 @@ gameplay progress over authored scenes without rewriting the scene documents.
 - JSON projects, scenes, prefabs, materials, tilesets, sprite animations, input mappings, and schemas;
 - a typed ECS with reflected Odin/JSON custom components and hierarchy;
 - cached, hot-reloadable texture, model, material, tileset, sprite-animation, and font assets;
+- selective material invalidation and optional background texture/procedural reloads that retain working resources; see [asset loading](docs/assets.md);
 - independent buffered sound and streamed music playback per audio player;
 - scene-owned sprites, tilemaps, text, 3D models, PBR materials, lights, and shadows;
 - input actions and runtime rebinding, audio components, tweening, and navigation;
@@ -735,6 +736,62 @@ failure. It is also discovered automatically by `.\tools\validate.bat`:
 odin build tools/pool_validation -linker:msvc -collection:rune=rune -out:build/pool_validation.exe
 ./build/pool_validation.exe
 ```
+
+## Project 3D settings
+
+Rune also provides an optional shared CPU worker pool:
+
+```json
+"jobs": { "worker_count": 3, "queue_capacity": 256 }
+```
+
+The default worker count is `0` (disabled). Counts from 1 through 32 create
+that many additional background threads; queue capacity accepts 1 through 4096
+and defaults to 256. This pool is independent of Box3D's native workers.
+The scene loop uses it for batches of 3D path queries and large 2D particle
+updates. Forward
+`worker_pool = game.worker_pool` to `r3d_bridge.init` for parallel terrain mesh
+preparation, detail scattering, skeletal pose evaluation, and billboard
+preparation, or pass it to
+`geometry.surface_chunks` for procedural meshes. Each batch joins before the
+owning thread applies results;
+World writes and GPU uploads retain their existing lifecycle. See
+[CPU jobs](docs/jobs.md) for ownership, backpressure, and standalone use.
+
+Configure Box3D workers and R3D shadow map sizes in `project.json`:
+
+```json
+"physics_3d": {
+  "worker_count": 4
+},
+"render_3d": {
+  "shadows": {
+    "directional_resolution": 4096,
+    "spot_resolution": 2048,
+    "omni_resolution": 2048
+  }
+}
+```
+
+`physics_3d.worker_count` accepts 1 through 32, including the calling thread.
+The default is 1; larger values use Box3D's internal worker scheduler. Engine
+scene loading, changes, reloads, and save restoration apply it to each new
+World. It does not parallelize gameplay systems or Box2D. See
+[physics configuration](docs/physics.md).
+
+Shadow resolutions accept integer pixel sizes from 2 through 8192, with the
+defaults shown above. Hardware may clamp sizes to its texture limit. Forward
+the loaded settings when initializing the separately owned 3D renderer:
+
+```odin
+bridge, ok = r3d_bridge.init(game.project_directory,
+    rl.GetRenderWidth(), rl.GetRenderHeight(), settings = game.project.render_3d,
+    worker_pool = game.worker_pool)
+```
+
+The three-argument bridge initializer retains the defaults. These settings take
+effect during initialization; restart the game after changing project settings.
+See [shadow maps](docs/shadows.md) for global allocation and per-light controls.
 
 ## Project display settings
 
@@ -1613,6 +1670,9 @@ collide with the walls and multi-cell trees.
 R3D. Each entity owns its playback state while model and clip data are shared.
 Call `r3d_bridge.update_animations` from a simulation update callback; the
 existing bridge draw functions render the animated pose.
+With a borrowed worker pool, the bridge can evaluate independent characters'
+CPU poses in parallel and joins before uploading their skin textures. Timelines,
+events, resource reloads, and GPU work remain on the owning thread.
 
 See the [animation API and lifetime rules](docs/model-animation.md) and
 [skeletal_animation_3d example](examples/skeletal_animation_3d/main.odin) for

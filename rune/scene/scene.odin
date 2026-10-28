@@ -86,6 +86,9 @@ destroy_dependency_paths :: proc(paths: []string) {
 Skipped_Component_Proc :: #type proc(entity_id, component_name: string)
 
 Load_Options :: struct {
+	// Applied before scene components can create or query the native world.
+	// Zero selects the default one worker; explicit counts must be 1..32.
+	physics_3d_worker_count: int,
 	// For standalone tools extracting built-in data without game registrations.
 	// Scene structure, prefab composition and registered components stay strict.
 	skip_unregistered_components: bool,
@@ -140,6 +143,13 @@ load_with_layers :: proc(
 	resolved := prefab.resolve_scene(root_json, path, parse_allocator)
 	if resolved.error != "" {set_load_error("%s", resolved.error); return {}, false}
 	world := ecs.init()
+	worker_count := options.physics_3d_worker_count
+	if worker_count == 0 {worker_count = 1}
+	if !ecs.configure_physics_3d(&world, worker_count) {
+		ecs.destroy(&world)
+		set_load_error("3D physics worker count must be between 1 and %d", ecs.Physics3D_Max_Workers)
+		return {}, false
+	}
 	ecs.set_scene_json(&world, root_json)
 	if !instantiate_resolved(&world, registry, resolved.value, layer_names, parse_allocator, options) {
 		ecs.destroy(&world)

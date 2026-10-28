@@ -19,7 +19,7 @@ set_material_preview :: proc(manager: ^Asset_Manager, path: string, data: Materi
 	}
 	manager.material_previews[owned_path] = owned
 	watch_material_textures(manager, owned)
-	material_preview_changed(manager)
+	material_preview_changed(manager,path)
 	return true
 }
 
@@ -37,23 +37,26 @@ clear_material_preview :: proc(manager: ^Asset_Manager, path: string) -> bool {
 	if !found {return false}
 	delete_key(&manager.material_previews, path)
 	destroy_material_data(&preview)
-	material_preview_changed(manager)
+	material_preview_changed(manager,path)
 	return true
 }
 
 clear_material_previews :: proc(manager: ^Asset_Manager) {
 	if manager == nil || len(manager.material_previews) == 0 {return}
-	for _, preview in manager.material_previews {
+	paths:=make([dynamic]string);defer delete(paths)
+	for path, preview in manager.material_previews {
+		append(&paths,path)
 		data := preview
 		destroy_material_data(&data)
 	}
 	clear(&manager.material_previews)
-	material_preview_changed(manager)
+	for path in paths {refresh_visible_material_dependencies(manager,path);retire_generated_orm_material(manager,path)}
+	bump_material_revision(manager)
 }
 
 @(private)
-material_preview_changed :: proc(manager: ^Asset_Manager) {
-	clear_generated_orm_textures(manager)
-	manager.material_revision += 1
-	if manager.material_revision == 0 {manager.material_revision = 1}
+material_preview_changed :: proc(manager: ^Asset_Manager, path: string) {
+	refresh_visible_material_dependencies(manager,path)
+	retire_generated_orm_material(manager,path)
+	bump_material_revision(manager)
 }

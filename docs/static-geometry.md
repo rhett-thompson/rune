@@ -40,6 +40,23 @@ The volume is validated once; at most 65,536 logical chunks are accepted.
 Games choose chunk dimensions, material partitions, metadata, and activation.
 Each result can use the existing static-mesh API independently.
 
+Pass an optional fourth argument, `pool: ^jobs.Pool`, to extract four or more
+logical chunks through `rune:jobs`:
+
+```odin
+chunks, ok := geometry.surface_chunks(volume, colors, {16,16,16}, game.worker_pool)
+```
+
+The call remains synchronous: workers read the volume/palette and build
+independent meshes, then results are gathered in the same Z/Y/X order. Keep
+input arrays unchanged until the call returns. Vertices, indices, chunk bounds,
+and empty-chunk omission match serial extraction exactly. A nil pool or fewer
+than four logical chunks uses the original serial path. Returned dynamic arrays
+retain their allocation sources and remain owned until `destroy_mesh_chunks`.
+Install meshes into the World afterward on its owning thread. The engine owns
+`game.worker_pool`; standalone callers can create and destroy their own pool.
+See [CPU worker jobs](jobs.md) for configuration, queue fallback, and lifetimes.
+
 `ecs.set_static_mesh(world, entity, mesh)` copies validated vertex/index data
 and installs static triangle collision. An entity needs a `Transform` with
 positive scale and cannot also own Terrain, a native 3D collider/body, or a
@@ -263,12 +280,19 @@ Run the headless ownership/collision validator (also discovered by
 
 ```powershell
 odin run tools/static_mesh_validation -linker:msvc -collection:rune=rune -out:build/static_mesh_validation.exe -keep-executable
-odin test rune/geometry -linker:msvc -out:build/geometry-tests.exe
+odin test rune/geometry -collection:rune=rune -linker:msvc -out:build/geometry-tests.exe
 ```
 
 The geometry tests compare exposed unit faces across chunks, check winding,
 bounds, sparse/partial chunks, repeatability, and invalid input. The collision
 validator also walks a capsule in both directions over independent chunk seams.
+The parallel extraction test compares every vertex, triangle index, metadata
+field, and output position against serial results across multiple chunk sizes
+and repeated runs with a one-slot worker queue.
+For a reproducible optimized CPU comparison, use
+[`tools/geometry_worker_benchmark`](../tools/geometry_worker_benchmark/README.md).
+It reports serial and worker medians for 144 chunks, excluding cleanup, World
+installation, and rendering; it does not measure whole-frame improvement.
 
 For GPU material, fallback color, hot reload, collision coexistence, and cleanup checks:
 

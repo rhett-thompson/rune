@@ -34,7 +34,7 @@ Material_View_Count :: 7
 initialize_scene :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if !bridge.initialized {
 		bridge_ok: bool
-		bridge, bridge_ok = r3d_bridge.init("examples/textured_model_3d", rl.GetScreenWidth(), rl.GetScreenHeight())
+		bridge, bridge_ok = r3d_bridge.init("examples/textured_model_3d", rl.GetScreenWidth(), rl.GetScreenHeight(), settings = game.project.render_3d, worker_pool = game.worker_pool)
 		if !bridge_ok { fmt.eprintln("Could not initialize r3d") }
 	}
 	crate, showing_crate = ecs.find_entity_by_id(world, "crate")

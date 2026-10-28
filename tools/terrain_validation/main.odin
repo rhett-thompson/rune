@@ -144,6 +144,7 @@ main :: proc() {
 	validate_snapshot(&r,&manager)
 	for arg in os.args[1:] {
 		if arg=="--runtime" {validate_runtime()}
+		if arg=="--runtime-jobs" {validate_runtime(use_jobs=true)}
 		if arg=="--runtime-details" {validate_runtime(details_only=true)}
 	}
 }

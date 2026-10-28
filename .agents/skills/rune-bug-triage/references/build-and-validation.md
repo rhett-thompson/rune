@@ -38,20 +38,77 @@ Build the relevant tool with the compiler wrapper, using
 Supply `-linker:msvc` on Windows. Launch the resulting executable after the build
 finishes and releases the compiler lock; Windows outputs use `.exe`.
 
+The aggregate validators include `rune/assets` and `rune/image_decode` with a
+serial test runner; those suites control their own worker-concurrency cases.
+Private decoder source/header pins and both target archives live in
+`third_party/rune-image/`. Normal builds link a checked-in archive. After native
+decoder changes, use its documented rebuild and symbol/TLS audit rather than
+inferring isolation from the Odin binding alone. Release export preflight
+requires the wrapper, altered header, TLS patch, notices/pins, rebuild/audit
+tools, and both Windows/Linux AMD64 archives. Publisher notice and native-pin
+collection regressions are in `rune_publish/notices_test.odin`; passing them
+does not establish a relocated game's runtime compatibility.
+
 | Report concerns | Headless/configuration checks | Additional runtime checks |
 | --- | --- | --- |
 | Dropdown/UI layout or input | Serial `rune/ui` tests; `tools/ui_validation` | `ui_validation --runtime` for rendered pixels, clipping, and MSAA |
 | Camera2D, particles, or DPI alignment | `tools/particle_validation` for simulation/configuration | `particle_validation --runtime` for camera/UI/gizmo and offscreen pixels; verify actual non-unit DPI and add picking checks when relevant |
+| Particle simulation jobs or billboard preparation/uploads | `rune/particles` tests and headless `tools/particle_worker_validation` for exact scalar streams, allocator ownership and full/free queues | `particle_worker_validation --runtime` for actual engine 2D updates/render parity, multiple R3D billboard GPU streams/pixels, camera turns and empty reuse |
 | 2D canvas scaling or mouse mapping | `tools/resolution_validation` for layout/mapping math | `resolution_validation --runtime` for framebuffer pixels |
 | Window modes, visibility, or shared-raylib linking | `tools/window_validation` for settings; compile a separate shared target with `-define:RAYLIB_SHARED=true` | `window_validation --runtime`; run `--startup-windowed`, `--startup-borderless`, and `--startup-fullscreen` in separate processes when startup modes matter; use `--hidden-runtime` for persistent visibility |
 | Audio ownership, mixing, stopping, or preload | `tools/mixer_validation` and `tools/audio_stop_validation` for configuration | Both validators with `--runtime`, using a working playback backend |
 | Navmesh bake coverage or path detours | `rune/navigation` tests, `tools/navigation_bake_validation`, and headless `tools/navigation_3d_validation`; compare actual route lengths on the reported bake/query settings | `navigation_3d_validation --runtime` when visible agent motion or rendered navigation is the symptom |
 | Terrain editing or reload retention | `tools/terrain_validation` for PNG/R16 decoding, CPU data ownership, native collision, corrupt-heightmap retention and recovery | `terrain_validation --runtime` for GPU chunk replacement, invalid-reload retention, materials and instanced details |
+| Selective material invalidation or asynchronous image loading | Serial `rune/assets` and `rune/image_decode` tests; private decoder symbol/TLS audit from `third_party/rune-image/README.md` | `material_reload_validation --runtime` for actual texture/shader reuse and ORM lease retirement; `material_async_validation --runtime` for the bounded worker/commit path |
+| Skeletal pose jobs or animation resource replacement | Serial `rune/r3d_bridge` tests and headless `tools/model_animation_validation`; `tools/animation_worker_benchmark` for isolated native CPU comparisons | `model_animation_validation --runtime` checks native players/uploads and the worker suite; `--runtime-jobs` selects worker pose/pixel equivalence, reload ordering and shared-pool contention alone |
 | Console transport, batching, or completion | `rune/console` tests, focused `rune/core` console/quit tests, and `tools/console_validation` | `debug_console_validation --runtime` for capture pixels, profile completion, and results retained across rendered frames |
 | Paused stepping, fast-step input, or frame pacing | `rune/core/fast_step_test.odin` and `rune/input/fast_step_test.odin` within their package tests | `fast_step_validation --runtime` for actual callback/scene tick cadence, deferred ordering, runtime cap restoration, and interrupted commands |
 
 The table names tool packages; runtime commands refer to the executables built
 from them. UI pixel checks do not replace the serial dropdown/input tests.
+
+Shared CPU jobs use `rune/jobs` tests for queue saturation, nested batches, and
+drain/join shutdown; the aggregate validators include this package. Run
+`tools/terrain_validation --runtime-jobs` for worker-backed terrain preparation,
+GPU installation, reload retention and cache reuse.
+This terrain suite requests synchronous material replacement for its one-draw
+pixel assertions; `material_async_validation --runtime` separately checks
+background material replacement through ordinary cached prop and terrain draws.
+Geometry and 3D navigation tests compare serial/parallel results with bounded
+queues and owned outputs.
+The scheduler's gated-worker regressions verify that completed indexed batches
+remove unused internal runners without waiting for unrelated callbacks or
+changing foreign FIFO jobs. On 2026-10-28, all six scheduler tests passed with
+Odin `84bc3fc` and a serial test runner on Windows AMD64/MSVC and Ubuntu 26.04.1
+under WSL2. These headless checks do not exercise GPU ownership.
+Use `tools/physics_worker_benchmark` and `tools/geometry_worker_benchmark` for
+optimized, reproducible comparisons; their READMEs define fixtures and timing
+limits. Do not infer game frame-rate gains from isolated CPU stages.
+
+The skeletal worker suite passed through both `model_animation_validation`
+runtime modes on 2026-10-28 with Odin `84bc3fc`, MSVC, Windows AMD64/GLFW Win32,
+static raylib 6/R3D, NVIDIA GTX 1060 and OpenGL 3.3. It compares serial/parallel
+state, events, native poses and actual skin-texture readbacks through blends,
+reloads and pool contention. See `docs/model-animation.md` for fixture details.
+Linux validation covers the native CPU benchmark and scheduler tests; it does
+not establish Linux GPU behavior.
+
+The particle worker validator's headless and runtime branches passed on
+2026-10-28 with the same Windows/Odin/MSVC/GLFW/static raylib/R3D graphics context.
+It compares scalar/worker simulation and prepared streams, including invalid
+input filtering and tied depths, then actual 2D rendered pixels and R3D GPU
+POSITION/SCALE/COLOR buffers across multiple billboard batches. Its watchdog
+cases hold unrelated worker callbacks while batches complete through both full
+and free queues. See `docs/particles.md`; these checks do not prove a frame-rate
+gain or Linux GPU behavior.
+
+For engine/pool initialization changes, run `tools/jobs_validation --runtime`
+as well as the headless packages. On 2026-10-28, expanded inline profiling
+samples caused Windows unoptimized engine initialization to overflow the normal
+1 MiB stack. On-demand owned sample storage fixed the same hidden-window
+lifecycle check without changing the stack reserve. Completion, interruption,
+and shutdown release that storage; see `rune/core/profile_timings.odin` and the
+tool's README. A compiler check or unit-only pass did not exercise this failure.
 
 For terrain-detail upload regressions, run `rune/r3d_bridge` tests with
 `-define:RUNE_TERRAIN_DETAIL_GPU_TESTS=true`, `-define:ODIN_TEST_THREADS=1`, and

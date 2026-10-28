@@ -131,6 +131,49 @@ asset polling continues. Callback-based loops should call
 `ecs.sync_navigation_3d(world, asset_manager)` after asset refresh, then
 `ecs.update_navigation_3d(world, fixed_dt)` before physics.
 
+## Parallel path queries
+
+The engine can use its optional CPU job pool for batches of agent paths. Enable
+the pool in `project.json`; it is disabled by default:
+
+```json
+"jobs": { "worker_count": 3, "queue_capacity": 256 }
+```
+
+The scene loop supplies that pool to `ecs.update_navigation_3d`. A step with at
+least four due path queries solves independent searches through the pool;
+smaller batches remain serial. The caller can help execute the batch. Pool
+workers are additional threads, independent of Box3D's physics worker setting.
+
+Navigation gathers agent, target, and mesh snapshots and creates any missing
+clearance preparation on the owning game thread. Workers only read stable mesh
+arrays and prepared geometry, use separate search scratch, and produce owned
+path results. The game thread waits for the complete batch, takes ownership of
+the final path buffers, then publishes agent state and movement in ascending
+entity-handle order. Serial navigation uses that same order. Paths become
+available in the current fixed step; no work is carried across frames.
+
+All World navigation APIs, including `ecs.find_navigation_path_3d`, still belong
+on the owning game thread. That wrapper can populate World-owned caches. Keep
+runtime mesh arrays unchanged and alive throughout `update_navigation_3d`;
+blocking edits, target changes, mesh replacement, and scene destruction can run
+after it returns. The synchronous barrier also releases every worker's borrow
+of cached preparation before those operations can destroy it.
+
+Custom loops can pass a borrowed `^jobs.Pool` as the optional third argument:
+
+```odin
+ecs.update_navigation_3d(world, fixed_dt, pool)
+```
+
+The caller owns that pool and keeps it alive until the call returns. The World
+does not retain the pointer, and omitting it preserves serial execution. Measure
+representative agent counts and path complexity before opting in: dispatch and
+result transfer can cost more than small searches save. Focused
+`rune/ecs/navigation_3d_jobs_test.odin` tests compare serial and pooled path,
+controller-motion, mutation, allocator, and World/pool lifetime behavior; they
+do not establish a speedup for a particular game.
+
 ## Agent settings
 
 | Field | Default | Meaning |

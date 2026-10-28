@@ -239,131 +239,83 @@ get_navigation_state_3d :: proc(world:^World,entity:Entity) -> (Nav_Agent_State_
 	return world.navigation_3d.agents[entity].state,true
 }
 
-// Run before physics on each fixed step. Game systems may set targets first.
-update_navigation_3d :: proc(world:^World,dt:f32) {
-	if !finite_nonnegative(dt) || dt<=0 {return}
-	for entity,&runtime in world.navigation_3d.agents {
-		config,found:=get(world,entity,NavAgent3D)
-		if !found {continue}
-		runtime.state.desired_velocity={}
-		runtime.state.actual_velocity={};runtime.state.remaining_distance=0
-		if config.drive_controller {character_controller_3d_move(world,entity,{})}
-		if !runtime.state.has_target {continue}
-		if !is_enabled(world,entity) {runtime.state.status=.Disabled; runtime.revision=0;runtime.current_speed=0;runtime.position_valid=false; continue}
-		transform,has_transform:=get_transform(world,entity)
-		mesh_entity,has_mesh:=resolve_entity_ref(world,config.mesh)
-		mesh,mesh_ready:=navigation_mesh_3d(world,mesh_entity)
-		parent,has_parent:=get_parent(world,entity)
-		if !has_transform || !has_mesh || !mesh_ready || has_parent || parent!=Entity(0) || transform.scale!=([3]f32{1,1,1}) ||
-		   has_component_data(world,entity,"RigidBody3D") || (!config.drive_controller && has_component_data(world,entity,"CharacterController3D")) {
-			runtime.state.status=.Unavailable; runtime.revision=0;runtime.current_speed=0;runtime.position_valid=false; continue
+// Called on the owning thread after every query in this fixed step completes.
+navigation_advance_agent_3d :: proc(world:^World,entity:Entity,runtime:^Nav_Agent_Runtime_3D,config:NavAgent3D,initial_transform:Transform,dt:f32) {
+	transform := initial_transform
+	if runtime.path.status!=.Complete {runtime.state.status=.No_Path;runtime.current_speed=0; return}
+	runtime.state.status=.Moving
+	goal:=runtime.path.points[len(runtime.path.points)-1]
+	at_goal:=navigation_goal_reached_3d(config,transform.position,goal)
+	// A braking motor may still be moving within goal tolerance. Retain the
+	// goal waypoint so drift can be corrected without waiting for a repath.
+	if runtime.state.next_point>=len(runtime.path.points) {runtime.state.next_point=len(runtime.path.points)-1}
+	for runtime.state.next_point<len(runtime.path.points)-1 {
+		if config.drive_controller && navigation_controller_passed_point_3d(runtime.path.points,runtime.state.next_point,transform.position,config) {
+			runtime.state.next_point+=1;continue
 		}
-		if config.drive_controller {
-			motor,ok:=get_character_controller_3d(world,entity)
-			if !ok || !character_controller_3d_ready(world,entity) || config.radius<motor.radius || config.height<motor.height || config.max_slope>motor.max_slope_angle {
-				runtime.state.status=.Unavailable; runtime.revision=0;runtime.current_speed=0;runtime.position_valid=false; continue
-			}
-		}
-		mesh_revision:=world.navigation_3d.meshes[mesh_entity].revision
-		// A game-owned teleport must not continue an old corridor through walls
-		// until the periodic repath timer expires. Motors legitimately move
-		// between navigation updates, so allow their ordinary fixed-step travel.
-		teleport_distance:=max(config.max_projection,config.speed*dt*4+0.25) if config.drive_controller else f32(0.001)
-		if runtime.position_valid {
-			if navigation.distance_3d(runtime.last_position,transform.position)>teleport_distance {
-				runtime.revision=0;runtime.current_speed=0
-			} else if config.drive_controller {
-				runtime.state.actual_velocity=(transform.position-runtime.last_position)/dt
-			}
-		}
-		runtime.last_position=transform.position;runtime.position_valid=true
-		config_version:=world.component_changes[Component_Change_Key{entity=entity,name="NavAgent3D"}].version
-		runtime.repath_remaining-=dt
-		if runtime.repath_remaining<=0 || runtime.revision!=mesh_revision || runtime.mesh!=mesh_entity || runtime.config_version!=config_version {
-			navigation.destroy_path_3d(&runtime.path)
-			runtime.path=find_navigation_path_3d(world,mesh_entity,transform.position,runtime.state.target,
-				{radius=config.radius,height=config.height,max_slope=config.max_slope,max_projection=config.max_projection})
-			runtime.state.path=runtime.path.points; runtime.state.path_status=runtime.path.status; runtime.state.next_point=0
-			// The projected start anchors the query. A motor already owns its
-			// physical position and must not steer back to that anchor on repaths.
-			if config.drive_controller && runtime.path.status==.Complete {runtime.state.next_point=1}
-			runtime.repath_remaining=config.repath_interval; runtime.revision=mesh_revision; runtime.mesh=mesh_entity; runtime.config_version=config_version
-		}
-		if runtime.path.status!=.Complete {runtime.state.status=.No_Path;runtime.current_speed=0; continue}
-		runtime.state.status=.Moving
-		goal:=runtime.path.points[len(runtime.path.points)-1]
-		at_goal:=navigation_goal_reached_3d(config,transform.position,goal)
-		// A braking motor may still be moving within goal tolerance. Retain the
-		// goal waypoint so drift can be corrected without waiting for a repath.
-		if runtime.state.next_point>=len(runtime.path.points) {runtime.state.next_point=len(runtime.path.points)-1}
-		for runtime.state.next_point<len(runtime.path.points)-1 {
-			if config.drive_controller && navigation_controller_passed_point_3d(runtime.path.points,runtime.state.next_point,transform.position,config) {
-				runtime.state.next_point+=1;continue
-			}
-			delta:=runtime.path.points[runtime.state.next_point]-transform.position
-			tolerance:=config.waypoint_distance+1e-4 if config.drive_controller else f32(1e-5)
-			if navigation_travel_distance_3d(delta,config.drive_controller)>tolerance ||
-			   (config.drive_controller && abs(delta.y)>max(tolerance,0.25)) {break}
-			runtime.state.next_point+=1
-		}
-		braking:=config.braking
-		motor:CharacterController3D
-		if config.drive_controller {motor,_=get_character_controller_3d(world,entity);braking=motor.braking}
-		motion_config:=config
-		if config.drive_controller {motion_config.speed=min(config.speed,motor.move_speed)}
-		speed:=navigation_speed_limit_3d(motion_config,runtime.path.points,runtime.state.next_point,transform.position,braking,dt)
-		if at_goal {speed=0}
-		if config.drive_controller {
-			steering_point:=navigation_straight_leg_end_3d(runtime.path.points,runtime.state.next_point)
-			delta:=runtime.path.points[steering_point]-transform.position
-			horizontal:=navigation_travel_distance_3d(delta,true)
-			if horizontal>1e-5 && motor.move_speed>0 && speed>0 {
-				speed=min(speed,min(motor.move_speed,horizontal/dt))
-				direction:=[2]f32{delta.x/horizontal,delta.z/horizontal}
-				character_controller_3d_move(world,entity,direction*(speed/motor.move_speed))
-				motor_state:=world.character_controller_states_3d[entity]
-				motor_state.navigation_braking=config.auto_braking || config.corner_slowdown
-				world.character_controller_states_3d[entity]=motor_state
-				runtime.state.desired_velocity={direction.x*speed,0,direction.y*speed}
-			}
-			motor_state:=world.character_controller_states_3d[entity]
-			if at_goal && navigation_travel_distance_3d(motor_state.velocity,true)<=Navigation_Stopped_Speed_3D &&
-			   navigation_travel_distance_3d(runtime.state.actual_velocity,true)<=Navigation_Stopped_Speed_3D {
-				runtime.state.status=.Arrived;runtime.state.next_point=len(runtime.path.points)
-			}
-			// Ground snap and contact resolution can move the capsule sideways
-			// or backward briefly. Facing follows steering, not those corrections.
-			navigation_rotate_3d(&transform,runtime.state.desired_velocity,config,dt)
-			if world.transforms[entity]!=transform {set_transform(world,entity,transform)}
-		} else {
-			runtime.current_speed=navigation_approach_speed_3d(runtime.current_speed,speed,config.acceleration,config.braking,dt)
-			remaining:=runtime.current_speed*dt
-			before:=transform.position
-			for runtime.state.next_point<len(runtime.path.points) && remaining>0 {
-				delta:=runtime.path.points[runtime.state.next_point]-transform.position
-				distance:=navigation.length_3d(delta)
-				if distance<=1e-5 {runtime.state.next_point+=1;continue}
-				last:=runtime.state.next_point==len(runtime.path.points)-1
-				travel:=min(remaining,distance)
-				if last {travel=min(travel,max(0,distance-config.stopping_distance))}
-				if travel<=0 {runtime.current_speed=0;break}
-				transform.position+=delta*(travel/distance);remaining-=travel
-				runtime.state.desired_velocity=delta*(speed/distance)
-				at_goal=navigation_goal_reached_3d(config,transform.position,goal)
-				if last && distance-travel<=config.stopping_distance+1e-5 {runtime.current_speed=0}
-				if travel<distance {break};runtime.state.next_point+=1
-			}
-			runtime.state.actual_velocity=(transform.position-before)/dt
-			if at_goal && runtime.current_speed<=Navigation_Stopped_Speed_3D &&
-			   navigation.length_3d(runtime.state.actual_velocity)<=Navigation_Stopped_Speed_3D {
-				runtime.state.status=.Arrived;runtime.state.next_point=len(runtime.path.points)
-			}
-			navigation_rotate_3d(&transform,runtime.state.actual_velocity,config,dt)
-			if world.transforms[entity]!=transform {set_transform(world,entity,transform)}
-			runtime.last_position=transform.position
-		}
-		runtime.state.remaining_distance=navigation_remaining_distance_3d(runtime.path.points,
-			min(runtime.state.next_point,len(runtime.path.points)-1),transform.position,config.drive_controller)
-		if runtime.state.status==.Arrived {runtime.state.desired_velocity={}}
+		delta:=runtime.path.points[runtime.state.next_point]-transform.position
+		tolerance:=config.waypoint_distance+1e-4 if config.drive_controller else f32(1e-5)
+		if navigation_travel_distance_3d(delta,config.drive_controller)>tolerance ||
+		   (config.drive_controller && abs(delta.y)>max(tolerance,0.25)) {break}
+		runtime.state.next_point+=1
 	}
+	braking:=config.braking
+	motor:CharacterController3D
+	if config.drive_controller {motor,_=get_character_controller_3d(world,entity);braking=motor.braking}
+	motion_config:=config
+	if config.drive_controller {motion_config.speed=min(config.speed,motor.move_speed)}
+	speed:=navigation_speed_limit_3d(motion_config,runtime.path.points,runtime.state.next_point,transform.position,braking,dt)
+	if at_goal {speed=0}
+	if config.drive_controller {
+		steering_point:=navigation_straight_leg_end_3d(runtime.path.points,runtime.state.next_point)
+		delta:=runtime.path.points[steering_point]-transform.position
+		horizontal:=navigation_travel_distance_3d(delta,true)
+		if horizontal>1e-5 && motor.move_speed>0 && speed>0 {
+			speed=min(speed,min(motor.move_speed,horizontal/dt))
+			direction:=[2]f32{delta.x/horizontal,delta.z/horizontal}
+			character_controller_3d_move(world,entity,direction*(speed/motor.move_speed))
+			motor_state:=world.character_controller_states_3d[entity]
+			motor_state.navigation_braking=config.auto_braking || config.corner_slowdown
+			world.character_controller_states_3d[entity]=motor_state
+			runtime.state.desired_velocity={direction.x*speed,0,direction.y*speed}
+		}
+		motor_state:=world.character_controller_states_3d[entity]
+		if at_goal && navigation_travel_distance_3d(motor_state.velocity,true)<=Navigation_Stopped_Speed_3D &&
+		   navigation_travel_distance_3d(runtime.state.actual_velocity,true)<=Navigation_Stopped_Speed_3D {
+			runtime.state.status=.Arrived;runtime.state.next_point=len(runtime.path.points)
+		}
+		// Ground snap and contact resolution can move the capsule sideways
+		// or backward briefly. Facing follows steering, not those corrections.
+		navigation_rotate_3d(&transform,runtime.state.desired_velocity,config,dt)
+		if world.transforms[entity]!=transform {set_transform(world,entity,transform)}
+	} else {
+		runtime.current_speed=navigation_approach_speed_3d(runtime.current_speed,speed,config.acceleration,config.braking,dt)
+		remaining:=runtime.current_speed*dt
+		before:=transform.position
+		for runtime.state.next_point<len(runtime.path.points) && remaining>0 {
+			delta:=runtime.path.points[runtime.state.next_point]-transform.position
+			distance:=navigation.length_3d(delta)
+			if distance<=1e-5 {runtime.state.next_point+=1;continue}
+			last:=runtime.state.next_point==len(runtime.path.points)-1
+			travel:=min(remaining,distance)
+			if last {travel=min(travel,max(0,distance-config.stopping_distance))}
+			if travel<=0 {runtime.current_speed=0;break}
+			transform.position+=delta*(travel/distance);remaining-=travel
+			runtime.state.desired_velocity=delta*(speed/distance)
+			at_goal=navigation_goal_reached_3d(config,transform.position,goal)
+			if last && distance-travel<=config.stopping_distance+1e-5 {runtime.current_speed=0}
+			if travel<distance {break};runtime.state.next_point+=1
+		}
+		runtime.state.actual_velocity=(transform.position-before)/dt
+		if at_goal && runtime.current_speed<=Navigation_Stopped_Speed_3D &&
+		   navigation.length_3d(runtime.state.actual_velocity)<=Navigation_Stopped_Speed_3D {
+			runtime.state.status=.Arrived;runtime.state.next_point=len(runtime.path.points)
+		}
+		navigation_rotate_3d(&transform,runtime.state.actual_velocity,config,dt)
+		if world.transforms[entity]!=transform {set_transform(world,entity,transform)}
+		runtime.last_position=transform.position
+	}
+	runtime.state.remaining_distance=navigation_remaining_distance_3d(runtime.path.points,
+		min(runtime.state.next_point,len(runtime.path.points)-1),transform.position,config.drive_controller)
+	if runtime.state.status==.Arrived {runtime.state.desired_velocity={}}
 }

@@ -30,6 +30,8 @@ Read only the references needed for the task:
 Use Rune's current `docs/components.md`, schemas, focused guides, and the closest
 working example for API details. Do not load the entire manual or all examples
 for a small feature. Check installed source signatures before inventing calls.
+For terrain detail distance thinning, follow the optional density settings in
+`docs/terrain.md` and the rendering reference.
 
 ## Implement through Rune's supported workflow
 
@@ -66,6 +68,23 @@ for a small feature. Check installed source signatures before inventing calls.
   Register custom component types before loading scenes that use them. Choose
   callback timing from the lifecycle reference rather than manually advancing
   physics, audio, particles, or animation that the scene loop already owns.
+- Configure Box3D through `project.json`'s `physics_3d.worker_count` (1 through
+  32, default 1, including the calling thread). Engine scene loading and
+  restoration carry it into each World. Forward `game.project.render_3d` as
+  `settings` to `r3d_bridge.init` to apply project shadow map resolutions;
+  omitted settings preserve the native defaults. Both are startup settings.
+  See the subsystem and rendering references for direct World/renderer use.
+- Opt into the shared CPU pool with project `jobs.worker_count` (additional
+  threads, default 0). The engine owns `game.worker_pool`; pass it to the 3D
+  bridge or geometry helpers when needed. Synchronous geometry/navigation
+  batches join before World/GPU writes; skeletal pose batches join before skin
+  upload and player-cache publication. Particle jobs join before State
+  publication, live-prefix compaction or billboard upload; code-owned 3D pools
+  still need an explicit simulation tick. Asset reload jobs can span frames and
+  retain owned request/result storage. First loads stay synchronous; background
+  reloads keep last-good resources until main-thread installation. See
+  `docs/assets.md`, `docs/jobs.md`, and the rendering reference for ownership,
+  bounded submission, scratch lifetime, and draining before teardown.
 - The standalone navmesh baker omits unregistered game components and warns for
   each omission; review those warnings for misspelled built-ins. Normal scene
   loading stays strict. Bake a game-side World when systems generate geometry;

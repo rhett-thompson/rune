@@ -14,7 +14,7 @@ bridge: r3d_bridge.Context
 start :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if bridge.initialized {return}
 	ok: bool
-	bridge, ok = r3d_bridge.init("examples/skybox_3d", rl.GetRenderWidth(), rl.GetRenderHeight())
+	bridge, ok = r3d_bridge.init("examples/skybox_3d", rl.GetRenderWidth(), rl.GetRenderHeight(), settings = game.project.render_3d, worker_pool = game.worker_pool)
 	if !ok {fmt.eprintln("Could not initialize r3d")}
 }
 

@@ -45,6 +45,11 @@ changes are rejected. The export archives the official dependency commit, then
 applies the [parent-owned corrections](../third_party/r3d-compat/README.md) and
 verifies every dependency file against the recorded Git blob manifest. This
 preserves the fixes in an export without Git metadata.
+Both export modes also require the private image decoder's wrapper/header,
+TLS patch, license/provenance metadata, rebuild/audit tools, and checked-in
+Windows and Linux AMD64 archives. The check fails early if a source release
+omits either archive, even when validating on only one host. Normal validation
+links the selected archive and does not download or rebuild native code.
 Omit `--runtime` for checks without graphics or audio initialization. On headless Linux,
 use `xvfb-run -a sh tools/release_check.sh --runtime` after
 installing the dependencies in [Linux development](linux.md).

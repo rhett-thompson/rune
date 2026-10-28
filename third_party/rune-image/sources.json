@@ -1,0 +1,8 @@
+{
+  "stb_image_version": "2.30",
+  "source": "raylib c1ab645ca298a2801097931d1079b10ff7eb9df8 src/external/stb_image.h",
+  "source_url": "https://github.com/raysan5/raylib/blob/c1ab645ca298a2801097931d1079b10ff7eb9df8/src/external/stb_image.h",
+  "upstream_stb_image_sha256": "594C2FE35D49488B4382DBFAEC8F98366DEFCA819D916AC95BECF3E75F4200B3",
+  "stb_image_sha256": "39938D2A1C77F25A809860C5E3EE2F678DF96DA4300B28135317DA05503806A7",
+  "zig": "0.15.2"
+}

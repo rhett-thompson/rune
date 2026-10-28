@@ -182,6 +182,7 @@ validate_project :: proc(project_path: string) -> Report {
 	}
 	validate_window(&report, project_path, project)
 	validate_render_2d(&report, project_path, project)
+	validate_project_runtime_settings(&report, project_path, project)
 	layers := validate_layers(&report, project_path, project)
 	if input_ok && len(input_path) > 0 {
 		resolved_input := path_from(&report, project_directory, input_path)

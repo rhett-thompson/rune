@@ -25,7 +25,7 @@ scene_view := r3d_bridge.Scene3D_Settings {
 initialize_audio_components :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if !bridge.initialized {
 		bridge_ok: bool
-		bridge, bridge_ok = r3d_bridge.init("examples/audio_components", rl.GetScreenWidth(), rl.GetScreenHeight())
+		bridge, bridge_ok = r3d_bridge.init("examples/audio_components", rl.GetScreenWidth(), rl.GetScreenHeight(), settings = game.project.render_3d, worker_pool = game.worker_pool)
 		if !bridge_ok { fmt.eprintln("Could not initialize r3d") }
 	}
 	listener_entity, _ = ecs.find_entity_by_id(world, "main_camera")

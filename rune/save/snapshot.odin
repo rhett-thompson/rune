@@ -68,12 +68,13 @@ capture :: proc(manager: ^Manager, world: ^ecs.World) -> bool {
 // Prepare a fresh scene, apply its checkpoint, and validate before publishing.
 // The caller owns both the returned World and candidate checkpoint on success.
 prepare_scene :: proc(manager: ^Manager, checkpoint: ^Checkpoint, path: string,
-	registry: ^ecs.Component_Registry, layers: map[string]u8) -> (ecs.World, bool) {
+	registry: ^ecs.Component_Registry, layers: map[string]u8,
+	options := scene.Load_Options{}) -> (ecs.World, bool) {
 	a := allocator(checkpoint)
 	key, valid := scene_key(manager, path, a)
 	if !valid {return {}, false}
 	full_path, _ := filepath.join({manager.project_directory, key}, context.temp_allocator)
-	world, loaded := scene.load_with_layers(full_path, registry, layers)
+	world, loaded := scene.load_with_layers(full_path, registry, layers, options)
 	if !loaded {return {}, fail(manager, "Could not load save scene '%s': %s", key, scene.last_load_error())}
 	success := false
 	defer if !success {ecs.destroy(&world)}

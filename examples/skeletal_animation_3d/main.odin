@@ -26,7 +26,7 @@ speeds := [?]f32{0.5, 1, 2}
 start :: proc(game: ^rune.Engine, world: ^ecs.World) {
 	if !bridge.initialized {
 		ok: bool
-		bridge, ok = r3d_bridge.init("examples/skeletal_animation_3d", rl.GetScreenWidth(), rl.GetScreenHeight())
+		bridge, ok = r3d_bridge.init("examples/skeletal_animation_3d", rl.GetScreenWidth(), rl.GetScreenHeight(), settings = game.project.render_3d, worker_pool = game.worker_pool)
 		if !ok { fmt.eprintln("Could not initialize R3D") }
 	}
 	left, _ = ecs.find_entity_by_id(world, "left")

@@ -33,6 +33,120 @@ For relocatable games, pass `game.project_directory` as the bridge's root after
 `rune.init_project()` (or explicit `rune.init`). The bridge has its own root;
 hard-coded example paths do not become portable just because core startup is.
 
+`Project.render_3d.shadows` supplies startup map resolutions shared by each
+light type: `directional_resolution` defaults to 4096, while `spot_resolution`
+and `omni_resolution` default to 2048. Forward `game.project.render_3d` as the
+fourth argument to `r3d_bridge.init`; the separately owned bridge cannot read
+core project settings automatically. Dimensions must be integers from 2 through
+8192, with native clamping to the GPU texture-size limit. A three-argument init
+uses the defaults. For typed overrides without a project, begin with
+`render.default_settings_3d()` from `rune:render`. The settings apply before native
+renderer initialization and require shutdown/reinitialization to change; light
+shadow profiles retain per-light filtering, bias, and update settings. See
+`docs/shadows.md` and `rune/render/settings_3d.odin`.
+
+Forward `worker_pool = game.worker_pool` to `r3d_bridge.init` when the project
+enables `jobs.worker_count`. The bridge borrows the engine-owned pool and joins
+each CPU batch before uploading or replacing terrain caches. Shutdown the
+bridge before the engine as usual. Terrain construction builds at most eight
+CPU chunks per wave, gathers in the original Z/X order, and retains the previous
+working cache if GPU installation fails. Detail types scatter independently and
+keep their candidate order. No World mutation or graphics calls run in jobs.
+See `docs/jobs.md`, `docs/terrain.md`, and `rune/r3d_bridge/terrain_jobs.odin`.
+
+The same borrowed pool enables skeletal pose batches across independent
+characters. The bridge first finishes owner-thread model/library reloads, then
+gathers players and timeline/event changes. Jobs run only local pose, Rune's
+pose blend, and model-space accumulation; each player owns its output buffers,
+while skeletons and clip tracks remain read-only. The owner waits before skin
+texture upload, blend-storage release, and player-cache publication. Playback
+state and marker events are updated on the owner during gathering. Do not
+concurrently mutate borrowed players or reuse a bridge from another thread.
+Small workloads and queue saturation run inline. `Context.animation_stats`
+records the last preparation, including draw-time preparation; see
+`docs/model-animation.md` and `rune/r3d_bridge/animation.odin`.
+
+The engine's shared pool also advances large 2D particle batches after gameplay;
+custom loops pass it to `ecs.update_particles_2d(world,dt,pool)` once per tick.
+Drawing remains owner-thread raylib submission. Code-owned 3D pools opt in with
+`particles.update_3d(&pool,dt,game.worker_pool)` and still need a game-owned tick.
+For R3D billboards, the bridge reserves CPU streams on the owner, joins parallel
+classification and per-batch packing/sorting, then uploads distinct instance
+buffers for each draw. Input slices stay immutable through the draw; sphere
+submission stays on the owner. Keep the bridge alive only while its borrowed
+pool exists. See `docs/particles.md` for lifetimes, frame statistics, fallback
+behavior and `tools/particle_worker_validation` for CPU/GPU parity checks.
+
+## Asset loading and reload ownership
+
+First-use asset getters and explicit `assets.refresh` remain synchronous and
+belong to the owning game thread. Engine texture polling uses background
+preparation when `jobs.worker_count` enables its pool; custom loops configure
+`assets.configure_asset_jobs`, pump completed work, and call
+`assets.refresh_background`. Even path resolution retains strings in manager maps, and
+diagnostic helpers mutate pending/deduplication state. A CPU job needs copied
+paths/settings and owned result/error buffers, rather than a manager pointer.
+Keep GPU upload, cache publication, revision changes, and old-resource disposal
+on the owner. Existing borrowed data can expire on a successful refresh.
+
+The manager's raylib texture cache and the bridge's directly loaded R3D material
+maps are separate paths; improving `assets.texture` alone does not change normal
+3D albedo/normal/emission loading. Model and skybox timestamp refresh mostly
+advances revisions; their heavy native work is deferred until renderer use, so
+`profile`'s `asset_refresh` field alone does not account for all loading stalls.
+See `rune/assets/assets.odin`, `rune/r3d_bridge/r3d_bridge.odin`, and
+`rune/r3d_bridge/procedural_material.odin`.
+
+Do not move `r3d_bridge.import_model` or `R3D_LoadModelFromImporter` wholesale
+onto workers: conversion creates native GPU resources and uses shared R3D
+scratch. Native image imports also need a decoder/linkage audit; an Odin
+`vendor:stb/image` import does not establish an isolated thread-safe decoder.
+See the bug-triage notes on
+[native asset import and decoder boundaries](../../rune-bug-triage/references/dependency-pitfalls.md#native-asset-import-and-decoder-boundaries).
+Rune's `rune:image_decode` uses a separately pinned native decoder with private
+symbols and thread-local error buffers. It is the supported background image
+path; ordinary vendor decoder calls retain their prior constraints. See
+`third_party/rune-image/README.md` and `docs/assets.md`.
+
+The bridge uses its borrowed pool for replacements of cached procedural
+materials and direct albedo/normal/emission/ORM images. First loads stay
+synchronous. Workers own copied settings, paths, pixels and errors; existing
+GPU materials stay installed until a current result is ready. The bridge
+automatically pumps at the start of `draw_scene_ex`, freezes completion
+eligibility before submission, and installs at most one material per draw.
+Custom direct-material loops call `r3d_bridge.pump_material_jobs` before native
+submission. Superseded or unused results are discarded, and shutdown drains
+accepted work. Keep the pool and asset manager alive until bridge shutdown.
+Separate-channel generated ORM, fonts, full model import, and unsupported image
+containers retain their synchronous paths. Preview save/clear ordering still
+applies; with workers enabled, GPU preview replacement can span frames.
+
+Material caches use per-path revisions and complete variant/dependency
+fingerprints. Unrelated material or preview edits preserve an unchanged
+material's maps and shader. Source generations include watched texture/shader
+changes and completed GPU texture installs, including late installs after file
+polling already observed their timestamp. Authored-path fast hits are metadata
+lookups with no per-draw file stats. The aggregate manager revision still
+invalidates instance/batch metadata. See `rune/assets/material_dependencies.odin`
+and the bridge material getters. Terrain atlases follow successful GPU material
+installations, preserving their handles while replacements are pending or fail.
+Cached batches retry queue admission failures and obsolete completions through
+ordinary drawing; tools do not need to force material getters to make progress.
+
+Generated separate-channel ORM is manager-owned. Bridge materials retain leases;
+retired source entries remain alive until their last lease is released, and
+unused replaced editor variants are reclaimed. The legacy borrowing getter
+expires on affected refresh/clear. Release bridge leases before manager shutdown.
+On 2026-10-28, the pinned October compiler/MSVC on Windows AMD64/OpenGL 3.3 with
+an NVIDIA GTX 1060 passed the serial asset tests and
+`tools/material_reload_validation --runtime`, including unrelated preview reuse,
+own image/shader edits, failed-shader retention, distinct sampler variants and
+ORM retirement/release. These checks do not establish Linux runtime behavior.
+
+Terrain details support optional `density_distance` and `density_min` settings
+for deterministic distance thinning of built-in and custom models; follow
+`docs/terrain.md` for defaults, valid ranges, and transition behavior.
+
 Camera-local 3D foreground views use `r3d_bridge.Render_View3D` and
 `render_view_3d` with their own camera and `ecs.PostProcessing` profile. Submit
 ordinary R3D geometry through its callback and reuse the bridge model/material
@@ -191,8 +305,8 @@ a claim that every hidden framebuffer read fails. See `docs/display.md` and
 ## Live material authoring
 
 For live material authoring, `assets.set_material_preview(manager, path, data)`
-owns a deep copy and invalidates existing R3D material/instance caches through
-the asset revision. All uses of the same path share the preview. Getters return
+owns a deep copy and updates that path's dependencies plus the aggregate instance
+revision. All uses of the same path share the preview. Getters return
 borrowed strings; clone retained values with `assets.clone_material_data` and
 release them with `destroy_material_data`. `material_data` sees the preview;
 `authored_material_data` bypasses it. Clear one or all previews when live

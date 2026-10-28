@@ -119,6 +119,13 @@ choose native Linux storage for `--output` if a WSL Windows mount rejects them.
 It preserves empty directories and rejects unsafe/omitted references, case
 conflicts, overlapping includes, symlinks, and Windows reparse/junction ancestors.
 
+Engine notices include the private image decoder's license, README, source pins,
+and TLS patch under `licenses/rune/third_party/rune-image/`; the manifest records
+`third_party/rune-image/sources.json`. Source release exports require both
+Windows/Linux AMD64 decoder archives and their rebuild/audit sources. Normal
+Odin builds use the checked-in target archive without requiring a native compiler.
+See `third_party/rune-image/README.md` and `docs/publishing.md`.
+
 Windows requires MSVC and an official installed AMD64 VC CRT for the bundled
 native libraries. The publisher can discover `VCToolsRedistDir` or the installed
 VC-qualified Visual Studio redist; `--windows-runtime-directory` and optional
@@ -203,7 +210,17 @@ not validate their completeness or contents.
 `rune.init_project(path)` accepts an explicit executable-relative layout;
 `rune.init(path)` retains explicit CWD-relative/absolute caller control. Both
 retain an absolute `engine.project_directory` after successful initialization.
-Pass that root to `r3d_bridge.init`; use
+Pass that root, `settings = engine.project.render_3d`, and
+`worker_pool = engine.worker_pool` to `r3d_bridge.init` to apply project shadow
+sizes and optional terrain CPU workers. Project `jobs.worker_count` defaults to
+zero; `jobs.queue_capacity` defaults to 256. The engine owns and drains the pool
+at shutdown, and standalone geometry helpers can borrow it too. See
+`docs/jobs.md` for background storage and batch lifetime rules.
+Project `physics_3d.worker_count`
+defaults to one and is applied by engine scene loading, transitions, reloads,
+and save restoration. These settings require game/renderer initialization;
+project JSON is not hot reloaded. See `README.md`, Project 3D settings.
+Use
 `rune.resource_path(&engine, "assets/settings.json")` for game-owned reads and
 delete the returned owned path with its allocator. Absolute resource paths and
 parent traversal remain supported for tools; this helper is not a package
@@ -426,6 +443,19 @@ paused. It advances one fixed tick per measured frame, preserves frame pacing,
 and replies once after the final presentation. The result's `stepped_frames`
 confirms the controlled tick count. Release injected movement afterward; use
 ordinary `profile` to measure rendering without advancing paused simulation.
+
+Profile results preserve `frame`, `update`, `fixed_update`, and
+`render_submission`, and add `physics_3d`, `physics_2d`, `navigation_3d`,
+`terrain_sync`, `asset_refresh`, `scene_reload`, and `game_systems`. These are
+per-frame elapsed-time summaries with mean, nearest-rank p95, and maximum;
+subsystem stages overlap the broad update/fixed/render totals and must not be
+added together. Native worker joins remain charged to the calling stage.
+Callback-loop custom subsystem calls are only included in their enclosing
+`game_systems` callback time. See `docs/runtime-console.md` for exact boundaries.
+Use `tools/physics_worker_benchmark/README.md` for an optimized, headless Box3D
+comparison with identical initial state, warmup, repeated trials, native-count
+and final-pose checks. Keep measured results in ignored `build/`, and distinguish
+the fixture's physics-stage speed from a game's total frame time.
 
 `step [--fast] [count]` advances simulation while remaining paused, defaulting to
 one tick and accepting 1–600. Normal stepping runs one tick per rendered frame.

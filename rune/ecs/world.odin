@@ -135,6 +135,8 @@ World :: struct {
 	box2d_bodies:                map[Entity]b2.BodyId,
 	rigid_bodies_3d:             map[Entity]RigidBody3D,
 	physics_3d_accumulator:      f32,
+	// Configure before creating native bodies/queries through configure_physics_3d.
+	physics_3d_worker_count:     int,
 	box3d_world:                 b3.WorldId,
 	box3d_bodies:                map[Entity]b3.BodyId,
 	box_colliders:               map[Entity]BoxCollider,
@@ -229,6 +231,7 @@ init :: proc() -> World {
 		circle_colliders_2d = make(map[Entity]CircleCollider2D),
 		physics_2d = physics_state_init(),
 		physics_3d = physics_state_init(),
+		physics_3d_worker_count = 1,
 		box2d_bodies = make(map[Entity]b2.BodyId),
 		one_way_shapes_2d = make(map[u64]One_Way_Shape_2D),
 		one_way_contacts_2d = make(map[Physics_Pair]bool),

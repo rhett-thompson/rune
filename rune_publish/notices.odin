@@ -50,6 +50,8 @@ collect_engine_notices :: proc(rune_root, odin_root: string) -> ([]Publish_File,
 		"third_party/r3d-importer/LICENSE.r3d", "third_party/r3d-importer/LICENSE.raylib",
 		"third_party/r3d-importer/LICENSE.raymath", "third_party/r3d-importer/LICENSE.uthash",
 		"third_party/r3d-importer/README.md", "third_party/r3d-shadows/README.md",
+		"third_party/rune-image/LICENSE.stb_image", "third_party/rune-image/README.md",
+		"third_party/rune-image/sources.json", "third_party/rune-image/thread-local-png-error.patch",
 	}) {
 		if failure := notice_file(&files, rune_root, relative, ""); failure != "" {return nil, failure}
 	}

@@ -46,15 +46,29 @@ Particle_Billboard_Renderer :: struct {
 // Soft billboards use persistent instancing buffers and the same lit HDR scene.
 // Both shapes depth-test without shadows, particle entities, or depth writes.
 draw_particles_3d :: proc(ctx: ^Context, manager: ^assets.Asset_Manager, batches: []Particle3D_Batch, camera: rl.Camera3D={}) {
+	prepared:=make([dynamic]Particle_Billboard_Work,context.temp_allocator)
+	view:=camera
+	for batch,index in batches {
+		if batch.shape!=.Billboard || len(batch.particles)==0 {continue}
+		if len(ctx.particle_billboards.batches)<len(batches) {resize(&ctx.particle_billboards.batches,len(batches))}
+		if view.position==view.target {view=particle_billboard_camera(r3d.GetMatrixInvView())}
+		append(&prepared,Particle_Billboard_Work{state=&ctx.particle_billboards.batches[index],batch=batch,camera=view})
+	}
+	if len(prepared)>0 {
+		started:=rl.GetTime()
+		stats:=prepare_particle_billboard_work(prepared[:],ctx.worker_pool)
+		ctx.frame_stats.particle_prepare_cpu_ms+=(rl.GetTime()-started)*1000
+		ctx.frame_stats.particle_billboards_prepared+=stats.instances
+		ctx.frame_stats.particle_prepare_job_batches+=stats.job_batches
+		ctx.frame_stats.particle_prepare_chunks+=stats.chunks
+	}
 	for batch, index in batches {
 		if len(batch.particles)==0 {continue}
 		base:=particle_batch_material(material_from_path(ctx,manager,batch.material,{255,255,255,255}),batch)
 		base.transparencyMode=.ALPHA
 		base.blendMode=.ADDITIVE if batch.blend==.Additive else .MIX
 		if batch.shape==.Billboard {
-			view:=camera
-			if view.position==view.target {view=particle_billboard_camera(r3d.GetMatrixInvView())}
-			draw_particle_billboards(ctx,batch,index,base,view)
+			draw_particle_billboards(ctx,batch,index,base,view,prepared=true)
 			continue
 		}
 		for p in batch.particles {
@@ -97,25 +111,11 @@ particle_billboard_camera :: proc(inverse_view: rl.Matrix) -> rl.Camera3D {
 	}
 }
 
-prepare_particle_billboards :: proc(state: ^Particle_Billboard_Batch, batch: Particle3D_Batch, camera: rl.Camera3D) {
+prepare_particle_billboards_serial :: proc(state: ^Particle_Billboard_Batch, batch: Particle3D_Batch, camera: rl.Camera3D) {
 	clear(&state.instances)
 	reserve(&state.instances,len(batch.particles))
-	forward:=camera.target-camera.position
 	for p in batch.particles {
-		valid:=p.lifetime>0
-		for value in ([]f32{p.position[0],p.position[1],p.position[2],p.age,p.lifetime,p.start_size,p.end_size}) {
-			if math.is_nan(value) || math.is_inf(value) {valid=false; break}
-		}
-		if !valid {continue}
-		size,color:=particles.appearance_3d(p)
-		if size<=0 || color[3]==0 {continue}
-		// R3D's transparent additive mode uses SRC_ALPHA too, so retaining the
-		// instance alpha fades both lit color and emission through the soft mask.
-		delta:=p.position-camera.position
-		append(&state.instances,Particle_Billboard_Instance{
-			position=rl.Vector3(p.position),scale={size,size,size},color=rl.Color(color),
-			depth=delta[0]*forward[0]+delta[1]*forward[1]+delta[2]*forward[2],
-		})
+		if instance,valid:=particle_billboard_instance(p,camera);valid {append(&state.instances,instance)}
 	}
 	// Standard alpha needs back-to-front ordering within the instanced draw.
 	if batch.blend==.Alpha {
@@ -128,7 +128,7 @@ prepare_particle_billboards :: proc(state: ^Particle_Billboard_Batch, batch: Par
 	}
 }
 
-draw_particle_billboards :: proc(ctx: ^Context, batch: Particle3D_Batch, index: int, source: r3d.Material, camera: rl.Camera3D) {
+draw_particle_billboards :: proc(ctx: ^Context, batch: Particle3D_Batch, index: int, source: r3d.Material, camera: rl.Camera3D, prepared:bool=false) {
 	material:=source
 	state:=&ctx.particle_billboards
 	if state.texture.id==0 {
@@ -144,7 +144,9 @@ draw_particle_billboards :: proc(ctx: ^Context, batch: Particle3D_Batch, index: 
 	}
 	if len(state.batches)<=index {resize(&state.batches,index+1)}
 	data:=&state.batches[index]
-	prepare_particle_billboards(data,batch,camera)
+	if !prepared {prepare_particle_billboards(data,batch,camera,ctx.worker_pool)}
+	started:=rl.GetTime()
+	defer {ctx.frame_stats.particle_upload_cpu_ms+=(rl.GetTime()-started)*1000}
 	count:=i32(len(data.instances))
 	if count==0 {return}
 	if data.buffer.capacity==0 {data.buffer=r3d.LoadInstanceBuffer(max(i32(64),count),{.POSITION,.SCALE,.COLOR})}

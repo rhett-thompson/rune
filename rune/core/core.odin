@@ -13,6 +13,7 @@ import "rune:console"
 import "rune:ecs"
 import "rune:gizmos"
 import "rune:input"
+import "rune:jobs"
 import "rune:pathutil"
 import "rune:render"
 import "rune:scene"
@@ -72,6 +73,9 @@ default_hot_reload_settings :: proc() -> Hot_Reload_Settings {
 
 Project :: struct {
 	render_2d:        render.Resolution_Settings,
+	render_3d:        render.Settings_3D,
+	physics_3d:       Physics_3D_Settings,
+	jobs:             Jobs_Settings,
 	name:             string,
 	startup_scene:    string,
 	window:           Window_Settings,
@@ -132,6 +136,8 @@ Engine :: struct {
 	audio:              audio.Audio_System,
 	gizmos:             gizmos.Settings,
 	input:              input.Input,
+	// Owned pool; systems and optional renderers borrow it until shutdown.
+	worker_pool:        ^jobs.Pool,
 	systems:            [dynamic]System,
 	scene_watches:      map[string]map[string]i64,
 	active_scene_path:  string,
@@ -171,6 +177,9 @@ load_project :: proc(path: string) -> (Project, bool) {
 	allocator := mem.dynamic_arena_allocator(arena)
 	project := Project {
 		window = Window_Settings{show_fps = true, high_dpi = true},
+		render_3d = render.Default_Settings_3D,
+		physics_3d = Physics_3D_Settings{worker_count = 1},
+		jobs = Jobs_Settings{queue_capacity = jobs.Default_Queue_Capacity},
 		hot_reload = default_hot_reload_settings(),
 		gizmos     = gizmos.default_settings(),
 		arena      = arena,
@@ -190,6 +199,12 @@ load_project :: proc(path: string) -> (Project, bool) {
 		return {}, false
 	}
 	if !render.resolution_valid(project.render_2d) {destroy_project(&project); return {},false}
+	if !render.settings_3d_valid(project.render_3d) ||
+	   project.physics_3d.worker_count < 1 || project.physics_3d.worker_count > ecs.Physics3D_Max_Workers {
+		destroy_project(&project)
+		return {}, false
+	}
+	if !jobs_settings_valid(project.jobs) {destroy_project(&project); return {}, false}
 	for layer_name, layer_index in project.layers {
 		if layer_name == "Default" || layer_index == ecs.Default_Layer || layer_index >= 64 {
 			destroy_project(&project)
@@ -265,6 +280,16 @@ init :: proc(project_path: string, defer_window_show: bool = false) -> (Engine, 
 		}
 	}
 
+	worker_pool: ^jobs.Pool
+	if project.jobs.worker_count > 0 {
+		worker_pool = jobs.create(project.jobs.worker_count, project.jobs.queue_capacity)
+		if worker_pool == nil {
+			input.destroy(&input_data)
+			ecs.destroy_registry(&registry)
+			destroy_project(&project)
+			return {}, false
+		}
+	}
 	title, _ := strings.clone_to_cstring(project.window.title)
 	defer delete(title)
 	// Configure geometry and display mode before exposing the native surface.
@@ -313,12 +338,17 @@ init :: proc(project_path: string, defer_window_show: bool = false) -> (Engine, 
 			gizmos = project.gizmos,
 			console = dev_console,
 			input = input_data,
+			worker_pool = worker_pool,
 			systems = make([dynamic]System),
 			scene_watches = make(map[string]map[string]i64),
 			fixed_delta_time = ecs.Physics2D_Fixed_Delta,
 			is_running = true,
 			fps_sample_started = rl.GetTime(),
 		}
+	if worker_pool != nil && !assets.configure_asset_jobs(&engine.assets,worker_pool) {
+		shutdown(&engine)
+		return {},false
+	}
 	mode := Window_Mode.Fullscreen if project.window.fullscreen else Window_Mode.Windowed
 	if project.window.mode != "" {mode, _ = parse_window_mode(project.window.mode)}
 	set_window_mode(&engine, mode)
@@ -429,7 +459,7 @@ layer_names :: proc(engine: ^Engine) -> map[string]u8 {
 // load_scene is the normal runtime entry point. It supplies the project's
 // optional layer names while scene.load remains useful for standalone tools.
 load_scene :: proc(engine: ^Engine, path: string) -> (ecs.World, bool) {
-	world, loaded := scene.load_with_layers(path, &engine.registry, engine.project.layers)
+	world, loaded := scene.load_with_layers(path, &engine.registry, engine.project.layers, project_scene_options(engine))
 	if loaded {
 		engine.active_scene_path = watch_scene(engine, path)
 	}
@@ -478,6 +508,7 @@ change_scene :: proc(engine: ^Engine, path: string) -> bool {
 		resolved_path,
 		&engine.registry,
 		engine.project.layers,
+		project_scene_options(engine),
 	)
 	if !loaded {return false}
 	if engine.scene_loop_active {run_shutdown_systems(engine, &engine.active_world)}
@@ -503,11 +534,13 @@ last_scene_error :: proc() -> string {return scene.last_load_error()}
 // return true; game code must reacquire cached entity IDs after that.
 reload_scene_if_changed :: proc(engine: ^Engine, world: ^ecs.World, path: string) -> bool {
 	when Player_Build {return false}
+	started := debug_profile_started()
+	defer engine.debug.sample.scene_reload_ms += debug_profile_elapsed_ms(started)
 	if !engine.project.hot_reload.enabled ||
 	   !engine.project.hot_reload.scenes ||
 	   !engine.hot_reload_due ||
 	   !scene_changed(engine, path) {return false}
-	reloaded, loaded := scene.load_with_layers(path, &engine.registry, engine.project.layers)
+	reloaded, loaded := scene.load_with_layers(path, &engine.registry, engine.project.layers, project_scene_options(engine))
 	if !loaded {return false}
 	if ecs.apply_value_snapshot(world, &reloaded) {
 		ecs.destroy(&reloaded)
@@ -612,7 +645,9 @@ run_callbacks :: proc(engine: ^Engine, on_update: Update_Proc, on_draw: Draw_Pro
 			if !debug_simulation_tick(engine) {break}
 			started := rl.GetTime()
 			on_update(engine)
-			engine.debug.sample.update_ms += (rl.GetTime() - started) * 1000
+			elapsed_ms := (rl.GetTime() - started) * 1000
+			engine.debug.sample.update_ms += elapsed_ms
+			engine.debug.sample.game_systems_ms += elapsed_ms
 			if engine.debug.steps_remaining > 0 {engine.debug.fixed_steps += 1}
 			debug_simulation_finished(engine)
 			if engine.save_request.action != .None {break}
@@ -622,7 +657,9 @@ run_callbacks :: proc(engine: ^Engine, on_update: Update_Proc, on_draw: Draw_Pro
 		rl.BeginDrawing()
 		if !render.begin_canvas(&engine.canvas,engine.project.render_2d) {request_exit(engine)}
 		clear_background(engine)
+		game_draw_started := debug_profile_started()
 		on_draw(engine)
+		engine.debug.sample.game_systems_ms += debug_profile_elapsed_ms(game_draw_started)
 		render.end_canvas(&engine.canvas)
 		flush_asset_diagnostics(engine)
 		engine.console.frame_metadata = debug_frame_metadata(engine)
@@ -695,12 +732,14 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 		   reload_scene_if_changed(engine, world, engine.active_scene_path) {
 			run_scene_reload_systems(engine, world)
 		}
-		ecs.sync_terrains(world, &engine.assets)
-		ecs.sync_navigation_3d(world, &engine.assets)
+		profiled_sync_terrains(engine, world)
+		profiled_sync_navigation_3d(engine, world)
 		render.update_tilesets(world, &engine.assets)
+		game_systems_started := debug_profile_started()
 		for system in engine.systems {
 			if system.ui_update != nil {system.ui_update(engine, world)}
 		}
+		engine.debug.sample.game_systems_ms += debug_profile_elapsed_ms(game_systems_started)
 		simulation_budget := debug_simulation_budget(engine)
 		for tick_index in 0..<simulation_budget {
 			if engine.exit_requested {break}
@@ -718,10 +757,12 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 				canvas_size(engine),
 			)
 			render.update_sprite_animators(world, &engine.assets, engine.delta_time)
+			post_animation_started := debug_profile_started()
 			for system in engine.systems {
 				if system.post_animation != nil {system.post_animation(engine, world)}
 			}
-			ecs.update_particles_2d(world, engine.delta_time)
+			engine.debug.sample.game_systems_ms += debug_profile_elapsed_ms(post_animation_started)
+			ecs.update_particles_2d(world, engine.delta_time, engine.worker_pool)
 			ecs.update_lifetimes(world, engine.delta_time)
 			engine.debug.sample.update_ms += (rl.GetTime() - update_started) * 1000
 			debug_simulation_finished(engine)
@@ -740,7 +781,9 @@ run_scene_loop :: proc(engine: ^Engine, world: ^ecs.World) {
 		run_draw_systems(engine, world)
 		draw_gizmos(engine, world)
 		render.end_canvas(&engine.canvas)
+		draw_ui_started := debug_profile_started()
 		for system in engine.systems {if system.draw_ui != nil {system.draw_ui(engine,world)}}
+		engine.debug.sample.game_systems_ms += debug_profile_elapsed_ms(draw_ui_started)
 		flush_asset_diagnostics(engine)
 		engine.console.frame_metadata = debug_frame_metadata(engine)
 		console.finish_frame(&engine.console)
@@ -790,8 +833,8 @@ is_paused :: proc(engine: ^Engine) -> bool {
 }
 
 run_start_systems :: proc(engine: ^Engine, world: ^ecs.World) {
-	ecs.sync_terrains(world,&engine.assets)
-	ecs.sync_navigation_3d(world,&engine.assets)
+	profiled_sync_terrains(engine, world)
+	profiled_sync_navigation_3d(engine, world)
 	for system in engine.systems {
 		if system.start != nil {system.start(engine, world)}
 	}
@@ -801,16 +844,26 @@ run_fixed_pipeline :: proc(engine: ^Engine, world: ^ecs.World) {
 	engine.fixed_accumulator += engine.delta_time
 	steps := 0
 	for engine.fixed_accumulator >= engine.fixed_delta_time && steps < 8 {
+		game_systems_started := debug_profile_started()
 		for system in engine.systems {
 			if system.fixed_update != nil {system.fixed_update(engine, world)}
 		}
-		ecs.update_navigation_3d(world, engine.fixed_delta_time)
+		engine.debug.sample.game_systems_ms += debug_profile_elapsed_ms(game_systems_started)
+		navigation_started := debug_profile_started()
+		ecs.update_navigation_3d(world, engine.fixed_delta_time, engine.worker_pool)
+		engine.debug.sample.navigation_3d_ms += debug_profile_elapsed_ms(navigation_started)
+		physics_2d_started := debug_profile_started()
 		ecs.physics_2d_update(world, engine.fixed_delta_time)
+		engine.debug.sample.physics_2d_ms += debug_profile_elapsed_ms(physics_2d_started)
+		physics_3d_started := debug_profile_started()
 		ecs.physics_3d_update(world, engine.fixed_delta_time)
+		engine.debug.sample.physics_3d_ms += debug_profile_elapsed_ms(physics_3d_started)
 		ecs.update_triggers_3d(world)
+		game_systems_started = debug_profile_started()
 		for system in engine.systems {
 			if system.post_physics != nil {system.post_physics(engine, world)}
 		}
+		engine.debug.sample.game_systems_ms += debug_profile_elapsed_ms(game_systems_started)
 		engine.debug.fixed_steps += 1
 		engine.fixed_accumulator -= engine.fixed_delta_time
 		steps += 1
@@ -826,26 +879,34 @@ run_shutdown_systems :: proc(engine: ^Engine, world: ^ecs.World) {
 }
 
 run_update_systems :: proc(engine: ^Engine, world: ^ecs.World) {
+	started := debug_profile_started()
+	defer engine.debug.sample.game_systems_ms += debug_profile_elapsed_ms(started)
 	for system in engine.systems {
 		if system.update != nil {system.update(engine, world)}
 	}
 }
 
 run_draw_systems :: proc(engine: ^Engine, world: ^ecs.World) {
+	started := debug_profile_started()
+	defer engine.debug.sample.game_systems_ms += debug_profile_elapsed_ms(started)
 	for system in engine.systems {
 		if system.draw != nil {system.draw(engine, world)}
 	}
 }
 
 run_pre_draw_systems :: proc(engine: ^Engine, world: ^ecs.World) {
+	started := debug_profile_started()
+	defer engine.debug.sample.game_systems_ms += debug_profile_elapsed_ms(started)
 	for system in engine.systems {
 		if system.pre_draw != nil {system.pre_draw(engine, world)}
 	}
 }
 
 run_scene_reload_systems :: proc(engine: ^Engine, world: ^ecs.World) {
-	ecs.sync_terrains(world,&engine.assets)
-	ecs.sync_navigation_3d(world,&engine.assets)
+	profiled_sync_terrains(engine, world)
+	profiled_sync_navigation_3d(engine, world)
+	started := debug_profile_started()
+	defer engine.debug.sample.game_systems_ms += debug_profile_elapsed_ms(started)
 	for system in engine.systems {
 		if system.on_scene_reloaded != nil {system.on_scene_reloaded(engine, world)}
 	}
@@ -882,13 +943,15 @@ begin_frame :: proc(engine: ^Engine) {
 	}
 	engine.frame_delta_time = engine.delta_time
 	engine.hot_reload_due = hot_reload_poll_due(engine)
+	asset_refresh_started := debug_profile_started()
+	assets.pump_asset_jobs(&engine.assets)
 	if engine.hot_reload_due && engine.project.hot_reload.enabled && engine.project.hot_reload.shadow_profiles {
 		assets.refresh_shadow_profiles(&engine.assets)
 	}
 	if engine.hot_reload_due &&
 	   engine.project.hot_reload.enabled &&
 	   engine.project.hot_reload.textures {
-		assets.refresh(&engine.assets)
+		assets.refresh_background(&engine.assets)
 	}
 	if engine.hot_reload_due &&
 	   engine.project.hot_reload.enabled &&
@@ -917,6 +980,7 @@ begin_frame :: proc(engine: ^Engine) {
 	   engine.project.hot_reload.tilesets {
 		assets.refresh_tilesets(&engine.assets)
 	}
+	engine.debug.sample.asset_refresh_ms += debug_profile_elapsed_ms(asset_refresh_started)
 	flush_asset_diagnostics(engine)
 	// This runs before update resets frame capture. Respect a UI that captured
 	// the preceding frame, as well as the console's current focus.
@@ -994,6 +1058,9 @@ shutdown :: proc(engine: ^Engine) {
 		engine.save_request = {}
 		save.destroy(&engine.saves)
 		stop_debug_console(engine)
+		assets.configure_asset_jobs(&engine.assets,nil)
+		jobs.destroy(engine.worker_pool)
+		engine.worker_pool = nil
 		if engine.has_active_world {
 			ecs.destroy(&engine.active_world)
 			engine.has_active_world = false

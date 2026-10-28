@@ -330,7 +330,16 @@ main :: proc() {
 	defer ecs.destroy_registry(&registry)
 	assert(ecs.register_builtin_components(&registry))
 	validate_components(&registry)
-	if len(os.args) > 1 && os.args[1] == "--runtime" {validate_runtime(&registry)}
+	runtime,worker_runtime:=false,false
+	for arg in os.args[1:] {
+		switch arg {
+		case "--runtime": runtime,worker_runtime=true,true
+		case "--runtime-jobs": worker_runtime=true
+		case: fmt.eprintln("Usage: model_animation_validation [--runtime|--runtime-jobs]");os.exit(2)
+		}
+	}
+	if runtime {validate_runtime(&registry)}
+	if worker_runtime {validate_animation_workers_runtime(&registry)}
 	fmt.println("Model animation validation passed")
 }
 
