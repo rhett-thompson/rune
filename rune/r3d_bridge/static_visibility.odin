@@ -7,6 +7,8 @@ import rl "vendor:raylib"
 // CPU timings are wall time; gpu_* fields are delayed timestamp measurements.
 Render_Stats :: struct {
 	scene_cpu_ms, static_cpu_ms, backend_cpu_ms: f64,
+	filtered_depth_cpu_ms: f64,
+	filtered_depth_passes: int,
 	static_meshes, static_enabled, static_uploads: int,
 	static_submitted, static_triangles_submitted: int,
 	static_clusters, static_clusters_outside_view, static_meshes_skipped: int,

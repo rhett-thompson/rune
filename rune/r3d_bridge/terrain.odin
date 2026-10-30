@@ -85,8 +85,9 @@ upload_terrain_chunk :: proc(data: terrain.Data, start_x,start_z,cells_x,cells_z
 	return upload_terrain_chunk_cpu(chunk)
 }
 
-draw_terrains :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.Asset_Manager) {
+draw_terrains :: proc(ctx: ^Context, world: ^ecs.World, manager: ^assets.Asset_Manager, filter:Depth_Pass_Filter={}) {
 	for entity,cache in ctx.terrains {
+		if depth_pass_excludes(world,entity,filter) {continue}
 		if !ecs.is_enabled(world,entity) {continue}
 		value,found := ecs.get_terrain(world,entity)
 		t,valid := ecs.terrain_transform(world,entity)

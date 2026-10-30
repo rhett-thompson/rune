@@ -6,6 +6,20 @@ if not defined TEMP (echo TEMP is not set. 1>&2 & exit /b 1)
 where odin.exe >nul 2>nul
 if errorlevel 1 (echo Odin was not found on PATH. 1>&2 & exit /b 1)
 
+rem Odin's VS discovery can fail when default toolset metadata is missing.
+set "odinNeedsMsvc="
+set "odinMsvcRoot="
+set "odinMsvcArch=x64"
+for %%a in (%*) do (
+    if /i "%%~a"=="-linker:msvc" set "odinNeedsMsvc=1"
+    if /i "%%~a"=="-target:windows_i386" set "odinMsvcArch=x86"
+)
+if defined odinNeedsMsvc (
+    for /f "delims=" %%t in ('cscript.exe //nologo //E:JScript "%~dp0find_msvc.bat" %odinMsvcArch%') do set "odinMsvcRoot=%%t"
+    if not defined odinMsvcRoot exit /b 1
+)
+if defined odinMsvcRoot set "VCToolsInstallDir=%odinMsvcRoot%"
+
 :retry
 set "odinLockAcquired="
 rem Save stderr before suppressing the expected sharing error on contention.

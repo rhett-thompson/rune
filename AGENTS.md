@@ -8,6 +8,11 @@ regressions, and dependency issues, use the
 Repository skill copies are canonical; personal installations are not required
 to work on Rune.
 
+Use `tools/odin.bat`, `tools/odin.sh`, or `tools/odin.ps1` for manual compiler
+invocations to share the compile lock. On Windows, `-linker:msvc` also discovers
+a complete installed toolset through `tools/find_msvc.bat`; keep this discovery
+in Rune rather than copying it into games.
+
 Scene documents are the source of truth for authored levels. Game level editors
 own creating and saving them; Rune owns validating, loading, and instantiating
 them. Keep scene export APIs and console commands out of the engine. Component

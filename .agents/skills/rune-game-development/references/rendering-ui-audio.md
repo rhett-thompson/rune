@@ -77,6 +77,25 @@ submission stays on the owner. Keep the bridge alive only while its borrowed
 pool exists. See `docs/particles.md` for lifetimes, frame statistics, fallback
 behavior and `tools/particle_worker_validation` for CPU/GPU parity checks.
 
+## Filtered scene depth
+
+`r3d_bridge.draw_scene_with_filtered_depth(ctx, world, assets, settings, filter)`
+adds optional auxiliary depth while preserving `draw_scene_ex` and the
+`Scene3D_Settings` layout. Pass `Depth_Pass_Filter{ignored_subtrees=roots}` with
+roots borrowed through the call. Geometry behind excluded subtrees still writes
+depth; materials, entity activation, main scene depth, and normal color remain
+unchanged. Built-in light shafts consume this buffer when active. Empty, stale,
+disabled, or non-rendering exclusions retain the original path without an
+additional allocation or pass; other native effects retain the main depth.
+
+For another consumer, call `render_scene_depth` with a caller-owned
+`Depth_Pass3D`. Its `.target.texture` red channel is positive linear view-space
+Z in world units at the native internal resolution. Match the consuming camera
+and sampling projection, check the return value/`.valid` each draw, and destroy
+the pass before graphics shutdown. The integrated buffer is owned by the bridge.
+Native-hook support matches `render_view_3d` (Windows/Linux amd64); unavailable
+hooks return false without valid stale output. See `docs/filtered-depth.md`.
+
 ## Asset loading and reload ownership
 
 First-use asset getters and explicit `assets.refresh` remain synchronous and
@@ -204,6 +223,19 @@ rendering from collision. Choose collider geometry/orientation according to
 `rune/render/render.odin` rather than assuming matching transform behavior.
 
 ## Choose collision queries or rendered picking
+
+For finite-width obstruction, use `ecs.physics_3d_sphere_cast` against native
+colliders and `r3d_bridge.scene_sphere_cast` against rendered geometry, including
+render-only CPU meshes. Sweep distance is sphere-centre travel; initial overlaps
+stop at zero. Rendered mesh triangles are tested from both sides, including
+edges. Imported models and scaled spheres use conservative bounds; terrain and
+shader effects are excluded. Combine the queries when both native-only and
+render-only surfaces must block. The CPU entry point is
+`render.scene_sphere_cast_3d`; see `rune/r3d_bridge/scene_query.md`.
+
+Rendered sweeps lazily cache a World-owned BVH of visible static triangles.
+Replacing/removing meshes releases it; no physics body is added. Run queries
+on the World owner thread and replace geometry through its setters.
 
 Use `ecs.physics_2d_raycast`/`physics_3d_raycast` for native colliders and
 `r3d_bridge.scene_raycast` for supported rendered geometry, including render-only

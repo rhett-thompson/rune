@@ -55,6 +55,13 @@ scene_raycast :: proc(world: ^ecs.World, origin, translation: [3]f32, ignore: ec
 	return Scene_Ray_Hit{entity=hit.entity,point=hit.point,distance=hit.distance,normal=hit.normal},ok
 }
 
+// Sweeps a finite radius against enabled rendered geometry, including meshes
+// without colliders. Distance measures travel of the sphere's centre.
+scene_sphere_cast :: proc(world:^ecs.World,origin,translation:[3]f32,radius:f32,ignore:ecs.Entity=0,bridge:^Context=nil,ignored_subtrees:[]ecs.Entity=nil) -> (Scene_Ray_Hit,bool) {
+	hit,ok:=render.scene_sphere_cast_3d(world,origin,translation,radius,ignore,scene_query_bridge_bounds,bridge,ignored_subtrees,scene_query_bridge_static_bounds)
+	return Scene_Ray_Hit{entity=hit.entity,point=hit.point,distance=hit.distance,normal=hit.normal},ok
+}
+
 @(private)
 scene_query_bridge_bounds :: proc(data: rawptr,world:^ecs.World,entity:ecs.Entity) -> (rl.BoundingBox,bool) {
 	return scene_query_model_bounds(world,entity,cast(^Context)data)

@@ -4,6 +4,12 @@
 
 The hit includes its entity, world point, distance, and a unit world-space normal oriented toward the ray origin. Normals use the inverse-transpose transform, including nonuniform scale; either side of a triangle can be used for placement.
 
+`scene_sphere_cast(world, origin, translation, radius, ignore=0, bridge=nil, ignored_subtrees=nil)` sweeps a finite-width sphere against enabled rendered geometry without creating physics bodies or GPU resources. `distance` measures travel of the sphere's centre, while `point` is on the contacted surface. Initial overlaps return distance zero. Cubes, planes, quads, and CPU static-mesh triangles use Box3D convex casts in the composed world frame; triangle edges and either face block the sweep. Mesh bounds are broad phase only, so open space within a mesh remains open. Imported models use already cached local AABBs, and scaled spheres use conservative local boxes. Terrain, shader displacement, transparency, and animated deformation are excluded; combine with `ecs.physics_3d_sphere_cast` when native-only surfaces must also block. Radius zero uses ordinary ray picking. Invalid inputs return no hit. `render.scene_sphere_cast_3d` exposes the CPU query and the same read-only bounds callbacks as `scene_raycast_3d`.
+
+Static triangle sweeps lazily cache a World-owned BVH of the visible CPU mesh,
+separately from its optional collision mesh. Replacement/removal frees that
+cache. Queries remain on the World owner thread and do not advance simulation.
+
 `scene_projected_bounds(world, root, origin, direction, include_disabled=false, bridge=nil)` returns minimum and maximum world-unit projections relative to `origin` over the enabled rendered root and its descendants. Authoring tools can pass `include_disabled=true` to measure hidden source geometry, including disabled descendants and ancestors. It normalizes `direction`, uses transformed primitive corners and CPU static-mesh vertices, and calculates exact ellipsoid support for scaled spheres. The result is unpadded, including zero-thickness planes. Missing roots, invalid vectors, zero directions, and subtrees without supported rendered geometry return `found=false`.
 
 Imported models use their cached local bounding boxes for both ray hits and projected bounds. These are conservative static bounds, so recesses and animated poses are not tested. Queries do not load missing model assets; render the scene first or supply a populated bridge cache.

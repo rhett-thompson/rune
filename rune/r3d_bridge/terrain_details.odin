@@ -477,8 +477,9 @@ detail_chunking_enabled :: proc(material:r3d.Material) -> bool {
 	return material.transparencyMode==.DISABLED
 }
 
-draw_terrain_details :: proc(ctx:^Context,world:^ecs.World,manager:^assets.Asset_Manager,camera:[3]f32) {
+draw_terrain_details :: proc(ctx:^Context,world:^ecs.World,manager:^assets.Asset_Manager,camera:[3]f32,filter:Depth_Pass_Filter={}) {
 	for entity,&cache in ctx.terrains {
+		if depth_pass_excludes(world,entity,filter) {continue}
 		for &batch in cache.details {batch.visible_count=0}
 		if !ecs.is_enabled(world,entity) {continue}
 		t,ok:=ecs.terrain_transform(world,entity); if !ok {continue}

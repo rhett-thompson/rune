@@ -57,6 +57,12 @@ Install meshes into the World afterward on its owning thread. The engine owns
 `game.worker_pool`; standalone callers can create and destroy their own pool.
 See [CPU worker jobs](jobs.md) for configuration, queue fallback, and lifetimes.
 
+Rendered sphere sweeps lazily build a CPU BVH of the visible triangles through
+`ecs.static_mesh_query_acceleration`. This borrowed data is independent of any
+simplified collision mesh and creates no physics body. Repeated queries reuse
+it; mesh replacement, removal, entity destruction, and World teardown release
+it. Use the setters to replace geometry rather than editing installed buffers.
+
 `ecs.set_static_mesh(world, entity, mesh)` copies validated vertex/index data
 and installs static triangle collision. An entity needs a `Transform` with
 positive scale and cannot also own Terrain, a native 3D collider/body, or a

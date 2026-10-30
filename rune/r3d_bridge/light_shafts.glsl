@@ -7,10 +7,13 @@ uniform float u_disk_radius;
 uniform float u_edge_fade;
 uniform int u_samples;
 uniform vec2 u_resolution;
+uniform sampler2D u_occlusion_depth;
+uniform int u_use_occlusion_depth;
 
 float clearPath(vec2 uv) {
     if(any(lessThan(uv,vec2(0.0))) || any(greaterThanEqual(uv,vec2(1.0)))) return 0.0;
-    float depth=FetchDepth(ivec2(uv*u_resolution));
+    ivec2 pixel=ivec2(uv*u_resolution);
+    float depth=u_use_occlusion_depth!=0 ? texelFetch(u_occlusion_depth,pixel,0).r : FetchDepth(pixel);
     if(depth>=FAR_PLANE-0.01) return 1.0;
     // All architecture masks the scattering sky, including geometry farther
     // away than the finite emitter. Only the emitter's own footprint is clear.

@@ -62,3 +62,11 @@ prepare_light_shafts :: proc(ctx:^Context,world:^ecs.World,manager:^assets.Asset
 	r3d.SetScreenShaderUniform(shader,"u_resolution",&resolution)
 	return true
 }
+
+@(private)
+set_light_shaft_occlusion_depth :: proc(ctx:^Context,depth:rl.Texture2D) {
+	if ctx.light_shafts_shader==nil {return}
+	filtered:=i32(1) if depth.id!=0 else i32(0)
+	r3d.SetScreenShaderUniform(ctx.light_shafts_shader,"u_use_occlusion_depth",&filtered)
+	if depth.id!=0 {r3d.SetScreenShaderSampler(ctx.light_shafts_shader,"u_occlusion_depth",depth)}
+}

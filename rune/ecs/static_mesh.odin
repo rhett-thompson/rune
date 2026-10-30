@@ -8,6 +8,7 @@ import b3 "vendor:box3d"
 Static_Mesh :: struct {
 	data: geometry.Mesh,
 	mesh: ^b3.MeshData,
+	query_mesh: ^b3.MeshData, // Lazy BVH of visible triangles; never installs collision.
 	revision: u64,
 	opacity: f32,
 	body_transform: Transform,
@@ -94,8 +95,25 @@ remove_static_mesh :: proc(world: ^World, entity: Entity) {
 	if !found {return}
 	physics_3d_remove_entity(world,entity)
 	if state.mesh!=nil {b3.DestroyMesh(state.mesh)}
+	if state.query_mesh!=nil {b3.DestroyMesh(state.query_mesh)}
 	geometry.destroy_mesh(&state.data)
 	delete_key(&world.static_meshes,entity)
+}
+
+// Borrowed acceleration for visible CPU triangles, independently of any
+// simplified collision mesh. Released on replacement or entity/World teardown.
+static_mesh_query_acceleration :: proc(world:^World,entity:Entity) -> ^b3.MeshData {
+	if world==nil {return nil}
+	state,found:=world.static_meshes[entity]
+	if !found {return nil}
+	if state.query_mesh!=nil {return state.query_mesh}
+	vertices:=make([]b3.Vec3,len(state.data.vertices));defer delete(vertices)
+	indices:=make([]i32,len(state.data.indices));defer delete(indices)
+	for vertex,i in state.data.vertices {vertices[i]={vertex.position[0],vertex.position[1],vertex.position[2]}}
+	for index,i in state.data.indices {indices[i]=i32(index)}
+	state.query_mesh=b3.CreateMesh({vertices=raw_data(vertices),vertexCount=i32(len(vertices)),indices=raw_data(indices),triangleCount=i32(len(indices)/3),useMedianSplit=true},nil,0)
+	world.static_meshes[entity]=state
+	return state.query_mesh
 }
 
 destroy_static_meshes :: proc(world: ^World) {

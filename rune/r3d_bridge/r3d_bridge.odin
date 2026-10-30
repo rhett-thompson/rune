@@ -134,6 +134,7 @@ Context :: struct {
 	scene_overlay_attempted: bool,
 	light_shafts_shader: ^r3d.ScreenShader,
 	light_shafts_attempted: bool,
+	filtered_depth: Depth_Pass3D,
 	distortion_shader: ^r3d.ScreenShader,
 	distortion_attempted: bool,
 	// Follow the window framebuffer by default; disable for a fixed internal resolution.
@@ -244,6 +245,7 @@ shutdown :: proc(ctx: ^Context) {
 	if ctx.light_shafts_shader!=nil {r3d.UnloadScreenShader(ctx.light_shafts_shader)}
 	ctx.light_shafts_shader=nil
 	ctx.light_shafts_attempted=false
+	destroy_depth_pass_3d(&ctx.filtered_depth)
 	if ctx.distortion_shader!=nil {r3d.UnloadScreenShader(ctx.distortion_shader)}
 	ctx.distortion_shader=nil
 	ctx.distortion_attempted=false
@@ -291,8 +293,20 @@ draw_scene_ex :: proc(
 	asset_manager: ^assets.Asset_Manager,
 	settings: Scene3D_Settings,
 ) -> bool {
+	return draw_scene_internal(ctx,world,asset_manager,settings,{})
+}
+
+// Normal scene visibility and depth stay intact. The optional filter selects
+// an auxiliary depth view for screen-space occlusion consumers.
+draw_scene_with_filtered_depth :: proc(ctx:^Context,world:^ecs.World,asset_manager:^assets.Asset_Manager,settings:Scene3D_Settings,filter:Depth_Pass_Filter) -> bool {
+	return draw_scene_internal(ctx,world,asset_manager,settings,filter)
+}
+
+@(private)
+draw_scene_internal :: proc(ctx:^Context,world:^ecs.World,asset_manager:^assets.Asset_Manager,settings:Scene3D_Settings,filter:Depth_Pass_Filter) -> bool {
 	started:=rl.GetTime()
 	ctx.frame_stats={}
+	ctx.filtered_depth.valid=false
 	if !ctx.initialized {return false}
 	pump_material_jobs(ctx)
 	prepare_gpu_timing(ctx)
@@ -338,6 +352,26 @@ draw_scene_ex :: proc(
 	// Raylib texture modes must finish before R3D begins its own render session.
 	// The callback may use a separate lens and depth buffer for foreground models.
 	overlay_enabled:=prepare_scene_overlay(ctx,asset_manager,settings,viewport,sampling_projection)
+	// The auxiliary view must finish before native scene depth is produced.
+	// Missing/ineffective filters use the original path without another view.
+	shafts_enabled:=prepare_light_shafts(ctx,world,asset_manager,entity,camera,settings.post_processing_override)
+	material_settings:=settings
+	if shafts_enabled && depth_pass_filter_effective(world,filter) {
+		material_settings.material_time=f32(started) if !settings.material_time_override else settings.material_time
+		material_settings.material_time_override=true
+		depth_started:=rl.GetTime()
+		if render_scene_depth(&ctx.filtered_depth,ctx,world,asset_manager,camera,filter,material_settings.material_time) {
+			ctx.frame_stats.filtered_depth_passes=1
+			assets.resolve_asset_failure(asset_manager,"","Depth_Pass_Filter","")
+		} else {
+			// Keep the main frame visible without presenting an incorrectly masked effect.
+			shafts_enabled=false
+			assets.report_failure(asset_manager,{kind=.PostProcessing,field="Depth_Pass_Filter",detail="could not render the requested filtered scene depth; occlusion effect skipped"})
+		}
+		ctx.frame_stats.filtered_depth_cpu_ms=(rl.GetTime()-depth_started)*1000
+	} else {
+		assets.resolve_asset_failure(asset_manager,"","Depth_Pass_Filter","")
+	}
 
 	if sampling_projection {
 		r3d.BeginPro({camera=r3d.CameraFromRL(camera),viewport=viewport})
@@ -363,7 +397,10 @@ draw_scene_ex :: proc(
 	chain: [3]^r3d.ScreenShader
 	count: i32
 	if prepare_moon_disk(ctx) {chain[count] = ctx.skybox.moon_shader; count += 1}
-	if prepare_light_shafts(ctx,world,asset_manager,entity,camera,settings.post_processing_override) {chain[count]=ctx.light_shafts_shader; count+=1}
+	if shafts_enabled {
+		set_light_shaft_occlusion_depth(ctx,ctx.filtered_depth.target.texture if ctx.filtered_depth.valid else rl.Texture2D{})
+		chain[count]=ctx.light_shafts_shader;count+=1
+	}
 	if prepare_height_fog(ctx, world, asset_manager, entity, settings.post_processing_override) {chain[count] = ctx.height_fog_shader; count += 1}
 	if count > 0 {set_pre_transparency_shader_chain(raw_data(chain[:]),count)}
 	grain_enabled:=prepare_film_grain(ctx,world,asset_manager,entity,settings.post_processing_override)
@@ -381,7 +418,7 @@ draw_scene_ex :: proc(
 	compatibility_overlay_post:=scene_count>4
 	if compatibility_overlay_post {r3d.SetScreenShaderChain(.POST,&ctx.scene_overlay_shader,1)}
 	backend_started:=rl.GetTime()
-	update_material_shader_time(ctx, settings, backend_started)
+	update_material_shader_time(ctx, material_settings, backend_started)
 	gpu_slot:=begin_gpu_timing(ctx)
 	r3d.End()
 	end_gpu_timing(ctx,gpu_slot)

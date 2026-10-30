@@ -35,6 +35,10 @@ For terrain detail distance thinning, follow the optional density settings in
 
 ## Implement through Rune's supported workflow
 
+- Use Rune's `tools/odin.bat`, `tools/odin.sh`, or `tools/odin.ps1` for manual
+  compiler invocations to share the compile lock. Windows commands with
+  `-linker:msvc` automatically discover a complete installed MSVC toolset; keep
+  that discovery in Rune's helper rather than duplicating it in game scripts.
 - For a new standalone game, use Rune's project generator in the requested
   location. Preserve an existing game's structure. Learn from examples in place:
   they can depend on neighboring assets and helpers and are not standalone game
@@ -118,6 +122,14 @@ For terrain detail distance thinning, follow the optional density settings in
   per-draw material alpha without replacing geometry or changing collision.
   Games own timing and cleanup; mesh replacement resets opacity to one. See
   the subsystem reference and `docs/static-geometry.md` for blend behavior.
+- Use `r3d_bridge.scene_sphere_cast` for finite-width obstruction against rendered
+  geometry, including CPU meshes without colliders. Combine it with
+  `ecs.physics_3d_sphere_cast` for native-only surfaces. See the rendering
+  reference for centre-travel distances, initial overlaps, and bounds limits.
+- Use the generic `Depth_Pass_Filter` and `draw_scene_with_filtered_depth` when
+  a supported screen-space effect needs depth excluding entity subtrees.
+  Materials and normal scene depth remain unchanged. See the rendering
+  reference and `docs/filtered-depth.md` for borrowing, defaults, and ownership.
 - Reacquire scene entities and borrowed state after reload or restoration.
   Frame scratch and borrowed component strings/collections are not persistent
   game storage. Keep durable game state in owned storage or configured saves.

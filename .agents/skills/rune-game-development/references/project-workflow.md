@@ -61,6 +61,13 @@ documented. Rune's build helpers prepare the recorded R3D compatibility patch;
 for manual commands use the appropriate `tools/prepare_r3d.bat` or `.sh` first
 when needed. Do not discard expected prepared submodule changes.
 
+For manual compiler commands, use Rune's `tools/odin.bat`, `tools/odin.sh`, or
+`tools/odin.ps1` to share the compile lock. On Windows, `-linker:msvc` also selects
+a complete installed toolset through `tools/find_msvc.bat`, preserving valid
+`VCToolsInstallDir` or developer-shell `PATH` selections and skipping versions
+missing the linker or C runtime libraries. No default-toolset metadata is needed;
+MSVC and the Windows SDK must still be installed.
+
 Run the game's `build.bat --rune-root <engine>` or
 `sh build.sh --rune-root <engine>` from `GAME_ROOT`; `RUNE_ROOT` can also supply
 the engine path. Add `--run` to launch after building, `--release` for an

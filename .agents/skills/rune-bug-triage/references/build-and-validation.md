@@ -22,6 +22,15 @@ New-Item -ItemType Directory -Force build | Out-Null
 )
 ```
 
+With `-linker:msvc`, the Windows wrapper uses `tools/find_msvc.bat` to select
+a complete installed toolset. It honors a valid `VCToolsInstallDir` or
+developer-shell `PATH` selection, otherwise enumerates version folders with
+Visual Studio's `vswhere.exe`. Candidates need `link.exe`, `libcmt.lib`, and
+`vcruntime.lib` for the target architecture. Missing default-version metadata
+and an incomplete newer toolset do not prevent selecting an older complete one.
+Selection is local to the compiler invocation. This does not install MSVC or the
+Windows SDK; direct `odin` calls bypass this discovery as well as the lock.
+
 Rune's Windows launcher and build/validation helpers select MSVC themselves.
 Published Windows players additionally select `-subsystem:windows`. If a
 published game opens a console, inspect its PE optional-header Subsystem:

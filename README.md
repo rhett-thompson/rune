@@ -173,6 +173,14 @@ programs with `build`, then launch the executable after the wrapper returns so
 compiler memory and the lock are released before play. Direct Odin commands
 bypass the lock.
 
+For Windows commands with `-linker:msvc`, the compiler wrapper also locates MSVC
+through `tools/find_msvc.bat`. It preserves a valid `VCToolsInstallDir` or
+developer-shell `PATH` selection; otherwise it uses Visual Studio's `vswhere.exe`
+to find the newest complete toolset in each installation, preferring newer
+installations. It checks for the linker and C runtime libraries, skips incomplete
+versions, and works without the default-toolset metadata. The selection is local
+to that compiler invocation; MSVC and the Windows SDK still need to be installed.
+
 This compiles all registered examples and the launcher, runs the validators, and checks
 the project files. Omit `--all-examples` for representative builds only. The
 compiler's vendor packages supply raylib, Box2D, and Box3D; the recursive submodule
