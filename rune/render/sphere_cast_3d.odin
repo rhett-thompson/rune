@@ -8,15 +8,36 @@ import rl "vendor:raylib"
 // Distance is travel of the sphere's centre; point lies on the contacted surface.
 // Render-only primitives and CPU mesh triangles need no native physics bodies.
 // Imported models and scaled spheres use conservative bounds.
+Scene_Sphere_Cast_3D :: struct {origin,translation:[3]f32,radius:f32,ignore:ecs.Entity}
+Scene_Sphere_Cast_Result_3D :: struct {hit:Scene_Ray_Hit_3D,found:bool}
+
 scene_sphere_cast_3d :: proc(world:^ecs.World,origin,translation:[3]f32,radius:f32,ignore:ecs.Entity=0,model_bounds:Scene_Model_Bounds_3D=nil,bounds_data:rawptr=nil,ignored_subtrees:[]ecs.Entity=nil,static_bounds:Scene_Static_Mesh_Bounds_3D=nil) -> (Scene_Ray_Hit_3D,bool) {
-	if world==nil || !pick_3d_vector_valid(origin) || !pick_3d_vector_valid(translation) || !(radius>=0) || math.is_inf(radius) {return {},false}
-	length:=rl.Vector3Length(translation)
-	if !(length>0) || math.is_inf(length) {return {},false}
-	if radius==0 {return scene_raycast_3d(world,origin,translation,ignore,model_bounds,bounds_data,ignored_subtrees,static_bounds)}
-	result:Scene_Ray_Hit_3D
-	found:=false
+	requests:=[1]Scene_Sphere_Cast_3D{{origin,translation,radius,ignore}}
+	results:[1]Scene_Sphere_Cast_Result_3D
+	scene_sphere_cast_batch_3d(world,requests[:],results[:],model_bounds,bounds_data,ignored_subtrees,static_bounds)
+	return results[0].hit,results[0].found
+}
+
+// A synchronous batch shares scene traversal and composed geometry transforms.
+// Results are caller-owned; no snapshot survives a World edit. Zero-radius
+// requests retain ordinary ray semantics. Invalid requests produce no hit.
+scene_sphere_cast_batch_3d :: proc(world:^ecs.World,requests:[]Scene_Sphere_Cast_3D,results:[]Scene_Sphere_Cast_Result_3D,model_bounds:Scene_Model_Bounds_3D=nil,bounds_data:rawptr=nil,ignored_subtrees:[]ecs.Entity=nil,static_bounds:Scene_Static_Mesh_Bounds_3D=nil) {
+	assert(len(requests)==len(results))
+	for &result in results {result={}}
+	if world==nil || len(requests)==0 {return}
+	lengths:=make([]f32,len(requests),context.temp_allocator)
+	active:=false
+	for request,i in requests {
+		if !pick_3d_vector_valid(request.origin) || !pick_3d_vector_valid(request.translation) || !(request.radius>=0) || math.is_inf(request.radius) {continue}
+		length:=rl.Vector3Length(request.translation)
+		if !(length>0) || math.is_inf(length) {continue}
+		if request.radius==0 {
+			results[i].hit,results[i].found=scene_raycast_3d(world,request.origin,request.translation,request.ignore,model_bounds,bounds_data,ignored_subtrees,static_bounds)
+		} else {lengths[i]=length;active=true}
+	}
+	if !active {return}
 	for entity in world.entities {
-		if entity==ignore || !ecs.is_enabled(world,entity) {continue}
+		if !ecs.is_enabled(world,entity) {continue}
 		excluded:=false
 		for root in ignored_subtrees {if pick_3d_in_subtree(world,entity,root) {excluded=true;break}}
 		if excluded {continue}
@@ -25,18 +46,7 @@ scene_sphere_cast_3d :: proc(world:^ecs.World,origin,translation:[3]f32,radius:f
 		bounds:rl.BoundingBox
 		has_bounds:=false
 		if model_bounds!=nil {bounds,has_bounds=model_bounds(bounds_data,world,entity);has_bounds=has_bounds && pick_3d_bounds_valid(bounds)}
-		if !has_mesh && !has_sphere && !has_bounds {continue}
-		pose:=ecs.world_transform_3d(world,entity)
-		if !pick_3d_vector_valid(pose.position) || !pick_3d_vector_valid(pose.rotation) || !pick_3d_vector_valid(pose.scale) {continue}
-		if pose.scale[0]==0 || pose.scale[1]==0 || pose.scale[2]==0 {continue}
-		rotation:=pose.rotation*f32(math.PI/180)
-		pose_matrix:=rl.MatrixTranslate(pose.position[0],pose.position[1],pose.position[2])*rl.QuaternionToMatrix(rl.QuaternionFromEuler(rotation[0],rotation[1],rotation[2]))*rl.MatrixScale(pose.scale[0],pose.scale[1],pose.scale[2])
-		inverse:=rl.MatrixInvert(pose_matrix)
-		local_origin:=rl.Vector3Transform(origin,inverse)
-		local_delta:=(rl.Vector3Transform(origin+translation,inverse)-local_origin)*(result.distance/length if found else 1)
-		padding:=[3]f32{radius/abs(pose.scale[0]),radius/abs(pose.scale[1]),radius/abs(pose.scale[2])}
 		triangles:=false
-		data:ecs.Static_Mesh
 		if has_mesh {
 			switch mesh.primitive {
 			case "cube","plane","quad":
@@ -44,8 +54,8 @@ scene_sphere_cast_3d :: proc(world:^ecs.World,origin,translation:[3]f32,radius:f
 				if mesh.primitive=="plane" {bounds.min[1],bounds.max[1]=0,0}
 				if mesh.primitive=="quad" {bounds.min[2],bounds.max[2]=0,0}
 			case "static":
-				data,triangles=world.static_meshes[entity]
-				if triangles && len(data.data.vertices)>0 {
+				if data,installed:=world.static_meshes[entity];installed && len(data.data.vertices)>0 {
+					triangles=true
 					cached:=false
 					if static_bounds!=nil {bounds,cached=static_bounds(bounds_data,world,entity,data.revision);cached=cached && pick_3d_bounds_valid(bounds)}
 					if !cached {
@@ -57,24 +67,53 @@ scene_sphere_cast_3d :: proc(world:^ecs.World,origin,translation:[3]f32,radius:f
 			}
 		}
 		if has_sphere {bounds={-[3]f32{1,1,1}*sphere.radius,[3]f32{1,1,1}*sphere.radius};has_bounds=true}
-		if !has_bounds || !sphere_cast_bounds_3d(bounds,local_origin,local_delta,padding) {continue}
-		contact:b3.CastOutput
-		if triangles {
-			contact=sphere_cast_mesh_3d(ecs.static_mesh_query_acceleration(world,entity),pose_matrix,origin,translation,radius,local_origin,local_delta,padding)
-		} else {
-			points:[8]b3.Vec3
-			for i in 0..<8 {
-				corner:=[3]f32{bounds.max[0] if i&1!=0 else bounds.min[0],bounds.max[1] if i&2!=0 else bounds.min[1],bounds.max[2] if i&4!=0 else bounds.min[2]}
-				p:=rl.Vector3Transform(corner,pose_matrix)-origin;points[i]={p[0],p[1],p[2]}
-			}
-			contact=sphere_cast_proxy_3d(points[:],translation,radius)
+		if !has_bounds {continue}
+		pose:=ecs.world_transform_3d(world,entity)
+		if !pick_3d_vector_valid(pose.position) || !pick_3d_vector_valid(pose.rotation) || !pick_3d_vector_valid(pose.scale) {continue}
+		if pose.scale[0]==0 || pose.scale[1]==0 || pose.scale[2]==0 {continue}
+		rotation:=pose.rotation*f32(math.PI/180)
+		transform:=rl.MatrixTranslate(pose.position[0],pose.position[1],pose.position[2])*rl.QuaternionToMatrix(rl.QuaternionFromEuler(rotation[0],rotation[1],rotation[2]))*rl.MatrixScale(pose.scale[0],pose.scale[1],pose.scale[2])
+		centre:=rl.Vector3Transform((bounds.min+bounds.max)*0.5,transform)
+		half:=(bounds.max-bounds.min)*0.5
+		extent:=[3]f32{
+			abs(transform[0,0])*half[0]+abs(transform[0,1])*half[1]+abs(transform[0,2])*half[2],
+			abs(transform[1,0])*half[0]+abs(transform[1,1])*half[1]+abs(transform[1,2])*half[2],
+			abs(transform[2,0])*half[0]+abs(transform[2,1])*half[1]+abs(transform[2,2])*half[2],
 		}
-		if !contact.hit {continue}
-		distance:=contact.fraction*length
-		if found && (distance>result.distance || (distance==result.distance && entity>=result.entity)) {continue}
-		result={entity=entity,distance=distance,point=origin+[3]f32{contact.point.x,contact.point.y,contact.point.z},normal={contact.normal.x,contact.normal.y,contact.normal.z}};found=true
+		// Reject in world space before matrix inversion or triangle traversal.
+		// Padding also retains flat surfaces and floating-point boundary hits.
+		world_bounds:=rl.BoundingBox{centre-extent-([3]f32{0.001,0.001,0.001}),centre+extent+([3]f32{0.001,0.001,0.001})}
+		inverse:rl.Matrix
+		inverted:=false
+		for request,i in requests {
+			if lengths[i]==0 || request.ignore==entity {continue}
+			result:=&results[i]
+			fraction:=result.hit.distance/lengths[i] if result.found else f32(1)
+			padding:=[3]f32{request.radius,request.radius,request.radius}
+			if !sphere_cast_bounds_3d(world_bounds,request.origin,request.translation*fraction,padding) {continue}
+			if !inverted {inverse=rl.MatrixInvert(transform);inverted=true}
+			local_origin:=rl.Vector3Transform(request.origin,inverse)
+			local_delta:=(rl.Vector3Transform(request.origin+request.translation,inverse)-local_origin)*fraction
+			padding={request.radius/abs(pose.scale[0]),request.radius/abs(pose.scale[1]),request.radius/abs(pose.scale[2])}
+			if !sphere_cast_bounds_3d(bounds,local_origin,local_delta,padding) {continue}
+			contact:b3.CastOutput
+			if triangles {
+				contact=sphere_cast_mesh_3d(ecs.static_mesh_query_acceleration(world,entity),transform,request.origin,request.translation,request.radius,local_origin,local_delta,padding)
+			} else {
+				points:[8]b3.Vec3
+				for j in 0..<8 {
+					corner:=[3]f32{bounds.max[0] if j&1!=0 else bounds.min[0],bounds.max[1] if j&2!=0 else bounds.min[1],bounds.max[2] if j&4!=0 else bounds.min[2]}
+					p:=rl.Vector3Transform(corner,transform)-request.origin;points[j]={p[0],p[1],p[2]}
+				}
+				contact=sphere_cast_proxy_3d(points[:],request.translation,request.radius)
+			}
+			if !contact.hit {continue}
+			distance:=contact.fraction*lengths[i]
+			if result.found && (distance>result.hit.distance || (distance==result.hit.distance && entity>=result.hit.entity)) {continue}
+			result.hit={entity=entity,distance=distance,point=request.origin+[3]f32{contact.point.x,contact.point.y,contact.point.z},normal={contact.normal.x,contact.normal.y,contact.normal.z}}
+			result.found=true
+		}
 	}
-	return result,found
 }
 
 @(private)

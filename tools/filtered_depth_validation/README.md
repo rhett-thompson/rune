@@ -10,7 +10,8 @@ From the Rune root, build with the compiler guard and run the executable separat
 The hidden-window fixture requires a graphics context. It verifies that omitting
 a foreground beam preserves the included wall behind it, leaves empty sky clear,
 and does not remove the beam from normal scene color/depth. It also checks
-material cutouts, vertex deformation, explicit shader time, internal-resolution
+material cutouts, alpha/prepass membership, vertex deformation, explicit shader
+time, perspective/orthographic depth linearization, internal-resolution
 changes, and resource cleanup. Captures and generated fixture assets are saved
 under `build/filtered-depth-validation/`.
 

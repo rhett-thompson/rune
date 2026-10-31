@@ -126,6 +126,8 @@ For terrain detail distance thinning, follow the optional density settings in
   geometry, including CPU meshes without colliders. Combine it with
   `ecs.physics_3d_sphere_cast` for native-only surfaces. See the rendering
   reference for centre-travel distances, initial overlaps, and bounds limits.
+  Submit related sweeps with `scene_sphere_cast_batch` to share scene traversal
+  and transforms; request/result slices belong to the caller.
 - Use the generic `Depth_Pass_Filter` and `draw_scene_with_filtered_depth` when
   a supported screen-space effect needs depth excluding entity subtrees.
   Materials and normal scene depth remain unchanged. See the rendering

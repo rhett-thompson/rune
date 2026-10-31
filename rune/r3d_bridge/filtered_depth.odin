@@ -21,7 +21,7 @@ Depth_Pass3D :: struct {
 	target: rl.RenderTexture2D,
 	copy_shader: rl.Shader,
 	copy_attempted: bool,
-	far_location: i32,
+	projection_location: i32,
 	valid: bool,
 	pass_count: u64,
 }
@@ -39,20 +39,34 @@ depth_pass_excludes :: proc(world:^ecs.World,entity:ecs.Entity,filter:Depth_Pass
 	return false
 }
 
-// No allocation and no extra view when exclusions do not affect enabled
-// rendered geometry. Plain organizational roots and disabled trees are cheap.
+// No extra depth target or view when exclusions do not affect enabled geometry.
+// Walk only requested subtrees, reusing the World's lazy hierarchy indexes.
 depth_pass_filter_effective :: proc(world:^ecs.World,filter:Depth_Pass_Filter) -> bool {
 	if world==nil || len(filter.ignored_subtrees)==0 {return false}
-	for entity in world.entities {
-		if !ecs.is_enabled(world,entity) || !depth_pass_excludes(world,entity,filter) {continue}
-		if mesh,found:=ecs.get_mesh_renderer(world,entity);found {
-			switch mesh.primitive {case "cube","plane","quad","static":return true}
-		}
-		if _,found:=ecs.get_sphere_renderer(world,entity);found {return true}
-		if _,found:=ecs.get_model_renderer(world,entity);found {return true}
-		if _,found:=ecs.get_terrain(world,entity);found {return true}
+	for root in filter.ignored_subtrees {
+		if depth_subtree_has_geometry(world,root) {return true}
 	}
 	return false
+}
+
+@(private)
+depth_subtree_has_geometry :: proc(world:^ecs.World,entity:ecs.Entity) -> bool {
+	if !ecs.is_enabled(world,entity) {return false}
+	if mesh,found:=ecs.get_mesh_renderer(world,entity);found {
+		switch mesh.primitive {case "cube","plane","quad","static":return true}
+	}
+	if _,found:=ecs.get_sphere_renderer(world,entity);found {return true}
+	if _,found:=ecs.get_model_renderer(world,entity);found {return true}
+	if _,found:=ecs.get_terrain(world,entity);found {return true}
+	for child in ecs.child_entities(world,entity) {if depth_subtree_has_geometry(world,child) {return true}}
+	return false
+}
+
+@(private)
+depth_mark_subtree :: proc(world:^ecs.World,entity:ecs.Entity,excluded:^map[ecs.Entity]bool) {
+	if !ecs.is_alive(world,entity) || excluded^[entity] {return}
+	excluded^[entity]=true
+	for child in ecs.child_entities(world,entity) {depth_mark_subtree(world,child,excluded)}
 }
 
 @(private)
@@ -72,11 +86,16 @@ load_depth_pass_target :: proc(width,height:i32) -> rl.RenderTexture2D {
 // Call outside an active R3D session, after preparing terrain/static geometry
 // and skeletal poses. Camera must be the full sampling camera for this draw.
 // This uses ordinary material cutouts, vertex shaders, and composed transforms.
-// It copies the same opaque linear depth used by screen shaders; ordinary unlit
+// It renders the same opaque membership used by screen shaders; ordinary unlit
 // forward surfaces retain their existing non-occluding behavior in that buffer.
 // Geometry hidden behind an excluded object is drawn into the new depth view;
 // the ordinary scene depth and shader chains remain untouched after return.
 render_scene_depth :: proc(view:^Depth_Pass3D,ctx:^Context,world:^ecs.World,manager:^assets.Asset_Manager,camera:rl.Camera3D,filter:Depth_Pass_Filter,material_time:f32) -> bool {
+	return render_scene_depth_internal(view,ctx,world,manager,camera,filter,material_time,false)
+}
+
+@(private)
+render_scene_depth_internal :: proc(view:^Depth_Pass3D,ctx:^Context,world:^ecs.World,manager:^assets.Asset_Manager,camera:rl.Camera3D,filter:Depth_Pass_Filter,material_time:f32,prepared:bool) -> bool {
 	if view==nil {return false}
 	view.valid=false
 	if ctx==nil || !ctx.initialized || world==nil || active_render_view_3d || !depth_pass_filter_effective(world,filter) {return false}
@@ -98,60 +117,57 @@ render_scene_depth :: proc(view:^Depth_Pass3D,ctx:^Context,world:^ecs.World,mana
 		view.copy_shader=rl.LoadShaderFromMemory(nil,strings.clone_to_cstring(source,context.temp_allocator))
 		if view.copy_shader.id==rlgl.GetShaderIdDefault() {view.copy_shader={}}
 		else {
-			view.far_location=rl.GetShaderLocation(view.copy_shader,"u_far_distance")
+			view.projection_location=rl.GetShaderLocation(view.copy_shader,"u_projection")
 		}
 	}
 	if view.copy_shader.id==0 {return false}
 	rlgl.DrawRenderBatchActive()
-	if !begin_linear_view_capture(false) {return false}
+	if !begin_depth_capture() {return false}
 	active_render_view_3d=true
 	defer active_render_view_3d=false
 	finished:=false
-	defer if !finished {color,depth:rl.Texture2D;end_linear_view_capture(&color,&depth)}
-	saved_environment:=r3d.GetEnvironment()^
-	saved_aa:=r3d.GetAntiAliasingMode()
+	defer if !finished {depth:rl.Texture2D;end_depth_capture(&depth)}
 	saved_stats:=ctx.frame_stats
-	defer {
-		r3d.SetEnvironment(&saved_environment)
-		r3d.SetAntiAliasingMode(saved_aa)
-		ctx.frame_stats=saved_stats
-	}
-	environment:=r3d.ENVIRONMENT_BASE
-	environment.background={color=rl.BLACK,energy=0}
-	environment.ambient={color=rl.BLACK,energy=0}
-	r3d.SetEnvironment(&environment)
-	r3d.SetAntiAliasingMode(.NONE)
+	defer ctx.frame_stats=saved_stats
+	if !prepared {prepare_static_groups(ctx,world);prepare_render_cache(ctx,world)}
+	excluded:=make(map[ecs.Entity]bool,context.temp_allocator)
+	for root in filter.ignored_subtrees {depth_mark_subtree(world,root,&excluded)}
 	r3d.BeginPro({camera=r3d.CameraFromRL(camera),target=view.target})
-	// Never reuse CPU occlusion results from the normal view: an excluded mesh
-	// may be the object that hid the architecture needed in this depth image.
-	for entity,cache in ctx.static_meshes {
-		if !ecs.is_enabled(world,entity) || depth_pass_excludes(world,entity,filter) {continue}
-		pose,valid:=ecs.terrain_transform(world,entity)
-		if valid {submit_static_mesh(ctx,world,manager,entity,cache,{},&pose)}
+	// Reuse transforms and frustum clusters, but never normal CPU occlusion:
+	// removing one occluder may expose architecture hidden in the main view.
+	frustum:=r3d.GetFrustum()
+	for _,group in ctx.static_groups {
+		if !r3d.FrustumIntersectsBoundingBox(&frustum,group.bounds) {continue}
+		r3d.BeginCluster(group.bounds)
+		for entity in group.members {
+			if excluded[entity] {continue}
+			cache:=ctx.static_meshes[entity]
+			submit_static_mesh(ctx,world,manager,entity,cache,cache.transform)
+		}
+		r3d.EndCluster()
 	}
 	draw_terrains(ctx,world,manager,filter)
 	draw_terrain_details(ctx,world,manager,camera.position,filter)
-	for entity in world.entities {
-		if !ecs.is_enabled(world,entity) || depth_pass_excludes(world,entity,filter) || ecs.has_component_data(world,entity,"CloudVolume") {continue}
-		pose:=ecs.world_transform_3d(world,entity)
-		draw_entity(ctx,world,manager,entity,pose,.Plane_Only)
-		draw_entity(ctx,world,manager,entity,pose,.Non_Plane)
+	for entity in ctx.render_cache.planes {
+		if excluded[entity] || !ctx.render_cache.nodes[entity].enabled {continue}
+		entry:=ctx.render_cache.entries[entity]
+		draw_entity(ctx,world,manager,entity,entry.pose,.Plane_Only,&entry.transform)
+	}
+	for entity in ctx.render_cache.others {
+		if excluded[entity] || !ctx.render_cache.nodes[entity].enabled || ecs.has_component_data(world,entity,"CloudVolume") {continue}
+		entry:=ctx.render_cache.entries[entity]
+		draw_entity(ctx,world,manager,entity,entry.pose,.Non_Plane,&entry.transform)
 	}
 	update_material_shader_time(ctx,{material_time=material_time,material_time_override=true},f64(material_time))
 	r3d.End()
-	color,raw_depth:rl.Texture2D
-	captured:=end_linear_view_capture(&color,&raw_depth)
+	depth:rl.Texture2D
+	captured:=end_depth_capture(&depth)
 	finished=true
-	if !captured {return false}
-	// Raw final depth also includes opaque unlit forward surfaces. The linear
-	// attachment instead matches the existing pre-transparency screen effects.
-	// Despite the binding's older description, it already stores view-space Z.
-	depth:=r3d.GetBufferDepth()
-	if depth.id==0 || depth.width!=width || depth.height!=height {return false}
-	// Native depth is borrowed and will be overwritten by the next Begin/End.
-	// Copy now, before returning to the normal scene draw.
-	far_value:=f32(far_distance)
-	rl.SetShaderValue(view.copy_shader,view.far_location,&far_value,.FLOAT)
+	if !captured || depth.id==0 || depth.width!=width || depth.height!=height {return false}
+	// The native depth-only shader preserves cutouts and deformation. Convert
+	// its hardware depth immediately, before the main view overwrites it.
+	projection:=[3]f32{f32(near_distance),f32(far_distance),1 if camera.projection==.ORTHOGRAPHIC else 0}
+	rl.SetShaderValue(view.copy_shader,view.projection_location,&projection,.VEC3)
 	rl.BeginTextureMode(view.target)
 	rl.BeginShaderMode(view.copy_shader)
 	rlgl.DisableColorBlend()
@@ -170,4 +186,11 @@ destroy_depth_pass_3d :: proc(view:^Depth_Pass3D) {
 	if view.target.id!=0 {rl.UnloadRenderTexture(view.target)}
 	if view.copy_shader.id!=0 {rl.UnloadShader(view.copy_shader)}
 	view^={}
+}
+
+when !PRE_TRANSPARENCY_SHADERS_SUPPORTED {
+	@(private)
+	begin_depth_capture :: proc() -> bool {return false}
+	@(private)
+	end_depth_capture :: proc(depth:^rl.Texture2D) -> bool {return false}
 }

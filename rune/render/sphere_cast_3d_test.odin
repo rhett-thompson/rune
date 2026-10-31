@@ -5,6 +5,39 @@ import "rune:ecs"
 import "rune:geometry"
 
 @(test)
+rendered_sphere_batch_keeps_independent_hits_and_refreshes_edited_geometry :: proc(t:^testing.T) {
+	w:=ecs.init();defer ecs.destroy(&w)
+	r:=ecs.init_registry();defer ecs.destroy_registry(&r);assert(ecs.register_builtin_components(&r))
+	root:=ecs.create_entity(&w)
+	assert(ecs.add(&w,&r,root,ecs.Transform{position={3,0,10},rotation={0,90,0},scale={-2,1,1}}))
+	box:=ecs.create_entity(&w);assert(ecs.set_parent(&w,box,root))
+	assert(ecs.add(&w,&r,box,ecs.Transform{scale={2,4,2}}) && ecs.add(&w,&r,box,ecs.MeshRenderer{primitive="cube"}))
+	requests:=[6]Scene_Sphere_Cast_3D{
+		{origin={3,0,0},translation={0,0,20},radius=0.5},
+		{origin={3,0,20},translation={0,0,-20},radius=0.5},
+		{origin={1.75,0,0},translation={0,0,20},radius=0.5},
+		{origin={1.75,0,0},translation={0,0,20},radius=0},
+		{origin={3,0,10},translation={0,0,20},radius=0.5},
+		{origin={3,0,0},translation={0,0,20},radius=0.5,ignore=box},
+	}
+	results:[6]Scene_Sphere_Cast_Result_3D
+	scene_sphere_cast_batch_3d(&w,requests[:],results[:])
+	testing.expect(t,results[0].found && abs(results[0].hit.distance-7.5)<0.02)
+	testing.expect(t,results[1].found && abs(results[1].hit.distance-7.5)<0.02,"Opposite sweeps keep independent nearest distances")
+	testing.expect(t,results[2].found && !results[3].found,"A grazing sphere blocks while a zero-radius ray stays clear")
+	testing.expect(t,results[4].found && results[4].hit.distance==0 && !results[5].found)
+	pose,_:=ecs.get_transform(&w,root);pose.position[2]=15;ecs.set_transform(&w,root,pose)
+	scene_sphere_cast_batch_3d(&w,requests[:],results[:])
+	testing.expect(t,results[0].found && abs(results[0].hit.distance-12.5)<0.02,"A batch sees parent edits without a stale snapshot")
+	ignored:=[1]ecs.Entity{root}
+	scene_sphere_cast_batch_3d(&w,requests[:],results[:],ignored_subtrees=ignored[:])
+	for result in results {testing.expect(t,!result.found,"Excluded ancestors apply to every request and reused results are cleared")}
+	ecs.set_enabled(&w,root,false)
+	scene_sphere_cast_batch_3d(&w,requests[:],results[:])
+	for result in results {testing.expect(t,!result.found,"Disabled parents are observed on the next batch")}
+}
+
+@(test)
 rendered_sphere_cast_stops_at_render_only_boxes_and_respects_width :: proc(t:^testing.T) {
 	w:=ecs.init();defer ecs.destroy(&w)
 	r:=ecs.init_registry();defer ecs.destroy_registry(&r);assert(ecs.register_builtin_components(&r))

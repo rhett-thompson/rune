@@ -87,8 +87,8 @@ prepare_render_cache :: proc(ctx:^Context,w:^ecs.World) {
 	for e,node in c.nodes {if node.frame!=c.frame {delete_key(&c.nodes,e)}}
 }
 
-draw_cached_entities :: proc(ctx:^Context,w:^ecs.World,manager:^assets.Asset_Manager) {
-	prepare_render_cache(ctx,w)
+draw_cached_entities :: proc(ctx:^Context,w:^ecs.World,manager:^assets.Asset_Manager,prepared:bool=false) {
+	if !prepared {prepare_render_cache(ctx,w)}
 	batch_rebuild:=ctx.instancing_enabled && prepare_prop_sources(ctx,w,manager)
 	if batch_rebuild {begin_prop_batches(ctx)}
 	for e in ctx.render_cache.planes {

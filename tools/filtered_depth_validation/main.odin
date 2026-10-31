@@ -99,6 +99,9 @@ main :: proc() {
 	assert(os.write_entire_file(OUTPUT+"/beam.material.json",`{"lighting":true,"base_color":[0,0,0,255],"emission_color":[240,30,20,255],"emission_energy":1}`)==nil)
 	assert(os.write_entire_file(OUTPUT+"/wall.material.json",`{"lighting":true,"base_color":[0,0,0,255],"emission_color":[20,50,240,255],"emission_energy":1}`)==nil)
 	assert(os.write_entire_file(OUTPUT+"/unlit-wall.material.json",`{"lighting":false,"base_color":[20,50,240,255]}`)==nil)
+	assert(os.write_entire_file(OUTPUT+"/alpha-wall.material.json",`{"lighting":true,"base_color":[20,50,240,255],"transparency":"alpha"}`)==nil)
+	assert(os.write_entire_file(OUTPUT+"/prepass-wall.material.json",`{"lighting":true,"base_color":[20,50,240,255],"transparency":"prepass"}`)==nil)
+	assert(os.write_entire_file(OUTPUT+"/partial-prepass-wall.material.json",`{"lighting":true,"base_color":[20,50,240,128],"transparency":"prepass"}`)==nil)
 	assert(os.write_entire_file(OUTPUT+"/deformed.material.json",`{"lighting":true,"base_color":[0,0,0,255],"emission_color":[20,50,240,255],"emission_energy":1,"surface_shader":"deformed.glsl","surface_shader_time":true}`)==nil)
 	assert(os.write_entire_file(OUTPUT+"/deformed.glsl",DEFORMED_SHADER)==nil)
 	rl.SetConfigFlags({.WINDOW_HIDDEN})
@@ -172,6 +175,15 @@ main :: proc() {
 	auxiliary_frame(&view,&ctx,&w,&manager,filter)
 	testing_unlit_depth:=read_depth(view.target.texture,{0,0,-8})
 	assert(testing_unlit_depth>99,"filtering must preserve existing unlit-material occlusion behavior")
+	renderer.material="alpha-wall.material.json";assert(ecs.set_mesh_renderer(&w,wall,renderer))
+	auxiliary_frame(&view,&ctx,&w,&manager,filter)
+	assert(read_depth(view.target.texture,{0,0,-8})>99,"ordinary alpha surfaces must remain outside opaque depth")
+	renderer.material="prepass-wall.material.json";assert(ecs.set_mesh_renderer(&w,wall,renderer))
+	auxiliary_frame(&view,&ctx,&w,&manager,filter)
+	assert(abs(read_depth(view.target.texture,{0,0,-8})-7.9)<0.08,"opaque alpha-prepass coverage must remain included")
+	renderer.material="partial-prepass-wall.material.json";assert(ecs.set_mesh_renderer(&w,wall,renderer))
+	auxiliary_frame(&view,&ctx,&w,&manager,filter)
+	assert(read_depth(view.target.texture,{0,0,-8})>99,"partial alpha-prepass coverage must retain the native opaque threshold")
 	// Reusing the original shader inputs must retain both cutouts and displaced
 	// vertex positions in the auxiliary pass, with the same explicit material clock.
 	renderer.material="deformed.material.json";assert(ecs.set_mesh_renderer(&w,wall,renderer))
@@ -187,7 +199,14 @@ main :: proc() {
 	auxiliary_frame(&view,&ctx,&w,&manager,filter,0)
 	assert(view.target.texture.width==192 && view.target.texture.height==128,"the auxiliary target must follow native internal resolution")
 	assert(abs(read_depth(view.target.texture,{-0.6,0,-8})-7.9)<0.08,"resizing must retain projection-aligned depth")
+	// Hardware-depth linearization must also retain orthographic view-space Z.
+	renderer.material="wall.material.json";assert(ecs.set_mesh_renderer(&w,wall,renderer))
+	orthographic:=CAMERA;orthographic.projection=.ORTHOGRAPHIC;orthographic.fovy=6
+	rl.BeginDrawing()
+	assert(bridge.render_scene_depth(&view,&ctx,&w,&manager,orthographic,filter,0))
+	rl.EndDrawing()
+	assert(abs(read_depth(view.target.texture,{0,0,-8})-7.9)<0.08,"orthographic hardware depth must linearize to view-space metres")
 	bridge.destroy_depth_pass_3d(&view)
 	assert(view.target.id==0 && !view.valid,"destroying the depth pass must clear its target and validity")
-	fmt.println("Filtered-depth GPU geometry, rear-wall preservation, normal-depth isolation, cutouts, vertex deformation, resize and cleanup passed")
+	fmt.println("Filtered-depth GPU geometry, rear-wall preservation, normal-depth isolation, alpha/prepass membership, cutouts, vertex deformation, perspective/orthographic depth, resize and cleanup passed")
 }

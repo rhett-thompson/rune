@@ -53,5 +53,9 @@ when PRE_TRANSPARENCY_SHADERS_SUPPORTED {
 		begin_linear_view_capture :: proc(inherit_lights: bool) -> bool ---
 		@(link_name="Rune_R3D_EndLinearViewCapture")
 		end_linear_view_capture :: proc(color, depth: ^rl.Texture2D) -> bool ---
+		@(link_name="Rune_R3D_BeginDepthCapture")
+		begin_depth_capture :: proc() -> bool ---
+		@(link_name="Rune_R3D_EndDepthCapture")
+		end_depth_capture :: proc(depth:^rl.Texture2D) -> bool ---
 	}
 }

@@ -88,6 +88,12 @@ unchanged. Built-in light shafts consume this buffer when active. Empty, stale,
 disabled, or non-rendering exclusions retain the original path without an
 additional allocation or pass; other native effects retain the main depth.
 
+The auxiliary path uses native depth-only shaders and shared cached transforms,
+then linearizes hardware depth for the effect. It does not rerun lighting or
+color post processing. Scene GPU timestamps include this pass and the main
+view, with possible idle gaps during CPU submission; overlay views, game UI
+and presentation remain outside that interval.
+
 For another consumer, call `render_scene_depth` with a caller-owned
 `Depth_Pass3D`. Its `.target.texture` red channel is positive linear view-space
 Z in world units at the native internal resolution. Match the consuming camera
@@ -232,6 +238,12 @@ edges. Imported models and scaled spheres use conservative bounds; terrain and
 shader effects are excluded. Combine the queries when both native-only and
 render-only surfaces must block. The CPU entry point is
 `render.scene_sphere_cast_3d`; see `rune/r3d_bridge/scene_query.md`.
+
+Use `r3d_bridge.scene_sphere_cast_batch` for related sweeps against the same
+unchanged World. Caller-owned, equally sized request/result slices share scene
+traversal, bounds and transforms. Results retain scalar-query semantics and
+are refreshed on every call; no geometry snapshot survives later World edits.
+`render.scene_sphere_cast_batch_3d` provides the CPU-only entry point.
 
 Rendered sweeps lazily cache a World-owned BVH of visible static triangles.
 Replacing/removing meshes releases it; no physics body is added. Run queries

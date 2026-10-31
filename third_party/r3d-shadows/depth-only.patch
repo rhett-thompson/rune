@@ -1,0 +1,84 @@
+--- a/src/r3d_draw.c
++++ b/src/r3d_draw.c
+@@ -130,6 +130,9 @@
+ 
+ // Rune's offscreen views use this same deferred/HDR pipeline. Capture before
+ // display conversion; these borrowed textures are copied before the next view.
++static bool DEPTH_VIEW_ACTIVE;
++static bool DEPTH_VIEW_CAPTURED;
++static Texture2D DEPTH_VIEW_TEXTURE;
+ static bool LINEAR_VIEW_ACTIVE;
+ static bool LINEAR_VIEW_CAPTURED;
+ static Texture2D LINEAR_VIEW_COLOR;
+@@ -142,7 +145,7 @@
+ 
+ bool Rune_R3D_BeginLinearViewCapture(bool inheritLights)
+ {
+-    if (LINEAR_VIEW_ACTIVE) return false;
++    if (LINEAR_VIEW_ACTIVE || DEPTH_VIEW_ACTIVE) return false;
+     LINEAR_VIEW_LIGHT_COUNT = 0;
+     LINEAR_VIEW_LIGHTS = NULL;
+     if (!inheritLights && R3D_MOD_LIGHT.pool->count > 0)
+@@ -197,6 +200,25 @@
+     return LINEAR_VIEW_CAPTURED;
+ }
+ 
++// Opaque depth shares R3D's submissions, material cutouts and vertex/skinning
++// shaders, without touching lights, probes, screen chains or exposure history.
++bool Rune_R3D_BeginDepthCapture(void)
++{
++    if (DEPTH_VIEW_ACTIVE || LINEAR_VIEW_ACTIVE) return false;
++    DEPTH_VIEW_ACTIVE = true;
++    DEPTH_VIEW_CAPTURED = false;
++    DEPTH_VIEW_TEXTURE = (Texture2D){0};
++    return true;
++}
++
++bool Rune_R3D_EndDepthCapture(Texture2D* depth)
++{
++    if (!DEPTH_VIEW_ACTIVE) return false;
++    DEPTH_VIEW_ACTIVE = false;
++    if (depth) *depth = DEPTH_VIEW_TEXTURE;
++    return DEPTH_VIEW_CAPTURED;
++}
++
+ void R3D_Begin(Camera3D camera)
+ {
+     R3D_BeginEx(R3D_CameraFromRL(camera));
+@@ -236,6 +258,36 @@
+     upload_view_block();
+     upload_env_block();
+     upload_fx_block();
++
++    if (DEPTH_VIEW_ACTIVE)
++    {
++        r3d_render_cull_groups(&R3D.viewState.frustum);
++        r3d_render_sort_list(R3D_RENDER_LIST_OPAQUE, R3D.viewState.camera.position, R3D_RENDER_SORT_FRONT_TO_BACK);
++        r3d_render_sort_list(R3D_RENDER_LIST_OPAQUE_INST, R3D.viewState.camera.position, R3D_RENDER_SORT_MATERIAL_ONLY);
++        r3d_driver_enable(GL_DEPTH_TEST);
++        r3d_driver_enable(GL_STENCIL_TEST);
++        r3d_driver_disable(GL_BLEND);
++        r3d_driver_set_depth_mask(GL_TRUE);
++        r3d_driver_set_stencil_mask(0xFF);
++        r3d_driver_set_depth_func(GL_LEQUAL);
++        r3d_target_clear(NULL, 0, 0, true);
++        const R3D_Frustum* frustum = &R3D.viewState.frustum;
++        R3D_RENDER_FOR_EACH(call, IS_MESH_VISIBLE_CAMERA(call->mesh.instance), frustum, R3D_RENDER_LIST_OPAQUE_INST, R3D_RENDER_LIST_OPAQUE)
++        {
++            // FetchDepth's opaque membership deliberately excludes unlit
++            // forward surfaces even when they write final hardware depth.
++            if (!call->mesh.material.unlit) raster_depth(call, &R3D.viewState.viewProj, NULL);
++        }
++        R3D_RENDER_FOR_EACH(call, IS_MESH_VISIBLE_CAMERA(call->mesh.instance), frustum, R3D_RENDER_LIST_TRANSPARENT_INST, R3D_RENDER_LIST_TRANSPARENT)
++        {
++            if (!call->mesh.material.unlit && r3d_render_is_prepass(call)) raster_depth(call, &R3D.viewState.viewProj, NULL);
++        }
++        DEPTH_VIEW_TEXTURE = (Texture2D){r3d_target_get_depth_buffer(), R3D_TARGET_SIZE_W, R3D_TARGET_SIZE_H, 1, 19};
++        DEPTH_VIEW_CAPTURED = DEPTH_VIEW_TEXTURE.id != 0;
++        r3d_stack_reset(R3D.stack);
++        cleanup_after_render();
++        return;
++    }
+ 
+     /* --- Update all visible lights and render their shadow maps --- */
+ 

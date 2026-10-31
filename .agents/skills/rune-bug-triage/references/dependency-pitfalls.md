@@ -321,3 +321,34 @@ The preparation helper validates the exact pin and canonical tracked diff,
 rejecting unrelated tracked or untracked changes. `--check` accepts pristine or
 already prepared input without applying the patch; passing it alone does not
 make pristine input ready for manual builds. Run actual preparation when needed.
+
+## Filtered depth and repeated rendered sweeps
+
+Use `scene_sphere_cast_batch` for related finite-width queries against one
+unchanged World. It shares traversal and composed transforms and rejects world
+bounds before inverse transforms/triangle BVHs. Preserve sphere widths, initial
+overlaps, hierarchy edits and render-only geometry when measuring alternatives;
+turning an effect off does not necessarily stop a game's independent queries.
+See `rune/r3d_bridge/scene_query.md` and `rune/render/sphere_cast_3d_test.odin`.
+
+Filtered depth uses the owned `third_party/r3d-shadows/depth-only.patch`, applied
+after the foreground-view patch. Rebuild both native targets after changing it;
+Odin-only edits do not update linked objects. The depth-only shaders retain
+cutouts, deformation and alpha-prepass coverage, exclude unlit/ordinary alpha
+surfaces, and skip color/lighting/post stages. Normal CPU occlusion cannot be
+reused because excluded objects can reveal previously hidden architecture.
+
+Scene GPU timestamps now include auxiliary depth and the main view; they can
+contain GPU idle gaps while CPU submissions arrive. They exclude earlier overlay
+views, game UI and presentation. Compare CPU render and filtered-depth timings
+alongside those timestamps rather than treating them as summed shader cost.
+See `docs/filtered-depth.md` for the current ownership and sampling contracts.
+
+On 2026-10-31, `tools/filtered_depth_validation` and
+`tools/foreground_view_validation --runtime` passed on Windows AMD64/MSVC,
+Odin `84bc3fc`, static raylib 6, GLFW/Win32, OpenGL 3.3 and an RTX 5070 with
+R3D pin `86303391c92e32418181a8133848a15ba02f060d`. Coverage includes rear-wall
+depth, sampler restoration, alpha/prepass membership, cutouts, vertex animation,
+perspective/orthographic linearization, resize/cleanup, foreground SSAO, HDR and
+light-state isolation. Linux objects were cross-compiled; Linux GPU behavior
+remains unverified.

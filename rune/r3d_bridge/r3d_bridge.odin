@@ -355,12 +355,19 @@ draw_scene_internal :: proc(ctx:^Context,world:^ecs.World,asset_manager:^assets.
 	// The auxiliary view must finish before native scene depth is produced.
 	// Missing/ineffective filters use the original path without another view.
 	shafts_enabled:=prepare_light_shafts(ctx,world,asset_manager,entity,camera,settings.post_processing_override)
+	// Include auxiliary depth and the main view in one asynchronous GPU interval.
+	// Overlay views have already finished; game UI and presentation follow later.
+	gpu_slot:=begin_gpu_timing(ctx)
+	geometry_prepared:=false
 	material_settings:=settings
 	if shafts_enabled && depth_pass_filter_effective(world,filter) {
 		material_settings.material_time=f32(started) if !settings.material_time_override else settings.material_time
 		material_settings.material_time_override=true
 		depth_started:=rl.GetTime()
-		if render_scene_depth(&ctx.filtered_depth,ctx,world,asset_manager,camera,filter,material_settings.material_time) {
+		prepare_static_groups(ctx,world)
+		prepare_render_cache(ctx,world)
+		geometry_prepared=true
+		if render_scene_depth_internal(&ctx.filtered_depth,ctx,world,asset_manager,camera,filter,material_settings.material_time,true) {
 			ctx.frame_stats.filtered_depth_passes=1
 			assets.resolve_asset_failure(asset_manager,"","Depth_Pass_Filter","")
 		} else {
@@ -380,7 +387,7 @@ draw_scene_internal :: proc(ctx:^Context,world:^ecs.World,asset_manager:^assets.
 	}
 	prepare_cloud_volumes(ctx,world,asset_manager,camera,entity,settings.post_processing_override)
 	static_started:=rl.GetTime()
-	draw_static_meshes(ctx,world,asset_manager,camera)
+	draw_static_meshes(ctx,world,asset_manager,camera,prepared=geometry_prepared)
 	ctx.frame_stats.static_cpu_ms=(rl.GetTime()-static_started)*1000
 	cull_scene_lights(ctx)
 	draw_terrains(ctx,world,asset_manager)
@@ -389,7 +396,7 @@ draw_scene_internal :: proc(ctx:^Context,world:^ecs.World,asset_manager:^assets.
 		for root in ecs.root_entities(world) {draw_entity_tree(ctx,world,asset_manager,root,identity_transform(),.Plane_Only)}
 		for root in ecs.root_entities(world) {draw_entity_tree(ctx,world,asset_manager,root,identity_transform(),.Non_Plane)}
 	} else {
-		draw_cached_entities(ctx,world,asset_manager)
+		draw_cached_entities(ctx,world,asset_manager,prepared=geometry_prepared)
 	}
 	draw_particles_3d(ctx,asset_manager,settings.particle_batches,camera)
 	// Fog the opaque background before alpha clouds. Their own ray samples
@@ -419,7 +426,6 @@ draw_scene_internal :: proc(ctx:^Context,world:^ecs.World,asset_manager:^assets.
 	if compatibility_overlay_post {r3d.SetScreenShaderChain(.POST,&ctx.scene_overlay_shader,1)}
 	backend_started:=rl.GetTime()
 	update_material_shader_time(ctx, material_settings, backend_started)
-	gpu_slot:=begin_gpu_timing(ctx)
 	r3d.End()
 	end_gpu_timing(ctx,gpu_slot)
 	ctx.frame_stats.backend_cpu_ms=(rl.GetTime()-backend_started)*1000

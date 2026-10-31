@@ -62,6 +62,16 @@ scene_sphere_cast :: proc(world:^ecs.World,origin,translation:[3]f32,radius:f32,
 	return Scene_Ray_Hit{entity=hit.entity,point=hit.point,distance=hit.distance,normal=hit.normal},ok
 }
 
+Scene_Sphere_Cast :: render.Scene_Sphere_Cast_3D
+Scene_Sphere_Cast_Result :: render.Scene_Sphere_Cast_Result_3D
+
+// Submit related sweeps together to share traversal, bounds and transforms.
+// The World must remain unchanged for this synchronous call. Results are owned
+// by the caller and retain the scalar query's geometry and distance semantics.
+scene_sphere_cast_batch :: proc(world:^ecs.World,requests:[]Scene_Sphere_Cast,results:[]Scene_Sphere_Cast_Result,bridge:^Context=nil,ignored_subtrees:[]ecs.Entity=nil) {
+	render.scene_sphere_cast_batch_3d(world,requests,results,scene_query_bridge_bounds,bridge,ignored_subtrees,scene_query_bridge_static_bounds)
+}
+
 @(private)
 scene_query_bridge_bounds :: proc(data: rawptr,world:^ecs.World,entity:ecs.Entity) -> (rl.BoundingBox,bool) {
 	return scene_query_model_bounds(world,entity,cast(^Context)data)

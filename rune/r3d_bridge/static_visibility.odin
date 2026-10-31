@@ -4,7 +4,9 @@ import "rune:ecs"
 import rl "vendor:raylib"
 
 // Submission counts describe bridge work, before R3D's camera/shadow tests.
-// CPU timings are wall time; gpu_* fields are delayed timestamp measurements.
+// CPU timings are wall time; gpu_* fields are delayed scene GPU timestamps,
+// including auxiliary depth and CPU submission gaps, excluding overlay views,
+// game UI and presentation.
 Render_Stats :: struct {
 	scene_cpu_ms, static_cpu_ms, backend_cpu_ms: f64,
 	filtered_depth_cpu_ms: f64,

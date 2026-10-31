@@ -56,14 +56,17 @@ far-plane distance in clear pixels. The camera and sampling projection must
 match the consuming draw; `draw_scene_with_filtered_depth` handles that match for its
 built-in consumer.
 
-The pass uses ordinary geometry and material submission, retaining opaque and
-alpha-cutout depth, vertex shader deformation, animated model poses, and
-terrain. It copies the native opaque linear-depth attachment used by
-`FetchDepth`, preserving existing material participation: unlit forward draws
-and alpha surfaces do not become occluders because they appear in later raw
-hardware depth. Normal CPU
-occlusion is bypassed for the auxiliary draw because removing an occluder can
-reveal geometry that was hidden in the main scene.
+The pass shares cached transforms and static frustum clusters with the main
+draw. A dedicated native depth-only capture retains opaque and alpha-cutout
+depth, vertex shader deformation, animated model poses, terrain and alpha
+prepass coverage. It skips G-buffer color, lighting, probes, composition and
+post processing. Hardware depth is converted to positive view-space Z for both
+perspective and orthographic cameras before the main view overwrites it.
+Material participation still matches `FetchDepth`: unlit forward draws and
+ordinary alpha surfaces do not become occluders. Normal CPU occlusion is
+bypassed because removing an occluder can reveal geometry hidden in the main
+scene. Exclusions are indexed once per pass rather than walking each excluded
+root's ancestry for every draw.
 
 Cloud volumes and code-owned particle batches are not part of this opaque depth
 pass; they do not write the normal opaque scene depth either. Standalone calls
@@ -83,6 +86,10 @@ unsupported targets return false.
 `frame_stats.filtered_depth_passes` and `filtered_depth_cpu_ms` report the
 auxiliary work; ordinary scene draw counts remain separate. Both are zero
 when the integrated effect does not need a filtered pass.
+`gpu_backend_ms` measures the scene GPU timestamp interval including auxiliary
+depth, its copy and the main view. It excludes earlier overlay views, game UI
+and presentation, and can include GPU idle time during CPU submission. It is
+not a sum of GPU shader execution times.
 Separately created `Depth_Pass3D` values belong to the caller: reuse them across
 frames and call `destroy_depth_pass_3d` before closing the graphics context.
 Resizing or destroying a pass invalidates borrowed textures. Rendering and
@@ -99,4 +106,5 @@ that tool's README. It checks rear-wall preservation behind an excluded static
 mesh, actual shaft-sampler selection and restoration of the ordinary path,
 normal scene color/depth, unchanged unlit-material participation, material
 cutouts and vertex animation, native target
-resizing, and resource cleanup. Linux runtime coverage remains separate.
+resizing, orthographic linearization, and resource cleanup. Linux runtime
+coverage remains separate.

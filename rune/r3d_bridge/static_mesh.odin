@@ -70,19 +70,19 @@ static_mesh_projection :: proc(p,n:[3]f32) -> ([2]f32,[4]f32) {
 	return {p[0]*0.25,p[2]*0.25},{1,0,0,-1 if n[1]>0 else 1}
 }
 
-draw_static_meshes :: proc(ctx: ^Context, world: ^ecs.World, manager:^assets.Asset_Manager,camera:rl.Camera3D) {
+draw_static_meshes :: proc(ctx: ^Context, world: ^ecs.World, manager:^assets.Asset_Manager,camera:rl.Camera3D,prepared:bool=false) {
 	ctx.frame_stats.static_meshes = len(ctx.static_meshes)
 	if ctx.static_optimizations_disabled {
 		for entity,cache in ctx.static_meshes {
 			if !ecs.is_enabled(world,entity) {continue}
 			pose,valid:=ecs.terrain_transform(world,entity)
 			if !valid {continue}
-			ctx.frame_stats.static_enabled += 1
+			if !prepared {ctx.frame_stats.static_enabled += 1}
 			submit_static_mesh(ctx,world,manager,entity,cache,{},&pose)
 		}
 		return
 	}
-	prepare_static_groups(ctx,world)
+	if !prepared {prepare_static_groups(ctx,world)}
 	occlusion_started:=rl.GetTime()
 	prepare_occlusion(ctx,world,manager,camera)
 	ctx.frame_stats.occlusion_cpu_ms=(rl.GetTime()-occlusion_started)*1000

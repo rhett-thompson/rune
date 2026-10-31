@@ -6,7 +6,8 @@ changes are in [stable-projection.patch](stable-projection.patch),
 [receiver-plane.patch](receiver-plane.patch),
 [ssao-reconstruction.patch](ssao-reconstruction.patch),
 [pre-transparency.patch](pre-transparency.patch), and
-[foreground-view.patch](foreground-view.patch). Rune's bridge loads the included
+[foreground-view.patch](foreground-view.patch), and
+[depth-only.patch](depth-only.patch). Rune's bridge loads the included
 objects on Windows AMD64 and Linux AMD64. They replace three members of the
 bundled native archive without modifying the r3d-odin submodule or its bindings.
 Other targets retain the upstream shadow and screen-space sampling behavior.
@@ -30,6 +31,16 @@ restores the environment. Auto exposure stays on the final scene because the
 native renderer has one adaptation history. This hook introduces no second
 SSAO algorithm or shader. See `rune/r3d_bridge/render_view.odin` and
 `docs/overlays-3d.md` for the profile and ownership contracts.
+
+`depth-only.patch` adds a separate opaque-depth capture for filtered scene
+depth. It shares ordinary submissions and the native depth shaders, preserving
+cutouts, skinning, vertex deformation and alpha-prepass coverage while omitting
+unlit forward surfaces. Capture exits before lights, probes, G-buffer color or
+post processing, and never changes light enables, screen chains or exposure
+history. The bridge linearizes the borrowed hardware depth immediately into a
+caller-owned R32 texture. See `docs/filtered-depth.md` and
+`tools/filtered_depth_validation` for the geometry, sampler restoration,
+perspective/orthographic, resize and cleanup checks.
 
 R3D fits directional shadows around a sphere centered halfway along the camera's
 view. Turning the camera moves that sphere and its caster clipping planes.
