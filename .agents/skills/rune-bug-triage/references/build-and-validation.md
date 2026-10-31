@@ -156,6 +156,23 @@ fix; do not require the full release workflow for every report.
 
 ## Console transport validation
 
+The 512-command registry keeps its first 128 commands inline and allocates
+overflow only when needed. `rune/console/registry_test.odin` covers full-capacity
+dispatch, command/argument completion, help, allocation failure/retry, and
+cleanup with the registration allocator after the current allocator changes.
+`console.destroy` releases overflow, renderer, and inbox resources; engine
+shutdown calls it. Standalone owners must destroy before reinitializing.
+
+On 2026-10-30, a 512-entry inline Command array reproduced Windows native
+status `0xC00000FD` during unoptimized `tools/jobs_validation --runtime` startup
+with the normal stack reserve. Keeping the original inline prefix and owned
+overflow passed that hidden startup/shutdown/reinitialization check, 86 serial
+console tests and 44 serial core tests with memory tracking. Validation used
+Odin `dev-2026-10-nightly:84bc3fc`, Windows AMD64/MSVC, static raylib 6,
+GLFW/Win32, OpenGL 3.3 and an NVIDIA RTX 5070. This does not establish Linux
+runtime behavior. Keep large command buffers out of value-returned Engine
+state; see `rune/console/console.odin` and `rune/core/core.odin`.
+
 Use the serial `rune/console` tests for batch parsing, bounds, ordering, failure
 continuation, result ownership, and the single-command inbox. The focused tests
 in `rune/core/console_batch_test.odin` and the quit tests in

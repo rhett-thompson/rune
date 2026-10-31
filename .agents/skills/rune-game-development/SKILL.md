@@ -157,7 +157,12 @@ For terrain detail distance thinning, follow the optional density settings in
   and the console without changing gameplay capture. See `docs/gamepads.md`.
   Keep `rune.shutdown` in normal cleanup; it releases capture and shows the cursor
   before hiding and destroying the window, without system pointer-counter hacks.
-  Custom commands can supply read-only argument completion callbacks. See
+  Consoles support 512 registered commands including built-ins; check the boolean
+  returned by `console.register`. Storage beyond 128 commands uses the registration
+  allocator, which must outlive the console. Engine shutdown releases it;
+  standalone owners call `console.destroy` before closing the graphics context
+  or reinitializing the console. Custom commands can supply read-only argument
+  completion callbacks. See
   [console inspection](references/project-workflow.md#inspect-gameplay-through-the-console)
   for interactive use and the local command inbox.
 - Use the console helpers' `--batch-file` for ordered inspection sequences.

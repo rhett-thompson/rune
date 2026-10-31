@@ -69,10 +69,10 @@ completion_matches :: proc(console: ^Console) -> (result: Completion_Matches) {
 	result.is_command, result.cycling, result.valid = is_command, cycling, true
 	candidates := make([dynamic]string, context.temp_allocator)
 	if is_command {
-		for index in 0 ..< console.command_count {append(&candidates, command_name(&console.commands[index]))}
+		for index in 0 ..< console.command_count {append(&candidates, command_name(command_at(console, index)))}
 	} else {
 		for index in 0 ..< console.command_count {
-			command := &console.commands[index]
+			command := command_at(console, index)
 			if command_name(command) != request.command {continue}
 			if command.completion != nil {command.completion(console, request, &candidates)}
 			break

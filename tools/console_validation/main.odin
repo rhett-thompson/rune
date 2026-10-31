@@ -20,6 +20,7 @@ main :: proc() {
 	defer mem.dynamic_arena_destroy(&arena)
 	context.temp_allocator = mem.dynamic_arena_allocator(&arena)
 	dev := console.init()
+	defer console.destroy(&dev)
 	assert(console.register(&dev, "echo", "Echo arguments", echo))
 	copy(dev.input[:], "unfinished")
 	dev.input_len = 10
@@ -41,11 +42,13 @@ main :: proc() {
 	defer os.remove(directory)
 	// A game can restart with the same inbox; existing files are not directories.
 	reused := console.init()
+	defer console.destroy(&reused)
 	assert(console.enable_remote(&reused, directory), "existing inbox directories must be reusable")
 	collision := fmt.tprintf("%s/not-a-directory", directory)
 	assert(os.write_entire_file(collision, "file") == nil)
 	defer os.remove(collision)
 	blocked := console.init()
+	defer console.destroy(&blocked)
 	assert(!console.enable_remote(&blocked, collision), "a regular file cannot be an inbox")
 	assert(!console.enable_remote(&blocked, fmt.tprintf("%s/child", collision)), "a parent file cannot be traversed")
 	staging := fmt.tprintf("%s/request.tmp", directory)

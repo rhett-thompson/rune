@@ -1066,7 +1066,7 @@ shutdown :: proc(engine: ^Engine) {
 			engine.has_active_world = false
 		}
 		audio.shutdown(&engine.audio)
-		console.destroy_renderer(&engine.console)
+		console.destroy(&engine.console)
 		render.destroy_canvas(&engine.canvas)
 		assets.shutdown(&engine.assets)
 		ecs.destroy_registry(&engine.registry)

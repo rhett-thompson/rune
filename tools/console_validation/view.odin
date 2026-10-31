@@ -329,7 +329,7 @@ validate_console_view :: proc() {
 	dev := new(console.Console)
 	defer mem.free(dev)
 	dev^ = console.init()
-	defer console.destroy_renderer(dev)
+	defer console.destroy(dev)
 	dev.is_open = true
 	runtime_view_console = dev
 	defer runtime_view_console = nil

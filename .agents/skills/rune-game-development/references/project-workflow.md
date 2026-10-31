@@ -331,6 +331,14 @@ Acceptance replaces only the current token and hides the list until an edit or
 Tab, so another Enter executes. Ctrl+Up/Down always browses command history;
 Up/Down also browses history when suggestions are hidden or unavailable. Completion quotes names
 containing spaces when needed.
+Each console supports 512 registered commands including built-ins. Check
+`console.register` for failure: full capacity, duplicate/invalid definitions,
+and overflow allocation failures return `false`. The first 128 commands remain
+inline; additional storage uses the current `context.allocator`, which must
+outlive the console. Engine shutdown releases it automatically. Standalone
+owners call `console.destroy` before closing the graphics context or
+reinitializing the console; copied Console values borrow its owned resources.
+
 Custom command names participate automatically; pass an optional
 `console.Completion_Proc` to `console.register` for argument suggestions. Its
 callback can run during suggestion refreshes and token completion. Keep it a

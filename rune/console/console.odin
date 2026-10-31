@@ -3,6 +3,7 @@ package console
 import "core:strings"
 import "core:encoding/json"
 import "core:fmt"
+import "core:mem"
 import "rune:profile"
 import rl "vendor:raylib"
 
@@ -13,8 +14,12 @@ Max_Line_Length :: 192
 Max_Line_Highlights :: 64
 Max_Input_Length :: 256
 Max_History :: 16
-Max_Commands :: 128
+Max_Commands :: 512
 Max_Name_Length :: 48
+
+// Keep value-returned Console/Engine state small enough for unoptimized startup.
+@(private)
+Inline_Commands :: 128
 
 Log_Level :: enum {
 	Info,
@@ -67,7 +72,10 @@ Console :: struct {
 	history_draft: [Max_Input_Length]u8,
 	history_draft_len: int,
 	history_draft_caret: int,
-	commands:      [Max_Commands]Command,
+	commands:      [Inline_Commands]Command,
+	// Allocated only when registration fills the inline prefix; destroy owns it.
+	overflow_commands: ^[Max_Commands-Inline_Commands]Command,
+	command_allocator: mem.Allocator,
 	command_count: int,
 	log_sequence:  u64,
 	error_count:   u64,
@@ -93,8 +101,32 @@ init :: proc() -> Console {
 	return result
 }
 
+// Standalone consoles must be destroyed before closing their graphics context.
+// Engine shutdown handles its console. Console copies borrow owned resources.
+destroy :: proc(console: ^Console) {
+	if console == nil {return}
+	stop_remote(console)
+	destroy_renderer(console)
+	if console.overflow_commands != nil {
+		mem.free(console.overflow_commands, console.command_allocator)
+		console.overflow_commands = nil
+		console.command_allocator = {}
+	}
+	console.commands = {}
+	console.command_count = 0
+	console.completion = {}
+}
+
+@(private)
+command_at :: proc(console: ^Console, index: int) -> ^Command {
+	if index < Inline_Commands {return &console.commands[index]}
+	return &console.overflow_commands[index-Inline_Commands]
+}
+
 // register adds a command by name. Names are case-sensitive and must be
 // unique. Command data is copied, so caller-provided strings need not persist.
+// Beyond 128 commands, storage uses context.allocator, which must outlive the
+// console. Allocation failure returns false without changing the registry.
 // Player builds reject registration; guard game command setup with Player_Build.
 register :: proc(console: ^Console, name, description: string, handler: Command_Proc,
 	completion: Completion_Proc = nil) -> bool {
@@ -107,9 +139,15 @@ register :: proc(console: ^Console, name, description: string, handler: Command_
 		return false
 	}
 	for index in 0 ..< console.command_count {
-		if command_name(&console.commands[index]) == name {return false}
+		if command_name(command_at(console, index)) == name {return false}
 	}
-	command := &console.commands[console.command_count]
+	if console.command_count >= Inline_Commands && console.overflow_commands == nil {
+		storage, err := mem.new([Max_Commands-Inline_Commands]Command)
+		if err != nil || storage == nil {return false}
+		console.overflow_commands = storage
+		console.command_allocator = context.allocator
+	}
+	command := command_at(console, console.command_count)
 	copy(command.name[:], name)
 	command.name_len = len(name)
 	copy(command.description[:], description)
@@ -261,7 +299,7 @@ execute :: proc(console: ^Console, command_line: string) -> bool {
 	name := line[:name_end]
 	arguments := strings.trim_space(line[name_end:])
 	for index in 0 ..< console.command_count {
-		command := &console.commands[index]
+		command := command_at(console, index)
 		if command_name(command) == name {
 			command.handler(console, arguments)
 			return true
@@ -288,8 +326,8 @@ clear_command :: proc(console: ^Console, arguments: string) {
 
 help_command :: proc(console: ^Console, arguments: string) {
 	for index in 0 ..< console.command_count {
-		command := console.commands[index]
-		log_parts(console, .Info, {command_name(&command), " - ", command_description(&command)})
+		command := command_at(console, index)
+		log_parts(console, .Info, {command_name(command), " - ", command_description(command)})
 	}
 }
 

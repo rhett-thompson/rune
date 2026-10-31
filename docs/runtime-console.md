@@ -71,8 +71,8 @@ project directory. Games can borrow their own UI font with
 `console.set_font(rune.developer_console(game), font)`. Refresh borrowed fonts
 after asset hot reload and keep them alive through drawing; `console.set_font`
 with an empty `rl.Font{}` restores Inter. Rune releases its console atlas before
-closing the window. Standalone console users call `console.destroy_renderer`
-before `rl.CloseWindow`.
+closing the window. Standalone console users call `console.destroy` before
+`rl.CloseWindow` to release the atlas, command storage, and inbox resources.
 
 ### Picking scene objects
 
@@ -194,6 +194,16 @@ spaces, quotes, or backslashes are inserted as JSON-quoted tokens accepted by
 these commands. File paths and arbitrary JSON values are not completed.
 
 ### Custom argument completion
+
+Each console supports up to 512 registered commands, including built-ins.
+Check the boolean returned by `console.register`: it returns `false` when the
+registry is full, the name is duplicated, command parameters are invalid, or
+storage allocation fails. The first 128 commands use inline storage; registering
+more allocates overflow storage with the current `context.allocator`. That
+allocator must outlive the console; do not use frame scratch for registration.
+Engine shutdown releases this storage automatically. Standalone owners call
+`console.destroy` before discarding or reinitializing a console. Value copies
+borrow its owned resources and must not be destroyed separately.
 
 Command names registered with `console.register` participate automatically.
 For arguments, pass an optional `console.Completion_Proc` after the handler:
