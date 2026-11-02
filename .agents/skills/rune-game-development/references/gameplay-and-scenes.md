@@ -258,6 +258,14 @@ assembling a player. Check `ecs.character_controller_2d_ready` or
   `ecs.character_controller_3d_raycast` for projectile hits and compare with world
   hits. `Trigger3D` explicitly detects these capsules.
 
+For one explicitly controlled 3D character while the world remains paused,
+`ecs.character_controller_3d_step(world, entity, dt)` synchronizes collider poses
+and runs the existing capsule motor only for that actor. Other characters,
+native rigid-body simulation, and the world's fixed-step clock are not advanced;
+ordinary collision pushing can still queue impulses on contacted dynamic bodies.
+Use bounded positive time and avoid stepping the same actor again through world
+physics for the same interval. See `docs/character-controller-3d.md`.
+
 For a moving 3D support, grounded motor `velocity` is support-relative and
 airborne velocity includes the captured support motion. The motor handles the
 takeoff/landing conversion; do not add platform velocity again on a jump. If the

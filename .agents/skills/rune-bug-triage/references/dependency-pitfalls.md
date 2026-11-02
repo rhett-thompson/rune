@@ -230,6 +230,23 @@ for exact validation coverage; a Windows run does not establish Linux behavior.
 
 ## Native asset import and decoder boundaries
 
+On 2026-11-02, a no-UV OBJ with +X normals and a runtime -90 degree Y rotation
+reproduced black point-lit surfaces on Windows AMD64/MSVC, Odin `84bc3fc`,
+OpenGL 3.3 and an NVIDIA RTX 3090 at R3D pin
+`86303391c92e32418181a8133848a15ba02f060d`. GPU diagnostic surface shaders
+confirmed that the world normal and front-facing flag were correct; the
+importer's +X fallback tangent was parallel to the normal. Normalizing their
+cross product produced an undefined bitangent, poisoning neutral normal-map
+shading. A model with the same rotation baked into its geometry did not expose
+that degenerate fallback. Do not infer a normal-matrix sign bug from that
+comparison alone. The bridge's `importer_tangents.odin` repairs only degenerate
+packed frames and missing handedness through existing mesh APIs, then releases
+temporary retained CPU data. Use its package tests and
+`tools/imported_tangent_validation --runtime`; raw native model imports bypass
+the repair. Its eight GPU cases, the two focused tangent package tests, and the
+rebuilt game's rear-wall visual check passed on that Windows setup. Linux GPU
+behavior remains unverified.
+
 Rune's importer pins are recorded in `third_party/r3d-importer/sources.json`;
 the wrapper and ownership boundary are in `rune/r3d_bridge/importer.odin`.
 `LoadModelFromImporter` converts the imported scene into meshes, skeleton

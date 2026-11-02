@@ -5,6 +5,29 @@ and related CPU data. Keep asset-manager access and graphics work on the owning
 game thread. Cached GPU handles are borrowed and can change after a successful
 reload; reacquire them through the manager when needed.
 
+## Imported mesh tangent frames
+
+The 3D bridge repairs unusable imported tangent frames in
+`rune/r3d_bridge/importer_tangents.odin`. Missing UVs can leave the pinned R3D
+importer with a +X fallback tangent, parallel to an X-facing normal. The normal
+map shader then normalizes a zero bitangent and can render the surface black,
+even with a neutral normal map and otherwise correct lighting and transforms.
+
+Model conversion temporarily retains native CPU mesh data, replaces zero or
+parallel tangents with a deterministic normal-orthogonal direction, and supplies
+missing handedness. Valid authored frames and all other vertex attributes remain
+unchanged. Only repaired meshes are uploaded again through `R3D_UpdateMesh`;
+all temporary CPU buffers are released before publishing the model. A failed
+repair upload rejects the replacement so the existing model reload path keeps
+its last working resource. Model conversion, upload and cleanup stay on the
+graphics owner. Raw `R3D_LoadModel*` calls bypass this bridge repair.
+
+Use `tools/imported_tangent_validation --runtime` for the no-UV X-facing OBJ
+rotated 90 degrees, compared with a baked-normal control under point lighting.
+The package tests also cover degenerate frames, handedness and preservation of
+authored attributes. This repairs the shading basis; it does not author UVs for
+textured assets or replace missing geometry normals.
+
 ## Engine texture reload
 
 Projects that enable the engine CPU pool with `jobs.worker_count` also use it

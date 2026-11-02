@@ -31,10 +31,16 @@ when ODIN_ARCH == .amd64 && (ODIN_OS == .Windows || ODIN_OS == .Linux) {
 }
 
 import_model :: proc(path: cstring) -> r3d.Model {
-	importer := load_importer(path, {})
+	// Retain vertices only until missing/degenerate tangent frames are repaired.
+	importer := load_importer(path, {.RETAIN_MESH_DATA})
 	if importer == nil {return {}}
 	defer unload_importer(importer)
-	return r3d.LoadModelFromImporter(importer)
+	model := r3d.LoadModelFromImporter(importer)
+	if !repair_imported_model_tangents(&model) {
+		r3d.UnloadModel(model, true)
+		return {}
+	}
+	return model
 }
 
 import_model_animations :: proc(path: cstring) -> r3d.AnimationLib {

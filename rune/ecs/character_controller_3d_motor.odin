@@ -53,12 +53,13 @@ character_push_3d :: proc(query:^Character_Plane_Query_3D,position,velocity:[3]f
 }
 
 // Called once after each native 3D step. The mover is a query capsule, not a rigid body.
-character_controllers_3d_step :: proc(world:^World,dt:f32) {
+character_controllers_3d_step :: proc(world:^World,dt:f32,only_entity:Entity=0) {
 	query := Character_Plane_Query_3D{caller_context=context,world=world}
 	defer delete(query.planes)
 	defer delete(query.owners)
 	defer delete(query.points)
 	for entity,config in world.character_controllers_3d {
+		if only_entity!=0 && entity!=only_entity {continue}
 		if !character_controller_3d_ready(world,entity) {
 			delete_key(&world.character_controller_states_3d,entity)
 			continue

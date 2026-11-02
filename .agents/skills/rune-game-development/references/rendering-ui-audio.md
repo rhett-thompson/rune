@@ -375,6 +375,14 @@ Invalid replacement JSON retains the previous mapping. Paths inside the sidecar
 are project-relative. See `docs/components.md` (ModelRenderer) and
 `rune/assets/model_materials.odin`.
 
+The bridge repairs missing/parallel imported tangent frames before caching
+models, preserving valid authored frames and releasing temporary CPU mesh data.
+Raw `R3D_LoadModel*` calls bypass this repair. A no-UV model can otherwise render
+black despite correct normals because a parallel fallback tangent makes the
+normal-map shader's bitangent undefined. Keep this generic repair in the bridge;
+do not bake game-specific rotations or disable lighting to compensate. See
+`docs/assets.md` and `tools/imported_tangent_validation`.
+
 ## Canvas and coordinates
 
 Read display settings (`docs/display.md`) before custom drawing or picking.

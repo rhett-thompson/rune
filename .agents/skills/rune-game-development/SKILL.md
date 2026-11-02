@@ -114,6 +114,12 @@ For terrain detail distance thinning, follow the optional density settings in
   owns focus and drag capture. Keep framing targets and level interpretation in
   the game. See [orbit navigation](references/rendering-ui-audio.md#orbit-navigation-in-tool-viewports)
   for pan/zoom modes and input timing.
+- For an explicitly controlled character while the rest of the 3D world is
+  paused, use `ecs.character_controller_3d_step(world, entity, dt)` with bounded
+  positive time. It synchronizes native shapes and runs the existing capsule
+  motor only for that actor, without advancing other controllers or rigid
+  bodies. Do not also world-step the same actor for that interval. See
+  `docs/character-controller-3d.md` and the gameplay/scenes reference.
 - Use asset-manager material previews for live material authoring; they update
   existing renderer caches without changing files. Clone borrowed material data,
   save JSON through the tool, and clear previews when live authoring ends. See

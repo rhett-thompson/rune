@@ -82,6 +82,20 @@ sampled once, while the motor keeps its fixed rate. Standalone callers advance
 after the native world advances on each 1/60-second step, and `post_physics`
 callbacks see the result. Pausing the simulation stops the motor.
 
+For an explicitly controlled actor while the rest of the world remains paused,
+submit the same movement/posture requests and call
+`ecs.character_controller_3d_step(world, entity, dt)`. It synchronizes current
+native collider poses and advances only that query capsule, including collision,
+gravity, and moving-support carry. It does not step rigid bodies, other
+controllers, or the world's fixed-step accumulator. Use a bounded positive
+timestep; missing/disabled/incompatible actors and nonfinite or nonpositive time
+return false without advancing. Do not also run the ordinary world physics step
+for that actor and interval. This is an explicit timing alternative for paused
+interaction views or separately driven character simulations.
+The motor retains normal collision pushing: contact with a dynamic body can
+queue an impulse for when native simulation resumes. Set `push_force` to zero
+when the paused interaction should not impart those impulses.
+
 Keep the camera on a separate entity. For first person, derive its position from
 the player's feet plus an eye height based on the effective capsule height.
 The example interpolates between `state.previous_position` and the current feet
