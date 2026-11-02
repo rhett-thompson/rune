@@ -1,5 +1,34 @@
 package ecs
 
+// destroy_entities removes the live roots supplied and all their descendants.
+// Duplicate, stale and overlapping handles are ignored. Returns the number of
+// entities removed. Collect before mutation so a batch uses one hierarchy index.
+destroy_entities :: proc(world: ^World, roots: []Entity) -> int {
+	if len(roots) == 0 {return 0}
+	ensure_hierarchy_indexes(world)
+	Visit :: struct {entity: Entity, expanded: bool}
+	stack := make([dynamic]Visit, context.temp_allocator)
+	order := make([dynamic]Entity, context.temp_allocator)
+	seen := make(map[Entity]bool, context.temp_allocator)
+	for root in roots {
+		if !is_alive(world, root) || seen[root] {continue}
+		append(&stack, Visit{entity=root})
+		for len(stack)>0 {
+			visit := pop(&stack)
+			if visit.expanded {append(&order, visit.entity); continue}
+			if seen[visit.entity] {continue}
+			seen[visit.entity]=true
+			append(&stack, Visit{entity=visit.entity, expanded=true})
+			children := world.children_by_parent[visit.entity]
+			for child in children {
+				append(&stack, Visit{entity=child})
+			}
+		}
+	}
+	for entity in order {destroy_entity_storage(world, entity)}
+	return len(order)
+}
+
 create_entity :: proc(world: ^World) -> Entity {
 	if world.next_entity == 0 {
 		return Entity(0)

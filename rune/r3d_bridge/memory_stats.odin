@@ -59,6 +59,12 @@ memory_stats :: proc(ctx: ^Context) -> Memory_Stats {
 		result.instance_gpu_bytes_estimate += instance_bytes_estimate(batch.buffer)
 	}
 	for buffer in ctx.prop_buffer_pool {result.instance_gpu_bytes_estimate += instance_bytes_estimate(buffer)}
+	result.cache_array_bytes += u64(cap(ctx.particle_billboards.batches)*size_of(Particle_Billboard_Batch))
+	for batch in ctx.particle_billboards.batches {
+		result.cache_array_bytes += u64((cap(batch.instances)+cap(batch.sort_scratch))*size_of(Particle_Billboard_Instance))
+		result.cache_array_bytes += u64((cap(batch.positions)+cap(batch.scales))*size_of([3]f32)+cap(batch.colors)*size_of([4]u8))
+		result.instance_gpu_bytes_estimate += instance_bytes_estimate(batch.buffer)
+	}
 	for _, cache in ctx.terrains {
 		result.cache_array_bytes += u64(cap(cache.chunks)*size_of(r3d.Mesh) + cap(cache.details)*size_of(Terrain_Detail_Batch))
 		for mesh in cache.chunks {result.mesh_gpu_bytes_estimate += mesh_bytes_estimate(mesh)}

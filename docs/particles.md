@@ -231,7 +231,12 @@ bridge context and grows only when the submitted particle or batch count exceeds
 its previous capacity. The radial texture is created once and released at bridge
 shutdown. Empty and invisible particles submit no draw; rendering never changes
 the borrowed simulation. The default `.Sphere` and `.Additive` behavior remains
-suitable for existing glowing bursts.
+suitable for existing glowing bursts. Alpha sorting uses a stable radix sort for
+large batches and a typed merge sort for small batches; equal numeric depths
+retain source order. Alpha preparation retains one additional CPU instance array
+as sort scratch, allocated on the owner and released at bridge shutdown. It is
+included in `r3d_bridge.memory_stats`. Direct CPU-helper owners must also delete
+`Particle_Billboard_Batch.sort_scratch` when releasing their other prepared arrays.
 
 Forward `worker_pool=game.worker_pool` to `r3d_bridge.init` to enable large
 billboard preparation batches. The bridge first gathers all billboard inputs and

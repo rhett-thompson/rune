@@ -17,7 +17,9 @@ The CPU checks compare 2D emission, RNG/credit, hierarchy, expiry, disabled and
 removed emitters; 3D live-prefix motion/expiry; and three prepared billboard
 batches with depth ties, invisible and invalid input. They verify unchanged
 source bytes, warm owner allocation reuse and actual worker execution of the
-billboard classification/finalization callbacks. Partial reservation failures
+billboard classification/finalization callbacks. Alpha batches also retain
+owner-reserved sort scratch; tests include failure of that reservation and
+recover without any worker allocation. Partial reservation failures
 must publish empty streams, exclude failed destinations from jobs and recover
 on a later owner preparation. Guarded allocators reject any worker allocation
 attempt through retained arrays or the callback context. Full queues and occupied

@@ -2,6 +2,7 @@ package r3d_bridge
 
 import "core:math"
 import "core:testing"
+import "core:slice"
 import "rune:particles"
 import r3d "r3d:r3d"
 import rl "vendor:raylib"
@@ -63,7 +64,7 @@ particle_billboard_optional_camera_matches_native_view :: proc(t: ^testing.T) {
 @(test)
 particle_billboards_sort_alpha_by_camera_depth_and_preserve_input :: proc(t: ^testing.T) {
 	state:Particle_Billboard_Batch
-	defer {delete(state.instances); delete(state.positions); delete(state.scales); delete(state.colors)}
+	defer {delete(state.instances);delete(state.sort_scratch); delete(state.positions); delete(state.scales); delete(state.colors)}
 	live:=[3]particles.Particle3D{
 		{position={2,0,0},lifetime=2,start_size=0.1,end_size=0.1,start_color={255,255,255,64},end_color={255,255,255,64}},
 		{position={0,0,-100},lifetime=2,start_size=0.2,end_size=0.2,start_color={255,255,255,96},end_color={255,255,255,96}},
@@ -83,7 +84,7 @@ particle_billboards_sort_alpha_by_camera_depth_and_preserve_input :: proc(t: ^te
 @(test)
 particle_billboards_skip_invisible_particles_and_reuse_storage :: proc(t: ^testing.T) {
 	state:Particle_Billboard_Batch
-	defer {delete(state.instances); delete(state.positions); delete(state.scales); delete(state.colors)}
+	defer {delete(state.instances);delete(state.sort_scratch); delete(state.positions); delete(state.scales); delete(state.colors)}
 	live:=[4]particles.Particle3D{
 		{position={0,0,-2},lifetime=2,start_size=0.2,end_size=0.2,start_color={255,255,255,120},end_color={255,255,255,120}},
 		{position={0,0,-3},lifetime=2,start_size=0.2,end_size=0.2,start_color={255,255,255,0},end_color={255,255,255,0}},
@@ -109,4 +110,39 @@ particle_billboards_radial_mask_has_soft_white_alpha_edges :: proc(t: ^testing.T
 	edge:=rl.GetImageColor(image,63,0)
 	testing.expect(t,center.a>240 && middle.a>0 && middle.a<center.a && edge.a==0,"the generated mask fades smoothly to transparent outside its round footprint")
 	testing.expect(t,edge.r==255 && edge.g==255 && edge.b==255,"transparent borders retain white RGB to avoid filtering dark fringes")
+}
+
+@(test)
+particle_depth_sort_matches_stable_numeric_reference_and_reuses_scratch :: proc(t:^testing.T) {
+	for count in ([8]int{0,1,2,17,255,256,257,4097}) {
+		state:Particle_Billboard_Batch
+		resize(&state.instances,count);resize(&state.sort_scratch,count)
+		defer {delete(state.instances);delete(state.sort_scratch)}
+		for &instance,i in state.instances {
+			instance.depth=f32((i*7919)%67-33)*0.125
+			instance.position.x=f32(i) // Distinguish tied keys.
+			if i%41==0 {instance.depth=0}
+			if i%43==0 {instance.depth=transmute(f32)u32(0x80000000)}
+			if i%47==0 {instance.depth=math.inf_f32(1)}
+			if i%53==0 {instance.depth=math.inf_f32(-1)}
+		}
+		reference:=make([]Particle_Billboard_Instance,count);defer delete(reference)
+		copy(reference,state.instances[:])
+		slice.stable_sort_by(reference,proc(a,b:Particle_Billboard_Instance)->bool{return a.depth>b.depth})
+		instances,scratch:=raw_data(state.instances),raw_data(state.sort_scratch)
+		for _ in 0..<3 {
+			sort_particle_billboards(&state)
+			for instance,i in state.instances {testing.expect(t,instance==reference[i],"typed sort preserves numeric depth and input order for ties")}
+		}
+		testing.expect(t,instances==raw_data(state.instances) && scratch==raw_data(state.sort_scratch))
+		if count<=257 {
+			// Allocation failure must preserve the same stable numeric order.
+			delete(state.sort_scratch);state.sort_scratch=nil
+			for i in 0..<count/2 {state.instances[i],state.instances[count-1-i]=state.instances[count-1-i],state.instances[i]}
+			copy(reference,state.instances[:])
+			slice.stable_sort_by(reference,proc(a,b:Particle_Billboard_Instance)->bool{return a.depth>b.depth})
+			sort_particle_billboards(&state)
+			for instance,i in state.instances {testing.expect(t,instance==reference[i])}
+		}
+	}
 }

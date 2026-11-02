@@ -121,6 +121,7 @@ update_triggers_3d :: proc(world:^World) {
 	if runtime.overlaps==nil {runtime.overlaps=make(map[Trigger_Pair_3D]bool)}
 	if runtime.scratch==nil {runtime.scratch=make(map[Trigger_Pair_3D]bool)}
 	clear(&runtime.scratch)
+	actors,nodes:=trigger_characters_3d(world)
 	for trigger in world.typed_component_data["Trigger3D"] {
 		value,_:=get(world,trigger,Trigger3D)
 		if !value.enabled || !is_enabled(world,trigger) || value.layers==0 {continue}
@@ -131,13 +132,7 @@ update_triggers_3d :: proc(world:^World) {
 		if value.shape==.box {hits=physics_3d_overlap_box(world,center,half_size,filter)}
 		else {hits=physics_3d_overlap_sphere(world,center,radius,filter)}
 		for other in hits {runtime.scratch[{trigger=trigger,other=other}]=true}
-		for actor in world.character_controllers_3d {
-			layers,_:=entity_layer_mask(world,actor)
-			if actor==trigger || layers&value.layers==0 {continue}
-			if trigger_overlaps_character_3d(world,actor,value,center,half_size,radius) {
-				runtime.scratch[{trigger=trigger,other=actor}]=true
-			}
-		}
+		if len(nodes)>0 {collect_trigger_characters_3d(world,actors,nodes,0,trigger,value,center,half_size,radius)}
 	}
 	for pair in runtime.scratch {
 		kind:=Trigger_Event_Kind_3D.Stay if runtime.overlaps[pair] else Trigger_Event_Kind_3D.Enter

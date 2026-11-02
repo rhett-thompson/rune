@@ -65,6 +65,12 @@ being available in a new checkout. Clean up helper processes you create.
 
 ## Fix and report at the correct layer
 
+For mass expiry or character-trigger scaling, use the optimized CPU fixtures in
+`tools/ecs_performance_benchmark`; alpha billboard preparation is measured by
+`tools/particle_worker_benchmark`. Their READMEs define timing boundaries and
+validation limits. Pair timings with serial ECS/bridge tests and the particle
+worker validator's CPU/runtime checks when sort storage or jobs change.
+
 When a fix is requested, repair the confirmed cause: project call site, Rune
 wrapper/lifecycle, or bundled artifact. A bad upstream artifact shipped by Rune
 is still a Rune integration issue. Preserve supported behavior instead of

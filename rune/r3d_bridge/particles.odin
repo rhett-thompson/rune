@@ -3,7 +3,6 @@ package r3d_bridge
 import "rune:assets"
 import "rune:particles"
 import "core:math"
-import "core:slice"
 import r3d "r3d:r3d"
 import rl "vendor:raylib"
 
@@ -32,6 +31,7 @@ Particle_Billboard_Instance :: struct {
 Particle_Billboard_Batch :: struct {
 	buffer: r3d.InstanceBuffer,
 	instances: [dynamic]Particle_Billboard_Instance,
+	sort_scratch: [dynamic]Particle_Billboard_Instance,
 	positions, scales: [dynamic]rl.Vector3,
 	colors: [dynamic]rl.Color,
 }
@@ -119,7 +119,8 @@ prepare_particle_billboards_serial :: proc(state: ^Particle_Billboard_Batch, bat
 	}
 	// Standard alpha needs back-to-front ordering within the instanced draw.
 	if batch.blend==.Alpha {
-		slice.sort_by(state.instances[:],proc(a,b:Particle_Billboard_Instance)->bool {return a.depth>b.depth})
+		resize(&state.sort_scratch,len(state.instances))
+		sort_particle_billboards(state)
 	}
 	count:=len(state.instances)
 	resize(&state.positions,count); resize(&state.scales,count); resize(&state.colors,count)
@@ -169,7 +170,7 @@ draw_particle_billboards :: proc(ctx: ^Context, batch: Particle3D_Batch, index: 
 release_particle_billboards :: proc(ctx: ^Context) {
 	for &batch in ctx.particle_billboards.batches {
 		if batch.buffer.capacity>0 {r3d.UnloadInstanceBuffer(batch.buffer)}
-		delete(batch.instances); delete(batch.positions); delete(batch.scales); delete(batch.colors)
+		delete(batch.instances); delete(batch.sort_scratch); delete(batch.positions); delete(batch.scales); delete(batch.colors)
 	}
 	delete(ctx.particle_billboards.batches)
 	if ctx.particle_billboards.texture.id!=0 {rl.UnloadTexture(ctx.particle_billboards.texture)}

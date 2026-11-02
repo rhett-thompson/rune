@@ -20,7 +20,8 @@ size, `unknown_out_band_allocations` records the missing measurements. Such a
 report is incomplete; do not treat its known byte counts as a total.
 
 Asset texture estimates include mipmaps and font/generated ORM textures.
-Renderer estimates cover mesh capacities and active/pooled instance buffers.
+Renderer estimates cover mesh capacities and active/pooled instance buffers,
+including particle instance streams and retained CPU alpha-sort scratch.
 They exclude backend render targets, shadow maps, imported model textures,
 shaders, driver overhead, and GPU allocator slack. Asset reports count cache
 entries and cache-map storage, but do not measure all decoded asset data.

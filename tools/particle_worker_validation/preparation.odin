@@ -31,7 +31,7 @@ particle_fixture :: proc(count:int,offset:f32=0,invalid:bool=true) -> []particle
 }
 
 release_prepared :: proc(state:^bridge.Particle_Billboard_Batch) {
-	delete(state.instances);delete(state.positions);delete(state.scales);delete(state.colors);state^={}
+	delete(state.instances);delete(state.sort_scratch);delete(state.positions);delete(state.scales);delete(state.colors);state^={}
 }
 
 compare_prepared :: proc(a,b:^bridge.Particle_Billboard_Batch) {
@@ -68,7 +68,7 @@ preparation_allocator :: proc(data:rawptr,mode:mem.Allocator_Mode,size,alignment
 }
 
 validate_reservation_failure :: proc(pool:^jobs.Pool,live:[]particles.Particle3D) {
-	for allowed in ([3]int{0,2,3}) {
+	for allowed in ([4]int{0,2,3,4}) {
 		guard:=Preparation_Allocator{backing=context.allocator,owner=sync.current_thread_id(),remaining_growth=allowed}
 		{
 			context.allocator={preparation_allocator,&guard}

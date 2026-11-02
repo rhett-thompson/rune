@@ -1050,7 +1050,11 @@ for entity in ecs.query2(world, ecs.Transform, Mover) {
 ```
 
 `ecs.destroy_entity` recursively removes an entity, its children, components,
-audio instances, and native physics bodies. `ecs.change_version` and
+audio instances, and native physics bodies. For bulk cleanup,
+`ecs.destroy_entities(world, roots)` removes overlapping subtrees once using one
+hierarchy snapshot and returns the total removed; automatic `Lifetime` expiry
+uses this batch path. See [entity lifetimes](docs/entity_features.md#lifetime).
+`ecs.change_version` and
 `ecs.changes_since` expose added, changed, and removed components from scene
 reload, runtime creation, setters, simulation, and destruction. The latest
 change per entity/component is retained. Both `ecs.set` and named setters such

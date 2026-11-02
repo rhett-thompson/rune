@@ -77,6 +77,12 @@ submission stays on the owner. Keep the bridge alive only while its borrowed
 pool exists. See `docs/particles.md` for lifetimes, frame statistics, fallback
 behavior and `tools/particle_worker_validation` for CPU/GPU parity checks.
 
+Alpha billboard sorting is stable for equal numeric camera depths. Large batches
+use a radix sort; small batches use typed merges. Retained sort scratch belongs
+to each batch, is reserved on the owner before dispatch, appears in renderer
+memory estimates, and is released at shutdown. Direct CPU helper users also
+delete `Particle_Billboard_Batch.sort_scratch` with their other prepared arrays.
+
 ## Filtered scene depth
 
 `r3d_bridge.draw_scene_with_filtered_depth(ctx, world, assets, settings, filter)`

@@ -193,7 +193,7 @@ run_3d :: proc(count:int,pools:[3]^jobs.Pool,a:mem.Allocator) -> Result {
 }
 
 destroy_billboard :: proc(state:^bridge.Particle_Billboard_Batch) {
-	delete(state.instances);delete(state.positions);delete(state.scales);delete(state.colors);state^={}
+	delete(state.instances);delete(state.sort_scratch);delete(state.positions);delete(state.scales);delete(state.colors);state^={}
 }
 
 equal_billboard :: proc(a,b:^bridge.Particle_Billboard_Batch) -> bool {

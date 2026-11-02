@@ -154,6 +154,27 @@ duplicating both. See `docs/release.md` and `docs/linux.md` for current commands
 runtime logs, timeouts, and platform limits. Choose focused checks for a focused
 fix; do not require the full release workflow for every report.
 
+## CPU expiry, trigger and particle scaling
+
+Build `tools/ecs_performance_benchmark` and `tools/particle_worker_benchmark`
+with `-o:speed`, through the compiler wrapper. Their READMEs define fixtures,
+sampling and timing limits. Do not infer whole-frame/GPU improvements from CPU
+medians. The ECS benchmark covers disjoint characters and simultaneous root
+expiry; serial `rune/ecs` tests separately verify overlapping subtree cleanup,
+native-body release and exact trigger parity through movement, layers,
+activation, crouch and tilt. Equal-depth alpha ordering is stable; owner-reserved
+sort scratch is retained per billboard batch and released at bridge shutdown.
+Direct CPU owners delete `sort_scratch` alongside the existing prepared arrays.
+The particle validator checks scratch reservation failures/recovery, warm reuse,
+worker allocation ownership and rendered streams/pixels with `--runtime`.
+
+On 2026-10-31, Windows AMD64/MSVC with pinned Odin `84bc3fc` passed 61 serial ECS
+tests, 89 serial bridge tests and both particle worker validator modes. The
+optimized CPU benchmarks passed on a Ryzen 9 5900X, with all 35 particle cases
+and three worker-execution probes passing. This establishes the tested Windows
+CPU and scalar/worker GPU parity paths; Linux and whole-game frame-rate effects
+were not measured during this change.
+
 ## Console transport validation
 
 The 512-command registry keeps its first 128 commands inline and allocates

@@ -135,6 +135,10 @@ For terrain detail distance thinning, follow the optional density settings in
 - Reacquire scene entities and borrowed state after reload or restoration.
   Frame scratch and borrowed component strings/collections are not persistent
   game storage. Keep durable game state in owned storage or configured saves.
+- For bulk runtime cleanup, use `ecs.destroy_entities(world, roots)` to remove
+  overlapping subtrees once using a shared hierarchy snapshot. Automatic
+  `Lifetime` expiry uses it too. See the gameplay/scenes reference for return
+  values, stale handles, temporary storage, and individual deletion behavior.
 - Use the built-in console for runtime inspection; Tab/Shift+Tab cycles matching
   command names and supported arguments, including entity IDs and component
   names. Suggestions appear above the input with the current match highlighted.

@@ -1,7 +1,6 @@
 package r3d_bridge
 
 import "core:math"
-import "core:slice"
 import "rune:jobs"
 import "rune:particles"
 import rl "vendor:raylib"
@@ -45,8 +44,10 @@ prepare_particle_billboard_storage :: proc(work:[]Particle_Billboard_Work) -> (c
 		count:=len(item.batch.particles)
 		if count==0 {continue}
 		if reserve(&state.instances,count)!=nil || reserve(&state.positions,count)!=nil ||
-		   reserve(&state.scales,count)!=nil || reserve(&state.colors,count)!=nil {continue}
+		   reserve(&state.scales,count)!=nil || reserve(&state.colors,count)!=nil ||
+		   (item.batch.blend==.Alpha && reserve(&state.sort_scratch,count)!=nil) {continue}
 		resize(&state.instances,count);resize(&state.positions,count);resize(&state.scales,count);resize(&state.colors,count)
+		if item.batch.blend==.Alpha {resize(&state.sort_scratch,count)}
 		item.ready=true;item.chunk_count=(count+Particle_Billboard_Chunk_Size-1)/Particle_Billboard_Chunk_Size
 		chunks+=item.chunk_count;ready_batches+=1
 	}
@@ -77,7 +78,7 @@ particle_billboard_finalize_job :: proc(index:int,data:rawptr) {
 	if !item.ready {return}
 	state:=item.state
 	count:=0
-	// Preserve input order before the existing alpha sort, including depth ties.
+	// Preserve input order before the stable alpha sort, including depth ties.
 	for instance,index in state.instances {
 		if instance.scale.x<=0 {continue}
 		if count!=index {state.instances[count]=instance}
@@ -85,7 +86,7 @@ particle_billboard_finalize_job :: proc(index:int,data:rawptr) {
 	}
 	resize(&state.instances,count)
 	if item.batch.blend==.Alpha {
-		slice.sort_by(state.instances[:],proc(a,b:Particle_Billboard_Instance)->bool {return a.depth>b.depth})
+		sort_particle_billboards(state)
 	}
 	resize(&state.positions,count);resize(&state.scales,count);resize(&state.colors,count)
 	for instance,i in state.instances {

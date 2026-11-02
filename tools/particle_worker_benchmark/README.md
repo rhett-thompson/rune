@@ -1,6 +1,6 @@
 # Particle worker benchmark
 
-This headless tool compares original scalar particle simulation and billboard
+This headless tool compares scalar particle simulation and billboard
 preparation against Rune's worker helpers, using no pool, one additional worker,
 or three additional workers. The caller participates in pooled batches. It
 creates no window, graphics context, GPU buffer, texture, native model or import.
@@ -85,6 +85,13 @@ worker count and OS scheduling can dominate cheap particle integration.
 
 ## Observed results
 
+The 2026-10-28 alpha timings below describe the previous generic comparison sort.
+Current alpha preparation uses stable typed sorting with retained owner-reserved
+scratch (`rune/r3d_bridge/particle_sort.odin`). Numeric depth ties keep source
+order. The same scalar/worker stream comparisons apply to the new implementation;
+`rune/r3d_bridge/particles_test.odin` independently checks its numeric ordering,
+ties, signed zero, infinities and allocation-free fallback against a stable sort.
+
 On 2026-10-28, pinned Odin `84bc3fc`, `-o:speed`, and `x86-64-v2` ran on an AMD
 Ryzen 7 3700X with 8 cores and 16 logical processors. Windows used build 26300 and
 MSVC linking. Linux was native Linux binary execution under Ubuntu 26.04.1/WSL2,
@@ -134,3 +141,25 @@ costs limiting this cheap kernel. These measurements do not isolate those causes
 Increasing the count or number of workers does not guarantee an improvement.
 Re-run on the target game and machine; these measurements do not establish
 ordinary desktop-Linux behavior or GPU performance.
+
+## Stable alpha-sort comparison
+
+On 2026-10-31, Windows AMD64/MSVC, Odin `84bc3fc`, `-o:speed`, `x86-64-v2` and
+a Ryzen 9 5900X (12 cores, 24 logical processors) ran the complete 35-case matrix
+before and after replacing generic comparison sorting with stable typed radix
+sorting. All cases and all three worker-execution probes passed. Scalar medians
+for complete billboard preparation, in milliseconds:
+
+| Alpha fixture | Before | After |
+| --- | ---: | ---: |
+| One batch, 32768 particles | 9.29350 | 0.90750 |
+| One batch, 131072 particles | 43.23480 | 4.02730 |
+| Eight batches, 16384 particles each | 37.66120 | 3.91280 |
+
+With three additional workers, the single 131072-particle batch measured 3.30970
+ms after the change, versus 43.52170 ms before. This reduces sorting work without
+parallelizing a single sort; classification and packing retain their documented
+job boundaries. Alpha batches retain one extra CPU instance array as scratch.
+Warm measurements exclude its first allocation. The serial bridge tests and
+particle validator's headless/runtime branches also passed; CPU timings do not
+measure GPU completion or whole-frame gains. Linux was not rerun for this change.

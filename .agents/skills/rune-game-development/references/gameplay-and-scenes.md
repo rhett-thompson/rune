@@ -68,6 +68,14 @@ JSON, strings, and metadata while entity handles remain valid; call it only at a
 safe point and reacquire those borrows. See `rune/ecs/component_api.odin` and
 `rune/ecs/storage_maintenance.odin`.
 
+Use `ecs.destroy_entities(world, roots)` for bulk cleanup. It removes descendants
+before ancestors, deduplicates overlapping roots, ignores stale/foreign World
+handles, and returns the total entities removed. It borrows the input slice only
+during the call and uses caller temporary storage for one hierarchy snapshot.
+`Lifetime` expiry batches automatically. Single `destroy_entity` calls retain
+their `recursive` option. See `docs/entity_features.md` and
+`rune/ecs/entities.odin`.
+
 `AudioPlayer` is repeatable: its JSON object contains named instances. Use
 `ecs.get_audio_player`/`ecs.set_audio_player` and address playback by entity plus
 instance name through `rune.play_audio`/`rune.stop_audio`; single-instance typed

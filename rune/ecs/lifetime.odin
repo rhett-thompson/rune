@@ -36,5 +36,5 @@ update_lifetimes :: proc(world: ^World, dt: f32) {
 	}
 	// Destruction may remove children and their lifetimes; never mutate the
 	// component map while iterating it.
-	for entity in expired {destroy_entity(world, entity)}
+	destroy_entities(world, expired[:])
 }

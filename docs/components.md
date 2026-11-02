@@ -970,6 +970,12 @@ Reach, facing cone, and visibility configuration on the actor, which also needs 
 
 A query-only box/sphere zone on an entity with `Transform`; it never blocks movement and needs no rigid body/collider of its own. The zone center follows the composed world position, including parent rotation and scale. Boxes remain world-axis aligned, dimensions follow absolute hierarchy scale, and offset is unscaled world space. The fixed-step loop buffers enter/stay/exit events; consume them in `post_physics` to observe every step.
 
+Character capsules use a spatial bounds tree rebuilt each trigger tick, followed
+by exact capsule tests. This includes crouched and tilted capsules and current
+activation/layers; native collider overlaps still use Box3D. Detection samples
+current overlap rather than swept movement. See
+`rune/ecs/trigger_characters_3d.odin` and `tools/ecs_performance_benchmark`.
+
 [Guide / example](triggers-3d.md) · [Implementation](../rune/ecs/triggers_3d.odin)
 
 | Field | Type / constraints | JSON default | Meaning |

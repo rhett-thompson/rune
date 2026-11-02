@@ -125,8 +125,10 @@ ecs.set(world, entity, shape)
 
 `seconds` is required, finite, and nonnegative. The scene loop advances lifetimes
 once per simulation update, after gameplay, animation, and particle updates.
-An expired entity and its descendants are destroyed through `ecs.destroy_entity`,
-including their components and native subsystem resources.
+Expired entities and their descendants are removed together through
+`ecs.destroy_entities`, including their components and native subsystem resources.
+The batch gathers one hierarchy snapshot before removal, avoiding a rebuild for
+each independent expiry.
 
 The countdown is suspended while the game is paused or the entity is effectively
 disabled. Paused console stepping advances it by the simulation timestep. A zero
@@ -145,6 +147,13 @@ ecs.set(world, entity, ecs.Lifetime{seconds = 2}) // Restart.
 
 Callback-loop users call `ecs.update_lifetimes(world, dt)` once per simulation
 update. The scene-owning loop calls it automatically.
+
+For explicit bulk cleanup, call `removed := ecs.destroy_entities(world, roots)`
+with a slice of runtime handles. It removes descendants before ancestors,
+deduplicates overlapping subtrees, ignores stale handles, and returns the total
+number removed, including descendants. The root slice is borrowed only during
+the call; traversal storage uses the caller's temporary allocator. Individual
+`ecs.destroy_entity` calls retain their existing `recursive` behavior.
 
 ## Validation
 
