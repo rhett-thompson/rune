@@ -152,6 +152,7 @@ Context :: struct {
 	sphere:           r3d.Mesh,
 	sphere_no_shadow: r3d.Mesh,
 	models:           map[string]Model_Asset,
+	barycentric_models: map[string]bool,
 	animation_players: map[ecs.Entity]Model_Player,
 	// Last animation preparation, including update calls and zero-delta draws.
 	animation_stats: Animation_Stats,
@@ -197,6 +198,7 @@ init :: proc(root: string, width, height: i32, settings: render.Settings_3D = re
 		sphere           = r3d.GenMeshSphere(1, 24, 32),
 		sphere_no_shadow = r3d.GenMeshSphere(1, 24, 32),
 		models           = make(map[string]Model_Asset),
+		barycentric_models = make(map[string]bool),
 		animation_players = make(map[ecs.Entity]Model_Player),
 		r3d_materials    = make(map[string]R3D_Material_Asset),
 		retained_paths   = make(map[string]string),
@@ -267,6 +269,7 @@ shutdown :: proc(ctx: ^Context) {
 	if r3d.IsMeshValid(ctx.sphere) {r3d.UnloadMesh(ctx.sphere)}
 	if r3d.IsMeshValid(ctx.sphere_no_shadow) {r3d.UnloadMesh(ctx.sphere_no_shadow)}
 	delete(ctx.models)
+	delete(ctx.barycentric_models)
 	delete(ctx.animation_players)
 	delete(ctx.animation_sources)
 	delete(ctx.r3d_materials)
@@ -688,7 +691,7 @@ load_model :: proc(
 	full_path := resolve_path(ctx, path)
 	cpath, _ := strings.clone_to_cstring(full_path)
 	defer delete(cpath)
-	loaded := import_model(cpath)
+	loaded := import_model(cpath,ctx.barycentric_models[path])
 	if loaded.meshCount <= 0 {
 		assets.report_failure(
 			asset_manager,

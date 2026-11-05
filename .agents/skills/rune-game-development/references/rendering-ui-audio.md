@@ -33,6 +33,13 @@ For relocatable games, pass `game.project_directory` as the bridge's root after
 `rune.init_project()` (or explicit `rune.init`). The bridge has its own root;
 hard-coded example paths do not become portable just because core startup is.
 
+For shader wireframes on imported models, call
+`r3d_bridge.enable_model_barycentric_colors(&bridge, model_path)` before the
+first model load. This reserves RGB vertex colors for triangle coordinates,
+expands indexed corners while preserving skinning, and applies on reloads.
+Opted-in shaders must restore material tint after reading the raw `aColor`
+attribute; see `docs/surface-shaders.md`. This avoids requiring a UV atlas.
+
 `Project.render_3d.shadows` supplies startup map resolutions shared by each
 light type: `directional_resolution` defaults to 4096, while `spot_resolution`
 and `omni_resolution` default to 2048. Forward `game.project.render_3d` as the
@@ -57,8 +64,10 @@ See `docs/jobs.md`, `docs/terrain.md`, and `rune/r3d_bridge/terrain_jobs.odin`.
 The same borrowed pool enables skeletal pose batches across independent
 characters. The bridge first finishes owner-thread model/library reloads, then
 gathers players and timeline/event changes. Jobs run only local pose, Rune's
-pose blend, and model-space accumulation; each player owns its output buffers,
-while skeletons and clip tracks remain read-only. The owner waits before skin
+pose blend, and model-space accumulation; each player owns its output buffers
+and a validated parent-first bone order. Frozen and first-frame poses also work
+when imported child indices precede their parents. Skeletons and clip tracks
+remain read-only. The owner waits before skin
 texture upload, blend-storage release, and player-cache publication. Playback
 state and marker events are updated on the owner during gathering. Do not
 concurrently mutate borrowed players or reuse a bridge from another thread.
@@ -259,6 +268,11 @@ Use `ecs.physics_2d_raycast`/`physics_3d_raycast` for native colliders and
 `r3d_bridge.scene_raycast` for supported rendered geometry, including render-only
 meshes. Both take an origin and bounded translation: use `end - origin` or a
 normalized direction multiplied by the intended range.
+For a ray query limited to selected assemblies, pass a nonempty
+`included_subtrees` slice to `r3d_bridge.scene_raycast` or
+`render.scene_raycast_3d`. Disabled ancestry and `ignored_subtrees` still exclude
+surfaces; an empty inclusion slice queries the full scene. Guard empty gameplay
+target lists before querying when they should produce no hit.
 
 Rendered picking supports cubes, planes, quads, spheres, and runtime static
 meshes. Imported models require a supplied bridge with those assets already

@@ -9,6 +9,7 @@ import "rune:assets"
 import "rune:ecs"
 
 Model_Player :: struct {
+	pose_order: []i32,
 	blend_pose: []rl.Matrix,
 	blend_elapsed, blend_duration: f32,
 	player:     r3d.AnimationPlayer,
@@ -20,6 +21,7 @@ Model_Player :: struct {
 
 destroy_animation_players :: proc(ctx: ^Context) {
 	for entity, cached in ctx.animation_players {
+		delete(cached.pose_order)
 		delete(cached.blend_pose)
 		r3d.UnloadAnimationPlayer(cached.player)
 		delete_key(&ctx.animation_players, entity)
@@ -29,6 +31,7 @@ destroy_animation_players :: proc(ctx: ^Context) {
 invalidate_model_players :: proc(ctx: ^Context, path: string) {
 	for entity, cached in ctx.animation_players {
 		if cached.path != path {continue}
+		delete(cached.pose_order)
 		delete(cached.blend_pose)
 		r3d.UnloadAnimationPlayer(cached.player)
 		delete_key(&ctx.animation_players, entity)
@@ -139,6 +142,7 @@ prepare_animations :: proc(
 		   !rendered ||
 		   !animated ||
 		   renderer.model != cached.path {
+			delete(cached.pose_order)
 			delete(cached.blend_pose)
 			r3d.UnloadAnimationPlayer(cached.player)
 			delete_key(&ctx.animation_players, entity)
@@ -178,6 +182,13 @@ prepare_animations :: proc(
 					renderer.model,
 					"could not create animation player",
 				)
+				continue
+			}
+			ordered:bool
+			cached.pose_order,ordered=animation_pose_order(asset.model.skeleton)
+			if !ordered {
+				r3d.UnloadAnimationPlayer(cached.player)
+				report_animation_failure(manager,renderer.model,"skeleton contains an invalid or cyclic bone hierarchy")
 				continue
 			}
 		}
@@ -243,7 +254,7 @@ prepare_animations :: proc(
 				reserve(&work,len(world.model_animators));reserve(&commits,len(world.model_animators))
 			}
 			weight:=clamp(cached.blend_elapsed/cached.blend_duration,0,1) if blending else f32(0)
-			append(&work,Animation_Pose_Work{cached.player,cached.blend_pose,weight})
+			append(&work,Animation_Pose_Work{player=cached.player,blend_pose=cached.blend_pose,blend_weight=weight,pose_order=cached.pose_order})
 			append(&commits,Animation_Pose_Commit{entity,cached,blending && weight==1})
 			ctx.animation_stats.bones_evaluated+=int(cached.player.skeleton.boneCount)
 		} else {ctx.animation_players[entity]=cached}

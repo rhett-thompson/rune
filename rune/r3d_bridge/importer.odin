@@ -30,12 +30,16 @@ when ODIN_ARCH == .amd64 && (ODIN_OS == .Windows || ODIN_OS == .Linux) {
 	append_imported_animation :: proc(library: ^r3d.AnimationLib, path: cstring, skeleton: ^r3d.Skeleton, name: cstring) -> bool {return false}
 }
 
-import_model :: proc(path: cstring) -> r3d.Model {
+import_model :: proc(path: cstring,barycentric_colors:bool=false) -> r3d.Model {
 	// Retain vertices only until missing/degenerate tangent frames are repaired.
 	importer := load_importer(path, {.RETAIN_MESH_DATA})
 	if importer == nil {return {}}
 	defer unload_importer(importer)
 	model := r3d.LoadModelFromImporter(importer)
+	if barycentric_colors && !prepare_imported_model_barycentrics(&model) {
+		r3d.UnloadModel(model,true)
+		return {}
+	}
 	if !repair_imported_model_tangents(&model) {
 		r3d.UnloadModel(model, true)
 		return {}

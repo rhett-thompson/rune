@@ -50,6 +50,40 @@ Custom shader materials use ordinary mesh submission rather than Rune's prop
 instancing path. For `material_from_data`, provide a stable nonempty material
 cache key so the bridge can own and release the shader.
 
+## Triangle wireframes without UVs
+
+Before a model's first load, opt into barycentric RGB vertex colors:
+
+```odin
+assert(r3d_bridge.enable_model_barycentric_colors(&bridge, "assets/character.fbx"))
+```
+
+Use the exact `ModelRenderer.model` path. Registration is idempotent, lasts for
+the bridge's lifetime, and applies to later file reloads. It returns false for
+an uninitialized bridge, an empty path, or a model already loaded without this
+option. Ordinary models retain their imported vertex colors.
+
+The importer expands triangle corners and writes red/green/blue one-hot vertex
+colors, preserving positions, normals, UVs, skin weights and bone indices.
+This uses more GPU vertex storage. It needs no UV atlas, extra draw, or separate
+animation player. RGB vertex colors are reserved for triangle coordinates on
+opted-in models; restore the material tint in the shader:
+
+```glsl
+varying vec3 v_barycentric;
+void vertex() {
+    // These are the pinned R3D vertex attribute and material-color uniform.
+    v_barycentric = aColor.rgb;
+    COLOR = uAlbedoColor;
+}
+void fragment() {
+    vec3 width = max(fwidth(v_barycentric), vec3(0.00001));
+    vec3 inside = smoothstep(width * 0.12, width * 0.65, v_barycentric);
+    float edge = 1.0 - min(min(inside.x, inside.y), inside.z);
+    EMISSION += vec3(0.05, 0.12, 0.2) * edge;
+}
+```
+
 The project validator checks shader references; compilation requires a graphics
 context. Run `tools/material_shader_validation` with `--runtime` to exercise GPU
 clock updates, cache reuse, source reload, failure retention, and shader release.

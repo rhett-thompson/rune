@@ -301,7 +301,17 @@ and [common/r3d_anim.c](https://github.com/Bigfoot71/r3d/blob/86303391c92e324181
 This is a narrow boundary: player loading/unloading and
 `R3D_UploadAnimationPose` touch GL; animation-time advancement can invoke native
 callbacks. `R3D_UpdateAnimationPlayer` combines CPU work with upload and must
-not replace the two compute calls in a worker.
+not replace the CPU-only pose evaluator in a worker.
+
+The native model-pose loop assumes parent-first bone indices. Assimp can return
+child-first indices: a newly frozen imported pose can therefore be distorted,
+while continuous playback appears to converge after several evaluations.
+Rune's `animation_hierarchy.odin` caches a validated parent-first order per
+player and accumulates the current local pose in that order; skin indices and
+clip channels stay unchanged. `animation_hierarchy_test.odin` covers an unordered
+chain, stable repeated evaluation, native matrix conventions, and invalid rigs.
+The production worker path uses this order; direct native calls still retain
+the native ordering assumption.
 
 Rune completes resource reloads before collecting independent player work,
 keeps model/library/player resources alive through the synchronous batch, and

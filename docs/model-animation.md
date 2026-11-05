@@ -62,6 +62,13 @@ and publishes evaluated players to its cache. Playback state and marker events
 are updated on the owner during gathering. GPU creation, upload and destruction,
 imports, asset diagnostics, and World mutation stay on the owner.
 
+Imported bone indices can list a child before its parent. Each player owns a
+validated parent-first evaluation order, built on the owner when the player is
+created and released with that player. Rune uses it for model-space accumulation
+without renumbering mesh weights or clip channels. This makes the first pose,
+including a non-autoplay frozen pose, independent of previous evaluations.
+Cycles and out-of-range parents produce animation diagnostics.
+
 Keep the borrowed pool alive until bridge shutdown. Do not update the same
 bridge concurrently, or mutate a borrowed `animation_player` while the bridge
 is preparing poses. Custom R3D trees and arbitrary native animation entrypoints

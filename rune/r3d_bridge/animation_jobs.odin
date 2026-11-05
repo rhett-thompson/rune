@@ -9,6 +9,7 @@ import rl "vendor:raylib"
 // Skeleton/library storage stays immutable through evaluate_animation_poses.
 // No player creation, destruction, timeline callbacks, allocation, or GL here.
 Animation_Pose_Work :: struct {
+	pose_order: []i32,
 	player: r3d.AnimationPlayer,
 	blend_pose: []rl.Matrix,
 	blend_weight: f32,
@@ -30,7 +31,8 @@ evaluate_animation_pose :: proc(work: ^Animation_Pose_Work) {
 	for pose, bone in work.blend_pose {
 		work.player.localPose[bone]=blend_local_pose(pose,work.player.localPose[bone],work.blend_weight)
 	}
-	r3d.ComputeAnimationModelPose(&work.player)
+	if len(work.pose_order)>0 {compute_ordered_animation_model_pose(&work.player,work.pose_order)}
+	else {r3d.ComputeAnimationModelPose(&work.player)}
 }
 
 animation_pose_job :: proc(index:int,data:rawptr) {

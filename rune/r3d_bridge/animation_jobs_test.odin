@@ -39,12 +39,14 @@ animation_pose_jobs_match_serial_and_run_without_caller_allocations :: proc(t:^t
 	}
 	clip:=r3d.Animation{channels=raw_data(channels[:]),channelCount=Bones,ticksPerSecond=1,duration=1,boneCount=Bones}
 	skeleton:=r3d.Skeleton{bones=raw_data(bones[:]),boneCount=Bones,localBind=raw_data(bind[:]),modelBind=raw_data(bind[:]),invBind=raw_data(inverse[:]),rootBind=transmute([16]f32)rl.Matrix(1)}
+	order,ordered:=animation_pose_order(skeleton);assert(ordered);defer delete(order)
 	states:[Actors]r3d.AnimationState
 	local,model:[Actors][Bones]rl.Matrix
 	blend:[Bones]rl.Matrix
 	for &pose,index in blend {pose=rl.MatrixTranslate(f32(index)*0.02,0,0)*rl.MatrixRotateY(0.3)}
 	work:[Actors]Animation_Pose_Work
 	for &item,index in work {
+		item.pose_order=order
 		states[index]={currentTime=f32(index+1)/f32(Actors+1),speed=1,play=true,loop=true}
 		item.player={animLib={animations=&clip,count=1},skeleton=skeleton,states=&states[index],activeAnimIndex=0,
 			localPose=raw_data(local[index][:]),modelPose=raw_data(model[index][:])}

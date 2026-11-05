@@ -8,6 +8,22 @@ import "rune:geometry"
 import rl "vendor:raylib"
 
 @(test)
+raycast_3d_can_include_selected_subtrees_without_hitting_unrelated_visuals :: proc(t:^testing.T) {
+	w:=ecs.init();defer ecs.destroy(&w)
+	r:=ecs.init_registry();defer ecs.destroy_registry(&r);assert(ecs.register_builtin_components(&r))
+	root:=ecs.create_entity(&w);assert(ecs.add(&w,&r,root,ecs.Transform{position={0,0,5},scale={1,1,1}}))
+	child:=ecs.create_entity(&w);assert(ecs.set_parent(&w,child,root));assert(ecs.add(&w,&r,child,ecs.default_transform()));assert(ecs.add(&w,&r,child,ecs.MeshRenderer{primitive="cube"}))
+	near:=ecs.create_entity(&w);assert(ecs.add(&w,&r,near,ecs.Transform{position={0,0,2},scale={1,1,1}}));assert(ecs.add(&w,&r,near,ecs.MeshRenderer{primitive="cube"}))
+	roots:=[1]ecs.Entity{root}
+	hit,ok:=scene_raycast_3d(&w,{},{0,0,10},included_subtrees=roots[:])
+	testing.expect(t,ok && hit.entity==child && abs(hit.distance-4.5)<.001)
+	_,ok=scene_raycast_3d(&w,{},{0,0,10},included_subtrees=roots[:],ignored_subtrees=roots[:]);testing.expect(t,!ok,"Exclusion wins over inclusion")
+	ecs.set_enabled(&w,root,false)
+	_,ok=scene_raycast_3d(&w,{},{0,0,10},included_subtrees=roots[:]);testing.expect(t,!ok,"Disabled included roots do not reveal hidden geometry")
+	hit,ok=scene_raycast_3d(&w,{},{0,0,10});testing.expect(t,ok && hit.entity==near,"An empty inclusion list retains the full scene query")
+}
+
+@(test)
 pick_3d_resolves_rendered_hierarchy_and_nearest_enabled_surface :: proc(t:^testing.T) {
 	w:=ecs.init(); defer ecs.destroy(&w)
 	r:=ecs.init_registry(); defer ecs.destroy_registry(&r); ecs.register_builtin_components(&r)

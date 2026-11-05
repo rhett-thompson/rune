@@ -50,8 +50,8 @@ scene_query_model_bounds :: proc(world:^ecs.World,entity:ecs.Entity,bridge:^Cont
 // Picks supported rendered geometry along a bounded world-space segment.
 // The shared CPU query does not require a GPU; the optional bridge supplies
 // already imported static model bounds and never loads an asset during a query.
-scene_raycast :: proc(world: ^ecs.World, origin, translation: [3]f32, ignore: ecs.Entity=0, bridge: ^Context=nil, ignored_subtrees:[]ecs.Entity=nil) -> (Scene_Ray_Hit,bool) {
-	hit,ok:=render.scene_raycast_3d(world,origin,translation,ignore,scene_query_bridge_bounds,bridge,ignored_subtrees,scene_query_bridge_static_bounds)
+scene_raycast :: proc(world: ^ecs.World, origin, translation: [3]f32, ignore: ecs.Entity=0, bridge: ^Context=nil, ignored_subtrees:[]ecs.Entity=nil, included_subtrees:[]ecs.Entity=nil) -> (Scene_Ray_Hit,bool) {
+	hit,ok:=render.scene_raycast_3d(world,origin,translation,ignore,scene_query_bridge_bounds,bridge,ignored_subtrees,scene_query_bridge_static_bounds,included_subtrees)
 	return Scene_Ray_Hit{entity=hit.entity,point=hit.point,distance=hit.distance,normal=hit.normal},ok
 }
 

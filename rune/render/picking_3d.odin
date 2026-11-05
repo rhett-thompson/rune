@@ -71,7 +71,8 @@ scene_pick_3d :: proc(world:^ecs.World,origin,translation:[3]f32,asset_manager:^
 // and static CPU triangles follow the rendered composed hierarchy. A read-only
 // bounds callback optionally supplies imported models; no assets are loaded.
 // ignore excludes one entity; ignored_subtrees excludes roots and descendants.
-scene_raycast_3d :: proc(world: ^ecs.World, origin, translation: [3]f32, ignore: ecs.Entity=0, model_bounds: Scene_Model_Bounds_3D=nil, bounds_data: rawptr=nil, ignored_subtrees:[]ecs.Entity=nil, static_bounds:Scene_Static_Mesh_Bounds_3D=nil) -> (Scene_Ray_Hit_3D,bool) {
+// A nonempty included_subtrees limits hits to those roots and descendants.
+scene_raycast_3d :: proc(world: ^ecs.World, origin, translation: [3]f32, ignore: ecs.Entity=0, model_bounds: Scene_Model_Bounds_3D=nil, bounds_data: rawptr=nil, ignored_subtrees:[]ecs.Entity=nil, static_bounds:Scene_Static_Mesh_Bounds_3D=nil, included_subtrees:[]ecs.Entity=nil) -> (Scene_Ray_Hit_3D,bool) {
 	if world==nil {return {},false}
 	length:=math.sqrt(translation[0]*translation[0]+translation[1]*translation[1]+translation[2]*translation[2])
 	if length<=0 || math.is_nan(length) || math.is_inf(length) {return {},false}
@@ -80,6 +81,11 @@ scene_raycast_3d :: proc(world: ^ecs.World, origin, translation: [3]f32, ignore:
 	result: Scene_Ray_Hit_3D; found:=false
 	for entity in world.entities {
 		if entity==ignore || !ecs.is_enabled(world,entity) {continue}
+		if len(included_subtrees)>0 {
+			included:=false
+			for root in included_subtrees {if pick_3d_in_subtree(world,entity,root) {included=true;break}}
+			if !included {continue}
+		}
 		excluded:=false
 		for root in ignored_subtrees {if pick_3d_in_subtree(world,entity,root) {excluded=true; break}}
 		if excluded {continue}
