@@ -6,6 +6,13 @@ for the explicit `prefab://` path prefix.
 
 ## Rendering ownership
 
+For film grain on raylib 2D logos or overlays drawn after scene presentation,
+use `render.Film_Grain_Effect` and `begin_film_grain` / `end_film_grain` with
+`ecs.Post_Film_Grain` settings and the render clock. It shares the R3D grain GLSL
+kernel and preserves coverage alpha. Draw normally when begin returns false;
+avoid nested shader modes and destroy the effect before graphics shutdown.
+See `docs/post-processing.md` for whole-composition and pixel-scale behavior.
+
 The scene-owning `rune.run(&game)` loop calls `render.draw_scene_2d` automatically.
 Provide an active `Camera2D` entity with its own `Transform`; the renderer derives
 the target from that transform and draws configured sprites, tilemaps, text,

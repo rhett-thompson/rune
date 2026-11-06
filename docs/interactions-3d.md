@@ -14,6 +14,7 @@ and save snapshots support these components.
   "prompt": "Talk to guide",
   "offset": [0, 1.2, 0],
   "hold_seconds": 0.75,
+  "range": 6,
   "enabled": true
 }
 ```
@@ -23,6 +24,11 @@ position, including ancestor translation, rotation, and scale. Rotation and
 scale do not alter the offset itself. The caller supplies
 the character's eye/reach position and facing direction each update. For an
 orbit camera, use the character's position for reach rather than the camera's.
+
+An interactable's positive `range` replaces the actor's reach for that target.
+Zero or an omitted field inherits `Interactor3D.range`. Facing, layer and
+line-of-sight checks still apply; the example guide can be contacted from six
+world units while other targets keep the character's normal reach.
 
 `find_interaction_3d(world, actor, origin, forward)` selects the most centered
 visible target, breaking ties by distance and then entity handle. Selection
@@ -42,6 +48,7 @@ Terrain must have been synchronized through the usual asset/physics lifecycle.
 | Interactable3D | `prompt` | "Use" |
 | Interactable3D | `offset` | [0, 0, 0] |
 | Interactable3D | `hold_seconds` | 0 (instant press) |
+| Interactable3D | `range` | 0 (inherit the actor's reach) |
 | Interactable3D | `enabled` | true |
 
 Layer fields are numeric bitmasks, matching physics queries. Initialize typed

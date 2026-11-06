@@ -950,6 +950,7 @@ An interaction target on an entity with `Transform`. Its position includes ances
 | `prompt` | string; nonempty | `"Use"` | Game UI prompt text. |
 | `offset` | 3-item array of number | `[0, 0, 0]` | Unscaled world-axis offset from the entity position. |
 | `hold_seconds` | number; ≥ 0 | `0` | Required hold duration; zero is a press action. |
+| `range` | number; ≥ 0 | `0` | Target-specific reach in world units; zero inherits `Interactor3D.range`. |
 | `enabled` | boolean | `true` | Enable this feature/profile. |
 
 ### Interactor3D

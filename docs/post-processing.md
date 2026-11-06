@@ -60,6 +60,20 @@ after the draw. Its cached shader is released at shutdown. The HUD and debug
 overlays drawn afterward are unaffected. Custom chains can use `POST` or `OUTPUT`;
 `FINAL` remains available when film grain is inactive.
 
+For logos and other raylib 2D drawing after scene presentation, use
+`render.Film_Grain_Effect` with `render.begin_film_grain(&effect, settings,
+render_seconds)` / `render.end_film_grain(&effect)`. The settings type is
+`ecs.Post_Film_Grain`; the adapter compiles the same GLSL kernel used by the R3D
+pass and preserves texture/tint alpha. Draw an already-composited texture inside
+the shader mode when the effect should follow a complete 2D composition. For
+ordinary 2D primitives it applies to each source color before alpha blending.
+Avoid nesting shader modes. Disabled/zero/invalid settings return false without
+allocating; in that case draw normally and do not call `end_film_grain`.
+The optional `pixel_scale` maps a reference renderer's pixel size to the current
+physical framebuffer (for example, pass the 3D render scale for matching visible
+cell sizes). The caller owns the cached shader and calls
+`render.destroy_film_grain` before graphics shutdown; it also ends an active pass.
+
 ## Light shafts
 
 `light_shafts` adds screen-space radial scattering around a finite light source.

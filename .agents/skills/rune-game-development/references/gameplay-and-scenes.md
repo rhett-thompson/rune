@@ -38,6 +38,11 @@ creation, start with helpers such as `ecs.default_transform()` and override the
 desired fields; a supplied typed value supplies every field. Do not copy runtime
 inspection fields such as solver state or playback cursors into scene JSON.
 
+For per-target interaction reach, set `ecs.Interactable3D.range` to a positive
+world-unit distance; zero inherits `ecs.Interactor3D.range`. Target overrides
+retain the actor's facing, layer and line-of-sight checks. Keep game-specific
+reach choices in the game. See `docs/interactions-3d.md`.
+
 For reusable entity trees, follow `docs/prefabs.md`. Each `prefab` path is
 relative to the JSON file containing that reference. `components` replaces whole
 component blocks; `component_overrides` merges object fields, with arrays/scalars

@@ -26,6 +26,7 @@
         "prompt": {"type": "string", "minLength": 1, "default": "Use"},
         "offset": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "default": [0, 0, 0]},
         "hold_seconds": {"type": "number", "minimum": 0, "default": 0},
+        "range": {"type": "number", "minimum": 0, "default": 0, "description": "Target reach in world units; zero inherits Interactor3D.range."},
         "enabled": {"type": "boolean", "default": true}
       }
     },

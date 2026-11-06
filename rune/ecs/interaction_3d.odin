@@ -10,6 +10,7 @@ Interactable3D :: struct {
 	prompt: string,
 	offset: [3]f32,
 	hold_seconds: f32,
+	range: f32, // Zero inherits the actor's reach; positive values override it.
 	enabled: bool,
 }
 Interactor3D :: struct {
@@ -22,7 +23,7 @@ Default_Interactor_3D :: Interactor3D{range=3, half_angle=65, target_layers=~u64
 
 interaction_component_3d_valid :: proc(value:$T) -> bool {
 	when T == Interactable3D {
-		return value.prompt!="" && physics_query_vector_valid(value.offset) && finite_nonnegative(value.hold_seconds)
+		return value.prompt!="" && physics_query_vector_valid(value.offset) && finite_nonnegative(value.hold_seconds) && finite_nonnegative(value.range)
 	} else when T == Interactor3D {
 		return finite_nonnegative(value.range) && value.range>0 && finite_nonnegative(value.half_angle) && value.half_angle<=180
 	}
@@ -75,7 +76,8 @@ find_interaction_3d :: proc(world:^World, actor:Entity, origin,forward:[3]f32) -
 		point:=world_transform_3d(world,entity).position+value.offset
 		delta:=point-origin
 		distance:=math.sqrt(delta.x*delta.x+delta.y*delta.y+delta.z*delta.z)
-		if !finite_nonnegative(distance) || distance>config.range {continue}
+		reach:=value.range if value.range>0 else config.range
+		if !finite_nonnegative(distance) || distance>reach {continue}
 		dot:f32=1
 		if distance>0.00001 {dot=(delta.x*direction.x+delta.y*direction.y+delta.z*direction.z)/distance}
 		if dot<min_dot || dot<best_dot {continue}
