@@ -207,6 +207,12 @@ resources; pruning remains disabled. Add asset credits and notices as needed.
 | `prune.roots` | Additional code-loaded files or directory trees to retain and inspect. |
 | `prune.manifests` | Source metadata describing custom dependencies and optional input checksums. |
 
+An explicitly opened [`rune:assetcatalog`](assetcatalog.md) lookup file can be
+registered in `prune.manifests` too. Its `assets` and `directories` values become
+ordinary pruning roots, followed by the same dependency walker. Include that
+catalog in `content` so the game can open it at runtime. Authored JSON continues
+to contain ordinary filenames; the publisher does not interpret asset IDs there.
+
 The parser rejects unknown fields, malformed/duplicate JSON keys, unsupported
 targets, unsafe names/paths, and attempts to override the reserved `rune`/`r3d`
 collections or `RUNE_PLAYER`/`RAYLIB_SHARED` defines. Content uses forward slash

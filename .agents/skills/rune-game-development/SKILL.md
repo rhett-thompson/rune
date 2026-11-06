@@ -59,6 +59,12 @@ For terrain detail distance thinning, follow the optional density settings in
   validates staged references and native dependencies before producing a fresh
   folder/archive. Check the documented host/ABI/runtime requirements and test
   the extracted game; a successful archive alone does not prove compatibility.
+- When game code needs named asset paths, use the optional `rune:assetcatalog`
+  package: open the manifest explicitly, call `load(catalog, key)`, and pass the
+  returned project-relative path to existing loaders. Keep authored JSON paths
+  and ordinary loader behavior intact. For publishing, include the catalog and
+  resources in `content` and register it in `prune.manifests`; its file/directory
+  values become roots for the existing walker. See `docs/assetcatalog.md`.
 - When adding, changing, or removing game code that loads assets, scenes,
   prefabs, or custom data, update the game's publishing dependency manifest in
   the same change, including when pruning is currently disabled. Declare

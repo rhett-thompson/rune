@@ -5,6 +5,10 @@ and related CPU data. Keep asset-manager access and graphics work on the owning
 game thread. Cached GPU handles are borrowed and can change after a successful
 reload; reacquire them through the manager when needed.
 
+For explicit names such as `model.door`, use the optional
+[`rune:assetcatalog` lookup](assetcatalog.md), then pass its returned path to the
+existing loader. It does not change the asset manager or authored JSON.
+
 ## Imported mesh tangent frames
 
 The 3D bridge repairs unusable imported tangent frames in

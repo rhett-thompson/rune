@@ -88,6 +88,11 @@ code-loaded resources to its `roots` and keep those paths covered by `content`.
 Set `prune.enabled` to true to use pruning. When disabled, dependency manifests
 and their input hashes are not checked, including during a dry run.
 
+An explicitly opened [`rune:assetcatalog`](../docs/assetcatalog.md) file can also
+be listed in `prune.manifests`: its `assets` and `directories` values become
+ordinary pruning roots. Include the catalog itself in `content`; the existing
+walker follows authored paths without interpreting IDs inside JSON.
+
 Publishing supports native Windows AMD64 and Linux AMD64 builds. Windows needs
 MSVC and an official installed AMD64 VC CRT when required by the linked native
 libraries. Linux needs `flock`, `readelf`, `mktemp`, and `tar`; build with an SDK

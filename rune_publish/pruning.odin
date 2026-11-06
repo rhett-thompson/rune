@@ -142,8 +142,37 @@ prune_load_manifest :: proc(state: ^Prune_State, path: string) -> (Prune_Manifes
 	if parse_error != nil {return {}, fmt.aprintf("invalid pruning manifest %s (duplicate keys are forbidden): %v", path, parse_error)}
 	object, ok := value.(json.Object)
 	if !ok {return {}, fmt.aprintf("pruning manifest %s must contain a JSON object", path)}
-	if error := config_keys(object, {"version", "roots", "dependencies", "inputs"}, fmt.aprintf("pruning manifest %s", path)); error != "" {return {}, error}
+	if error := config_keys(object, {"$schema", "version", "assets", "directories", "roots", "dependencies", "inputs"}, fmt.aprintf("pruning manifest %s", path)); error != "" {return {}, error}
 	if version, ok := object["version"].(json.Integer); !ok || version != 1 {return {}, fmt.aprintf("pruning manifest %s version must be 1", path)}
+	// A lookup catalog can also be an explicit publishing manifest. Its values
+	// are ordinary roots; the existing dependency walker follows authored paths.
+	_,has_assets:=object["assets"]
+	_,has_directories:=object["directories"]
+	if has_assets || has_directories {
+		if error:=prune_select(state,relative,fmt.aprintf("asset catalog %s",path),true);error!="" {return {},error}
+	}
+	names:=make(map[string]bool)
+	for field in ([]string{"assets","directories"}) {
+		raw,present:=object[field];if !present {continue}
+		entries,valid:=raw.(json.Object)
+		if !valid {return {},fmt.aprintf("pruning manifest %s %s must map names to paths",path,field)}
+		keys:=make([dynamic]string)
+		for key in entries {append(&keys,key)}
+		slice.sort(keys[:])
+		for key in keys {
+			entry,valid:=entries[key].(json.String)
+			if key=="" || key!=strings.trim_space(key) || strings.contains_any(key,"/\\:\x00") || !valid || !config_content_path(string(entry)) {
+				return {},fmt.aprintf("pruning manifest %s has an invalid %s entry: %s",path,field,key)
+			}
+			if names[key] {return {},fmt.aprintf("pruning manifest %s repeats asset/directory name: %s",path,key)}
+			names[key]=true
+			index,included:=state.indices[strings.to_lower(strings.trim_right(string(entry),"/"))]
+			if included && state.candidates[index].directory!=(field=="directories") {
+				return {},fmt.aprintf("pruning manifest %s %s entry has the wrong file/directory type: %s",path,field,key)
+			}
+			if error:=prune_select(state,string(entry),fmt.aprintf("pruning manifest %s %s.%s",path,field,key),true);error!="" {return {},error}
+		}
+	}
 	if raw, found := object["inputs"]; found {
 		inputs, ok := raw.(json.Object)
 		if !ok {return {}, fmt.aprintf("pruning manifest %s inputs must map source paths to lowercase SHA256 strings", path)}

@@ -158,6 +158,13 @@ See `docs/publishing.md` for exact commands, config fields, and validation limit
 
 ## Declare code-loaded resources
 
+Games can use the optional `rune:assetcatalog` lookup to map names to ordinary
+project-relative paths. Open it explicitly in game code and call `load` before
+the existing loader; engine loaders and authored JSON do not interpret IDs.
+Register the same catalog in `prune.manifests` to retain its `assets` and
+`directories` values. Include that catalog in `content` because game startup
+reads it. See `docs/assetcatalog.md` for ownership and the small API.
+
 Whenever game code adds, changes, or removes a file load, maintain its publishing
 dependency manifest in the same change. This includes later scene transitions,
 prefabs spawned from code, asset-manager calls, `rune.resource_path`, and direct

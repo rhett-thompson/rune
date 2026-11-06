@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "assetcatalog.schema.json",
+  "title": "Named asset paths",
+  "type": "object",
+  "required": ["version", "assets"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {"type": "string"},
+    "version": {"const": 1},
+    "assets": {"$ref": "#/$defs/names"},
+    "directories": {"$ref": "#/$defs/names"},
+    "roots": {"$ref": "#/$defs/paths"},
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/paths"}
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    }
+  },
+  "$defs": {
+    "path": {"type": "string", "minLength": 1},
+    "paths": {"type": "array", "items": {"$ref": "#/$defs/path"}},
+    "names": {
+      "type": "object",
+      "propertyNames": {"minLength": 1, "pattern": "^[^/\\\\:\\u0000-\\u001f]+$"},
+      "additionalProperties": {"$ref": "#/$defs/path"}
+    }
+  }
+}
