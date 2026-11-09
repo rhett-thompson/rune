@@ -32,6 +32,13 @@ Selection is local to the compiler invocation. This does not install MSVC or the
 Windows SDK; direct `odin` calls bypass this discovery as well as the lock.
 
 Rune's Windows launcher and build/validation helpers select MSVC themselves.
+Rune Publish also calls `tools/find_msvc.bat` for the game build and gives Odin
+the selected `VCToolsInstallDir`. CRT discovery checks the installed Visual
+Studio redist layouts reported by `vswhere`, after any configured
+`VCToolsRedistDir`. This covers installations with missing VC component
+metadata. See `rune_publish/compiler_windows.odin`, `rune_publish/native.odin`,
+and the Windows package check in `docs/publishing.md`.
+
 Published Windows players additionally select `-subsystem:windows`. If a
 published game opens a console, inspect its PE optional-header Subsystem:
 2 is Windows GUI, 3 is Windows CUI. The publisher's compiler arguments and
@@ -371,3 +378,9 @@ records inventory before moving the populated directory. If package finalization
 fails only while the publisher is alive, inspect retained search/file handles
 before blaming ACLs or antivirus. Do not patch a user's compiler installation to
 work around this; keep the checked-in ownership fix and test the actual output.
+
+On Windows ReFS, bsdtar 3.8.9 can report `Can't add archive to itself` for a
+staged entry when its file ID compares equal to the ZIP's. Rune pipes the ZIP
+stream into the staged output in `rune_publish/finalize_windows.odin` to avoid
+the file ID check. Verify ZIP directory entries as well as manifest file hashes.
+The false positive omitted a directory entry even though tar exited successfully.

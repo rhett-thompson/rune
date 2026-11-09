@@ -259,8 +259,7 @@ On Linux, use `sh tools/new_project.sh --path ../MyGame --name 'My Game'`, then
 `sh build.sh --rune-root /path/to/rune --run` from the new game directory.
 
 The new folder contains code, scene/input JSON, `publish.json`, an empty
-`publish.assets.json`, local schemas, and both build scripts. The asset manifest
-is registered in the publishing config; pruning is disabled by default.
+`assets.json` catalog, local schemas, and both build scripts.
 The initial scene is empty. The script builds into the game's `build/` directory.
 The generated entry point uses `rune.init_project()` to find `../project.json`
 relative to that executable, so it also runs from an unrelated working directory.
@@ -288,9 +287,10 @@ The command builds the player, stages included content and notices, validates
 references/native dependencies, and produces a fresh folder plus ZIP/tar.gz
 under the game's `build/publish/`. It refuses existing outputs. The publisher
 supplies the Rune/r3d collections; list other collections/defines in the config.
-Keep code-loaded scenes, assets, and custom data declared in
-`publish.assets.json`, with their paths covered by `publish.json`'s `content`.
-Enable `prune.enabled` to omit unreachable content; use `--dry-run` to preview it.
+The publisher includes `project.json` and `assets.json` and follows the startup
+scene, input mappings, and known dependencies. Register other runtime files,
+such as code-loaded scenes and custom data, in `assets.json`. Use `--dry-run`
+to validate the package plan before building the game.
 See [publishing configuration and build](docs/publishing.md#publishing-configuration-and-build)
 for platform prerequisites, Linux compatibility limits, and output options.
 

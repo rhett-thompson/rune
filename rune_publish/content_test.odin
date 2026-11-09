@@ -60,9 +60,16 @@ content_collects_copies_and_validates_package :: proc(t: ^testing.T) {
 	content_test_write(t, root, "assets/nested/custom data.json", `{"absolute_string":"C:/game data","path":"../custom"}`)
 	content_test_write(t, root, "licenses/game.txt", "Game notice")
 	testing.expect(t, os.make_directory(fmt.aprintf("%s/assets/empty", root)) == nil)
-	config := Config{content={"project.json", "scenes/", "assets/"}, licenses={"licenses/game.txt"}}
-	files, error := collect_content(root, config, "game.exe")
-	testing.expect(t, error == "", error)
+	collector := Content_Collector{files=make([dynamic]Publish_File), destinations=make(map[string]string), spellings=make(map[string]string), executable_name="game.exe"}
+	for path in ([]string{"project.json", "scenes/", "assets/", "licenses/game.txt"}) {
+		relative, source, error := content_resolve_source(root, path)
+		if !testing.expect(t, error == "", error) {return}
+		error = content_add_path(&collector, source, relative)
+		if !testing.expect(t, error == "", error) {return}
+	}
+	_, error := content_include_file(&collector, root, "assets/nested/custom data.json")
+	testing.expect(t, error == "", "repeated references should reuse a collected file")
+	files := collector.files[:]
 	testing.expect(t, len(files) == 5)
 	stage, _ := filepath.join({root, "stage"})
 	testing.expect(t, os.make_directory(stage) == nil)
@@ -73,7 +80,7 @@ content_collects_copies_and_validates_package :: proc(t: ^testing.T) {
 }
 
 @(test)
-content_rejects_escapes_missing_overlap_case_and_reserved_paths :: proc(t: ^testing.T) {
+content_rejects_escapes_missing_case_and_reserved_paths :: proc(t: ^testing.T) {
 	arena: mem.Dynamic_Arena
 	mem.dynamic_arena_init(&arena)
 	defer mem.dynamic_arena_destroy(&arena)
@@ -85,16 +92,10 @@ content_rejects_escapes_missing_overlap_case_and_reserved_paths :: proc(t: ^test
 	content_test_write(t, root, "manifest.json", "reserved")
 	content_test_write(t, root, "licenses/rune/custom.txt", "reserved namespace")
 	content_test_write(t, root, "game.exe", "reserved executable")
-	for paths in ([]([]string){
-		{"project.json", "missing/"}, {"project.json", "../outside"},
-		{"project.json", "/absolute"}, {"project.json", `C:\absolute`},
-		{"project.json", "assets/", "assets/item.bin"},
-		{"project.json", "assets/", "ASSETS/"},
-		{"project.json", "manifest.json"}, {"project.json", "licenses/"},
-		{"project.json", "game.exe"}, {"assets/"},
-	}) {
-		_, error := collect_content(root, Config{content=paths}, "game.exe")
-		testing.expect(t, error != "", fmt.aprintf("accepted invalid includes: %v", paths))
+	collector := Content_Collector{files=make([dynamic]Publish_File), destinations=make(map[string]string), spellings=make(map[string]string), executable_name="game.exe"}
+	for path in ([]string{"missing.bin", "../outside", "/absolute", `C:\absolute`, "ASSETS/item.bin", "assets/ITEM.bin", "assets/item.bin/child", "assets", "manifest.json", "licenses/rune/custom.txt", "game.exe"}) {
+		_, error := content_include_file(&collector, root, path)
+		testing.expect(t, error != "", fmt.aprintf("accepted invalid include: %s", path))
 	}
 	testing.expect(t, publisher_path_is_within(root, fmt.aprintf("%s/child", root)))
 	testing.expect(t, !publisher_path_is_within(root, fmt.aprintf("%s-sibling/file", root)))
@@ -153,6 +154,15 @@ content_checks_material_animation_terrain_and_model_sidecars :: proc(t: ^testing
 	content_test_write(t, root, "assets/model.bin", "buffer")
 	content_test_write(t, root, "assets/tex one.png", "texture")
 	testing.expect(t, validate_staged_project(root) == "")
+	content_test_write(t, root, "assets/model.gltf.materials.json", `{"materials":{"0":"assets/default.material.json"}}`)
+	planned := []Publish_File{
+		{destination="project.json"}, {destination="scenes/main.scene.json"},
+		{destination="assets/model.gltf"}, {destination="assets/model.bin"}, {destination="assets/tex one.png"},
+	}
+	testing.expect(t, validate_content_inventory(root, planned) == "", "an optional sidecar outside the inventory must not affect validation")
+	testing.expect(t, strings.contains(validate_staged_project(root), "default.material.json"))
+	content_test_write(t, root, "assets/default.material.json", `{}`)
+	testing.expect(t, validate_staged_project(root) == "")
 	content_test_write(t, root, "assets/model.obj", "mtllib model.mtl\nv 0 0 0\n")
 	testing.expect(t, strings.contains(validate_staged_project(root), "model.mtl"))
 	content_test_write(t, root, "assets/model.mtl", "newmtl test\nmap_Kd tex one.png\n")
@@ -180,13 +190,13 @@ content_rejects_symlink_files_directories_and_ancestors :: proc(t: ^testing.T) {
 		content_test_write(t, root, "assets/real/file.bin", "real")
 		link := fmt.aprintf("%s/linked", root)
 		testing.expect(t, os.symlink(fmt.aprintf("%s/assets/real", root), link) == nil)
-		_, error := collect_content(root, Config{content={"project.json", "linked/file.bin"}}, "game")
+		_, _, error := content_resolve_source(root, "linked/file.bin")
 		testing.expect(t, error != "", "linked ancestors must be rejected")
-		_, error = collect_content(root, Config{content={"project.json", "linked/"}}, "game")
+		_, _, error = content_resolve_source(root, "linked/")
 		testing.expect(t, error != "", "linked directories must be rejected")
 		testing.expect(t, os.remove(link) == nil)
 		testing.expect(t, os.symlink(fmt.aprintf("%s/assets/real/file.bin", root), link) == nil)
-		_, error = collect_content(root, Config{content={"project.json", "linked"}}, "game")
+		_, _, error = content_resolve_source(root, "linked")
 		testing.expect(t, error != "", "linked files must be rejected")
 	}
 }

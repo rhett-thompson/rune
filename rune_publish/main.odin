@@ -32,7 +32,6 @@ Manifest :: struct {
 	native_sources: map[string]json.Value,
 	native: Native_Audit,
 	files: []File_Record,
-	asset_pruning: Prune_Report,
 }
 
 main :: proc() {
@@ -84,8 +83,9 @@ run_main :: proc(args: []string) -> int {
 		fmt.println("       [--target windows-amd64|linux-amd64] [--odin COMPILER] [--glibc-max 2.39]")
 		fmt.println("       [--rune-root ENGINE_DIRECTORY]")
 		fmt.println("       [--windows-runtime-directory OFFICIAL_VC_CRT_DIRECTORY] [--windows-runtime-license NOTICE]")
-		fmt.println("       [--dry-run] Validate content and report pruning without building or writing a package.")
-		fmt.println("Builds publish.json as a player package on the matching host OS, with an adjacent ZIP/tar.gz.")
+		fmt.println("       [--dry-run] Validate package content without building or writing a package.")
+		fmt.println("Builds a player package from publish.json, project.json, and assets.json on the matching host OS.")
+		fmt.println("Without --output, writes the named package under publish.json's output_directory or build/publish, relative to the game.")
 		fmt.println("Use --rune-root or RUNE_ROOT with a standalone binary; tools/publish.bat|sh supplies it automatically.")
 		return 0
 	}
@@ -123,21 +123,23 @@ publish :: proc(options: Options) -> string {
 	for name, value in config.build.defines {
 		if _, error := json_scalar_literal(value); error != "" {return fmt.aprintf("Invalid build.defines.%s: %s", name, error)}
 	}
-	files, content_error := collect_content(game_root, config, binary_name)
+	plan, content_error := plan_content(game_root, config, binary_name)
 	if content_error != "" {return content_error}
-	retained_files, pruning, pruning_error := prune_content(game_root, config, files)
-	if pruning_error != "" {return pruning_error}
-	files = retained_files
-	if pruning.enabled {
-		fmt.printf("Asset pruning: retained %d of %d files; removed %d files (%d bytes).\n", pruning.retained_files, pruning.candidate_files, pruning.pruned_files, pruning.pruned_bytes)
-	}
 	if options.dry_run {
-		if error := validate_content_inventory(game_root, files); error != "" {return error}
-		fmt.println("Dry run: content dependency checks passed; no package was written.")
+		if error := validate_content_inventory(game_root, plan.files); error != "" {return error}
+		file_count := 0
+		for file in plan.files {if !file.directory {file_count += 1}}
+		fmt.printf("Dry run: %d game files passed content dependency checks.\n", file_count)
 		return ""
 	}
 	output := options.output
-	if output == "" {output = fmt.aprintf("%s/build/publish/%s-%s-%s", game_root, config.id, config.version, options.target)}
+	if output == "" {
+		directory := config.output_directory
+		if directory == "" {directory = "build/publish"}
+		package_name := fmt.aprintf("%s-%s-%s", config.id, config.version, options.target)
+		output, path_error = filepath.join({game_root, directory, package_name})
+		if path_error != nil {return "Could not resolve output directory."}
+	}
 	output, path_error = pathutil.absolute(output)
 	if path_error != nil {return "Could not resolve output directory."}
 	output, _ = filepath.clean(output)
@@ -145,7 +147,7 @@ publish :: proc(options: Options) -> string {
 	if !content_portable_segment(leaf) {return "Output must name a new directory with a portable filename."}
 	archive_output := fmt.aprintf("%s%s", output, Archive_Suffix)
 	if path_is_present(output) || path_is_present(archive_output) {return fmt.aprintf("Output or archive already exists; choose a new directory: %s", output)}
-	if error := check_output_parent(parent, game_root, config); error != "" {return error}
+	if error := check_output_parent(parent, game_root, plan.directories); error != "" {return error}
 	compiler := options.compiler
 	if strings.contains_any(compiler, "/\\") {
 		compiler, path_error = pathutil.absolute(compiler)
@@ -164,9 +166,8 @@ publish :: proc(options: Options) -> string {
 	notices, notice_error := collect_engine_notices(rune_root, odin_root)
 	if notice_error != "" {return notice_error}
 	append_files := make([dynamic]Publish_File)
-	append(&append_files, ..files)
+	append(&append_files, ..plan.files)
 	append(&append_files, ..notices)
-	files = append_files[:]
 	if error := prepare_engine(rune_root); error != "" {return error}
 	if error := os.make_directory_all(parent); error != nil && error != .Exist {return fmt.aprintf("Could not create output parent %s: %v", parent, error)}
 	if error := content_check_source_path(parent); error != "" {return error}
@@ -177,11 +178,17 @@ publish :: proc(options: Options) -> string {
 	fmt.println("Staging: ", workspace)
 	stage, _ := filepath.join({workspace, leaf})
 	if error := os.make_directory(stage); error != nil {return fmt.aprintf("Could not create staging package: %v", error)}
-	if error := copy_publish_files(files, stage); error != "" {return fmt.aprintf("%s\nStaging preserved at %s", error, workspace)}
+	if error := copy_publish_files(append_files[:], stage); error != "" {return fmt.aprintf("%s\nStaging preserved at %s", error, workspace)}
+	staged_catalog, _ := filepath.join({stage, Asset_Catalog_Filename})
+	catalog_hash, catalog_error := hash_file(staged_catalog)
+	if catalog_error != "" {return fmt.aprintf("%s\nStaging preserved at %s", catalog_error, workspace)}
+	if catalog_hash != plan.catalog_sha256 {
+		return fmt.aprintf("%s changed while publishing. Run publishing again.\nStaging preserved at %s", Asset_Catalog_Filename, workspace)
+	}
 	if error := validate_staged_project(stage); error != "" {return fmt.aprintf("%s\nStaging preserved at %s", error, workspace)}
 	binary, _ := filepath.join({stage, binary_name})
 	fmt.println("Building player: ", config.name)
-	build_output, build_error := run_compiler(compiler_command(compiler, game_root, rune_root, binary, config), game_root)
+	build_output, build_error := run_compiler(compiler_command(compiler, game_root, rune_root, binary, config), game_root, rune_root)
 	if build_output != "" {fmt.print(build_output)}
 	if build_error != "" {return fmt.aprintf("%s\nStaging preserved at %s", build_error, workspace)}
 	if !os.exists(binary) {return fmt.aprintf("The compiler did not produce the requested executable; staging preserved at %s", workspace)}
@@ -201,7 +208,6 @@ publish :: proc(options: Options) -> string {
 		compiler = strings.trim_space(version), config_sha256 = config_hash,
 		rune_source = source_revision(rune_root), game_source = source_revision(game_root),
 		profile = "player", configuration = config, native = audit, files = records,
-		asset_pruning = pruning,
 		native_sources = native_source_pins(rune_root),
 	}
 	manifest_data, marshal_error := json.marshal(manifest, {pretty = true, use_spaces = true})
@@ -211,7 +217,7 @@ publish :: proc(options: Options) -> string {
 	fmt.println("Creating archive...")
 	archive_error: string
 	when ODIN_OS == .Windows {
-		_, archive_error = run_capture({"tar.exe", "-a", "-cf", archive, "-C", workspace, "--", leaf}, workspace)
+		archive_error = create_windows_zip(archive, workspace, leaf)
 	} else {
 		_, archive_error = run_capture({"tar", "-czf", archive, "-C", workspace, "--", leaf}, workspace)
 	}
@@ -242,7 +248,7 @@ native_source_pins :: proc(root: string) -> map[string]json.Value {
 	return result
 }
 
-check_output_parent :: proc(parent, game_root: string, config: Config) -> string {
+check_output_parent :: proc(parent, game_root: string, included_directories: []string) -> string {
 	// Reject links in existing ancestors, including a symlink alias into content.
 	current := parent
 	for current != "" {
@@ -258,13 +264,10 @@ check_output_parent :: proc(parent, game_root: string, config: Config) -> string
 		if next == current || next == "" {break}
 		current = next
 	}
-	for entries in ([2][]string{config.content, config.licenses}) {
-		for entry in entries {
-			source, _ := filepath.join({game_root, entry})
-			info, error := os.stat(source, context.allocator)
-			if error == nil && info.type == .Directory && publisher_path_is_within(source, parent) {
-				return fmt.aprintf("Output staging would be inside included content: %s", entry)
-			}
+	for entry in included_directories {
+		source, _ := filepath.join({game_root, entry})
+		if publisher_path_is_within(source, parent) {
+			return fmt.aprintf("Output staging would be inside included content: %s", entry)
 		}
 	}
 	return ""

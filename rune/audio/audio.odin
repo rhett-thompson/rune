@@ -22,6 +22,7 @@ Audio_Instance :: struct {
 	resume_sound: bool,
 	configured_sound: string,
 	configured_clips: []string,
+	configured_buffered: bool,
 	sources: map[string]rl.Sound,
 	sound:                rl.Sound,
 	voices:               [dynamic]Audio_Voice,
@@ -41,7 +42,7 @@ Audio_Instance :: struct {
 }
 
 // Audio_System owns one raylib playback instance per named AudioPlayer
-// component instance. Short clips are buffered Sounds; music formats stream.
+// component instance. By default, playback mode is selected by file format.
 Audio_System :: struct {
 	mixer:            Mixer,
 	root:             string,
@@ -250,7 +251,8 @@ select_clip :: proc(player: ecs.AudioPlayer) -> string {
 }
 
 same_clip_configuration :: proc(instance: Audio_Instance, player: ecs.AudioPlayer) -> bool {
-	if instance.configured_sound != player.sound || len(instance.configured_clips) != len(player.clips) {return false}
+	if instance.configured_sound != player.sound || len(instance.configured_clips) != len(player.clips) ||
+	   instance.configured_buffered != player.buffered {return false}
 	for clip, i in player.clips {if instance.configured_clips[i] != clip {return false}}
 	return true
 }
@@ -265,7 +267,7 @@ ensure_instance :: proc(system: ^Audio_System, key: ecs.Component_Instance, play
 	if found && !choose {return true}
 	path := select_clip(player)
 	if found && instance.path == path {return true}
-	streaming := is_streaming_path(path)
+	streaming := !player.buffered && is_streaming_path(path)
 	if found && !streaming {
 		if sound, cached := instance.sources[path]; cached {
 			if instance.streaming {
@@ -278,7 +280,7 @@ ensure_instance :: proc(system: ^Audio_System, key: ecs.Component_Instance, play
 			return true
 		}
 	}
-	sound,music,loaded := load_source(system,path)
+	sound,music,loaded := load_source(system,path,streaming)
 	if !loaded {return false}
 	// Streams remain a single playback channel. Buffered clips share a source
 	// cache and a bounded alias pool, so selecting a new clip never cuts a tail.
@@ -288,6 +290,7 @@ ensure_instance :: proc(system: ^Audio_System, key: ecs.Component_Instance, play
 	}
 	if !found {
 		instance.configured_sound = retain_string(system, player.sound)
+		instance.configured_buffered = player.buffered
 		instance.configured_clips = make([]string, len(player.clips))
 		for clip, i in player.clips {instance.configured_clips[i] = retain_string(system, clip)}
 		if !streaming {

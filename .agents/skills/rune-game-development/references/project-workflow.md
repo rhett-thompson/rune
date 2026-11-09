@@ -9,7 +9,7 @@ Use the current `toolchain.json` and source as the authority for changing pins.
 
 For a new independent game, use `tools/new_project.bat` or
 `tools/new_project.sh`. They copy `templates/blank_project`, local schemas,
-scene/input JSON, `publish.json`, `publish.assets.json`, and Windows/Linux build
+scene/input JSON, `publish.json`, `assets.json`, and Windows/Linux build
 helpers; they refuse to overwrite an existing destination. The initial scene is
 empty, so a window showing only its background is expected. Add an active
 Camera2D and drawable entities for Rune's
@@ -96,35 +96,36 @@ The standalone application lives in `rune_publish/`; `rune_publish/README.md`
 documents its direct locked builds, tests, CLI options, and exit codes.
 Invoke it through the engine's compatibility launchers:
 `tools/publish.bat --project <GAME_ROOT>` or
-`sh tools/publish.sh --project <GAME_ROOT>`. Generated games include `publish.json`
-and its local schema; existing games must add a config and adopt portable
-startup. The config supplies ID/title/version/executable, enabled native targets,
-explicit `content` files/directories, optional game `licenses`, and optional
-build collections/typed defines/linker flags. Paths are game-relative; sibling
-build-only source collections may use `../`. By default complete content trees
-are copied. Opt into `prune.enabled` to keep the dependency closure from project
-startup/input, `prune.roots`, dependency manifests, and all game licenses.
-Declare code-loaded resources/custom-data edges explicitly; Rune does not scan
-arbitrary Odin/JSON. Manifest `inputs` can hash source files/directories to reject
-stale generated roots. Retain asset notices under `licenses` even when inside
-prunable folders. Use `--dry-run` to validate selected content and inspect totals
-before building. See `docs/publishing.md` for manifest/checksum semantics and the
-package's `asset_pruning` report. Rune/r3d collections and player/static-raylib flags are reserved and
+`sh tools/publish.sh --project <GAME_ROOT>`. Generated games include `publish.json`,
+`assets.json`, and their local schemas. The publishing config supplies
+ID/title/version/executable, enabled native targets, optional game `licenses`,
+and optional build collections, typed defines, and linker flags. Paths are
+game-relative. Sibling build-only source collections may use `../`.
+
+The publisher discovers the game files from `project.json`'s startup scene and
+input, `assets.json`, and game licenses. Add code-loaded resources and custom data
+edges to the catalog. Optional catalog `inputs` hashes detect stale generated
+entries. List asset notices under `licenses`. Use `--dry-run` to validate the
+planned content before building. See `docs/publishing.md` for catalog and package
+manifest semantics. Rune/r3d collections and player/static-raylib flags are reserved and
 supplied by the publisher, independently of the game's copied build helpers.
 Windows packages also use `-subsystem:windows` and audit the resulting PE GUI
 subsystem so launching the player does not create a console window.
 
 The default output is `GAME_ROOT/build/publish/<id>-<version>-<target>/`, plus an
-adjacent Windows ZIP or Linux tar.gz. `--output` selects a fresh package directory;
-command-line paths are relative to the caller. Both outputs must be absent.
+adjacent Windows ZIP or Linux tar.gz. Optional `output_directory` in
+`publish.json` sets the parent of both outputs relative to `GAME_ROOT`. Use a
+portable path such as `dist` or `build/releases`. `--output` overrides the full
+package path. Relative command-line paths resolve from the caller's working
+directory. Both outputs must be absent before publishing.
 The publisher stages content/notices, validates known references and every
 recognized included scene, builds with the cooperative compiler lock, audits
 native dependencies, hashes files into `manifest.json`, and creates the archive
 before final no-replacement moves. Failed staging remains for inspection.
 On Linux the output filesystem must support atomic no-replacement renames;
 choose native Linux storage for `--output` if a WSL Windows mount rejects them.
-It preserves empty directories and rejects unsafe/omitted references, case
-conflicts, overlapping includes, symlinks, and Windows reparse/junction ancestors.
+It preserves empty directories and rejects unsafe or missing references, case
+conflicts, symlinks, and Windows reparse/junction ancestors.
 
 Engine notices include the private image decoder's license, README, source pins,
 and TLS patch under `licenses/rune/third_party/rune-image/`; the manifest records
@@ -134,10 +135,11 @@ Odin builds use the checked-in target archive without requiring a native compile
 See `third_party/rune-image/README.md` and `docs/publishing.md`.
 
 Windows requires MSVC and an official installed AMD64 VC CRT for the bundled
-native libraries. The publisher can discover `VCToolsRedistDir` or the installed
-VC-qualified Visual Studio redist; `--windows-runtime-directory` and optional
-`--windows-runtime-license` override it. Only audited allowlisted required CRT
-DLLs are copied; arbitrary native plugins are unsupported. Linux requires
+native libraries. The publisher uses `tools/find_msvc.bat` for the game compiler
+and finds the CRT in `VCToolsRedistDir` or the installed Visual Studio redist
+trees. Use `--windows-runtime-directory` and optional
+`--windows-runtime-license` to override CRT discovery. It copies the audited
+closure of required, allowlisted CRT DLLs. Linux requires
 `flock`, `readelf`, `mktemp`, and `tar`, and defaults to a glibc 2.39 ceiling. Build with a
 compatible SDK/sysroot; raising `--glibc-max` records a different requirement and
 does not preserve the older baseline. System sonames/C++ symbol requirements
@@ -158,28 +160,15 @@ See `docs/publishing.md` for exact commands, config fields, and validation limit
 
 ## Declare code-loaded resources
 
-Games can use the optional `rune:assetcatalog` lookup to map names to ordinary
-project-relative paths. Open it explicitly in game code and call `load` before
-the existing loader; engine loaders and authored JSON do not interpret IDs.
-Register the same catalog in `prune.manifests` to retain its `assets` and
-`directories` values. Include that catalog in `content` because game startup
-reads it. See `docs/assetcatalog.md` for ownership and the small API.
+Use `GAME_ROOT/assets.json` to declare bundled resources that the publisher
+cannot discover through known authored references. This includes later scene
+transitions, prefabs spawned from code, asset-manager calls, `rune.resource_path`,
+and direct raylib/OS reads. Update the catalog when those loads change.
 
-Whenever game code adds, changes, or removes a file load, maintain its publishing
-dependency manifest in the same change. This includes later scene transitions,
-prefabs spawned from code, asset-manager calls, `rune.resource_path`, and direct
-raylib/OS reads of bundled resources. Resources named only in custom JSON fields
-also need declarations. Runtime-created saves, settings, and user-selected
-external files are not bundled resource dependencies.
-
-Use the game's existing manifest registered in `publish.json` under
-`prune.manifests`. New games already register `publish.assets.json` with an empty
-`roots` list and pruning disabled. If none exists, create
-`GAME_ROOT/publish.assets.json` with `version: 1` and a `roots` array, then append
-its filename to `prune.manifests` when the game has a publishing config. Preserve
-the current `prune.enabled`
-choice; maintaining declarations does not require enabling pruning. If there is
-no publishing config yet, keep the manifest and identify its required wiring.
+To use the same names at runtime, open the catalog explicitly with
+`assetcatalog.open(game.project_directory)` and call `load` before passing the
+resolved path to an ordinary loader. Keep using paths inside authored JSON.
+See `docs/assetcatalog.md` for API and ownership details.
 
 For example, a game that loads a cursor, a later scene, and runtime-selected
 enemy textures can declare:
@@ -187,37 +176,30 @@ enemy textures can declare:
 ```json
 {
   "version": 1,
-  "roots": [
-    "assets/ui/cursor.png",
-    "scenes/dungeon.scene.json",
-    "assets/enemies/"
-  ]
+  "assets": {
+    "ui.cursor": "assets/ui/cursor.png",
+    "scene.dungeon": "scenes/dungeon.scene.json"
+  },
+  "directories": {
+    "dir.enemies": "assets/enemies"
+  }
 }
 ```
 
-Paths are case-correct, portable, and relative to `GAME_ROOT`, even when the
-manifest lives in a subdirectory. They must be covered by `publish.json`'s
-`content` inventory. Directory roots keep their entire tree; use specific files
-when the set is known, or a bounded directory for computed filenames. Globs are
-not supported. Known scene/prefab/model dependencies are followed recursively,
-so their recognized asset references need not be repeated. The manifest itself
-is source metadata and need not be shipped in `content`.
+Paths are case-correct, portable, and relative to `GAME_ROOT`. Use specific
+files for known selections and bounded directories for computed filenames,
+since the publisher includes complete directory trees. It follows recognized
+scene/prefab/model dependencies recursively and packages the catalog itself.
 
-Use `roots` for code-loaded resources. Use `dependencies` for custom data edges
-such as a retained level descriptor referring to a binary data file; an edge is
-followed only after its source file becomes reachable. Do not use Odin source
-files as dependency keys: those files normally are not package candidates.
-Reuse entries shared by other load sites; remove obsolete paths only after
-checking that no remaining code or data needs them. For generated manifests,
-update the generator or its source declarations and regenerate; refresh optional
-`inputs` hashes after relevant source changes. See `docs/publishing.md` for the
-manifest format and `rune_publish/pruning.odin` for traversal and hash semantics.
+Use `dependencies` for custom data edges such as a level descriptor referring
+to a binary data file. The publisher follows the edge when its source file is
+selected. For generated catalogs, update the source declarations and regenerate
+the catalog, including any `inputs` hashes. See `docs/publishing.md` for the
+catalog format and `rune_publish/catalog.odin` for traversal and hash semantics.
 
-For games with pruning enabled, run the publish launcher with `--dry-run`, then
-exercise the changed loading paths in the published game. A dry run checks
-declared references; it cannot detect missing declarations in arbitrary code.
-With pruning disabled, manifests are not traversed, so a successful dry run does
-not validate their completeness or contents.
+Run the publish launcher with `--dry-run` to check known references and catalog
+declarations. Exercise code-driven loading in the packaged game to catch
+resources that were never declared.
 
 ## Continue development
 

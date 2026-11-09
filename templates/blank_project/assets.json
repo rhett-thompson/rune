@@ -1,0 +1,6 @@
+{
+  "$schema": "../../schemas/assetcatalog.schema.json",
+  "version": 1,
+  "assets": {},
+  "directories": {}
+}

@@ -5,8 +5,9 @@ import "rune:ecs"
 // Move an existing playback owner without reloading or restarting its sources.
 // Use after scene replacement, before update removes the old World's players.
 // Source handles may belong to a destroyed World; the destination must be live
-// and have the same sound/ordered clips. Other destination settings apply on
-// the next update. An occupied destination is never replaced implicitly.
+// and have the same sound, ordered clips, and buffering mode. Other destination
+// settings apply on the next update. An occupied destination is never replaced
+// implicitly.
 // If moving within one World, remove the old AudioPlayer before update so its
 // independent play_on_start configuration cannot start another instance.
 rebind :: proc(

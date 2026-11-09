@@ -1091,6 +1091,7 @@
         "random_volume": { "type": "number", "minimum": 0, "default": 0 },
         "random_pitch": { "type": "number", "minimum": 0, "default": 0 },
         "max_voices": { "type": "integer", "minimum": 1, "default": 4 },
+        "buffered": { "type": "boolean", "default": false, "description": "Decode the entire clip as a buffered sound instead of streaming." },
         "looping": { "type": "boolean", "default": false },
         "fade_out_on_stop": { "type": "number", "minimum": 0, "default": 0, "description": "Linear fade-out duration in seconds when stopped; zero stops immediately." },
         "play_on_start": { "type": "boolean", "default": false },

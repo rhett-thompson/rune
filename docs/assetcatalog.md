@@ -35,14 +35,11 @@ allocator for retained paths and free those copies with that allocator. Share a
 catalog by pointer and destroy its owner once, after users finish.
 The error string from `open` is a borrowed diagnostic and does not need freeing.
 
-This package does not modify engine loading, authored JSON, cache keys, hot
-reload, or filesystem access. Existing games need no configuration changes.
-Normal asset and scene hot reload continues to watch the resolved filenames;
-opening or replacing a catalog is an explicit game-code operation.
+Game code opens or replaces the catalog explicitly. Engine loaders and authored
+JSON continue to use ordinary paths, and hot reload watches those resolved files.
 
-To use the same file for publishing, include it and its resource folders in
-`publish.json`'s `content`, set `prune.enabled` to true, and list `assets.json` in
-`prune.manifests`. The publisher treats the values in `assets` and `directories`
-as roots and follows its existing scene/prefab/model dependency traversal. Its
-optional `roots`, `dependencies`, and `inputs` fields keep their existing
-publishing meaning. Asset IDs are not interpreted inside authored JSON.
+Rune Publish reads the root `assets.json` and includes it in the package. Each
+`assets` value selects a file, and each `directories` value selects an entire
+directory tree. The publisher also follows recognized dependencies from selected
+files. The optional `dependencies` and `inputs` fields let games declare custom
+references and check the sources of a generated catalog. See the [publishing guide](publishing.md#content-and-output).

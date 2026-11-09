@@ -1,10 +1,9 @@
 # Rune Publish
 
-Rune Publish is the standalone command-line application for building a Rune
-game's `publish.json` into a portable player package. It builds optimized player
-code, stages selected content and notices, validates references and native
-dependencies, and produces a new package directory plus a Windows ZIP or Linux
-tar.gz. Existing outputs are never replaced.
+Rune Publish is the standalone command-line application for packaging Rune games.
+It builds optimized player code, stages selected content and notices, validates
+references and native dependencies, and produces a new package directory plus a
+Windows ZIP or Linux tar.gz. Existing outputs are never replaced.
 
 ## Run through the compatibility launchers
 
@@ -22,8 +21,8 @@ The launchers build this application in an isolated temporary directory through
 Rune's compiler lock, supply `--rune-root`, and forward the remaining arguments.
 They require Odin on `PATH`. The tool's game compilation uses the same lock.
 
-Add `--dry-run` to validate content and preview pruning without compiling the
-game or writing a package. The launcher still compiles Rune Publish itself.
+Add `--dry-run` to validate the package plan without compiling the game or
+writing a package. The launcher still compiles Rune Publish itself.
 
 ## Build and run the executable
 
@@ -58,15 +57,15 @@ rune_publish [options]
 
 | Option | Behavior |
 | --- | --- |
-| `--project DIRECTORY` | Game directory containing `publish.json`; defaults to `.`. |
-| `--output DIRECTORY` | New package directory; defaults to `GAME_ROOT/build/publish/<id>-<version>-<target>`. The adjacent archive must also be absent. |
+| `--project DIRECTORY` | Game directory containing `publish.json`, `project.json`, and `assets.json`. Defaults to `.`. |
+| `--output DIRECTORY` | Overrides the full path to the new package directory. Relative paths resolve from the caller's working directory. The adjacent archive must also be absent. |
 | `--target windows-amd64\|linux-amd64` | Defaults to the current host target; must be enabled in `publish.json` and match the host OS. |
 | `--rune-root DIRECTORY` | Rune checkout; defaults to `RUNE_ROOT`. Supplied automatically by the compatibility launchers. |
 | `--odin COMPILER` | Game compiler; defaults to `ODIN` or `odin`. Must match the release in `toolchain.json`. This does not select the launcher's bootstrap compiler. |
 | `--glibc-max VERSION` | Linux symbol-version ceiling; defaults to `2.39`. |
 | `--windows-runtime-directory DIRECTORY` | Override discovery with an official installed AMD64 VC CRT directory. |
 | `--windows-runtime-license FILE` | Optional redistributable notice override on Windows. |
-| `--dry-run` | Validate content dependencies and report pruning totals without compiling the game or writing a package. |
+| `--dry-run` | Validate the package plan without compiling the game or writing a package. |
 | `--help`, `-h` | Print usage without publishing. |
 
 Exit codes are `0` for successful publication, dry run, or help; `1` for a
@@ -75,27 +74,28 @@ failures return nonzero before the application runs.
 
 ## Configuration and limits
 
-The game's `publish.json` supplies package identity, enabled targets, explicit
-content and licenses, custom build settings, and optional asset pruning. See
-the [publishing guide](../docs/publishing.md#publishing-configuration-and-build)
-and [schema](../schemas/publish.schema.json) for the full contract. Pruning
-requires explicit roots or dependency manifests for resources loaded dynamically
-by game code; it never deletes source assets.
+The game's `publish.json` supplies package identity, enabled targets, licenses,
+and custom build settings. Its optional `output_directory` sets the parent
+directory for the versioned package folder and adjacent archive, relative to the
+game root. The parent defaults to `build/publish`. A CLI `--output` replaces
+the entire package path.
 
-Generated games include an empty `publish.assets.json` registered under
-`publish.json`'s `prune.manifests`, with pruning disabled by default. Add
-code-loaded resources to its `roots` and keep those paths covered by `content`.
-Set `prune.enabled` to true to use pruning. When disabled, dependency manifests
-and their input hashes are not checked, including during a dry run.
+The publisher requires `project.json` and `assets.json`
+at the game root and includes both in the package. It follows the startup scene,
+input mappings, and recognized resource references. Register other runtime files
+under `assets` and complete resource trees under `directories` in the catalog.
+Declare custom dependencies when a selected file refers to other resources
+through a game-defined format.
 
-An explicitly opened [`rune:assetcatalog`](../docs/assetcatalog.md) file can also
-be listed in `prune.manifests`: its `assets` and `directories` values become
-ordinary pruning roots. Include the catalog itself in `content`; the existing
-walker follows authored paths without interpreting IDs inside JSON.
+Game code can open the same catalog through [`rune:assetcatalog`](../docs/assetcatalog.md).
+Authored resource fields still use ordinary paths. See the [publishing guide](../docs/publishing.md#publishing-configuration-and-build)
+and [schema](../schemas/publish.schema.json) for the full contract.
 
 Publishing supports native Windows AMD64 and Linux AMD64 builds. Windows needs
 MSVC and an official installed AMD64 VC CRT when required by the linked native
-libraries. Linux needs `flock`, `readelf`, `mktemp`, and `tar`; build with an SDK
+libraries. The publisher selects MSVC through `tools/find_msvc.bat` and looks for
+the CRT in `VCToolsRedistDir` or the installed Visual Studio redist trees.
+Linux needs `flock`, `readelf`, `mktemp`, and `tar`. Build with an SDK
 or sysroot compatible with the selected glibc ceiling. The output filesystem
 must support atomic no-replacement renames; use native Linux storage if a WSL
 Windows mount rejects them.
@@ -127,6 +127,6 @@ sh tools/odin.sh test rune_publish -collection:rune=rune -define:ODIN_TEST_THREA
 ```
 
 The repository's `tools/validate.bat` and `tools/validate.sh` also build and test
-this application. These focused checks cover configuration, content, pruning,
+this application. These focused checks cover configuration, dependency selection,
 native audit, command construction, and finalization; full relocated game
 qualification follows the [acceptance checks](../docs/publishing.md#acceptance-checks).

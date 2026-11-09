@@ -5,25 +5,26 @@ import "core:mem"
 import "core:strings"
 import "core:testing"
 
-CONFIG_TEST_BASE :: `{"id":"my-game","name":"My Game","version":"0.1.0+1","executable":"my-game","targets":["windows-amd64","linux-amd64"],"content":["project.json","input/","scenes/","assets/My Game.png"]}`
+CONFIG_TEST_BASE :: `{"id":"my-game","name":"My Game","version":"0.1.0+1","executable":"my-game","targets":["windows-amd64","linux-amd64"]}`
 
 @(test)
-config_accepts_metadata_content_and_typed_compiler_options :: proc(t: ^testing.T) {
+config_accepts_metadata_licenses_and_typed_compiler_options :: proc(t: ^testing.T) {
 	arena: mem.Dynamic_Arena
 	mem.dynamic_arena_init(&arena)
 	defer mem.dynamic_arena_destroy(&arena)
 	context.allocator = mem.dynamic_arena_allocator(&arena)
-	source := config_test_replace(CONFIG_TEST_BASE, `"content":`, `"$schema":"schemas/publish.schema.json","licenses":["LICENSE","licenses/"],"build":{"collections":{"shared":"../Shared Code","_utils":"third_party\\utils"},"defines":{"MULTIPLAYER":true,"NUMBER":17,"FRACTION":0.5,"TITLE":"quoted \"game\""},"extra_linker_flags":"-lm -ldl"},"content":`)
+	source := config_test_replace(CONFIG_TEST_BASE, `"targets":`, `"$schema":"schemas/publish.schema.json","output_directory":"Release Builds/dist/","licenses":["LICENSE","licenses/"],"build":{"collections":{"shared":"../Shared Code","_utils":"third_party\\utils"},"defines":{"MULTIPLAYER":true,"NUMBER":17,"FRACTION":0.5,"TITLE":"quoted \"game\""},"extra_linker_flags":"-lm -ldl"},"targets":`)
 	config, error := decode_config(transmute([]u8)source)
 	if !testing.expect(t, error == "", error) {return}
 	testing.expect(t, config.id == "my-game" && config.name == "My Game" && config.version == "0.1.0+1" && config.executable == "my-game")
 	testing.expect(t, len(config.targets) == 2 && config.targets[1] == "linux-amd64")
-	testing.expect(t, len(config.content) == 4 && config.content[3] == "assets/My Game.png" && len(config.licenses) == 2)
+	testing.expect(t, config.output_directory == "Release Builds/dist/")
+	testing.expect(t, len(config.licenses) == 2 && config.licenses[1] == "licenses/")
 	testing.expect(t, config.build.collections["shared"] == "../Shared Code" && config.build.extra_linker_flags == "-lm -ldl")
 	testing.expect(t, config.build.defines["MULTIPLAYER"].(json.Boolean) && config.build.defines["NUMBER"].(json.Integer) == 17)
 	testing.expect(t, config.build.defines["TITLE"].(json.String) == `quoted "game"`)
 	minimal, minimal_error := decode_config(transmute([]u8)string(CONFIG_TEST_BASE))
-	testing.expect(t, minimal_error == "" && len(minimal.licenses) == 0 && len(minimal.build.collections) == 0 && len(minimal.build.defines) == 0)
+	testing.expect(t, minimal_error == "" && minimal.output_directory == "" && len(minimal.licenses) == 0 && len(minimal.build.collections) == 0 && len(minimal.build.defines) == 0)
 }
 
 @(test)
@@ -37,6 +38,13 @@ config_rejects_malformed_unknown_and_reserved_fields :: proc(t: ^testing.T) {
 		CONFIG_TEST_BASE + ` {}`, CONFIG_TEST_BASE + "\x00ignored",
 		config_test_replace(CONFIG_TEST_BASE, `"id":"my-game",`, `"id":"my-game","id":"other",`),
 		config_test_replace(CONFIG_TEST_BASE, `"id":"my-game",`, `"id":"my-game","unknown":true,`),
+		config_test_replace(CONFIG_TEST_BASE, `"targets":`, `"content":["project.json"],"targets":`),
+		config_test_replace(CONFIG_TEST_BASE, `"targets":`, `"prune":{"enabled":true},"targets":`),
+		config_test_replace(CONFIG_TEST_BASE, `"targets":`, `"licenses":["../LICENSE"],"targets":`),
+		config_test_replace(CONFIG_TEST_BASE, `"targets":`, `"output_directory":null,"targets":`),
+		config_test_replace(CONFIG_TEST_BASE, `"targets":`, `"output_directory":"","targets":`),
+		config_test_replace(CONFIG_TEST_BASE, `"targets":`, `"output_directory":"../dist","targets":`),
+		config_test_replace(CONFIG_TEST_BASE, `"targets":`, `"output_directory":"C:/dist","targets":`),
 		config_test_replace(CONFIG_TEST_BASE, `"id":"my-game",`, `"id":"my-game","$schema":42,`),
 		config_test_replace(CONFIG_TEST_BASE, `"id":"my-game",`, `"id":"my-game",/* comment */`),
 		config_test_replace(CONFIG_TEST_BASE, `"id":"my-game",`, `id:"my-game",`),
@@ -68,7 +76,7 @@ config_enforces_portable_staged_paths_and_output_names :: proc(t: ^testing.T) {
 	mem.dynamic_arena_init(&arena)
 	defer mem.dynamic_arena_destroy(&arena)
 	context.allocator = mem.dynamic_arena_allocator(&arena)
-	for path in ([]string{"", "/", "/assets", "\\assets", "C:/assets", "../assets", "assets/../outside", "./assets", "assets//nested", "assets\\nested", "assets/thing.", "assets/thing ", "assets/CON", "assets/NUL.txt", "COM1/data", "Lpt9.dll", "assets/CONIN$", "assets/CONOUT$.txt", "assets/COM¹", "assets/LPT².txt", "assets/a:b", "assets/a?b", "assets/a*b", "assets/a|b", "assets/a<b", "assets/a\x00b", "assets/a\nb", "assets/a\x7fb"}) {
+	for path in ([]string{"", "/", "/assets", "\\assets", "C:/assets", "../assets", "assets/../outside", "./assets", "assets//", "assets//nested", "assets\\nested", "assets/thing.", "assets/thing ", "assets/CON", "assets/NUL.txt", "COM1/data", "Lpt9.dll", "assets/CONIN$", "assets/CONOUT$.txt", "assets/COM¹", "assets/LPT².txt", "assets/a:b", "assets/a?b", "assets/a*b", "assets/a|b", "assets/a<b", "assets/a\x00b", "assets/a\nb", "assets/a\x7fb"}) {
 		testing.expect(t, !config_content_path(path), path)
 	}
 	for path in ([]string{"project.json", "input/", "folder with spaces/nested/file.png", "assets/étoile.png", ".hidden/file", "com0.txt", "LPT10/file"}) {testing.expect(t, config_content_path(path), path)}
@@ -91,27 +99,4 @@ config_strict_json_rejects_trailing_commas_and_non_json_whitespace :: proc(t: ^t
 config_test_replace :: proc(source, old, replacement: string) -> string {
 	result, _ := strings.replace_all(source, old, replacement)
 	return result
-}
-
-@(test)
-config_pruning_is_explicit_and_paths_are_portable :: proc(t: ^testing.T) {
-	arena: mem.Dynamic_Arena
-	mem.dynamic_arena_init(&arena)
-	defer mem.dynamic_arena_destroy(&arena)
-	context.allocator = mem.dynamic_arena_allocator(&arena)
-	base, error := decode_config(transmute([]u8)string(CONFIG_TEST_BASE))
-	testing.expect(t, error == "" && !base.prune.enabled && len(base.prune.roots) == 0 && len(base.prune.manifests) == 0)
-	source := config_test_replace(CONFIG_TEST_BASE, `"content":`, `"prune":{"enabled":true,"roots":["scenes/","assets/code-loaded.json"],"manifests":["publish.assets.json"]},"content":`)
-	config, prune_error := decode_config(transmute([]u8)source)
-	testing.expect(t, prune_error == "" && config.prune.enabled && len(config.prune.roots) == 2 && config.prune.manifests[0] == "publish.assets.json", prune_error)
-	for pruning in ([]string{
-		`true`, `{"unknown":true}`, `{"enabled":"yes"}`, `{"enabled":1}`,
-		`{"roots":"assets/"}`, `{"roots":[42]}`, `{"roots":["../outside"]}`,
-		`{"roots":["assets/","assets/"]}`, `{"manifests":["C:/outside.json"]}`,
-		`{"manifests":["meta.json","meta.json"]}`, `{"enabled":true,"enabled":false}`,
-	}) {
-		invalid := config_test_replace(CONFIG_TEST_BASE, `"content":`, config_test_replace(`"prune":$pruning,"content":`, "$pruning", pruning))
-		_, error := decode_config(transmute([]u8)invalid)
-		testing.expect(t, error != "", pruning)
-	}
 }

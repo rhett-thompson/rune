@@ -440,7 +440,8 @@ audio_is_stopping :: proc(engine: ^Engine, entity: ecs.Entity, instance_name: st
 }
 
 // Preserve active playback across scene replacement. Call before the first
-// audio update of the destination World; its player must use the same sources.
+// audio update of the destination World. Its player must use the same sources
+// and buffering mode.
 rebind_audio :: proc(
 	engine: ^Engine,
 	world: ^ecs.World,

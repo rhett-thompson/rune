@@ -20,10 +20,10 @@ the engine's scope; see the [scene authoring boundary](README.md#scene-authoring
   - Available: executable-relative startup and resource helpers, plus an explicit
     player build profile in the Windows/Linux generated helpers.
   - Available: the [Rune Publish CLI](rune_publish/README.md), `publish.json`,
-    complete configured content folders or opt-in dependency pruning, dry runs,
+    dependency-based packaging from `project.json` and `assets.json`, dry runs,
     staged validation, ZIP/tar.gz archives, file manifests, native dependency
-    audits, and engine/toolchain notices. New projects include an empty
-    `publish.assets.json` for code-loaded resources; pruning defaults to disabled.
+    audits, and engine/toolchain notices. New projects include an empty asset
+    catalog for code-loaded resources.
   - Extend the existing OS user-data save workflow to general game settings,
     input bindings, and file logs with a stable game identity.
   - Qualify packages on fresh supported systems, the declared Linux ABI baseline,
@@ -43,8 +43,7 @@ the engine's scope; see the [scene authoring boundary](README.md#scene-authoring
 
 ## Later
 
-- Expand the publishing dependency formats and package-size diagnostics supported
-  by the existing opt-in asset pruning.
+- Expand the publishing dependency formats and package-size diagnostics.
 - Extend publishing with store uploads, installers, packed assets, and
   cross-compilation when the portable package workflow is established.
 - Broader 3D asset, animation and physics coverage.

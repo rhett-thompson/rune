@@ -96,6 +96,7 @@ try {
     }
     rewrite("project.json", "schemas/project.schema.json", true);
     rewrite("publish.json", "schemas/publish.schema.json", true, true);
+    rewrite("assets.json", "schemas/assetcatalog.schema.json", false);
     rewrite("scenes\\main.scene.json", "../schemas/scene.schema.json", false);
     rewrite("input\\default.input.json", "../schemas/input.schema.json", false);
     writeLine(WScript.StdOut,"Created " + destination);

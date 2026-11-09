@@ -468,12 +468,15 @@ The engine owns its audio system across scene changes. Avoid additional raw
 its owner must outlive borrowers. Address repeatable `AudioPlayer` components
 by entity and instance name: `rune.play_audio(game, world, entity, "bell")`,
 `stop_audio`, and `preload_audio`. Preloading loads buffered variants and reserves
-voices without playing or randomly choosing a clip; streams retain one channel.
+voices without playing or randomly choosing a clip. Streams retain one channel.
+Set `AudioPlayer.buffered` to decode compressed short effects such as Ogg Vorbis
+into memory and retain overlapping voices. The default selects by format.
 To continue playback across scene replacement or structural reload, retain the
 old entity handle and call `rune.rebind_audio(game, new_world, old_entity,
 "theme", new_entity, "theme")` during destination initialization, before the
-first audio update. The live destination must have identical sound/ordered clips
-and no existing playback instance. The old World may already be destroyed.
+first audio update. The live destination must have identical sound, ordered clips,
+and buffering mode, and no existing playback instance. The old World may already
+be destroyed.
 Rebinding preserves the decoder, buffered voices and pending fades without
 restarting; games decide which transitions retain playback and avoid fading or
 explicitly replaying that player. Destination settings apply on the next update.

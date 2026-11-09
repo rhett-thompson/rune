@@ -87,6 +87,9 @@ audio_rebind_rejects_incompatible_or_occupied_destinations_atomically :: proc(t:
 	testing.expect(t,!rebind(&system,&w,source_owner,"music",owner,"theme") && len(system.instances)==2 &&
 		system.instances[source].next_sequence==17 && system.instances[destination].next_sequence==33,"occupied destinations are never released or overwritten")
 	delete_key(&system.instances,destination)
+	buffered_owner := rebind_test_player(&w,&registry,`{"theme":{"sound":"theme.ogg","buffered":true}}`)
+	testing.expect(t,!rebind(&system,&w,source_owner,"music",buffered_owner,"theme") && len(system.instances)==1 &&
+		system.instances[source].next_sequence==17,"different buffering modes cannot reuse the same playback resources")
 	testing.expect(t,!rebind(&system,&w,source_owner,"missing",owner,"theme") &&
 		!rebind(&system,&w,source_owner,"music",owner,"missing") && len(system.instances)==1,"missing instances preserve the source")
 	testing.expect(t,!rebind(nil,&w,source_owner,"music",owner,"theme") &&

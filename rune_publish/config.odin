@@ -11,14 +11,9 @@ import "core:strings"
 // its invocation arena; no returned strings borrow the source byte buffer.
 Config :: struct {
 	id, name, version, executable: string,
-	targets, content, licenses: []string,
+	targets, licenses: []string,
+	output_directory: string `json:"output_directory,omitempty"`,
 	build: Build_Settings,
-	prune: Prune_Settings,
-}
-
-Prune_Settings :: struct {
-	enabled: bool,
-	roots, manifests: []string,
 }
 
 Build_Settings :: struct {
@@ -40,7 +35,7 @@ decode_config :: proc(bytes: []u8) -> (Config, string) {
 	if parse_error != nil {return {}, fmt.aprintf("invalid publish.json: %v", parse_error)}
 	object, is_object := value.(json.Object)
 	if !is_object {return {}, "publish.json must contain an object"}
-	if error := config_keys(object, {"$schema", "id", "name", "version", "executable", "targets", "content", "licenses", "build", "prune"}, "publish.json"); error != "" {return {}, error}
+	if error := config_keys(object, {"$schema", "id", "name", "version", "executable", "targets", "output_directory", "licenses", "build"}, "publish.json"); error != "" {return {}, error}
 	if schema, found := object["$schema"]; found {
 		if _, valid := schema.(json.String); !valid {return {}, "$schema must be a string"}
 	}
@@ -60,28 +55,27 @@ decode_config :: proc(bytes: []u8) -> (Config, string) {
 	if !config_filename(result.executable, allow_dot=false) {return {}, "executable must be an extensionless portable name containing only ASCII letters, digits, '_', and '-'"}
 	if strings.to_lower(result.executable) == "licenses" {return {}, "executable cannot be named licenses: that directory is reserved for package notices"}
 	for c in result.name {if c < 32 || c == 127 {return {}, "name cannot contain control characters"}}
-	for key in ([]string{"targets", "content", "licenses"}) {
-		raw, found := object[key]
-		if !found && key == "licenses" {continue}
-		array, ok := raw.(json.Array)
-		if !ok || (key != "licenses" && len(array) == 0) {return {}, fmt.aprintf("%s must be a %sstring array", key, key == "licenses" ? "" : "non-empty ")}
-		items := make([]string, len(array))
-		seen := make(map[string]bool)
-		for item, i in array {
-			text, valid := item.(json.String)
-			if !valid {return {}, fmt.aprintf("%s[%d] must be a string", key, i)}
-			if key == "targets" {
-				if text != "windows-amd64" && text != "linux-amd64" {return {}, fmt.aprintf("unsupported target %q; expected windows-amd64 or linux-amd64", text)}
-			} else if !config_content_path(text) {return {}, fmt.aprintf("%s[%d] must be a portable project-relative path: %q", key, i, text)}
-			if seen[text] {return {}, fmt.aprintf("%s contains duplicate entry %q", key, text)}
-			seen[text] = true
-			items[i] = text
-		}
-		switch key {
-		case "targets": result.targets = items
-		case "content": result.content = items
-		case "licenses": result.licenses = items
-		}
+	targets, valid_targets := object["targets"].(json.Array)
+	if !valid_targets || len(targets) == 0 {return {}, "targets must be a non-empty string array"}
+	result.targets = make([]string, len(targets))
+	seen_targets := make(map[string]bool)
+	for item, i in targets {
+		target, valid := item.(json.String)
+		if !valid {return {}, fmt.aprintf("targets[%d] must be a string", i)}
+		if target != "windows-amd64" && target != "linux-amd64" {return {}, fmt.aprintf("unsupported target %q; expected windows-amd64 or linux-amd64", target)}
+		if seen_targets[target] {return {}, fmt.aprintf("targets contains duplicate entry %q", target)}
+		seen_targets[target] = true
+		result.targets[i] = target
+	}
+	if raw, found := object["output_directory"]; found {
+		directory, valid := raw.(json.String)
+		if !valid || !config_content_path(directory) {return {}, "output_directory must be a portable project-relative directory path"}
+		result.output_directory = directory
+	}
+	if raw, found := object["licenses"]; found {
+		paths, error := config_path_array(raw, "licenses")
+		if error != "" {return {}, error}
+		result.licenses = paths
 	}
 	if raw, found := object["build"]; found {
 		build, valid := raw.(json.Object)
@@ -118,23 +112,6 @@ decode_config :: proc(bytes: []u8) -> (Config, string) {
 			if !valid {return {}, "build.extra_linker_flags must be a string"}
 			for c in flags {if c == 0 || c == '\r' || c == '\n' {return {}, "build.extra_linker_flags cannot contain NUL or line breaks"}}
 			result.build.extra_linker_flags = flags
-		}
-	}
-	if raw, found := object["prune"]; found {
-		prune, valid := raw.(json.Object)
-		if !valid {return {}, "prune must be an object"}
-		if error := config_keys(prune, {"enabled", "roots", "manifests"}, "prune"); error != "" {return {}, error}
-		if raw_enabled, found := prune["enabled"]; found {
-			enabled, valid := raw_enabled.(json.Boolean)
-			if !valid {return {}, "prune.enabled must be a boolean"}
-			result.prune.enabled = enabled
-		}
-		for field in ([2]string{"roots", "manifests"}) {
-			if value, found := prune[field]; found {
-				paths, error := config_path_array(value, fmt.aprintf("prune.%s", field))
-				if error != "" {return {}, error}
-				if field == "roots" {result.prune.roots = paths} else {result.prune.manifests = paths}
-			}
 		}
 	}
 	return result, ""
@@ -197,7 +174,7 @@ config_content_path :: proc(path: string) -> bool {
 	if len(path) == 0 || path[0] == '/' || path[0] == '\\' {return false}
 	trimmed := path
 	if trimmed[len(trimmed)-1] == '/' {trimmed = trimmed[:len(trimmed)-1]}
-	if trimmed == "" {return false}
+	if trimmed == "" || strings.has_suffix(trimmed, "/") {return false}
 	for part in strings.split_iterator(&trimmed, "/") {
 		if part == "" || part == "." || part == ".." || part[len(part)-1] == '.' || part[len(part)-1] == ' ' || config_windows_device(part) {return false}
 		for c in part {

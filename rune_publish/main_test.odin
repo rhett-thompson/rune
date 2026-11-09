@@ -58,6 +58,38 @@ main_test_has_arg :: proc(args: []string, expected: string) -> bool {
 	return false
 }
 
+when ODIN_OS == .Windows {
+	@(test)
+	main_windows_zip_preserves_binary_content_and_empty_directories :: proc(t: ^testing.T) {
+		arena: mem.Dynamic_Arena
+		mem.dynamic_arena_init(&arena)
+		defer mem.dynamic_arena_destroy(&arena)
+		context.allocator = mem.dynamic_arena_allocator(&arena)
+		context.temp_allocator = context.allocator
+		root := main_test_root(t)
+		if root == "" {return}
+		defer main_test_cleanup(root)
+
+		payload := "\x00\x1a\xff\r\n"
+		_ = main_test_write(t, root, "Game Package/assets/data.bin", payload)
+		empty, _ := filepath.join({root, "Game Package/assets/empty"})
+		if !testing.expect(t, os.make_directory(empty) == nil) {return}
+		archive, _ := filepath.join({root, "package.zip"})
+		zip_error := create_windows_zip(archive, root, "Game Package")
+		if !testing.expect(t, zip_error == "", zip_error) {return}
+
+		extracted, _ := filepath.join({root, "extracted"})
+		if !testing.expect(t, os.make_directory(extracted) == nil) {return}
+		_, extract_error := run_capture({"tar.exe", "-xf", archive, "-C", extracted}, root)
+		if !testing.expect(t, extract_error == "", extract_error) {return}
+		file, _ := filepath.join({extracted, "Game Package/assets/data.bin"})
+		data, read_error := os.read_entire_file(file, context.allocator)
+		testing.expect(t, read_error == nil && string(data) == payload)
+		extracted_empty, _ := filepath.join({extracted, "Game Package/assets/empty"})
+		testing.expect(t, os.is_directory(extracted_empty))
+	}
+}
+
 @(test)
 main_options_validate_flags_and_preserve_argument_values :: proc(t: ^testing.T) {
 	arena: mem.Dynamic_Arena
@@ -101,19 +133,52 @@ main_dry_run_validates_content_without_compiler_or_output :: proc(t: ^testing.T)
 	_ = main_test_write(t, root, "engine/rune/core/core.odin", "")
 	engine, _ := filepath.join({root, "engine"})
 	output, _ := filepath.join({root, "output"})
-	for prune in ([2]bool{false, true}) {
-		config := config_test_replace(`{"id":"dry-run","name":"Dry run","version":"1","executable":"dry-run","targets":["$target"],"content":["project.json","scenes/"],"prune":{"enabled":$prune}}`, "$target", Current_Target)
-		config = config_test_replace(config, "$prune", "true" if prune else "false")
-		testing.expect(t, config_json_syntax_valid(config), config)
-		_ = main_test_write(t, root, "publish.json", config)
-		options := Options{project=root, rune_root=engine, target=Current_Target, compiler="must-not-launch-a-compiler", output=output, dry_run=true, glibc_max="2.39"}
-		publish_error := publish(options)
-		testing.expect(t, publish_error == "", publish_error)
-		testing.expect(t, !path_is_present(output) && !path_is_present(fmt.aprintf("%s%s", output, Archive_Suffix)))
-		content_test_write(t, root, "scenes/main.scene.json", `{"name":"Missing","entities":[{"components":{"SpriteRenderer":{"texture":"missing.png"}}}]}`)
-		missing_error := publish(options)
-		testing.expect(t, strings.contains(missing_error, "missing.png"), missing_error)
-		content_test_game(t, root)
+	config := config_test_replace(`{"id":"dry-run","name":"Dry run","version":"1","executable":"dry-run","targets":["$target"]}`, "$target", Current_Target)
+	_ = main_test_write(t, root, "publish.json", config)
+	options := Options{project=root, rune_root=engine, target=Current_Target, compiler="must-not-launch-a-compiler", output=output, dry_run=true, glibc_max="2.39"}
+	missing_catalog := publish(options)
+	testing.expect(t, strings.contains(missing_catalog, "assets.json"), missing_catalog)
+	content_test_write(t, root, "assets.json", `{"version":1,"assets":{"runtime":"missing.txt"}}`)
+	missing_asset := publish(options)
+	testing.expect(t, strings.contains(missing_asset, "missing.txt"), missing_asset)
+	content_test_write(t, root, "missing.txt", "runtime file")
+	publish_error := publish(options)
+	testing.expect(t, publish_error == "", publish_error)
+	content_test_write(t, root, "scenes/main.scene.json", `{"name":"Missing","entities":[{"components":{"SpriteRenderer":{"texture":"missing.png"}}}]}`)
+	missing_reference := publish(options)
+	testing.expect(t, strings.contains(missing_reference, "missing.png"), missing_reference)
+	testing.expect(t, !path_is_present(output) && !path_is_present(fmt.aprintf("%s%s", output, Archive_Suffix)))
+}
+
+@(test)
+main_publish_output_precedence :: proc(t: ^testing.T) {
+	arena: mem.Dynamic_Arena
+	mem.dynamic_arena_init(&arena)
+	defer mem.dynamic_arena_destroy(&arena)
+	context.allocator = mem.dynamic_arena_allocator(&arena)
+	context.temp_allocator = context.allocator
+	root := main_test_root(t)
+	if root == "" {return}
+	defer main_test_cleanup(root)
+	content_test_game(t, root)
+	content_test_write(t, root, "assets.json", `{"version":1,"assets":{}}`)
+	_ = main_test_write(t, root, "engine/rune/core/core.odin", "")
+	engine, _ := filepath.join({root, "engine"})
+	override, _ := filepath.join({root, "manual", "custom"})
+	package_name := fmt.aprintf("my-game-0.1.0+1-%s", Current_Target)
+	configured := config_test_replace(CONFIG_TEST_BASE, `"targets":`, `"output_directory":"Release Builds/dist/","targets":`)
+	for test in ([]struct{config, override, expected: string}{
+		{CONFIG_TEST_BASE, "", fmt.aprintf("build/publish/%s", package_name)},
+		{configured, "", fmt.aprintf("Release Builds/dist/%s", package_name)},
+		{configured, override, "manual/custom"},
+	}) {
+		_ = main_test_write(t, root, "publish.json", test.config)
+		// An existing archive at the expected path stops before the compiler.
+		archive := main_test_write(t, root, fmt.aprintf("%s%s", test.expected, Archive_Suffix), "existing")
+		options := Options{project=root, rune_root=engine, target=Current_Target, compiler="must-not-launch-a-compiler", output=test.override, glibc_max="2.39"}
+		error := publish(options)
+		expected := archive[:len(archive)-len(Archive_Suffix)]
+		testing.expect(t, error == fmt.aprintf("Output or archive already exists; choose a new directory: %s", expected), error)
 	}
 }
 
@@ -218,24 +283,24 @@ main_output_parent_rejects_included_directories_and_links :: proc(t: ^testing.T)
 	_ = main_test_write(t, root, "project.json", "{}")
 	_ = main_test_write(t, root, "assets/asset.txt", "asset")
 	_ = main_test_write(t, root, "licenses/game.txt", "notice")
-	config := Config{content={"project.json", "assets/"}, licenses={"licenses/"}}
+	included_directories := []string{"assets", "licenses"}
 	for relative in ([]string{"assets", "assets/releases/nested", "licenses", "licenses/packages"}) {
 		parent, _ := filepath.join({root, relative})
-		testing.expect(t, check_output_parent(parent, root, config) != "", relative)
+		testing.expect(t, check_output_parent(parent, root, included_directories) != "", relative)
 	}
 	for relative in ([]string{"build/publish", "assets-other/packages", "licenses-sibling/packages"}) {
 		parent, _ := filepath.join({root, relative})
-		testing.expect(t, check_output_parent(parent, root, config) == "", relative)
+		testing.expect(t, check_output_parent(parent, root, included_directories) == "", relative)
 	}
 	file_parent, _ := filepath.join({root, "project.json", "child"})
-	testing.expect(t, check_output_parent(file_parent, root, config) != "", "an existing regular file cannot be an output ancestor")
+	testing.expect(t, check_output_parent(file_parent, root, included_directories) != "", "an existing regular file cannot be an output ancestor")
 	when ODIN_OS == .Linux {
 		assets, _ := filepath.join({root, "assets"})
 		alias, _ := filepath.join({root, "alias"})
 		if testing.expect(t, os.symlink(assets, alias) == nil) {
 			defer os.remove(alias)
 			parent, _ := filepath.join({alias, "nested"})
-			testing.expect(t, check_output_parent(parent, root, config) != "", "linked output ancestors are rejected")
+			testing.expect(t, check_output_parent(parent, root, included_directories) != "", "linked output ancestors are rejected")
 		}
 	}
 }
@@ -296,7 +361,7 @@ main_windows_compiler_rejects_unrepresentable_literal_quotes :: proc(t: ^testing
 		context.temp_allocator = context.allocator
 		// Rejection precedes both compiler lock acquisition and child creation,
 		// so this deliberately nonexistent compiler must never be looked up.
-		output, error := run_compiler({"nonexistent-publisher-test-compiler", "build", `-define:TITLE='literal "quote"'`}, ".")
+		output, error := run_compiler({"nonexistent-publisher-test-compiler", "build", `-define:TITLE='literal "quote"'`}, ".", ".")
 		testing.expect(t, output == "" && strings.contains(error, "cannot preserve literal double quotes"))
 	}
 }

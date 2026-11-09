@@ -50,37 +50,37 @@ For terrain detail distance thinning, follow the optional density settings in
   roots and `rune.resource_path` for custom file reads; keep writes in user-data
   storage. See the project workflow for staging and migration limits.
 - Publish standalone games with the `rune_publish/` command-line application,
-  using `tools/publish.bat` or `tools/publish.sh` and the game's `publish.json`.
+  using `tools/publish.bat` or `tools/publish.sh`. New games include both
+  `publish.json` for release/build settings and `assets.json` for game-declared
+  resources. The publisher follows known references from `project.json` and
+  the catalog, and includes game notices listed in `publish.json`.
+  Set optional `output_directory` in `publish.json` for a package parent
+  relative to the game root. Use `--output` to override the full package path.
   See `rune_publish/README.md` for direct builds and CLI options.
-  Include resource folders and explicit game notices;
-  opt-in `prune` follows known references plus explicit roots/manifests for
-  code-loaded/custom data. Keep generated manifests current with input hashes
-  and preview with `--dry-run`. Custom compiler requirements belong in that config. Publishing
-  validates staged references and native dependencies before producing a fresh
-  folder/archive. Check the documented host/ABI/runtime requirements and test
-  the extracted game; a successful archive alone does not prove compatibility.
+  Use `--dry-run` to validate the planned content. Publishing validates staged
+  references and native dependencies before producing a fresh folder/archive.
+  Check the documented host/ABI/runtime requirements and test the extracted game.
 - When game code needs named asset paths, use the optional `rune:assetcatalog`
-  package: open the manifest explicitly, call `load(catalog, key)`, and pass the
+  package. Open the catalog explicitly, call `load(catalog, key)`, and pass the
   returned project-relative path to existing loaders. Keep authored JSON paths
-  and ordinary loader behavior intact. For publishing, include the catalog and
-  resources in `content` and register it in `prune.manifests`; its file/directory
-  values become roots for the existing walker. See `docs/assetcatalog.md`.
+  and ordinary loader behavior intact. The publisher automatically includes the
+  root `assets.json`. See `docs/assetcatalog.md`.
 - When adding, changing, or removing game code that loads assets, scenes,
-  prefabs, or custom data, update the game's publishing dependency manifest in
-  the same change, including when pruning is currently disabled. Declare
-  runtime-selected files or their complete directory trees; Rune does not scan
-  Odin source. Reuse the game's existing manifest or generator.
-  New games register an empty `publish.assets.json`; populate its `roots` while
-  preserving the game's opt-in pruning setting. See
+  prefabs, or custom data, keep `assets.json` current in the same change.
+  Declare runtime-selected files or bounded directory trees when known authored
+  references do not already reach them. Use catalog `dependencies` for custom
+  data edges and refresh optional `inputs` hashes when regenerating a catalog.
+  See
   [code-loaded resources](references/project-workflow.md#declare-code-loaded-resources)
-  for manifest creation, registration, and validation.
+  for the catalog format and validation.
 - Prefer the engine-owned startup scene and registered `rune.System` callbacks.
   Register custom component types before loading scenes that use them. Choose
   callback timing from the lifecycle reference rather than manually advancing
   physics, audio, particles, or animation that the scene loop already owns.
 - To continue playback across scene replacement, call `rune.rebind_audio` in
   the destination callback before its first audio update. Retain the old entity
-  handle and instance name, and match the destination's sound and ordered clips.
+  handle and instance name, and match the destination's sound, ordered clips,
+  and buffering mode.
   See [audio lifetime and commands](references/rendering-ui-audio.md#audio-lifetime-and-commands).
 - Configure Box3D through `project.json`'s `physics_3d.worker_count` (1 through
   32, default 1, including the calling thread). Engine scene loading and

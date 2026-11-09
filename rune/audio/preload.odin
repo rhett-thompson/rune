@@ -21,7 +21,7 @@ preload :: proc(system: ^Audio_System, world: ^ecs.World, entity: ecs.Entity, in
 	path := player.sound
 	if len(player.clips)>0 {path=player.clips[0]}
 	if path=="" {return false}
-	if !reuse {instance.path=path; instance.streaming=is_streaming_path(path)}
+	if !reuse {instance.path=path; instance.streaming=!player.buffered && is_streaming_path(path)}
 	pending := make(map[string]rl.Sound)
 	voices := make([dynamic]Audio_Voice)
 	music: rl.Music
@@ -35,7 +35,7 @@ preload :: proc(system: ^Audio_System, world: ^ecs.World, entity: ecs.Entity, in
 		delete(voices); delete(pending)
 	}
 	if !reuse && instance.streaming {
-		_, music, valid = load_source(system,path)
+		_, music, valid = load_source(system,path,true)
 		if !valid {return false}
 	}
 	clips := player.clips
@@ -43,11 +43,11 @@ preload :: proc(system: ^Audio_System, world: ^ecs.World, entity: ecs.Entity, in
 	alias_path := ""
 	if reuse && !instance.streaming {alias_path=instance.path}
 	for clip in clips {
-		if is_streaming_path(clip) {continue}
+		if !player.buffered && is_streaming_path(clip) {continue}
 		if alias_path=="" {alias_path=clip}
 		if _, cached := instance.sources[clip]; cached {continue}
 		if _, cached := pending[clip]; cached {continue}
-		sound, _, loaded := load_source(system,clip)
+		sound, _, loaded := load_source(system,clip,false)
 		if !loaded {return false}
 		pending[clip]=sound
 	}
@@ -64,6 +64,7 @@ preload :: proc(system: ^Audio_System, world: ^ecs.World, entity: ecs.Entity, in
 	if !reuse {
 		instance.path=retain_string(system,instance.path)
 		instance.configured_sound=retain_string(system,player.sound)
+		instance.configured_buffered=player.buffered
 		instance.configured_clips=make([]string,len(player.clips))
 		for clip,i in player.clips {instance.configured_clips[i]=retain_string(system,clip)}
 		instance.fade_out_on_stop=player.fade_out_on_stop
@@ -81,14 +82,14 @@ preload :: proc(system: ^Audio_System, world: ^ecs.World, entity: ecs.Entity, in
 }
 
 @(private)
-load_source :: proc(system: ^Audio_System, path: string) -> (rl.Sound,rl.Music,bool) {
+load_source :: proc(system: ^Audio_System, path: string, streaming: bool) -> (rl.Sound,rl.Music,bool) {
 	full_path := path
 	joined_path: string
 	defer if len(joined_path)>0 {delete(joined_path)}
 	if !filepath.is_abs(full_path) {joined_path,_=filepath.join({system.root,path}); full_path=joined_path}
 	path_cstring,_ := strings.clone_to_cstring(full_path)
 	defer delete(path_cstring)
-	if is_streaming_path(path) {
+	if streaming {
 		music := rl.LoadMusicStream(path_cstring)
 		return {},music,rl.IsMusicValid(music)
 	}

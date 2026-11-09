@@ -5,7 +5,6 @@ import "core:fmt"
 import "core:io"
 import "core:os"
 import "core:path/filepath"
-import "core:slice"
 import "core:strconv"
 import "core:strings"
 import "rune:pathutil"
@@ -56,14 +55,42 @@ content_portable_segment :: proc(segment: string) -> bool {
 	return !strings.contains_any(segment, "/\\") && config_content_path(segment)
 }
 
-content_relative_path :: proc(path: string) -> (string, string) {
-	path := content_slashes(path)
-	path = strings.trim_right(path, "/")
-	if path == "" || strings.has_prefix(path, "/") {return "", "must be a non-empty project-relative path"}
-	for segment in strings.split(path, "/") {
-		if !content_portable_segment(segment) {return "", fmt.aprintf("invalid portable path segment: %s", segment)}
+// Walk source paths with exact spelling even on case-folding hosts. Only the
+// last segment may be absent for an optional model sidecar.
+content_resolve_source :: proc(root, path: string, optional := false) -> (string, string, string) {
+	if !config_content_path(path) {return "", "", fmt.aprintf("invalid portable project-relative source path: %s", path)}
+	relative := strings.trim_right(path, "/")
+	current := root
+	if error := content_check_source_path(current); error != "" {return "", "", error}
+	segments := strings.split(relative, "/")
+	for segment, index in segments {
+		found, wrong_case, error := content_source_spelling(current, segment)
+		if error != "" {return "", "", error}
+		if !found {
+			if wrong_case != "" {return "", "", fmt.aprintf("path case differs from source %s: %s", wrong_case, path)}
+			if optional && index+1 == len(segments) {return "", "", ""}
+			return "", "", fmt.aprintf("publishing source does not exist: %s", path)
+		}
+		current, _ = filepath.join({current, segment})
+		if error := content_check_source_path(current); error != "" {return "", "", error}
 	}
-	return path, ""
+	return relative, current, ""
+}
+
+content_source_spelling :: proc(directory, segment: string) -> (bool, string, string) {
+	if !os.is_directory(directory) {return false, "", fmt.aprintf("publishing source parent must be a directory: %s", directory)}
+	file, open_error := os.open(directory)
+	if open_error != nil {return false, "", fmt.aprintf("cannot open source directory %s: %v", directory, open_error)}
+	defer os.close(file)
+	iterator := os.read_directory_iterator_create(file)
+	defer os.read_directory_iterator_destroy(&iterator)
+	wrong_case := ""
+	for entry in os.read_directory_iterator(&iterator) {
+		if entry.name == segment {return true, "", ""}
+		if wrong_case == "" && strings.equal_fold(entry.name, segment) {wrong_case, _ = strings.clone(entry.name)}
+	}
+	if _, error := os.read_directory_iterator_error(&iterator); error != nil {return false, "", fmt.aprintf("cannot inspect source directory %s: %v", directory, error)}
+	return false, wrong_case, ""
 }
 
 content_reserved :: proc(path, executable_name: string) -> bool {
@@ -96,8 +123,8 @@ content_add_path :: proc(collector: ^Content_Collector, source, destination: str
 	}
 	key := strings.to_lower(destination)
 	if original, found := collector.destinations[key]; found {
-		// Notices may live inside normal content. Licensing a file or subtree
-		// keeps the same candidate once, with exact package spelling required.
+		// Multiple roots and references can include the same file or subtree.
+		// Keep it once, with exact package spelling required.
 		if allow_existing && original == destination {return ""}
 		return fmt.aprintf("overlapping or case-conflicting package paths: %s and %s", original, destination)
 	}
@@ -120,22 +147,14 @@ content_add_path :: proc(collector: ^Content_Collector, source, destination: str
 	return ""
 }
 
-collect_content :: proc(game_root: string, config: Config, executable_name: string) -> ([]Publish_File, string) {
-	root, root_error := pathutil.absolute(game_root)
-	if root_error != nil {return nil, fmt.aprintf("cannot resolve game root: %v", root_error)}
-	collector := Content_Collector{files=make([dynamic]Publish_File), destinations=make(map[string]string), spellings=make(map[string]string), executable_name=executable_name}
-	for paths, group in ([2][]string{config.content, config.licenses}) {
-		for path in paths {
-			relative, error := content_relative_path(path)
-			if error != "" {return nil, fmt.aprintf("invalid publish include %q: %s", path, error)}
-			source, _ := filepath.join({root, relative})
-			if !publisher_path_is_within(root, source) {return nil, fmt.aprintf("include escapes game directory: %s", path)}
-			if error := content_add_path(&collector, source, relative, allow_existing=group == 1); error != "" {return nil, error}
-		}
-	}
-	if destination, included := collector.destinations["project.json"]; !included || destination != "project.json" {return nil, "content must include project.json with that exact filename"}
-	slice.sort_by(collector.files[:], proc(a, b: Publish_File) -> bool {return a.destination < b.destination})
-	return collector.files[:], ""
+content_include_file :: proc(collector: ^Content_Collector, root, path: string, optional := false) -> (string, string) {
+	if strings.has_suffix(path, "/") {return "", fmt.aprintf("publishing path must name a regular file: %s", path)}
+	relative, source, error := content_resolve_source(root, path, optional)
+	if error != "" || source == "" {return "", error}
+	info, stat_error := os.lstat(source, context.allocator)
+	if stat_error != nil || info.type != .Regular {return "", fmt.aprintf("publishing path must name a regular file: %s", path)}
+	if error := content_add_path(collector, source, relative, allow_existing=true); error != "" {return "", error}
+	return relative, ""
 }
 
 copy_publish_files :: proc(files: []Publish_File, stage_root: string) -> string {
@@ -169,16 +188,16 @@ Content_Reference_Kind :: enum {File, Project, Scene, Prefab, Material, Animatio
 Content_Reference :: struct {path: string, kind: Content_Reference_Kind}
 Content_Scanner :: struct {
 	root: string,
+	// Cache checked authored references while planning. During validation this
+	// is the authoritative staged inventory.
 	files: map[string]string,
 	pending: [dynamic]Content_Reference,
 	visited: map[string]bool,
 	scenes: [dynamic]string,
-	// Pruning traverses every reference, including opaque game data and textures.
-	// Legacy staged validation only needs documents with known references.
-	pruning: bool,
+	// During planning, resolve references from source and add them to the plan.
+	collector: ^Content_Collector,
 }
 
-// Validate references against the staged file inventory, including exact case.
 // Absolute authored references are never accepted, even if they still point to
 // an existing file on the publishing machine. prefab:// is author-file-relative.
 content_reference :: proc(scanner: ^Content_Scanner, author, field, value: string, kind := Content_Reference_Kind.File, relative_to_author := false, prefab_assets := false) -> string {
@@ -188,16 +207,27 @@ content_reference :: proc(scanner: ^Content_Scanner, author, field, value: strin
 	path := content_slashes(value)
 	if prefab_assets && strings.has_prefix(path, "prefab://") {path = path[len("prefab://"):]; relative_to_author = true}
 	if strings.has_prefix(path, "/") || strings.contains(path, ":") {return fmt.aprintf("%s %s: absolute or external reference is not portable: %s", author, field, value)}
+	if strings.has_suffix(path, "/") {return fmt.aprintf("%s %s: reference must name a file: %s", author, field, value)}
 	if relative_to_author {directory, _ := filepath.split(author); base, _ = filepath.join({scanner.root, directory})}
 	resolved, _ := filepath.join({base, path})
 	if !publisher_path_is_within(scanner.root, resolved) {return fmt.aprintf("%s %s: reference escapes the package: %s", author, field, value)}
 	if strings.trim_right(content_slashes(resolved), "/") == strings.trim_right(content_slashes(scanner.root), "/") {return fmt.aprintf("%s %s: reference must name a file: %s", author, field, value)}
 	relative := content_slashes(resolved)[len(strings.trim_right(content_slashes(scanner.root), "/"))+1:]
-	if _, error := content_relative_path(relative); error != "" {return fmt.aprintf("%s %s: reference has a non-portable path: %s", author, field, value)}
-	exact, found := scanner.files[strings.to_lower(relative)]
+	if !config_content_path(relative) {return fmt.aprintf("%s %s: reference has a non-portable path: %s", author, field, value)}
+	folded := strings.to_lower(relative)
+	exact, found := scanner.files[folded]
+	if found && exact != relative {return fmt.aprintf("%s %s: reference case differs from packaged file %s: %s", author, field, exact, value)}
+	if scanner.collector != nil {
+		if !found {
+			if _, error := content_include_file(scanner.collector, scanner.root, relative); error != "" {return fmt.aprintf("%s %s: %s", author, field, error)}
+			if scanner.files == nil {scanner.files = make(map[string]string)}
+			scanner.files[folded] = relative
+		}
+		append(&scanner.pending, Content_Reference{relative, kind})
+		return ""
+	}
 	if !found {return fmt.aprintf("%s %s: referenced file is not included in publish content: %s", author, field, value)}
-	if exact != relative {return fmt.aprintf("%s %s: reference case differs from packaged file %s: %s", author, field, exact, value)}
-	if scanner.pruning || kind != .File {append(&scanner.pending, Content_Reference{relative, kind})}
+	if kind != .File {append(&scanner.pending, Content_Reference{relative, kind})}
 	return ""
 }
 
@@ -268,7 +298,7 @@ content_read_object :: proc(root, relative: string) -> (json.Object, string) {
 
 // File roots may be loaded by game code, so recognize conventional Rune
 // suffixes and local schemas only after that file becomes reachable.
-content_document_kind :: proc(root, path: string, model_materials := false) -> Content_Reference_Kind {
+content_document_kind :: proc(root, path: string) -> Content_Reference_Kind {
 	name := strings.to_lower(path)
 	switch {
 	case name == "project.json": return .Project
@@ -278,7 +308,7 @@ content_document_kind :: proc(root, path: string, model_materials := false) -> C
 	case strings.has_suffix(name, ".animation.json"): return .Animation
 	case strings.has_suffix(name, ".tileset.json"): return .Tileset
 	case strings.has_suffix(name, ".terrain.json"): return .Terrain
-	case model_materials && strings.has_suffix(name, ".materials.json"): return .Model_Materials
+	case strings.has_suffix(name, ".materials.json"): return .Model_Materials
 	case strings.has_suffix(name, ".obj"), strings.has_suffix(name, ".mtl"), strings.has_suffix(name, ".gltf"), strings.has_suffix(name, ".glb"), strings.has_suffix(name, ".fbx"), strings.has_suffix(name, ".iqm"), strings.has_suffix(name, ".m3d"), strings.has_suffix(name, ".vox"): return .Model
 	}
 	if strings.has_suffix(name, ".json") && !strings.has_prefix(name, "schemas/") {
@@ -301,7 +331,7 @@ content_document_kind :: proc(root, path: string, model_materials := false) -> C
 
 content_scan_document :: proc(scanner: ^Content_Scanner, reference: Content_Reference) -> string {
 	reference := reference
-	if scanner.pruning && reference.kind == .File {reference.kind = content_document_kind(scanner.root, reference.path, true)}
+	if scanner.collector != nil && reference.kind == .File {reference.kind = content_document_kind(scanner.root, reference.path)}
 	if reference.kind == .File {return ""}
 	if reference.kind == .Model {return content_scan_model(scanner, reference.path)}
 	object, error := content_read_object(scanner.root, reference.path)
@@ -374,17 +404,17 @@ content_uri_path :: proc(uri: string) -> (string, string) {
 content_u32_le :: proc(bytes: []u8) -> u32 {return u32(bytes[0]) | u32(bytes[1])<<8 | u32(bytes[2])<<16 | u32(bytes[3])<<24}
 
 content_scan_model :: proc(scanner: ^Content_Scanner, author: string) -> string {
-	if scanner.pruning && strings.to_lower(filepath.ext(author)) != ".mtl" {
+	ext := strings.to_lower(filepath.ext(author))
+	if ext != ".mtl" {
 		sidecar := fmt.aprintf("%s.materials.json", author)
-		source, _ := filepath.join({scanner.root, sidecar})
-		// A sidecar is optional at runtime, but an existing source sidecar must
-		// be included in the candidate pool to avoid silently losing defaults.
-		_, included := scanner.files[strings.to_lower(sidecar)]
-		if included || path_is_present(source) {
+		if scanner.collector != nil {
+			relative, error := content_include_file(scanner.collector, scanner.root, sidecar, optional=true)
+			if error != "" {return fmt.aprintf("%s material defaults: %s", author, error)}
+			if relative != "" {append(&scanner.pending, Content_Reference{relative, .Model_Materials})}
+		} else if _, included := scanner.files[strings.to_lower(sidecar)]; included {
 			if error := content_reference(scanner, author, "material defaults", sidecar, .Model_Materials); error != "" {return error}
 		}
 	}
-	ext := strings.to_lower(filepath.ext(author))
 	if ext != ".gltf" && ext != ".glb" && ext != ".obj" && ext != ".mtl" {return ""}
 	path, _ := filepath.join({scanner.root, author})
 	bytes, error := os.read_entire_file(path, context.allocator)
@@ -442,47 +472,17 @@ validate_staged_project :: proc(stage_root: string) -> string {
 }
 
 // The inventory is authoritative even when the source tree contains additional
-// files. Dry-run validation therefore catches dependencies omitted from a
-// pruned package without copying content or invoking the player compiler.
+// files. Dry-run validation therefore checks the same planned content without
+// copying it or invoking the player compiler.
 validate_content_inventory :: proc(root: string, files: []Publish_File) -> string {
 	scanner := Content_Scanner{root=root, files=make(map[string]string), pending=make([dynamic]Content_Reference), visited=make(map[string]bool), scenes=make([dynamic]string)}
 	for file in files {if !file.directory {scanner.files[strings.to_lower(file.destination)] = file.destination}}
-	project, error := content_read_object(root, "project.json")
-	if error != "" {return error}
-	if error := content_field_reference(&scanner, "project.json", project, "startup_scene", .Scene); error != "" {return error}
-	if error := content_field_reference(&scanner, "project.json", project, "input"); error != "" {return error}
+	if scanner.files["project.json"] != "project.json" {return "publish inventory must contain project.json with that exact filename"}
 	// Explicitly named Rune documents are scanned even when only loaded by code.
 	// Arbitrary JSON game data is not recursively interpreted as asset paths.
 	for file in files {
 		if file.directory {continue}
-		name := strings.to_lower(file.destination)
-		kind := Content_Reference_Kind.File
-		switch {
-		case strings.has_suffix(name, ".scene.json"): kind = .Scene
-		case strings.has_suffix(name, ".prefab.json"): kind = .Prefab
-		case strings.has_suffix(name, ".material.json"): kind = .Material
-		case strings.has_suffix(name, ".animation.json"): kind = .Animation
-		case strings.has_suffix(name, ".tileset.json"): kind = .Tileset
-		case strings.has_suffix(name, ".terrain.json"): kind = .Terrain
-		case strings.has_suffix(name, ".obj"), strings.has_suffix(name, ".mtl"), strings.has_suffix(name, ".gltf"), strings.has_suffix(name, ".glb"): kind = .Model
-		}
-		if kind == .File && strings.has_suffix(name, ".json") && !strings.has_prefix(name, "schemas/") {
-			// A scene is also recognizable without the conventional suffix. A
-			// declared local Rune schema identifies other code-loaded documents.
-			if object, error := content_read_object(root, file.destination); error == "" {
-				if _, entities := object["entities"].(json.Array); entities {if _, named := object["name"].(json.String); named {kind = .Scene}}
-				if schema, ok := object["$schema"].(json.String); ok {
-					switch filepath.base(content_slashes(schema)) {
-					case "scene.schema.json": kind = .Scene
-					case "prefab.schema.json": kind = .Prefab
-					case "material.schema.json": kind = .Material
-					case "animation.schema.json": kind = .Animation
-					case "tileset.schema.json": kind = .Tileset
-					case "terrain.schema.json": kind = .Terrain
-					}
-				}
-			}
-		}
+		kind := content_document_kind(root, file.destination)
 		if kind != .File {append(&scanner.pending, Content_Reference{file.destination, kind})}
 	}
 	for index := 0; index < len(scanner.pending); index += 1 {

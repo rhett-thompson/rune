@@ -67,6 +67,7 @@ rewrite() {
 }
 rewrite project.json schemas/project.schema.json 1
 rewrite publish.json schemas/publish.schema.json 1 1
+rewrite assets.json schemas/assetcatalog.schema.json 0
 rewrite scenes/main.scene.json ../schemas/scene.schema.json 0
 rewrite input/default.input.json ../schemas/input.schema.json 0
 printf 'Created %s\n' "$destination"

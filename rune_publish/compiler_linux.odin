@@ -4,7 +4,7 @@ import "core:fmt"
 import "core:os"
 import "core:path/filepath"
 
-run_compiler :: proc(args: []string, cwd: string) -> (string, string) {
+run_compiler :: proc(args: []string, cwd, _: string) -> (string, string) {
 	directory := os.get_env("TMPDIR", context.allocator)
 	if directory == "" {directory = "/tmp"}
 	lock, _ := filepath.join({directory, fmt.aprintf("rune-odin-compile-%d.lock", os.get_uid())})

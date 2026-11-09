@@ -288,15 +288,19 @@ discover_windows_runtime :: proc() -> (string, string, string) {
 	vswhere, _ := filepath.join({program_files, "Microsoft Visual Studio", "Installer", "vswhere.exe"})
 	if !os.is_file(vswhere) {return "", "", ""}
 	if failure := content_check_source_path(vswhere); failure != "" {return "", "", failure}
-	installation, failure := run_capture({vswhere, "-latest", "-products", "*", "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "-property", "installationPath"}, "")
+	installations, failure := run_capture({vswhere, "-products", "*", "-sort", "-property", "installationPath"}, "")
 	if failure != "" {return "", "", fmt.aprintf("cannot discover official Visual Studio CRT runtime; use --windows-runtime-directory: %s", failure)}
-	installation = strings.trim_space(installation)
-	if installation == "" {return "", "", ""}
-	redist, _ := filepath.join({installation, "VC", "Redist", "MSVC"})
-	directory, directory_error := find_windows_runtime(redist)
-	if directory_error != "" {return "", "", directory_error}
-	if directory == "" {return "", "", ""}
-	return directory, windows_runtime_notice(directory), ""
+	// Check installed layouts directly. Component metadata may be missing even
+	// when the installation has a complete toolset and ordinary AMD64 CRT.
+	for line in strings.split(installations, "\n") {
+		installation := strings.trim_space(line)
+		if installation == "" {continue}
+		redist, _ := filepath.join({installation, "VC", "Redist", "MSVC"})
+		directory, directory_error := find_windows_runtime(redist)
+		if directory_error != "" {return "", "", directory_error}
+		if directory != "" {return directory, windows_runtime_notice(directory), ""}
+	}
+	return "", "", ""
 }
 
 // A supplied runtime directory is used only for this explicit list of official

@@ -1,32 +1,55 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "assetcatalog.schema.json",
-  "title": "Named asset paths",
+  "title": "Rune asset catalog",
+  "description": "Named runtime paths and additional dependencies for the publisher.",
   "type": "object",
   "required": ["version", "assets"],
   "additionalProperties": false,
   "properties": {
     "$schema": {"type": "string"},
     "version": {"const": 1},
-    "assets": {"$ref": "#/$defs/names"},
-    "directories": {"$ref": "#/$defs/names"},
-    "roots": {"$ref": "#/$defs/paths"},
+    "assets": {
+      "type": "object",
+      "propertyNames": {"$ref": "#/$defs/name"},
+      "additionalProperties": {"$ref": "#/$defs/file"},
+      "description": "Named project-relative files. Publishing follows recognized dependencies of each file."
+    },
+    "directories": {
+      "type": "object",
+      "propertyNames": {"$ref": "#/$defs/name"},
+      "additionalProperties": {"$ref": "#/$defs/path"},
+      "description": "Named project-relative directories. Publishing includes each directory's entire tree."
+    },
     "dependencies": {
       "type": "object",
-      "additionalProperties": {"$ref": "#/$defs/paths"}
+      "propertyNames": {"$ref": "#/$defs/file"},
+      "additionalProperties": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {"$ref": "#/$defs/path"}
+      },
+      "description": "Additional project-relative files or directory trees to include when the key file is selected."
     },
     "inputs": {
       "type": "object",
-      "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      "propertyNames": {"$ref": "#/$defs/path"},
+      "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+      "description": "Optional source input hashes for generated catalogs. Directory keys end in '/'."
     }
   },
   "$defs": {
-    "path": {"type": "string", "minLength": 1},
-    "paths": {"type": "array", "items": {"$ref": "#/$defs/path"}},
-    "names": {
-      "type": "object",
-      "propertyNames": {"minLength": 1, "pattern": "^[^/\\\\:\\u0000-\\u001f]+$"},
-      "additionalProperties": {"$ref": "#/$defs/path"}
+    "path": {"$ref": "publish.schema.json#/$defs/contentPath"},
+    "file": {
+      "$ref": "#/$defs/path",
+      "not": {"pattern": "/$"}
+    },
+    "name": {
+      "type": "string",
+      "allOf": [
+        {"pattern": "^[^/\\\\:\\u0000-\\u001f\\u007f]+$"},
+        {"pattern": "^\\S(?:.*\\S)?$"}
+      ]
     }
   }
 }

@@ -6,8 +6,8 @@ import "core:path/filepath"
 import "core:strings"
 
 // All tool/config values are passed as argv, never interpreted as shell code.
-run_capture :: proc(args: []string, cwd: string) -> (string, string) {
-	state, output, errors, error := os.process_exec({command = args, working_dir = cwd}, context.allocator)
+run_capture :: proc(args: []string, cwd: string, environment: []string = nil) -> (string, string) {
+	state, output, errors, error := os.process_exec({command = args, working_dir = cwd, env = environment}, context.allocator)
 	if error != nil {return "", fmt.aprintf("Could not run %s: %v", args[0], error)}
 	if !state.exited || state.exit_code != 0 {
 		return string(output), fmt.aprintf("%s failed (exit %d):\n%s%s", args[0], state.exit_code, string(output), string(errors))

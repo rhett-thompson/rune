@@ -79,9 +79,9 @@ rune.rebind_audio(&game, new_world, previous_owner, "theme", next_owner, "theme"
 
 Retain only the previous entity handle and instance name, then reacquire the
 destination entity from the new World. The old World may already be destroyed.
-The destination must be live and use identical `sound` and ordered `clips`
-settings; rebinding rejects a missing source or an occupied destination without
-changing either player. Rebinding to the same compatible key succeeds unchanged.
+The destination must be live and use the same `sound`, ordered `clips`, and
+`buffered` settings. A missing source or occupied destination leaves both
+players unchanged. Rebinding to the same compatible key succeeds unchanged.
 
 The audio system moves ownership of the decoder, cursor, selected clip, buffered
 aliases, suspension and pending stop fade without playing, stopping or reloading.
@@ -152,7 +152,8 @@ a valid `sound` fallback.
 ```json
 "AudioPlayer": {
   "footsteps": {
-    "clips": ["assets/step_1.wav", "assets/step_2.wav", "assets/step_3.wav"],
+    "clips": ["assets/step_1.ogg", "assets/step_2.ogg", "assets/step_3.ogg"],
+    "buffered": true,
     "volume": 0.5,
     "random_pitch": 0.04,
     "max_voices": 4
@@ -163,12 +164,14 @@ a valid `sound` fallback.
 Buffered clips load on first selection and remain cached for that player.
 Overlapping plays share `max_voices` across all clips; when full, the oldest
 voice is replaced. Mixer changes affect every voice, including older clips.
-Changing `sound` or `clips` releases the old cache and playback on the next update
-or play. Volume/pitch edits do not choose another clip. Lists are copied by typed
-setters and survive scene snapshots/reloads.
+Changing `sound`, `clips`, or `buffered` releases the old cache and playback on
+the next update or play. Volume and pitch edits keep the selected clip. Typed
+setters copy clip lists, which survive scene snapshots and reloads.
 
-Streaming formats retain one playback channel: selecting another stream, or
-switching between a stream and buffered sound, replaces the previous playback.
+Ogg Vorbis and other streaming formats use one playback channel by default.
+Selecting another stream or switching between a stream and buffered sound
+replaces the previous playback. Set `buffered: true` on short compressed clips
+to decode them into memory and allow overlapping voices.
 Looping repeats the selected clip until the next explicit play; it does not
 randomize the clip at each loop boundary. Sources and aliases are released when
 the player is removed or the audio system shuts down.

@@ -44,25 +44,24 @@ sh ../rune/tools/publish.sh --project .
 ```
 
 Adapt the engine path as needed. Publishing builds optimized player code, copies
-the listed content and required notices, validates the package, audits native
-dependencies, and creates a fresh folder plus ZIP/tar.gz under `build/publish/`.
-Use `--output <new-directory>` for another destination. Existing outputs are
+the selected content and required notices, validates the package, audits native
+dependencies, and creates a fresh folder plus ZIP/tar.gz under `build/publish/`
+by default. Set `output_directory` in `publish.json` to change the parent
+directory relative to the game root. Use `--output <new-directory>` to override
+the full package directory for one run. Existing outputs are
 never replaced. Each target builds on its matching OS; the Linux glibc ceiling
 defaults to 2.39 and requires a compatible SDK/build environment. Windows copies
 required app-local CRT dependencies from an official installed Visual Studio
 redist directory when available. See Rune's `docs/publishing.md` for overrides
 and the full config/command reference.
 
-The template includes its existing scenes/input files. Add every additional
-content folder or file loaded by your game, including code-loaded resources,
-and include applicable asset licenses/credits. Paths remain game-relative;
-directories are copied completely without pruning. Additional compiler
-collections/defines belong in `publish.json`; Rune/r3d are supplied automatically.
-
-`publish.assets.json` starts with an empty `roots` list and is already registered
-in `publish.json` under `prune.manifests`. Add files or directory trees loaded by
-code there, including later scenes, and keep their paths covered by `content`.
-Pruning stays disabled until you set `prune.enabled` to true.
+The publisher includes `project.json` and `assets.json` and follows the startup
+scene, input mappings, and known resource references. Add other runtime files,
+such as code-loaded scenes, under `assets` in `assets.json`. Use `directories`
+for whole trees the game needs at runtime. Paths remain game-relative. List asset
+licenses and credits under `licenses` in `publish.json`. Additional compiler
+collections and defines also belong in `publish.json`. The publisher supplies
+Rune and r3d automatically. Use `--dry-run` to validate the package plan.
 
 A packaged player looks for `project.json` beside itself and launches from any
 working directory. You can also stage a `--player` executable manually:
@@ -71,6 +70,7 @@ working directory. You can also stage a `--player` executable manually:
 MyGame/
   game.exe                 (game on Linux)
   project.json
+  assets.json
   scenes/main.scene.json
   input/default.input.json
 ```

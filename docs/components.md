@@ -1003,7 +1003,7 @@ Selects the scene audio reference point, normally on a camera entity with a tran
 
 ### AudioPlayer
 
-Named audio instances on an entity. Supply a nonempty sound path or nonempty clips list; clips overrides sound and chooses randomly per play. Music formats stream; short effects use buffered voices. Playback is game-owned unless `play_on_start` is true. Spatial audio uses composed emitter/listener world positions. `max_distance >= min_distance`. Disabled entities suspend playback; mix bus settings live at engine/project level.
+Named audio instances on an entity. Supply a nonempty sound path or clips list. A nonempty clips list overrides sound and chooses randomly per play. Music formats stream by default. Set `buffered` to use buffered voices for compressed effects. Playback is game-owned unless `play_on_start` is true. Spatial audio uses composed emitter/listener world positions. `max_distance >= min_distance`. Disabled entities suspend playback. Mix bus settings live at engine/project level.
 
 [Guide / example](audio-mixer.md) · [Implementation](../rune/ecs/audio.odin)
 
@@ -1032,6 +1032,7 @@ The following fields belong to each named instance. Use
 | `random_volume` | number; ≥ 0 | `0` | Uniform per-play variation around volume. |
 | `random_pitch` | number; ≥ 0 | `0` | Uniform per-play variation around pitch. |
 | `max_voices` | integer; ≥ 1 | `4` | Maximum simultaneous buffered voices for this instance. |
+| `buffered` | boolean | `false` | Decode the entire clip as a buffered sound instead of streaming. With `false`, the format selects the playback mode. |
 | `looping` | boolean | `false` | Loop playback. |
 | `fade_out_on_stop` | finite number; ≥ 0 | `0` | Fade to silence over this many seconds when stopped; zero stops immediately. |
 | `play_on_start` | boolean | `false` | Start when the scene audio is initialized. |

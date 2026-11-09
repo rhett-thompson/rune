@@ -9,8 +9,6 @@ AudioListener :: struct {
 	active: bool,
 }
 
-// AudioPlayer describes audio emitted by an entity. Music formats such as MP3,
-// OGG, and FLAC stream automatically; short clips remain buffered sounds.
 Audio_Bus :: enum {master, music, sfx, ui}
 
 audio_bus_name :: proc(bus: Audio_Bus) -> string {
@@ -23,6 +21,8 @@ audio_bus_name :: proc(bus: Audio_Bus) -> string {
 	return ""
 }
 
+// AudioPlayer describes audio emitted by an entity. Compressed formats such as
+// Ogg Vorbis normally stream. Set buffered to decode a whole clip for playback.
 AudioPlayer :: struct {
 	bus:           Audio_Bus,
 	sound:         string,
@@ -32,6 +32,7 @@ AudioPlayer :: struct {
 	random_volume: f32,
 	random_pitch:  f32,
 	max_voices:    i32,
+	buffered:      bool,
 	looping:       bool,
 	fade_out_on_stop: f32, // Seconds; zero stops immediately.
 	spatial:       bool,
@@ -110,6 +111,10 @@ audio_player_from_json :: proc(data: json.Value) -> (AudioPlayer, bool) {
 		number, number_ok := read_number(value)
 		if !number_ok || number < 1 || number != f32(i32(number)) {return {}, false}
 		result.max_voices = i32(number)
+	}
+	if value, found := object["buffered"]; found {
+		result.buffered, ok = value.(json.Boolean)
+		if !ok {return {}, false}
 	}
 	if value, found := object["looping"];
 	   found {result.looping, ok = value.(json.Boolean); if !ok {return {}, false}}

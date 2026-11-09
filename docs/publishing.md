@@ -8,8 +8,9 @@ libraries remain runtime requirements.
 This plan covers game distribution. Engine source releases have their own
 [release checks](release.md). Executable-relative startup and the player build
 profile, `publish.json`, and native Windows/Linux publishing commands are
-available, including opt-in dependency-based asset pruning. Broader user-data
-helpers and fresh-machine/hardware package qualification remain follow-up work.
+available. Package content comes from the project, its asset catalog, and
+their dependencies. Broader user-data helpers and fresh-machine/hardware package
+qualification remain follow-up work.
 
 ## Delivery sequence
 
@@ -17,22 +18,22 @@ helpers and fresh-machine/hardware package qualification remain follow-up work.
    consistently, separate writable user data from the installation, and give
    Windows and Linux builds an explicit player profile.
 2. **Windows/Linux publishing command and verified packages.** Build a game,
-   stage its configured content and required native dependencies in a fresh
+   stage its selected content and required native dependencies in a fresh
    directory, audit the result, and create an archive. Verify representative 2D
    and 3D packages on both targets.
-3. **Asset dependency inspection and package-size improvements.** Opt-in
-   dependency pruning is available; expand supported reference formats and
-   diagnostics while keeping its limits explicit.
+3. **Asset dependency inspection and package-size improvements.** Expand
+   supported reference formats and diagnostics for dependency-based packaging.
 
 Each phase must preserve the code-first workflow and support standalone game
 projects outside the engine checkout.
 
 ## Portable startup
 
-A published package contains the executable, `project.json`, and the configured
-content tree. Default player startup finds the project relative to the executable,
-so launching from a shortcut or an unrelated working directory has the same
-result. Preserve an explicit project-path override for development and tools.
+A published package contains the executable, `project.json`, `assets.json`, and
+the selected resources. Default player startup finds the project relative to
+the executable, so launching from a shortcut or an unrelated working directory
+has the same result. Preserve an explicit project-path override for development
+and tools.
 Normal developer builds must retain their supported project-launch workflow.
 
 The project directory is the resource root shared by core asset loading, 3D
@@ -111,6 +112,7 @@ a new folder manually, preserving paths:
 My Game/
   game.exe                  # game on Linux
   project.json
+  assets.json
   input/default.input.json
   scenes/main.scene.json
   assets/                   # plus every other game content folder/file
@@ -178,7 +180,7 @@ New projects include `publish.json` alongside `project.json`, with local
   "version": "0.1.0",
   "executable": "my-game",
   "targets": ["windows-amd64", "linux-amd64"],
-  "content": ["project.json", "input/", "scenes/", "assets/"],
+  "output_directory": "dist",
   "licenses": ["credits.txt"],
   "build": {
     "collections": {"shared": "../Shared Code"},
@@ -188,35 +190,25 @@ New projects include `publish.json` alongside `project.json`, with local
 }
 ```
 
-Only list files/directories that exist in that game. `licenses` and `build` are
-optional. The generated minimal config includes the starter's existing content,
-an empty game-license list, and `publish.assets.json` registered under
-`prune.manifests`. That manifest starts with an empty `roots` list for code-loaded
-resources; pruning remains disabled. Add asset credits and notices as needed.
+`output_directory`, `licenses`, and `build` are optional. Generated games include an empty
+game-license list and a separate `assets.json` with empty `assets` and
+`directories` maps. Add asset credits and notices as needed.
 
 | Setting | Purpose |
 | --- | --- |
 | Stable game ID and version | Name distribution outputs; configure game-owned save IDs separately. |
 | Executable name | Give each platform's binary a predictable package name. |
-| `content` | Explicit files and complete directories, including code-loaded resources, with their relative paths preserved. |
-| `licenses` | Additional game-specific notices, copied at their game-relative paths. |
+| `output_directory` | Parent directory for the package folder and archive, relative to the game root. Defaults to `build/publish`. |
+| `licenses` | Game-specific notice files and directory trees, copied at their game-relative paths. |
 | `build.collections` | Additional named Odin collections, resolved from the game directory; sibling source dependencies may use `../`. |
 | `build.defines` | Boolean, signed 64-bit integer, finite float, or string compiler defines. |
 | `build.extra_linker_flags` | An optional string passed as one Odin linker-option argument. |
-| `prune.enabled` | Opt into packaging only reachable files from the content inventory; defaults to false. |
-| `prune.roots` | Additional code-loaded files or directory trees to retain and inspect. |
-| `prune.manifests` | Source metadata describing custom dependencies and optional input checksums. |
-
-An explicitly opened [`rune:assetcatalog`](assetcatalog.md) lookup file can be
-registered in `prune.manifests` too. Its `assets` and `directories` values become
-ordinary pruning roots, followed by the same dependency walker. Include that
-catalog in `content` so the game can open it at runtime. Authored JSON continues
-to contain ordinary filenames; the publisher does not interpret asset IDs there.
 
 The parser rejects unknown fields, malformed/duplicate JSON keys, unsupported
 targets, unsafe names/paths, and attempts to override the reserved `rune`/`r3d`
-collections or `RUNE_PLAYER`/`RAYLIB_SHARED` defines. Content uses forward slash
-relative paths without `..`; build-only collection paths may refer to siblings.
+collections or `RUNE_PLAYER`/`RAYLIB_SHARED` defines. Resource and license paths
+are project-relative and use forward slashes without `..`. Build-only collection
+paths may refer to siblings.
 `executable` is extensionless and cannot be a Windows device name or `licenses`.
 `version` is a distribution version, independent of save-format versions.
 
@@ -243,19 +235,23 @@ compatibility launchers:
 sh ../rune/tools/publish.sh --project .
 ```
 
-The default output is
-`GAME_ROOT/build/publish/<id>-<version>-<target>/`, with an adjacent `.zip` on
-Windows or `.tar.gz` on Linux. `--output <new-package-directory>` overrides the
-folder; relative command-line paths use the caller's working directory. The
-directory and archive must both be absent. The archive contains one enclosing
-folder with the same name as the output directory. Run the executable directly
-after extraction; its adjacent `project.json` supplies the resource root.
+By default, the publisher creates
+`GAME_ROOT/build/publish/<id>-<version>-<target>/`. Set `output_directory` to
+place that versioned folder under another directory relative to the game root,
+such as `dist`. Use a portable path with forward slashes and an optional
+trailing slash.
 
-Add `--dry-run` to validate the selected content and preview pruning totals
+`--output <new-package-directory>` overrides the entire package path, including
+its name. Relative command-line paths resolve from the caller's working
+directory. The archive sits beside the package folder, with the same name plus
+`.zip` on Windows or `.tar.gz` on Linux. Both paths must be absent before
+publishing. The archive contains one enclosing folder with the package's name.
+After extraction, run the executable directly. Its adjacent `project.json`
+supplies the resource root.
+
+Add `--dry-run` to validate the package plan and any catalog input hashes
 without compiling the game or creating a package. The launcher still builds the
-small publisher tool. Dependency manifests and their input hashes are checked
-only when `prune.enabled` is true. A dry run does not audit an executable's
-native imports or infer dependencies from game code.
+small publisher tool. Native import audits run after the game build.
 
 `--target windows-amd64|linux-amd64` defaults to the current host and must be
 enabled in the config; cross-compilation is rejected. `--odin <compiler>` or
@@ -268,11 +264,13 @@ options and exit codes, see its [README](../rune_publish/README.md).
 The commands need no additional scripting runtime. Linux also needs `flock`,
 `readelf`, `mktemp`, and `tar`; Windows uses built-in CScript/tar and its MSVC build tools.
 
-Build and validate in a fresh sibling staging directory. Copy content, validate
-known references, build the game, audit dependencies, hash every staged file,
-and create the archive before exposing the final package. Existing outputs are
-never replaced, including at the final native move. Failure leaves its staging
-directory for inspection and exits nonzero; choose a new output for a new release.
+The publisher plans and validates dependencies before compiling the game. It
+then uses a fresh sibling staging directory to copy selected content, validate
+the staged references, build the game, audit native dependencies, hash every
+staged file, and create the archive before exposing the final package. Existing
+outputs are never replaced, including at the final native move. A failure after
+staging starts leaves the staging directory for inspection and exits nonzero.
+Choose an output outside directory trees selected through the catalog or licenses.
 The Linux output filesystem must support atomic no-replacement renames. Some
 WSL Windows-mounted filesystems do not; select `--output` on a native Linux
 filesystem in that case. The publisher reports this rather than weakening its
@@ -284,11 +282,10 @@ Build Windows packages on Windows and Linux packages in a defined Linux build
 environment. The output `manifest.json` records config and config checksum,
 compiler, source revisions/working-tree status when Git metadata is available,
 native source pins, dependency audits, and sorted file sizes/SHA-256 hashes. Its
-file inventory precedes the manifest itself, so it does not hash itself.
+file inventory includes `assets.json` and precedes the manifest itself.
 The config checksum hashes the same initial bytes used to parse the build
 configuration. Generated/untracked games are marked unverified when the parent
 repository tracks no files under their root.
-Game code is included only when explicitly selected in `content`.
 
 Native source pins include `third_party/rune-image/sources.json` for Rune's
 private memory-image decoder, alongside the patched R3D components. Its private
@@ -304,8 +301,9 @@ build is insufficient evidence that arbitrary game build requirements work.
 
 Windows PE audits require AMD64 executables and inspect ordinary and delayed
 imports. The bundled native libraries use the dynamic Microsoft C++ runtime.
-When needed, publishing finds an official installed AMD64 CRT through
-`VCToolsRedistDir` or the VC-tools-qualified Visual Studio installation reported
+Game compilation uses `tools/find_msvc.bat` to select a complete MSVC toolset.
+When needed, the publisher finds an official installed AMD64 CRT through
+`VCToolsRedistDir` or by inspecting the redist trees of installations reported
 by `vswhere`. It copies only the required allowlisted runtime DLLs and their
 dependency closure, auditing each DLL. Detected VS third-party notices are
 included when present. For a specific build environment use
@@ -331,66 +329,39 @@ outside this version's scope.
 
 ## Content and output
 
-JSON and assets remain loose files in this version. By default publishing copies
-complete explicit content roots, including empty directories. It preserves paths used by scenes,
-prefabs, animation files, model sidecars, and game code. Odin can select paths at
-runtime, so a static scanner cannot discover every required file.
+Rune Publish includes the root `project.json` and `assets.json`, preserving
+project-relative paths in the package. It follows the startup scene and input
+mappings in `project.json`. In `assets.json`, each name under `assets` selects
+a file and each name under `directories` selects a complete directory tree,
+including empty directories. Declare resources the publisher cannot reach
+through authored references, such as scenes loaded later by game code. Use the
+same catalog for named runtime lookups through [`rune:assetcatalog`](assetcatalog.md).
+Authored resource fields continue to use ordinary filenames.
 
-Inspect known asset references and report missing files, paths escaping the
-configured package, unresolved dependencies, and filename case conflicts. Reject
-ambiguous destination collisions. Inspection is a diagnostic aid, not proof that
-all dynamically loaded resources were found. Opt-in pruning uses the supported
-reference formats and explicit roots described below.
+Traversal follows built-in scene and prefab resource fields, Rune material,
+animation, tileset and terrain descriptors, and glTF/GLB or OBJ/MTL sidecars.
+Existing `<model>.materials.json` bindings and their materials are included with
+their models. MTL textures require plain sidecar paths. The planner reports
+missing references, paths outside the game, filename case mismatches, and
+symbolic-link or Windows reparse-point ancestors in selected paths.
 
-Current staged validation checks every recognized included scene, nested
-prefabs, built-in component resource fields, supported Rune asset descriptors,
-and glTF/GLB buffer/image or OBJ/MTL sidecars. It rejects paths outside the stage,
-references omitted from the include list, case mismatches, and all symbolic-link
-or Windows reparse/junction ancestors. Unknown custom JSON fields and arbitrary
-Odin file reads cannot be inferred; keep their complete folders in `content` and
-exercise the resulting package. MTL texture options currently require a plain
-reviewed sidecar path and fail with a diagnostic instead of guessing the filename.
+Game licenses are selected independently through `publish.json`, including
+complete directory trees when listed as directories. Shared selections with
+exactly the same spelling are copied once. Game code and other source files
+are packaged only when selected. JSON and resources remain loose files.
 
-### Prune unused content
+### Declare custom dependencies
 
-Existing configs keep their copy-everything behavior. New games already register
-an empty `publish.assets.json`; add code-loaded resources to its `roots` and set
-`prune.enabled` to true when ready to prune. For an existing config, add:
-
-```json
-"prune": {
-  "enabled": true,
-  "roots": ["scenes/", "assets/code-loaded.terrain.json"],
-  "manifests": ["publish.assets.json"]
-}
-```
-
-With pruning enabled, `content` defines the candidate inventory. The graph starts
-at `project.json`, follows its startup scene and input mappings, and includes
-the configured roots, manifest roots, and every `licenses` entry. A directory
-root retains its complete tree; a file root retains that file and its recognized
-dependencies. Scene transitions and arbitrary code reads cannot be inferred;
-declare their scenes and resources explicitly. Roots and dependencies must be
-case-correct paths within the content inventory. Missing live references fail.
-Unreachable descriptors are omitted without interpreting them; source inventory
-path, overlap, and symlink checks still apply to every candidate.
-
-Traversal follows the built-in scene/prefab resource fields, Rune material,
-animation, tileset and terrain descriptors, and supported glTF/GLB/OBJ/MTL
-sidecars. Existing `<model>.materials.json` bindings are retained with their
-models and their referenced materials. Raw image/audio/font/shader files are
-leaves unless additional dependencies are declared. Applicable asset notices
-must be listed under `licenses`, even when they live under a prunable asset
-folder. License selections may overlap `content` with the exact same spelling;
-each file is collected once and retained. Engine notices are always added after pruning.
-
-A dependency manifest is game-owned source metadata, not a runtime file. It
-need not appear in `content`. For example:
+`assets.json` can declare dependencies from custom formats and pin the inputs
+used to generate the catalog. In this example, selecting the custom level also
+includes its binary data.
 
 ```json
 {
+  "$schema": "schemas/assetcatalog.schema.json",
   "version": 1,
-  "roots": ["assets/levels/start.level.json", "assets/models/player.obj"],
+  "assets": {"level.start": "assets/levels/start.level.json"},
+  "directories": {"dir.dialogue": "assets/dialogue"},
   "dependencies": {
     "assets/levels/start.level.json": ["assets/data/start.bin"]
   },
@@ -400,27 +371,22 @@ need not appear in `content`. For example:
 }
 ```
 
-`roots`, `dependencies`, and `inputs` are optional. Dependency keys name files;
-their values list files or directory trees followed when the source is reached.
-The publisher does not interpret custom JSON keys or scan Odin source. Games can
-generate this metadata from their own procedural formats and code conventions.
-The manifest parser rejects unknown keys and unsafe paths.
+`dependencies` and `inputs` are optional. Dependency keys name project-relative
+files. Each value lists files or complete directory trees to include when the
+source file is reached. Declare paths that only appear in custom JSON or Odin
+code. Games can generate these declarations from their own procedural formats
+and code conventions.
 
-With pruning enabled, optional `inputs` reject stale generated manifests before
-publishing. A file input hashes its bytes with SHA-256. A directory key ends in
-`/`; recursively sort its file paths relative to that directory and hash the concatenation of
-each UTF-8 path, a NUL byte, the lowercase SHA-256 of its file bytes, and a LF
-byte. Empty directories do not affect that checksum. New, removed, or changed
-files change the directory digest. Input trees reject links, nonportable names,
-and case conflicts just like content trees. Regenerate the game manifest after
-an input changes. Input paths are source metadata and need not be in `content`.
+The publisher checks `inputs` before compiling. A file input hashes its bytes
+with SHA-256. For a directory input, end its key in `/`, recursively sort its
+file paths relative to that directory, and hash the concatenation of each UTF-8
+path, a NUL byte, the lowercase SHA-256 of its file bytes, and a LF byte. Empty
+directories do not affect the checksum. Input trees reject links, nonportable
+names, and case conflicts. Regenerate the catalog after an input changes. The
+input declarations check source files without adding them to the package.
 
-The package's `manifest.json` records `asset_pruning`: candidate/retained/pruned
-file and byte totals, sorted roots and removed paths, and dependency-manifest
-checksums. Totals describe configured game content and licenses, before the
-executable, native runtimes, engine notices, and package manifest are added.
-Pruning only selects files to copy; it never deletes source assets. Exercise the
-extracted game, including dynamic content, before distributing it.
+Exercise the extracted game, including resources loaded dynamically, before
+distributing it.
 
 Publishing creates a fresh game directory, then a Windows ZIP or Linux tar.gz.
 Include applicable Rune, native-library, and game-asset licenses/notices. Write a
@@ -460,6 +426,24 @@ results do not establish fresh-machine game-package coverage.
 
 ## Publishing verification context
 
+On 2026-11-09, all 40 publisher tests and both asset catalog tests passed on
+Windows AMD64 with Odin `dev-2026-10-nightly:84bc3fc` and MSVC. The Windows and
+Ubuntu 24.04 WSL2 generators produced projects with local catalog schema links.
+A Windows dry run validated a catalog-backed fixture, and the regular Windows
+launcher found MSVC and its AMD64 CRT without developer-shell variables.
+The extracted ZIP matched all 133 manifest file hashes. Its relocated player
+loaded the startup scene, a catalog-named scene and prefab, a named directory
+child, and a custom dependency from an unrelated working directory with
+Odin and Rune paths removed. This run covered hidden-window startup and
+asset loading. Linux coverage was limited to project generation and schema checks.
+
+A Windows launcher check from outside a generated game's directory created
+readable ZIPs and package folders under the default parent, a game-relative
+`output_directory` containing spaces, and a caller-relative `--output` override.
+
+Earlier releases used a separate publishing inventory and opt-in dependency
+selection. The following results describe those earlier implementations.
+
 On 2026-10-21, the publisher's 24 focused tests passed on Windows AMD64 and
 Ubuntu 26.04 AMD64 under WSL2 using `dev-2026-10-nightly:84bc3fc`. Generated 2D
 and representative 3D projects produced Windows ZIP and Linux tar.gz packages.
@@ -490,9 +474,10 @@ native Linux storage. Fresh supported systems, physical controllers, other GPUs,
 and saves/settings surviving package upgrades remain unverified. These focused
 checks do not replace the full engine release checks.
 
-Opt-in pruning was additionally checked on Windows AMD64 with the same pinned
-compiler: all 34 publisher tests passed, including dependency cycles, runtime
-model material defaults, source-input drift, license overlap, and dry runs.
+The earlier opt-in dependency selection was additionally checked on Windows
+AMD64 with the same pinned compiler. All 34 publisher tests passed, including
+dependency cycles, runtime model material defaults, source-input drift, license
+overlap, and dry runs.
 A pruned game package passed independent archive checksums and relocated startup
 in its menu, gameplay, editor, combat, and model gallery scenes. The game-owned
 dependency generator's five tests passed on Windows and Ubuntu under WSL.
