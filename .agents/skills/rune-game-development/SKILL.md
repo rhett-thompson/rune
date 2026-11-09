@@ -78,6 +78,10 @@ For terrain detail distance thinning, follow the optional density settings in
   Register custom component types before loading scenes that use them. Choose
   callback timing from the lifecycle reference rather than manually advancing
   physics, audio, particles, or animation that the scene loop already owns.
+- To continue playback across scene replacement, call `rune.rebind_audio` in
+  the destination callback before its first audio update. Retain the old entity
+  handle and instance name, and match the destination's sound and ordered clips.
+  See [audio lifetime and commands](references/rendering-ui-audio.md#audio-lifetime-and-commands).
 - Configure Box3D through `project.json`'s `physics_3d.worker_count` (1 through
   32, default 1, including the calling thread). Engine scene loading and
   restoration carry it into each World. Forward `game.project.render_3d` as

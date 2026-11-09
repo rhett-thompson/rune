@@ -65,6 +65,37 @@ Keep the device owner alive until all borrowing audio systems have shut down.
 The Engine owns its audio system for its full lifetime, including scene changes
 and quickloads; game code using that device should leave it open until shutdown.
 
+## Continue playback across scenes
+
+Scene replacement normally removes the old World's players on the next audio
+update. To continue an existing track or buffered voices, author a compatible
+`AudioPlayer` in the destination scene and rebind its playback during the
+destination's start/reload callback, before that update:
+
+```odin
+rune.rebind_audio(&game, new_world, previous_owner, "theme", next_owner, "theme")
+// The direct audio-system API is audio.rebind(&system, new_world, ...).
+```
+
+Retain only the previous entity handle and instance name, then reacquire the
+destination entity from the new World. The old World may already be destroyed.
+The destination must be live and use identical `sound` and ordered `clips`
+settings; rebinding rejects a missing source or an occupied destination without
+changing either player. Rebinding to the same compatible key succeeds unchanged.
+
+The audio system moves ownership of the decoder, cursor, selected clip, buffered
+aliases, suspension and pending stop fade without playing, stopping or reloading.
+Destination volume, bus, looping and spatial settings apply during normal audio
+servicing; mixer gains/fades stay intact. Removing the destination releases the
+resources normally. Games own which transitions preserve a player; do not fade
+or explicitly play that player when seamless continuation is intended.
+For a move within one World, remove the source `AudioPlayer` before servicing
+audio so its separate autoplay setting cannot start another instance.
+
+The serial `rune/audio` tests cover ownership and rejected transfers without a
+device. `tools/mixer_validation --runtime` additionally exercises the actual MP3
+decoder and buffered aliases across World destruction.
+
 ## Fade out on stop
 
 Set `AudioPlayer.fade_out_on_stop` to fade a named player's active playback to

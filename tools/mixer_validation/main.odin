@@ -4,6 +4,7 @@ import "core:encoding/json"
 import "core:fmt"
 import "core:math"
 import "core:os"
+import "core:time"
 import "rune:audio"
 import "rune:ecs"
 import "rune:scene"
@@ -68,6 +69,45 @@ runtime_test :: proc() {
 	assert(ecs.remove_component_instance(&world,entity,"AudioPlayer","bell"))
 	audio.update(&system,&world,0.5)
 	assert(len(system.instances)==0)
+	rebind_runtime_test(&system,&registry)
+}
+
+rebind_runtime_test :: proc(system: ^audio.Audio_System, registry: ^ecs.Component_Registry) {
+	for streaming in ([2]bool{false,true}) {
+		previous, previous_ok := scene.load("examples/audio_components/scenes/main.scene.json",registry)
+		next, next_ok := scene.load("examples/audio_components/scenes/main.scene.json",registry)
+		assert(previous_ok && next_ok)
+		defer ecs.destroy(&next)
+		source, _ := ecs.find_entity_by_id(&previous,"bell_sphere")
+		destination, _ := ecs.find_entity_by_id(&next,"bell_sphere")
+		configured, _ := ecs.get_audio_player(&previous,source,"bell")
+		configured.spatial=false; configured.random_pitch=0; configured.pitch=1
+		configured.looping=streaming; configured.play_on_start=streaming
+		if streaming {configured.sound="../asteroids/assets/music.mp3"}
+		assert(ecs.set_audio_player(&previous,source,"bell",configured))
+		assert(ecs.set_audio_player(&next,destination,"bell",configured))
+		for _ in 0..<(1 if streaming else 3) {assert(audio.play(system,&previous,source,"bell"))}
+		for _ in 0..<8 {audio.update(system,&previous,0.02); time.sleep(20*time.Millisecond)}
+		before := system.instances[ecs.Component_Instance{entity=source,name="bell"}]
+		elapsed_before: f32
+		if streaming {elapsed_before=rl.GetMusicTimePlayed(before.music); assert(elapsed_before>0)}
+		assert(audio.rebind(system,&next,source,"bell",destination,"bell"))
+		ecs.destroy(&previous)
+		audio.update(system,&next,0.02)
+		after := system.instances[ecs.Component_Instance{entity=destination,name="bell"}]
+		assert(len(system.instances)==1 && audio.is_playing(system,destination,"bell"))
+		if streaming {
+			assert(after.music.stream.buffer==before.music.stream.buffer && rl.GetMusicTimePlayed(after.music)>=elapsed_before,
+				"scene replacement retains the same advancing decoder instead of restarting music")
+		} else {
+			assert(raw_data(after.voices)==raw_data(before.voices) && len(after.voices)==3 && after.next_sequence==3,
+				"buffered aliases move together without selecting or replaying another voice")
+		}
+		assert(ecs.remove_component_instance(&next,destination,"AudioPlayer","bell"))
+		audio.update(system,&next,0.02)
+		assert(len(system.instances)==0,"the destination owns final resource release")
+	}
+	fmt.println("Audio rebind runtime: advancing stream, buffered aliases and destination cleanup passed")
 }
 
 audio_device_lifecycle_test :: proc() {

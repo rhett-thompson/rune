@@ -439,6 +439,20 @@ audio_is_stopping :: proc(engine: ^Engine, entity: ecs.Entity, instance_name: st
 	return audio.is_stopping(&engine.audio, entity, instance_name)
 }
 
+// Preserve active playback across scene replacement. Call before the first
+// audio update of the destination World; its player must use the same sources.
+rebind_audio :: proc(
+	engine: ^Engine,
+	world: ^ecs.World,
+	source_entity: ecs.Entity,
+	source_name: string,
+	destination_entity: ecs.Entity,
+	destination_name: string,
+) -> bool {
+	if engine == nil {return false}
+	return audio.rebind(&engine.audio,world,source_entity,source_name,destination_entity,destination_name)
+}
+
 // register_system appends a game system to the deterministic lifecycle order.
 // Names must be unique so accidental duplicate registration is rejected.
 register_system :: proc(engine: ^Engine, system: System) -> bool {

@@ -469,11 +469,20 @@ its owner must outlive borrowers. Address repeatable `AudioPlayer` components
 by entity and instance name: `rune.play_audio(game, world, entity, "bell")`,
 `stop_audio`, and `preload_audio`. Preloading loads buffered variants and reserves
 voices without playing or randomly choosing a clip; streams retain one channel.
+To continue playback across scene replacement or structural reload, retain the
+old entity handle and call `rune.rebind_audio(game, new_world, old_entity,
+"theme", new_entity, "theme")` during destination initialization, before the
+first audio update. The live destination must have identical sound/ordered clips
+and no existing playback instance. The old World may already be destroyed.
+Rebinding preserves the decoder, buffered voices and pending fades without
+restarting; games decide which transitions retain playback and avoid fading or
+explicitly replaying that player. Destination settings apply on the next update.
 Configure an active `AudioListener` for spatial playback. Automatic servicing
 continues while paused, which does not itself mute audio. Raw raylib playback
 bypasses Rune's mixer. Read audio buses (`docs/audio-mixer.md`),
 Audio Components (`examples/audio_components/main.odin`), and ownership sources
-`rune/audio/audio.odin`, `rune/audio/preload.odin`, and `rune/core/core.odin`.
+`rune/audio/audio.odin`, `rune/audio/preload.odin`, `rune/audio/rebind.odin`, and
+`rune/core/core.odin`.
 
 | Specialized work | Read next |
 | --- | --- |
