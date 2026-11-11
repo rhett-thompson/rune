@@ -30,6 +30,13 @@ Font_Asset :: struct {
 	modified_time: i64,
 }
 
+DEFAULT_FONT_RASTER_SIZE :: 64
+
+Font_Key :: struct {
+	path:        string,
+	raster_size: i32,
+}
+
 Material_Data :: struct {
 	procedural:        Procedural_Material,
 	// Project-relative r3d surface hook. Opt into Rune's seconds-valued u_time.
@@ -81,7 +88,7 @@ Asset_Manager :: struct {
 	models:                   map[string]Model_Asset,
 	skyboxes: map[string]Skybox_Asset,
 	terrains: map[string]Terrain_Asset,
-	fonts:                    map[string]Font_Asset,
+	fonts:                    map[Font_Key]Font_Asset,
 	materials:                map[string]Material_Asset,
 	material_previews:        map[string]Material_Data,
 	animations:               map[string]Animation_Asset,
@@ -111,7 +118,7 @@ init :: proc(root: string) -> Asset_Manager {
 		models                   = make(map[string]Model_Asset),
 		skyboxes = make(map[string]Skybox_Asset),
 		terrains = make(map[string]Terrain_Asset),
-		fonts                    = make(map[string]Font_Asset),
+		fonts                    = make(map[Font_Key]Font_Asset),
 		materials                = make(map[string]Material_Asset),
 		material_previews        = make(map[string]Material_Data),
 		animations               = make(map[string]Animation_Asset),
@@ -133,15 +140,17 @@ font :: proc(
 	path: string,
 	source_path := "",
 	field := "font",
+	raster_size: i32 = DEFAULT_FONT_RASTER_SIZE,
 ) -> (
 	rl.Font,
 	bool,
 ) {
-	if len(path) == 0 {return {}, false}
-	if asset, found := manager.fonts[path]; found {return asset.font, true}
+	if len(path) == 0 || raster_size <= 0 {return {}, false}
+	key := Font_Key{path, raster_size}
+	if asset, found := manager.fonts[key]; found {return asset.font, true}
 	full_path := resolve_path(manager, path)
 	path_cstring, _ := strings.clone_to_cstring(full_path)
-	loaded := load_font_file(path_cstring)
+	loaded := load_font_file(path_cstring, raster_size)
 	delete(path_cstring)
 	if !rl.IsFontValid(loaded) {
 		report_failure(
@@ -158,17 +167,17 @@ font :: proc(
 		return {}, false
 	}
 	resolve_asset_failure(manager, source_path, field, path)
-	manager.fonts[retain_path(manager, path)] = Font_Asset {
+	key.path = retain_path(manager, path)
+	manager.fonts[key] = Font_Asset {
 		font          = loaded,
 		modified_time = modified_time(full_path),
 	}
 	return loaded, true
 }
 
-// Rasterize scalable fonts with enough detail for example headings as well as
-// smaller UI labels. Bitmap fonts keep raylib's original pixel filtering.
+// Bitmap fonts keep raylib's original pixel filtering.
 @(private)
-load_font_file :: proc(path: cstring) -> rl.Font {
+load_font_file :: proc(path: cstring, raster_size: i32) -> rl.Font {
 	scalable := rl.IsFileExtension(path, ".ttf;.otf")
 	// Printable Latin-1, including degree signs in HUDs. Skip controls and the
 	// invisible soft hyphen; fonts commonly omit glyphs for these codepoints.
@@ -179,7 +188,7 @@ load_font_file :: proc(path: cstring) -> rl.Font {
 		codepoints[count] = rune(codepoint)
 		count += 1
 	}
-	loaded := rl.LoadFontEx(path, 64, raw_data(codepoints[:]), len(codepoints)) if scalable else rl.LoadFont(path)
+	loaded := rl.LoadFontEx(path, raster_size, raw_data(codepoints[:]), len(codepoints)) if scalable else rl.LoadFont(path)
 	// raylib returns its valid default font on failure. Never cache/unload that
 	// borrowed fallback or treat it as a successful hot-reload replacement.
 	if loaded.texture.id == rl.GetFontDefault().texture.id {return {}}
@@ -660,12 +669,13 @@ refresh :: proc(manager: ^Asset_Manager) {
 }
 
 refresh_fonts :: proc(manager: ^Asset_Manager) {
-	for path, asset in manager.fonts {
+	for key, asset in manager.fonts {
+		path := key.path
 		full_path := resolve_path(manager, path)
 		current_time := modified_time(full_path)
 		if current_time == asset.modified_time {continue}
 		path_cstring, _ := strings.clone_to_cstring(full_path)
-		replacement := load_font_file(path_cstring)
+		replacement := load_font_file(path_cstring, key.raster_size)
 		delete(path_cstring)
 		if !rl.IsFontValid(replacement) {
 			report_failure(
@@ -685,7 +695,7 @@ refresh_fonts :: proc(manager: ^Asset_Manager) {
 		updated_asset := asset
 		updated_asset.font = replacement
 		updated_asset.modified_time = current_time
-		manager.fonts[path] = updated_asset
+		manager.fonts[key] = updated_asset
 	}
 }
 

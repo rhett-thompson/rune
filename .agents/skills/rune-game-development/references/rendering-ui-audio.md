@@ -428,6 +428,8 @@ Declare Clay widgets and layout in Odin; Rune has no separate UI JSON format.
 Keep initialized `ui.Context` storage at a stable address; do not return or copy
 it. Initialize after the window exists and destroy before window shutdown. The
 context owns its arena but borrows fonts/textures, which must remain valid.
+For small text, request a smaller `raster_size` from `assets.font` to reduce
+downscaling from the default 64-pixel scalable font atlas.
 The UI guide (`docs/ui.md`), Clay example (`examples/clay_ui/main.odin`), and
 `rune/ui/ui.odin` define the lifecycle; Clay requires no additional collection.
 
@@ -446,6 +448,12 @@ reveals focused widgets inside their containing scroll panels, including nested
 viewports; idle focus preserves mouse-wheel scroll positions. The context input
 overload above adds controller left-stick navigation and repeat to mapped D-pad
 and keyboard actions.
+
+Pass a borrowed texture as `icon` and its UI size as `icon_size` to `ui.button`.
+Use empty text for an image-only button. `icon_above = true` stacks the image and
+label. Give the button enough `style.height` for both and keep the texture valid
+through `ui.draw`. The image shares the button's pointer target and focus. See
+`docs/ui.md`.
 
 `ui.slider` highlights pointer hover, keyboard/controller focus, and dragging
 while enabled and unblocked. Its fill and outline use `style.text`, preserving

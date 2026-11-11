@@ -149,12 +149,12 @@ scene_pick_2d_text_uses_cached_font_and_rendered_text_scale :: proc(t: ^testing.
 	e := ecs.create_entity(&w)
 	assert(ecs.add(&w,&r,e,ecs.Transform{position={100,100,0},rotation={0,0,90},scale={1,8,1}}))
 	assert(ecs.add(&w,&r,e,ecs.TextRenderer{text="A",font="font.ttf",font_size=20,origin={0.5,0.5},color={255,255,255,255}}))
-	manager := assets.Asset_Manager{fonts=make(map[string]assets.Font_Asset)}; defer delete(manager.fonts)
+	manager := assets.Asset_Manager{fonts=make(map[assets.Font_Key]assets.Font_Asset)}; defer delete(manager.fonts)
 	_, found := scene_pick_2d(&w,&manager,{109,100})
 	testing.expect(t, !found, "uncached fonts are skipped without loading")
 	glyphs := [2]rl.GlyphInfo{{value=63,advanceX=6},{value=65,advanceX=6}}
 	recs := [2]rl.Rectangle{{width=6,height=10},{width=6,height=10}}
-	manager.fonts["font.ttf"] = assets.Font_Asset{font={baseSize=10,glyphCount=2,texture={id=1},glyphs=raw_data(glyphs[:]),recs=raw_data(recs[:])}}
+	manager.fonts[assets.Font_Key{"font.ttf", assets.DEFAULT_FONT_RASTER_SIZE}] = assets.Font_Asset{font={baseSize=10,glyphCount=2,texture={id=1},glyphs=raw_data(glyphs[:]),recs=raw_data(recs[:])}}
 	hit: ecs.Entity
 	hit, found = scene_pick_2d(&w,&manager,{109,100})
 	testing.expect(t, found && hit == e, "cached CPU font metrics support rotated text bounds without a window")

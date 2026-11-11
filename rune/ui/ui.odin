@@ -251,7 +251,8 @@ label :: proc(ui: ^Context, text: string, color: Color, size: u16 = 0) {
 		fontSize = size if size > 0 else ui.style.font_size, wrapMode = .Words}))
 }
 
-button :: proc(ui: ^Context, id, text: string, enabled: bool = true) -> bool {
+button :: proc(ui: ^Context, id, text: string, enabled: bool = true,
+	icon: rl.Texture2D = {}, icon_size: [2]f32 = {}, icon_above: bool = false) -> bool {
 	key := widget(ui, id, enabled)
 	background := ui.style.surface
 	if !enabled {background = ui.style.disabled}
@@ -259,11 +260,21 @@ button :: proc(ui: ^Context, id, text: string, enabled: bool = true) -> bool {
 		if key == ui.hovered_id || key == ui.focus_id {background = ui.style.hover}
 		if key == ui.active_id {background = ui.style.pressed}
 	}
+	has_icon := icon.id != 0 && icon.width > 0 && icon.height > 0 &&
+		icon_size[0] > 0 && icon_size[1] > 0 && !math.is_inf(icon_size[0]) && !math.is_inf(icon_size[1])
 	panel(ui, id, {layout = {sizing = {width = grow({}), height = fixed(ui.style.height)},
-		childAlignment = {x = .Center, y = .Center}, padding = padding(10)},
+		childAlignment = {x = .Center, y = .Center}, padding = padding(10),
+		layoutDirection = .TopToBottom if has_icon && icon_above else .LeftToRight,
+		childGap = 6 if has_icon && text != "" else 0},
 		backgroundColor = background, cornerRadius = corners(ui.style.radius),
 		border = {color = ui.style.accent, width = clay.BorderOutside(2 if enabled && key == ui.focus_id && !ui.inputs.blocked else 0)}})
-	label(ui, text, ui.style.text)
+	if has_icon {
+		// The anonymous image is visual content. The parent owns the click and focus.
+		clay._OpenElement()
+		clay.ConfigureOpenElement(image_element(ui, icon, icon_size, {255,255,255,255}))
+		clay._CloseElement()
+	}
+	if !has_icon || text != "" {label(ui, text, ui.style.text)}
 	end_panel(ui)
 	return enabled && !ui.inputs.blocked && (ui.clicked_id == key || (ui.inputs.activate && ui.focus_id == key))
 }
@@ -312,11 +323,16 @@ slider :: proc(ui: ^Context, id: string, value: ^f32, minimum, maximum: f32,
 
 image :: proc(ui: ^Context, id: string, texture: rl.Texture2D, size: [2]f32, tint: Color = {255,255,255,255}) {
 	assert(ui.building)
+	panel(ui, id, image_element(ui, texture, size, tint))
+	end_panel(ui)
+}
+
+@(private)
+image_element :: proc(ui: ^Context, texture: rl.Texture2D, size: [2]f32, tint: Color) -> Element {
 	stored, _ := mem.new(rl.Texture2D, mem.dynamic_arena_allocator(&ui.scratch))
 	stored^ = texture
-	panel(ui, id, {layout = {sizing = {width = fixed(size[0]), height = fixed(size[1])}},
-		image = {imageData = stored}, backgroundColor = tint})
-	end_panel(ui)
+	return {layout = {sizing = {width = fixed(size[0]), height = fixed(size[1])}},
+		image = {imageData = stored}, backgroundColor = tint}
 }
 
 focused :: proc(ui: ^Context, id: string) -> bool {return ui.focus_id == clay.ID(id).id}

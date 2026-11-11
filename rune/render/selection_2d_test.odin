@@ -74,7 +74,7 @@ selection_2d_cached_sprite_and_text_dimensions_do_not_load_assets :: proc(t: ^te
 	r := ecs.init_registry(); defer ecs.destroy_registry(&r); assert(ecs.register_builtin_components(&r))
 	entity:=ecs.create_entity(&w)
 	assert(ecs.add(&w,&r,entity,ecs.SpriteRenderer{texture="sprite.png",tint={255,255,255,255}}))
-	manager:=assets.Asset_Manager{textures=make(map[string]assets.Texture_Asset),fonts=make(map[string]assets.Font_Asset),missing_textures=make(map[string]i64)}
+	manager:=assets.Asset_Manager{textures=make(map[string]assets.Texture_Asset),fonts=make(map[assets.Font_Key]assets.Font_Asset),missing_textures=make(map[string]i64)}
 	defer delete(manager.textures); defer delete(manager.fonts); defer delete(manager.missing_textures)
 	camera:=rl.Camera2D{zoom=1}
 	_, found:=scene_selection_bounds_2d(&w,&manager,entity,camera)
@@ -86,7 +86,7 @@ selection_2d_cached_sprite_and_text_dimensions_do_not_load_assets :: proc(t: ^te
 	assert(ecs.add(&w,&r,entity,ecs.TextRenderer{text="A",font="font.ttf",font_size=20,origin={0.5,0.5},color={255,255,255,255}}))
 	glyphs:=[2]rl.GlyphInfo{{value=63,advanceX=6},{value=65,advanceX=6}}
 	recs:=[2]rl.Rectangle{{width=6,height=10},{width=6,height=10}}
-	manager.fonts["font.ttf"]=assets.Font_Asset{font={baseSize=10,glyphCount=2,texture={id=1},glyphs=raw_data(glyphs[:]),recs=raw_data(recs[:])}}
+	manager.fonts[assets.Font_Key{"font.ttf", assets.DEFAULT_FONT_RASTER_SIZE}]=assets.Font_Asset{font={baseSize=10,glyphCount=2,texture={id=1},glyphs=raw_data(glyphs[:]),recs=raw_data(recs[:])}}
 	bounds, found=scene_selection_bounds_2d(&w,&manager,entity,camera)
 	testing.expect(t,found); expect_selection_rectangle_2d(t,bounds,{-6,-10,36,20})
 	testing.expect(t,len(manager.textures)==1 && len(manager.fonts)==1 && len(manager.diagnostics.pending)==0,"cached metrics remain read only")

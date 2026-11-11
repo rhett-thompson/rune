@@ -90,7 +90,7 @@ selection_command_2d :: proc(world: ^ecs.World, manager: ^assets.Asset_Manager, 
 	case .Text:
 		text, found := ecs.get_text_renderer(world, command.entity)
 		if !found || manager == nil || text.color.a == 0 || len(text.text) == 0 || command.scale[0] <= 0 {return}
-		cached, loaded := manager.fonts[text.font]
+		cached, loaded := manager.fonts[assets.Font_Key{text.font, assets.DEFAULT_FONT_RASTER_SIZE}]
 		if !loaded || cached.font.baseSize <= 0 || cached.font.glyphCount <= 0 || cached.font.glyphs == nil || cached.font.recs == nil {return}
 		content, _ := strings.clone_to_cstring(text.text, context.temp_allocator)
 		measured := rl.MeasureTextEx(cached.font, content, text.font_size*command.scale[0], text.spacing*command.scale[0])

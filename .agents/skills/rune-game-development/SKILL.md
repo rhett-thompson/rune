@@ -119,6 +119,9 @@ For terrain detail distance thinning, follow the optional density settings in
   as appropriate. Use Rune's camera helper for custom Camera2D drawing;
   initialize and dispose optional UI/3D resources at the appropriate system
   lifecycle boundaries.
+- Use `ui.button` with `icon` and `icon_size` for clickable images with normal
+  focus and pointer behavior. See the rendering reference for layout and texture
+  lifetime.
 - Use `ecs.OrbitCamera3D` for reusable 3D orbit navigation. Tool viewports can
   supply resolved input from `ui_update` for navigation while paused; the host
   owns focus and drag capture. Keep framing targets and level interpretation in
