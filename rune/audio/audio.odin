@@ -45,6 +45,7 @@ Audio_Instance :: struct {
 // component instance. By default, playback mode is selected by file format.
 Audio_System :: struct {
 	mixer:            Mixer,
+	reverb:           ^Reverb_State,
 	root:             string,
 	instances:        map[ecs.Component_Instance]Audio_Instance,
 	retained_strings: map[string]string,
@@ -76,8 +77,9 @@ init :: proc(project_root: string) -> Audio_System {
 shutdown :: proc(system: ^Audio_System) {
 	if system == nil {return}
 	for _, instance in system.instances {
-		unload_instance(instance)
+		unload_instance(system, instance)
 	}
+	shutdown_reverb(system)
 	delete(system.instances)
 	delete(system.retained_strings)
 	if system.owns_device && rl.IsAudioDeviceReady() {rl.CloseAudioDevice()}
@@ -101,6 +103,7 @@ retain_string :: proc(system: ^Audio_System, value: string) -> string {
 update :: proc(system: ^Audio_System, world: ^ecs.World, dt: f32 = 0) {
 	update_mixer(&system.mixer,dt)
 	if !system.available {return}
+	update_reverb_gains(system)
 	remove_missing_instances(system, world)
 	if len(world.audio_players) == 0 {return}
 	listener_entity, _, listener_found := ecs.active_audio_listener(world)
@@ -135,7 +138,7 @@ update :: proc(system: ^Audio_System, world: ^ecs.World, dt: f32 = 0) {
 			continue
 		}
 		if starting || restarting {randomize_settings(system, key, player)}
-		apply_settings(system, world, key, player, listener_entity, listener_found)
+		apply_settings(system, world, key, player, listener_entity, listener_found, starting || restarting)
 		instance = system.instances[key]
 		if starting {
 			play_instance(instance)
@@ -159,6 +162,7 @@ play :: proc(
 	instance_name: string,
 ) -> bool {
 	if !system.available || !ecs.is_enabled(world, entity) {return false}
+	update_reverb_gains(system)
 	key := ecs.Component_Instance {
 		entity = entity,
 		name   = instance_name,
@@ -179,7 +183,7 @@ play :: proc(
 		return true
 	}
 	randomize_settings(system, key, player)
-	apply_settings(system, world, key, player, listener_entity, listener_found)
+	apply_settings(system, world, key, player, listener_entity, listener_found, true)
 	instance = system.instances[key]
 	play_instance(instance)
 	instance.started = true
@@ -260,7 +264,7 @@ same_clip_configuration :: proc(instance: Audio_Instance, player: ecs.AudioPlaye
 ensure_instance :: proc(system: ^Audio_System, key: ecs.Component_Instance, player: ecs.AudioPlayer, choose: bool) -> bool {
 	instance, found := system.instances[key]
 	if found && !same_clip_configuration(instance, player) {
-		unload_instance(instance)
+		unload_instance(system, instance)
 		delete_key(&system.instances, key)
 		instance, found = {}, false
 	}
@@ -271,6 +275,7 @@ ensure_instance :: proc(system: ^Audio_System, key: ecs.Component_Instance, play
 	if found && !streaming {
 		if sound, cached := instance.sources[path]; cached {
 			if instance.streaming {
+				unroute_reverb_source(system, instance.music.stream)
 				rl.UnloadMusicStream(instance.music)
 				instance.music={}; instance.streaming=false
 			} else {rl.StopSound(instance.sound)} // Aliases remain independent.
@@ -285,7 +290,7 @@ ensure_instance :: proc(system: ^Audio_System, key: ecs.Component_Instance, play
 	// Streams remain a single playback channel. Buffered clips share a source
 	// cache and a bounded alias pool, so selecting a new clip never cuts a tail.
 	if found && (instance.streaming || streaming) {
-		unload_instance(instance)
+		unload_instance(system, instance)
 		instance, found = {}, false
 	}
 	if !found {
@@ -314,7 +319,7 @@ ensure_instance :: proc(system: ^Audio_System, key: ecs.Component_Instance, play
 remove_missing_instances :: proc(system: ^Audio_System, world: ^ecs.World) {
 	for key, instance in system.instances {
 		if _, found := ecs.get_audio_player(world, key.entity, key.name); found {continue}
-		unload_instance(instance)
+		unload_instance(system, instance)
 		delete_key(&system.instances, key)
 	}
 }
@@ -326,20 +331,33 @@ apply_settings :: proc(
 	player: ecs.AudioPlayer,
 	listener_entity: ecs.Entity,
 	listener_found: bool,
+	starting: bool = false,
 ) {
 	instance := system.instances[key]
 	spatial_gain, pan := spatial_factors(world,key.entity,player,listener_entity,listener_found)
-	gain := spatial_gain*bus_gain(&system.mixer,player.bus)*stop_fade_gain(instance)
-	volume := max(0, player.volume + instance.volume_offset)*gain
+	stop_gain := stop_fade_gain(instance)
+	gain := spatial_gain*bus_gain(&system.mixer,player.bus)*stop_gain
+	player_volume := max(0, player.volume + instance.volume_offset)
+	volume := player_volume*gain
 	pitch := max(0.01, player.pitch + instance.pitch_offset)
-	if !instance.streaming && !player.looping {
+	if !instance.streaming {
 		// Every alias has independent variation. Update active voices as well as
 		// the source sound so bus fades cannot leave older one-shots audible.
 		for voice in instance.voices {
-			rl.SetSoundVolume(voice.sound,max(0,player.volume+voice.volume_offset)*gain)
+			voice_volume := max(0, player.volume + voice.volume_offset)
+			route_reverb_source(system, voice.sound.stream, player.bus, voice_volume*spatial_gain*stop_gain, false)
+			if player.looping {continue}
+			rl.SetSoundVolume(voice.sound, voice_volume*gain)
 			rl.SetSoundPitch(voice.sound,max(0.01,player.pitch+voice.pitch_offset))
 			rl.SetSoundPan(voice.sound,pan)
 		}
+	}
+	if instance.streaming {
+		route_reverb_source(system, instance.music.stream, player.bus, player_volume*spatial_gain*stop_gain, starting)
+	} else {
+		// An old looping source or one-shot alias can still be playing after a
+		// looping setting edit. Reconcile its send while preserving dry playback.
+		route_reverb_source(system, instance.sound.stream, player.bus, player_volume*spatial_gain*stop_gain, starting && player.looping)
 	}
 	if instance.settings_initialized &&
 	   instance.volume == volume &&
@@ -388,7 +406,7 @@ play_one_shot :: proc(
 	listener_found: bool,
 ) {
 	instance := system.instances[key]
-	ensure_voice_count(&instance, player.max_voices)
+	ensure_voice_count(system, &instance, player.max_voices)
 	voice_index := 0
 	oldest_sequence := ~u64(0)
 	for &voice, index in instance.voices {
@@ -405,6 +423,7 @@ play_one_shot :: proc(
 	voice := &instance.voices[voice_index]
 	if rl.IsSoundPlaying(voice.sound) {rl.StopSound(voice.sound)}
 	if voice.path != instance.path {
+		unroute_reverb_source(system, voice.sound.stream)
 		rl.UnloadSoundAlias(voice.sound)
 		voice.sound = rl.LoadSoundAlias(instance.sound)
 		voice.path = instance.path
@@ -421,7 +440,9 @@ play_one_shot :: proc(
 		listener_entity,
 		listener_found,
 	)
-	volume := max(0, player.volume + voice.volume_offset) * spatial_gain * bus_gain(&system.mixer,player.bus)
+	source_volume := max(0, player.volume + voice.volume_offset) * spatial_gain
+	volume := source_volume * bus_gain(&system.mixer,player.bus)
+	route_reverb_source(system, voice.sound.stream, player.bus, source_volume, true)
 	rl.SetSoundVolume(voice.sound, volume)
 	rl.SetSoundPitch(voice.sound, max(0.01, player.pitch + voice.pitch_offset))
 	rl.SetSoundPan(voice.sound, pan)
@@ -430,10 +451,12 @@ play_one_shot :: proc(
 	system.instances[key] = instance
 }
 
-ensure_voice_count :: proc(instance: ^Audio_Instance, requested: i32) {
+ensure_voice_count :: proc(system: ^Audio_System, instance: ^Audio_Instance, requested: i32) {
 	target := max(requested, 1)
 	for len(instance.voices) > int(target) {
-		rl.UnloadSoundAlias(instance.voices[len(instance.voices)-1].sound)
+		sound := instance.voices[len(instance.voices)-1].sound
+		unroute_reverb_source(system, sound.stream)
+		rl.UnloadSoundAlias(sound)
 		pop(&instance.voices)
 	}
 	for len(instance.voices) < int(target) {
@@ -506,13 +529,22 @@ play_instance :: proc(instance: Audio_Instance) {
 	if instance.streaming {rl.PlayMusicStream(instance.music)} else {rl.PlaySound(instance.sound)}
 }
 
-unload_instance :: proc(instance: Audio_Instance) {
-	if rl.IsMusicValid(instance.music) {rl.UnloadMusicStream(instance.music)}
+unload_instance :: proc(system: ^Audio_System, instance: Audio_Instance) {
+	if rl.IsMusicValid(instance.music) {
+		unroute_reverb_source(system, instance.music.stream)
+		rl.UnloadMusicStream(instance.music)
+	}
 	for voice in instance.voices {
-		if rl.IsSoundValid(voice.sound) {rl.UnloadSoundAlias(voice.sound)}
+		if rl.IsSoundValid(voice.sound) {
+			unroute_reverb_source(system, voice.sound.stream)
+			rl.UnloadSoundAlias(voice.sound)
+		}
 	}
 	delete(instance.voices)
-	for _, sound in instance.sources {rl.UnloadSound(sound)}
+	for _, sound in instance.sources {
+		unroute_reverb_source(system, sound.stream)
+		rl.UnloadSound(sound)
+	}
 	delete(instance.sources)
 	delete(instance.configured_clips)
 }

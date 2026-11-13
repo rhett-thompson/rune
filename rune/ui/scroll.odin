@@ -252,7 +252,7 @@ scroll_viewport_sizing :: proc(original:clay.SizingAxis,gutter:f32) -> clay.Sizi
 }
 
 @(private)
-open_scroll_panel :: proc(ui:^Context,id:string,declaration:Element,horizontal,vertical:bool) {
+open_scroll_panel :: proc(ui:^Context,id:string,declaration:Element,horizontal,vertical:bool,clip_horizontal:bool=false) {
 	key:=clay.ID(id).id
 	outer:=declaration
 	outer.id=clay.ID("__rune_scroll_outer",key)
@@ -266,7 +266,7 @@ open_scroll_panel :: proc(ui:^Context,id:string,declaration:Element,horizontal,v
 		row.layout.sizing.height=fixed(max(0,declaration.layout.sizing.height.constraints.sizeMinMax.max-(Scroll_Gutter if horizontal else 0)))
 	}
 	scroll_open(row); ui.depth+=1
-	viewport:=Element{layout=declaration.layout,clip={horizontal=horizontal,vertical=vertical}}
+	viewport:=Element{layout=declaration.layout,clip={horizontal=horizontal || clip_horizontal,vertical=vertical}}
 	viewport.layout.sizing.width=scroll_viewport_sizing(viewport.layout.sizing.width,Scroll_Gutter if vertical else 0)
 	viewport.layout.sizing.height=scroll_viewport_sizing(viewport.layout.sizing.height,Scroll_Gutter if horizontal else 0)
 	data:=clay.GetScrollContainerData({id=key})

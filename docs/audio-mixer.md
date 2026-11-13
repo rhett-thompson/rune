@@ -46,12 +46,36 @@ the optional third argument defaults to zero for compatibility.
 Bus settings survive scene changes in the same Engine. They are not saved and
 do not alter authored player volumes. Raw raylib playback bypasses the mixer;
 raylib's own master gain is an additional output gain if the game changes it.
-This first mixer has four fixed buses and linear gain fades; it has no effects,
-automatic ducking, or track scheduler.
 
 The Audio Components example demonstrates SFX controls: M toggles mute, F fades
 out over two seconds, R restores volume, and left-click plays the bell. The Clay
 example's volume slider controls the master bus.
+
+## Room reverb
+
+Set a bus's room send from the game thread with `audio.set_bus_reverb`. The
+send defaults to zero and accepts finite values from 0 through 1. The call
+returns whether the value was accepted.
+
+```odin
+audio.set_bus_reverb(&game.audio, .sfx, 0.3)
+// On leaving the room, stop feeding the reverb and let its tail decay.
+audio.set_bus_reverb(&game.audio, .sfx, 0)
+```
+
+The stereo return is added to the existing dry signal. It follows source
+volume, distance attenuation and stop fades, and the bus and master control
+its output gain and mute. Buffered voices, loops, and streaming players all
+feed the selected bus. The send smooths changes and the return keeps ringing
+after a source stops. Rune sends affect only players on the selected bus. Raw
+raylib playback bypasses the effect. Games supply the room send for the current
+listener environment and reset it on scene changes as appropriate.
+
+The first nonzero send claims the process-wide raylib mix processor for that
+audio system until shutdown. A nonzero request needs a live device and returns
+`false` if another audio system already owns the processor. Up to 256 native
+playback streams feed the effect at once. Finished streams free their slots
+for reuse, and playback continues dry if all slots are in use.
 
 ## Audio device lifetime
 

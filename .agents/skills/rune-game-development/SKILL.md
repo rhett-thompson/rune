@@ -82,6 +82,8 @@ For terrain detail distance thinning, follow the optional density settings in
   handle and instance name, and match the destination's sound, ordered clips,
   and buffering mode.
   See [audio lifetime and commands](references/rendering-ui-audio.md#audio-lifetime-and-commands).
+- For room reverb, set a send on the selected Rune audio bus with
+  `audio.set_bus_reverb`. Keep the listener's environment rules in the game.
 - Configure Box3D through `project.json`'s `physics_3d.worker_count` (1 through
   32, default 1, including the calling thread). Engine scene loading and
   restoration carry it into each World. Forward `game.project.render_3d` as

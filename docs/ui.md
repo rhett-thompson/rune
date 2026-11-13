@@ -130,7 +130,7 @@ the simulation pause condition, then call `ui.draw` during drawing.
 | `ui.dropdown(ctx, id, &state, &selected, options, enabled = true, height = 240)` | Floating, scrollable option picker; returns true when the zero-based selection changes. |
 | `ui.slider(ctx, id, &value, min, max, step = 0.05, enabled = true)` | A bar slider; returns true when value changes. Left/right uses `step`; pointer dragging is continuous. Focus, hover, and dragging brighten the fill and outline, including at minimum and maximum values. |
 | `ui.text_input(ctx, id, &field, enabled = true)` | Single-line UTF-8 field; returns `changed`, `committed`, and `canceled`. Click or focused accept activates editing. |
-| `ui.text_area(ctx, id, &area, enabled = true, height = 160)` | Multiline UTF-8 editing with both scrollbars; Enter inserts a newline, Ctrl+Enter commits, Escape cancels. |
+| `ui.text_area(ctx, id, &area, enabled = true, height = 160, wrap = false)` | Multiline UTF-8 editing with optional word wrap. Enter inserts a newline, Ctrl+Enter commits, and Escape cancels. |
 | `ui.image(ctx, id, texture, size, tint)` | A borrowed texture stretched to a rectangle. |
 | `ui.focused(ctx, id)` / `ui.reset_focus(ctx)` | Inspect focus or reset it to the first enabled control on the next build. |
 | `ui.bounds(ctx, id)` | Bounds and a found flag from the last completed layout, for tools/tests. |
@@ -191,10 +191,13 @@ up/down preserve the column across lines. Home/End move within a line, and
 Ctrl+Home/End reach the document edges. Shift extends the selection; Ctrl+A
 selects everything, and Ctrl+C/V/X, Backspace, and Delete work on the selected
 range. `cursor` and `anchor` are byte offsets on UTF-8 boundaries. Tabs remain in
-the value and display at four-column stops. Explicit lines use horizontal and
-vertical scrolling rather than soft wrapping. Cursor movement reveals the caret;
-wheel scrolling leaves it at the chosen viewport. Only visible lines are built,
-so thousands of empty lines do not exhaust Clay's element budget.
+the value and display at four-column stops. Text areas scroll horizontally and
+vertically by default. Set `wrap = true` to fit text to the viewport width at
+word boundaries. Words wider than the viewport can break between Unicode
+characters. These soft wraps leave the text buffer unchanged. Cursor movement
+reveals the caret, while wheel scrolling leaves it at the chosen viewport. Only
+visible lines are built, so thousands of empty lines do not exhaust Clay's
+element budget.
 
 Hit testing uses the previous completed Clay layout, as with Clay's normal
 immediate-mode interaction model. A newly shown control needs one completed

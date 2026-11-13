@@ -74,7 +74,7 @@ preload :: proc(system: ^Audio_System, world: ^ecs.World, entity: ecs.Entity, in
 	for clip,sound in pending {instance.sources[retain_string(system,clip)]=sound}
 	if !reuse && !instance.streaming {instance.sound=instance.sources[instance.path]}
 	append(&instance.voices,..voices[:])
-	if found && !reuse {unload_instance(previous)}
+	if found && !reuse {unload_instance(system, previous)}
 	key.name=retain_string(system,key.name)
 	system.instances[key]=instance
 	success=true

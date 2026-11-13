@@ -1,9 +1,11 @@
 package main
 
+import "core:c"
 import "core:encoding/json"
 import "core:fmt"
 import "core:math"
 import "core:os"
+import "core:sync"
 import "core:time"
 import "rune:audio"
 import "rune:ecs"
@@ -50,9 +52,14 @@ runtime_test :: proc() {
 	system := audio.init("examples/audio_components")
 	defer audio.shutdown(&system)
 	assert(system.available)
-	audio.set_bus_volume(&system.mixer,.master,0) // Exercise native playback silently.
+	master := rl.GetMasterVolume()
+	// Mute the hardware output after raylib's mixed processors.
+	rl.SetMasterVolume(0)
+	defer rl.SetMasterVolume(master)
 	entity, found := ecs.find_entity_by_id(&world,"bell_sphere")
 	assert(found)
+	reverb_runtime_test(&system, &world, entity)
+	audio.set_bus_volume(&system.mixer,.master,0) // Exercise native playback silently.
 	for _ in 0..<3 {assert(audio.play(&system,&world,entity,"bell"))}
 	key := ecs.Component_Instance{entity=entity,name="bell"}
 	assert(len(system.instances[key].voices)==3)
@@ -70,6 +77,53 @@ runtime_test :: proc() {
 	audio.update(&system,&world,0.5)
 	assert(len(system.instances)==0)
 	rebind_runtime_test(&system,&registry)
+}
+
+reverb_frames: u32
+reverb_has_signal: u32
+
+observe_reverb_output :: proc "c" (data: rawptr, frames: c.uint) {
+	samples := ([^]f32)(data)[:int(frames) * 2]
+	for sample in samples {
+		if abs(sample) > 0.0001 {
+			sync.atomic_store(&reverb_has_signal, 1)
+			break
+		}
+	}
+	sync.atomic_add(&reverb_frames, u32(frames))
+}
+
+reverb_output_has_signal :: proc(minimum_frames: u32) -> bool {
+	// Attaching and detaching wait for the current device block, so consecutive
+	// observations cannot mix old and new playback phases.
+	sync.atomic_store(&reverb_frames, 0)
+	sync.atomic_store(&reverb_has_signal, 0)
+	rl.AttachAudioMixedProcessor(observe_reverb_output)
+	started := time.tick_now()
+	for sync.atomic_load(&reverb_frames) < minimum_frames && time.tick_since(started) < 2*time.Second {
+		time.sleep(2*time.Millisecond)
+	}
+	rl.DetachAudioMixedProcessor(observe_reverb_output)
+	assert(sync.atomic_load(&reverb_frames) >= minimum_frames, "audio device delivered mix samples")
+	return sync.atomic_load(&reverb_has_signal) != 0
+}
+
+reverb_runtime_test :: proc(system: ^audio.Audio_System, world: ^ecs.World, entity: ecs.Entity) {
+	player, found := ecs.get_audio_player(world, entity, "bell")
+	assert(found)
+	defer assert(ecs.set_audio_player(world, entity, "bell", player))
+	assert(audio.set_bus_reverb(system, .sfx, 0.8))
+	for bus in ([2]audio.Bus{.ui, .sfx}) {
+		configured := player
+		configured.bus, configured.spatial, configured.random_pitch = bus, false, 0
+		assert(ecs.set_audio_player(world, entity, "bell", configured))
+		assert(audio.play(system, world, entity, "bell"))
+		assert(reverb_output_has_signal(8192), "the buffered alias plays normally on its bus")
+		assert(audio.stop(system, entity, "bell", 0))
+		assert(!audio.is_playing(system, entity, "bell"))
+		assert(reverb_output_has_signal(2048) == (bus == .sfx), "only the selected bus has a tail after the alias stops")
+	}
+	fmt.println("Audio reverb runtime: native one-shot, isolated bus and tail after stop passed")
 }
 
 rebind_runtime_test :: proc(system: ^audio.Audio_System, registry: ^ecs.Component_Registry) {

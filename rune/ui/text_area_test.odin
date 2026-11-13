@@ -5,10 +5,10 @@ import "core:strings"
 import "core:testing"
 import "core:unicode/utf8"
 
-text_area_test_layout :: proc(ctx:^Context,area:^Text_Area,controls:Inputs={}) -> Text_Input_Result {
-	assert(begin(ctx,{400,250},controls,1.0/60))
+text_area_test_layout :: proc(ctx:^Context,area:^Text_Area,controls:Inputs={},wrap:bool=false,size:=[2]f32{400,250}) -> Text_Input_Result {
+	assert(begin(ctx,size,controls,1.0/60))
 	panel(ctx,"root",{layout={sizing={width=grow({}),height=grow({})},layoutDirection=.TopToBottom}})
-	result:=text_area(ctx,"area",area,height=140)
+	result:=text_area(ctx,"area",area,height=140,wrap=wrap)
 	button(ctx,"next","Next")
 	end_panel(ctx); assert(finish(ctx))
 	return result
@@ -160,4 +160,53 @@ text_area_pointer_release_positions_the_caret_in_a_scrolled_unicode_line :: proc
 	text_area_test_layout(&ctx,&area,{pointer=point,pointer_down=true})
 	text_area_test_layout(&ctx,&area,{pointer=point})
 	testing.expect(t,area.active && area.cursor==5 && area.anchor==5,fmt.tprintf("Click starts the second UTF-8 line at byte five, got %d",area.cursor))
+}
+
+@(test)
+text_area_wrap_keeps_words_and_utf8_offsets :: proc(t:^testing.T) {
+	ctx:Context; testing.expect(t,init(&ctx,measure=text_test_measure)); defer destroy(&ctx)
+	ctx.style.font_size=2
+	body:="alpha beta gamma\n\n雪雪雪雪"
+	area:Text_Area; testing.expect(t,text_area_set(&area,body))
+	storage:[16]Text_Area_Line
+	lines:=text_area_lines(&area,&ctx,10,storage[:])
+	if !testing.expect(t,len(lines)==5) {return}
+	testing.expect(t,lines[0]==(Text_Area_Line{0,11,10}) && body[lines[1].start:lines[1].end]=="gamma")
+	testing.expect(t,lines[2].start==lines[2].end && lines[2].start==17,"An explicit blank line is preserved")
+	testing.expect(t,body[lines[3].start:lines[3].end]=="雪雪雪" && body[lines[4].start:lines[4].end]=="雪")
+	area.cursor=2
+	text_area_move_wrapped(&area,lines,.End,false)
+	testing.expect(t,area.cursor==11 && text_area_caret_line(lines,area.cursor,area.soft_line_end)==0,"End keeps a shared byte offset on the visual row it came from")
+	text_area_move_wrapped(&area,lines,.Down,true)
+	testing.expect(t,area.cursor==16 && area.anchor==11)
+	text_area_move_wrapped(&area,lines,.Up,false)
+	testing.expect(t,area.cursor==11 && text_area_caret_line(lines,area.cursor,area.soft_line_end)==0)
+	testing.expect_value(t,text_area_text(&area),body)
+}
+
+@(test)
+text_area_wrapped_layout_reflows_and_keeps_the_clicked_row :: proc(t:^testing.T) {
+	ctx:Context; testing.expect(t,init(&ctx,measure=text_test_measure)); defer destroy(&ctx)
+	ctx.style.font_size=14
+	body:=strings.repeat("Long lines wrap at the available width of the text area. ",16); defer delete(body)
+	area:Text_Area; testing.expect(t,text_area_set(&area,body))
+	// The second frame wraps at the first completed viewport width. The
+	// scrollbar uses the wrapped content measurements on the following frame.
+	for _ in 0..<3 {text_area_test_layout(&ctx,&area,wrap=true)}
+	wide:=scroll_test_data(&ctx,"area")
+	testing.expect(t,wide.found && wide.content.height>wide.viewport.height && wide.content.width<=wide.viewport.width+0.1)
+	testing.expect(t,!scroll_test_thumb_drawn(&ctx,0,"area"),"Wrapped text has no horizontal scrollbar")
+	testing.expect(t,scroll_test_thumb_drawn(&ctx,1,"area"),"Tall wrapped text keeps its vertical scrollbar")
+	size:=[2]f32{240,250}
+	text_area_test_layout(&ctx,&area,wrap=true,size=size); text_area_test_layout(&ctx,&area,wrap=true,size=size)
+	narrow:=scroll_test_data(&ctx,"area")
+	testing.expect(t,narrow.viewport.width<wide.viewport.width && narrow.content.height>wide.content.height && narrow.content.width<=narrow.viewport.width+0.1)
+	box,found:=bounds(&ctx,"area"); testing.expect(t,found)
+	point:=[2]f32{box.x+box.width-4,box.y+16}
+	text_area_test_layout(&ctx,&area,{pointer=point,pointer_down=true},wrap=true,size=size)
+	text_area_test_layout(&ctx,&area,{pointer=point},wrap=true,size=size)
+	text_area_test_layout(&ctx,&area,{pointer=point},wrap=true,size=size)
+	caret,has_caret:=bounds(&ctx,"area_caret")
+	testing.expect(t,area.active && area.soft_line_end && has_caret && caret.y<box.y+28,"Clicking past the text on the first wrapped row leaves the caret on that row")
+	testing.expect_value(t,text_area_text(&area),body)
 }

@@ -460,6 +460,11 @@ while enabled and unblocked. Its fill and outline use `style.text`, preserving
 selection feedback even at minimum or maximum values; keep that color distinct
 from `style.accent` in custom themes. See `docs/ui.md`.
 
+Use `ui.text_area(ctx, id, &area, wrap = true)` to wrap multiline text to the
+control's viewport width. Wrapping changes only the display and keeps the
+caller-owned text intact. Omitting `wrap` keeps horizontal and vertical scrolling.
+See `docs/ui.md`.
+
 Text inputs clip their contents and each consumes a native Clay scroll entry.
 Rune's patched header sizes these entries by the element limit, supporting
 inspectors with many numeric fields. Native artifacts must be rebuilt from that
@@ -489,8 +494,11 @@ Rebinding preserves the decoder, buffered voices and pending fades without
 restarting; games decide which transitions retain playback and avoid fading or
 explicitly replaying that player. Destination settings apply on the next update.
 Configure an active `AudioListener` for spatial playback. Automatic servicing
-continues while paused, which does not itself mute audio. Raw raylib playback
-bypasses Rune's mixer. Read audio buses (`docs/audio-mixer.md`),
+continues while paused, which does not itself mute audio. Use
+`audio.set_bus_reverb(&game.audio, .sfx, wet)` for a room send on sound effects.
+The game supplies a level from 0 to 1 for the current listener environment. A
+zero send fades new reflections out while the stereo return decays. Raw raylib
+playback bypasses Rune's mixer. Read audio buses (`docs/audio-mixer.md`),
 Audio Components (`examples/audio_components/main.odin`), and ownership sources
 `rune/audio/audio.odin`, `rune/audio/preload.odin`, `rune/audio/rebind.odin`, and
 `rune/core/core.odin`.
