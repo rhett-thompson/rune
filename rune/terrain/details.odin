@@ -12,6 +12,8 @@ MAX_TERRAIN_DETAILS :: 250000
 
 Detail :: struct {
 	name,kind,model,material:string,
+	surface:string `json:"surface,omitempty"`,
+	surface_min:f32 `json:"surface_min,omitempty"`,
 	count,seed:int,
 	scale,height,slope:[2]f32,
 	draw_distance:f32,
@@ -37,10 +39,27 @@ details_valid :: proc(details:[]Detail) -> bool {
 		if !(d.scale[0]>=0.01 && d.scale[1]<=100 && d.scale[0]<=d.scale[1]) {return false}
 		if !(d.height[0]>=-100000 && d.height[1]<=100000 && d.height[0]<=d.height[1]) {return false}
 		if !(d.slope[0]>=0 && d.slope[1]<=90 && d.slope[0]<=d.slope[1]) {return false}
+		if !(d.surface_min>=0 && d.surface_min<=1) || (d.surface_min>0 && d.surface=="") {return false}
 		if !(d.draw_distance>=1 && d.draw_distance<=10000) {return false}
 		if !(d.density_min>=0 && d.density_min<=1) {return false}
 		if d.density_distance!=([2]f32{}) && !(d.density_distance[0]>=0 &&
 			d.density_distance[0]<d.density_distance[1] && d.density_distance[1]<=d.draw_distance) {return false}
+	}
+	return true
+}
+
+@(private)
+detail_surfaces_valid :: proc(d: Description) -> bool {
+	for detail in d.details {
+		if detail.surface_min==0 {continue}
+		matched := false
+		for layer in d.layers {
+			if layer.surface==detail.surface {
+				matched = true
+				break
+			}
+		}
+		if !matched {return false}
 	}
 	return true
 }
@@ -51,9 +70,9 @@ details_json_valid :: proc(value:json.Value) -> bool {
 		object,ok:=item.(json.Object); if !ok {return false}
 		for key,value in object {
 			switch key {
-			case "name","kind","model","material": if _,ok:=value.(json.String); !ok {return false}
+			case "name","kind","model","material","surface": if _,ok:=value.(json.String); !ok {return false}
 			case "count","seed": if _,ok:=value.(json.Integer); !ok {return false}
-			case "draw_distance","density_min": if _,ok:=jsonutil.number(value); !ok {return false}
+			case "draw_distance","density_min","surface_min": if _,ok:=jsonutil.number(value); !ok {return false}
 			case "align_to_normal","shadows": if _,ok:=value.(json.Boolean); !ok {return false}
 			case "scale","height","slope","density_distance":
 				values,ok:=value.(json.Array); if !ok || len(values)!=2 {return false}
@@ -87,6 +106,7 @@ clone_details :: proc(details:[]Detail) -> []Detail {
 		result[i]=d
 		result[i].name,_=strings.clone(d.name); result[i].kind,_=strings.clone(d.kind)
 		result[i].model,_=strings.clone(d.model); result[i].material,_=strings.clone(d.material)
+		result[i].surface,_=strings.clone(d.surface)
 	}
 	return result
 }
@@ -110,9 +130,9 @@ sample_surface_normal :: proc(data:Data,x,z:f32) -> [3]f32 {
 	return linalg.normalize(linalg.cross(c-b,e-b))
 }
 
-// Count is the number of deterministic candidate cells; rejected slopes/heights
-// reduce the final population. No random state or ECS entities are created.
-scatter_details :: proc(data:Data,d:Detail) -> [dynamic]Detail_Instance {
+// Count is the number of deterministic candidate cells. Rejected surfaces,
+// slopes and heights reduce the population without changing candidate positions.
+scatter_details :: proc(data:Data,d:Detail,controls:^Control_Map=nil) -> [dynamic]Detail_Instance {
 	result:=make([dynamic]Detail_Instance)
 	if d.count==0 || len(data.heights)==0 || !details_valid([]Detail{d}) {return result}
 	size:=data.description.size
@@ -125,6 +145,10 @@ scatter_details :: proc(data:Data,d:Detail) -> [dynamic]Detail_Instance {
 		n:=sample_surface_normal(data,x,z)
 		slope:=math.acos(clamp(n[1],-1,1))*180/f32(math.PI)
 		if slope<d.slope[0] || slope>d.slope[1] {continue}
+		if d.surface_min>0 {
+			weight,available := surface_weight(data,x,z,d.surface,controls)
+			if !available || weight<d.surface_min {continue}
+		}
 		append(&result,Detail_Instance{position={x,y,z},normal=n,
 			yaw=detail_random(u32(d.seed),u32(i),2)*2*f32(math.PI),
 			scale=d.scale[0]+(d.scale[1]-d.scale[0])*detail_random(u32(d.seed),u32(i),3),

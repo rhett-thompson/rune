@@ -11,6 +11,7 @@ import rl "vendor:raylib"
 // One atlas per layer fits R3D's four-custom-sampler budget.
 Terrain_Layer_Asset :: struct {
 	texture: rl.Texture2D,
+	manager: ^assets.Asset_Manager,
 	signature, revision: u64,
 	color, pbr, sampling: [4]f32,
 }
@@ -33,7 +34,7 @@ terrain_layer :: proc(ctx: ^Context, manager: ^assets.Asset_Manager, path, sourc
 		has_orm := data.orm_texture!="" || data.ao_texture!="" || data.roughness_texture!="" || data.metallic_texture!=""
 		if (data.texture!="" && layer.albedo.texture.id==0) ||
 		   (data.normal!="" && layer.normal.texture.id==0) || (has_orm && layer.orm.texture.id==0) {
-			if cached,found := ctx.terrain_layers[path]; found {return cached,true}
+			if cached,found := ctx.terrain_layers[path]; found && cached.manager==manager {return cached,true}
 			return {},false
 		}
 		filter, mipmaps = data.filter, data.mipmaps
@@ -48,10 +49,10 @@ terrain_layer :: proc(ctx: ^Context, manager: ^assets.Asset_Manager, path, sourc
 		layer.albedo.texture = texture
 		// Plain images retain the base material's scalar surface response.
 		layer.orm.roughness, layer.orm.metalness, layer.orm.specular = base.orm.roughness, base.orm.metalness, base.orm.specular
-		signature = assets.hash_value(0, manager.textures[path].modified_time)
+		signature = assets.texture_revision(manager,path)
 		revision=u64(texture.id)
 	}
-	if cached, found := ctx.terrain_layers[path]; found && cached.signature == signature && cached.revision == revision {
+	if cached, found := ctx.terrain_layers[path]; found && cached.manager==manager && cached.signature == signature && cached.revision == revision {
 		result := cached
 		if !terrain.blend_layer_is_material(path) {
 			result.pbr[1],result.pbr[2],result.color[3] = base.orm.roughness,base.orm.metalness,base.orm.specular
@@ -61,7 +62,7 @@ terrain_layer :: proc(ctx: ^Context, manager: ^assets.Asset_Manager, path, sourc
 	texture, ok := terrain_layer_atlas(layer, mipmaps)
 	if !ok {
 		assets.report_failure(manager, {kind=.Texture, operation=.Load, source_path=source, field=field, asset_path=path, detail="could not create terrain layer maps; using the base terrain material"})
-		if cached,found := ctx.terrain_layers[path]; found {return cached,true}
+		if cached,found := ctx.terrain_layers[path]; found && cached.manager==manager {return cached,true}
 		return {}, false
 	}
 	mode: f32 = 2
@@ -74,7 +75,7 @@ terrain_layer :: proc(ctx: ^Context, manager: ^assets.Asset_Manager, path, sourc
 		if filter == "anisotropic_16x" {anisotropy=16}
 	}
 	color := r3d.ColorSrgbToLinearVector3(layer.albedo.color)
-	result := Terrain_Layer_Asset{texture=texture, signature=signature, revision=revision,
+	result := Terrain_Layer_Asset{texture=texture, manager=manager, signature=signature, revision=revision,
 		color={color.x,color.y,color.z,layer.orm.specular},
 		pbr={layer.orm.occlusion,layer.orm.roughness,layer.orm.metalness,layer.normal.scale},
 		sampling={mode,f32(texture.width),f32(texture.mipmaps-1) if mipmaps else 0,anisotropy}}

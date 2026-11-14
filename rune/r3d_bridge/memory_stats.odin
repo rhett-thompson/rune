@@ -67,6 +67,7 @@ memory_stats :: proc(ctx: ^Context) -> Memory_Stats {
 	}
 	for _, cache in ctx.terrains {
 		result.cache_array_bytes += u64(cap(cache.chunks)*size_of(r3d.Mesh) + cap(cache.details)*size_of(Terrain_Detail_Batch))
+		if cache.layer_set!=nil {result.cache_array_bytes += u64(len(cache.layer_set.paint.controls.pixels))}
 		for mesh in cache.chunks {result.mesh_gpu_bytes_estimate += mesh_bytes_estimate(mesh)}
 		for batch in cache.details {
 			result.cache_array_bytes += u64(cap(batch.instances)*size_of(terrain.Detail_Instance))

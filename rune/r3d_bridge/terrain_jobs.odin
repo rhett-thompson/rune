@@ -51,6 +51,7 @@ upload_terrain_chunk_cpu :: proc(chunk: Terrain_Chunk_CPU) -> (r3d.Mesh,bool) {
 Terrain_Chunk_Work :: struct {
 	data: terrain.Data,
 	offset, columns: int,
+	selected: []int, // nil builds contiguous chunks in row-major order
 	chunks: [Terrain_Chunk_Job_Wave]Terrain_Chunk_CPU,
 }
 
@@ -58,24 +59,25 @@ prepare_terrain_chunk_job :: proc(index: int, pointer: rawptr) {
 	work := (^Terrain_Chunk_Work)(pointer)
 	d := work.data.description
 	i := work.offset+index
+	if work.selected != nil {i = work.selected[i]}
 	x,z := (i%work.columns)*d.chunk_cells,(i/work.columns)*d.chunk_cells
 	work.chunks[index] = build_terrain_chunk_cpu(work.data,x,z,
 		min(d.chunk_cells,d.resolution[0]-1-x),min(d.chunk_cells,d.resolution[1]-1-z))
 }
 
-upload_terrain_chunks :: proc(ctx: ^Context, cache: ^Terrain_Cache, data: terrain.Data) -> bool {
-	d := data.description
-	columns := (d.resolution[0]-2+d.chunk_cells)/d.chunk_cells
-	rows := (d.resolution[1]-2+d.chunk_cells)/d.chunk_cells
-	for offset := 0; offset < columns*rows; offset += Terrain_Chunk_Job_Wave {
-		count := min(Terrain_Chunk_Job_Wave,columns*rows-offset)
-		work := Terrain_Chunk_Work{data=data,offset=offset,columns=columns}
+upload_terrain_chunks :: proc(ctx: ^Context, cache: ^Terrain_Cache, data: terrain.Data, selected: []int = nil) -> bool {
+	columns,rows := terrain.chunk_grid(data.description)
+	total := len(selected) if selected != nil else columns*rows
+	cache.chunks = make([dynamic]r3d.Mesh,0,total)
+	for offset := 0; offset < total; offset += Terrain_Chunk_Job_Wave {
+		count := min(Terrain_Chunk_Job_Wave,total-offset)
+		work := Terrain_Chunk_Work{data=data,offset=offset,columns=columns,selected=selected}
 		started := rl.GetTime()
 		jobs.parallel_for(ctx.worker_pool,count,prepare_terrain_chunk_job,&work)
 		ctx.frame_stats.terrain_prepare_cpu_ms += (rl.GetTime()-started)*1000
 		ctx.frame_stats.terrain_chunks_built += count
 		if ctx.worker_pool != nil && count > 1 {ctx.frame_stats.terrain_job_batches += 1}
-		// Gather in the original Z/X order. Every result is released even if a
+		// Gather in the requested order. Every result is released even if a
 		// GPU allocation fails; the caller retains the last working cache.
 		started = rl.GetTime()
 		ok := true

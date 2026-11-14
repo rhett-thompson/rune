@@ -122,9 +122,10 @@ void fragment() {
     for (int i=0;i<8;++i) {
         float w=0.0;
         if (i<count) {
-            w=parameter(i,3).z;
-            if (u_terrain.w>0.5) w *= i<4 ? controls_a[i] : controls_b[i-4];
-            else w *= band(parameter(i,4),v_terrain_position.y)*band(parameter(i,5),slope);
+            vec4 layer=parameter(i,3);
+            w=layer.z;
+            if (u_terrain.w>0.5 && layer.w!=1.0) w *= i<4 ? controls_a[i] : controls_b[i-4];
+            if (u_terrain.w<=0.5 || layer.w!=0.0) w *= band(parameter(i,4),v_terrain_position.y)*band(parameter(i,5),slope);
         }
         weights[i]=w; total+=w;
     }

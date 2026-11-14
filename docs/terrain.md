@@ -1,9 +1,10 @@
 # Heightmap terrain
 
-Rune terrain is a code-first, file-authored landscape: a heightmap supplies one
-height at each X/Z coordinate, a descriptor supplies its dimensions and material,
-and a scene entity places it in the world. The first version supports fixed
-resolution mesh chunks, lighting/shadows, static collision, and live asset reload.
+Rune terrain is a file-authored landscape. A heightmap supplies one height at
+each X/Z coordinate, a descriptor supplies its dimensions and material, and a
+scene entity places it in the world. Terrain supports fixed-resolution mesh
+chunks, lighting and shadows, static collision, live asset reload, and runtime
+height previews.
 
 Projects may set `"jobs": {"worker_count": 3}` and forward
 `worker_pool = game.worker_pool` when calling `r3d_bridge.init`. Terrain CPU
@@ -83,7 +84,7 @@ layers in one surface pass. Paths are relative to the project root.
 
 ```json
 "layers": [
-  {"name":"Grass", "material":"assets/grass.material.json", "tile_size":[4,4], "height":[0,4,20,28], "slope":[-1,0,18,32]},
+  {"name":"Meadow grass", "surface":"grass", "material":"assets/grass.material.json", "tile_size":[4,4], "height":[0,4,20,28], "slope":[-1,0,18,32]},
   {"name":"Sand", "material":"assets/sand.material.json", "height":[-100001,-100000,0,4]},
   {"name":"Rock", "material":"assets/rock.material.json", "tile_size":[6,6], "slope":[18,32,90,91]},
   {"name":"Snow", "material":"assets/snow.material.json", "height":[20,28,100000,100001]}
@@ -92,12 +93,17 @@ layers in one surface pass. Paths are relative to the project root.
 
 Each layer has:
 
-- `material`: a material JSON, including procedural generation, or a color image.
-- `tile_size`: X/Z terrain units per texture repeat, default `[4,4]`.
-- `weight`: nonnegative contribution multiplier, default `1`, maximum `1000`.
-- `height` and `slope`: four increasing values for fade-in start/end, then
-  fade-out start/end. Equal endpoints give hard edges. Defaults cover the full
-  supported terrain height/slope ranges. Heights and slopes are terrain-local.
+- `name` is an optional display label. `surface` is an optional case-sensitive
+  gameplay tag. Layers can share a tag even if they have different names and
+  materials. Games decide what a tag means for footsteps or other effects.
+- `material` is a material JSON, including procedural generation, or a color image.
+- `tile_size` sets the X/Z terrain units per texture repeat and defaults to `[4,4]`.
+- `weight` is a nonnegative contribution multiplier from `0` through `1000`.
+  It defaults to `1`.
+- `height` and `slope` specify four increasing values for fade-in start/end,
+  then fade-out start/end. Equal endpoints give hard edges. Heights and slopes
+  use terrain-local coordinates. The default bands are
+  `[-100001,-100000,100000,100001]` and `[-1,0,90,91]`.
 
 Automatic weights multiply the height and slope bands by `weight`, then normalize
 the result across active layers. Unrestricted layers with equal weights blend
@@ -110,10 +116,22 @@ and a second for layers 4–7. Supply one map per group of four layers:
 "control_maps": ["assets/weights_0.png", "assets/weights_1.png"]
 ```
 
-Red, green, blue and alpha select consecutive layers. Weight maps replace the
-automatic height/slope rules; the layer's `weight` multiplier still applies.
-Channels are linear weights and are normalized, so they need not sum to 255.
-Unused channels are ignored; all-zero areas select layer 0. Maps cover the whole
+Red, green, blue and alpha select consecutive layers. Each layer's
+`weight_source` chooses how its paint and bands contribute.
+
+| `weight_source` | With control maps | Without control maps |
+| --- | --- | --- |
+| `default` or omitted | Painted channel | Height × slope bands |
+| `bands` | Height × slope bands | Height × slope bands |
+| `paint_and_bands` | Painted channel × height × slope bands | Height × slope bands |
+
+Every source is multiplied by `weight`, then normalized with the other layers.
+Use `bands` for rock that can appear on an unpainted slope. It blends with any
+painted grass that remains active there. Use `paint_and_bands` for rock whose
+painted coverage should also follow the slope range.
+
+Channels are linear weights and need not sum to 255. Unused channels are
+ignored, and a zero total across layers selects layer 0. Maps cover the whole
 terrain from X/Z origin at the image's top-left to its opposite corner, use
 bilinear sampling, and clamp at the edge. Preserve alpha when exporting: it is
 a layer weight, not transparency. Author these images in an image tool or generate
@@ -125,17 +143,31 @@ transitions remain smooth. Layer maps are packed into two GPU atlases, each
 holding four materials. Layers in a group are expanded with nearest sampling
 to the group's largest map size; lower-resolution texels remain intact. Color,
 normal and ORM maps are limited to 1024 pixels per side, and control maps to 2048.
+The bridge also retains the packed control pixels for CPU queries and filters.
 Large sets cost more texture memory and sampling work; use only the layers needed.
 
 Material and control-map edits hot reload without rebuilding terrain geometry.
-Invalid reloads retain the last working assets. Missing first-time assets fall
-back to the base terrain material and report diagnostics. Use a white base
+Successful paint reloads refresh surface-filtered details. Invalid reloads
+retain the last working mask and details. Missing first-time assets fall back
+to the base terrain material and report diagnostics. Use a white base
 material to preserve layer colors. Base lighting, emission, alpha and shadows
 still control the entire terrain; layer transparency/emission are not blended.
 
 Do not combine a nonempty `layers` list with an enabled legacy `blend` object.
 Omitting both keeps the single base material. The Highland Walk example uses
 all eight slots with automatic height/slope placement.
+
+Use `r3d_bridge.terrain_surface_weight(ctx, world, hit.entity, hit.point,
+"grass")` with a terrain raycast to get the combined weight for a tag. The
+query transforms the world point into terrain-local X/Z and uses committed
+heights and the bridge's installed control maps. Check the returned boolean for
+availability, including on the first frame before terrain material preparation.
+An unknown or empty tag, disabled terrain, or point outside the terrain returns
+`false`. Code that already owns terrain data
+can use `terrain.layer_weights` or `terrain.surface_weight` with local X/Z.
+Supply the packed `terrain.Control_Map` pixels when the layers use paint. The
+CPU evaluator uses the same bands, interpolated packed vertex normals, and
+clamped bilinear sampling as the renderer.
 
 ### Legacy three-layer blend
 
@@ -217,11 +249,15 @@ with mesh vertex colors; imported model material textures are not retained.
 `count` is the number of candidate cells spread across the terrain, not a
 guaranteed final object count. The seeded jitter pattern is repeatable; candidates
 outside inclusive `height` or `slope` ranges are omitted. Height and slope use
-terrain-local coordinates. Change seeds between detail types for independent
-placement patterns. `scale` sets the min/max uniform scale, with random yaw and
-subtle shade variation added automatically. Ground placement uses the exact
-terrain triangles. Detail positions follow terrain transforms and regenerate
-after successful heightmap or descriptor edits.
+terrain-local coordinates. Add `"surface":"grass", "surface_min":0.5` to
+keep candidates where layers tagged `grass` contribute at least half of the
+total weight. The check sums all matching layers. A positive threshold requires
+a matching tag, and a threshold of `0` leaves the surface filter disabled.
+Filtered rules wait for terrain layers to install. Change seeds between detail
+types for independent placement patterns. `scale` sets the min/max uniform
+scale, with random yaw and subtle shade variation added automatically. Ground
+placement uses the exact terrain triangles. Detail positions follow terrain
+transforms and regenerate after successful heightmap or descriptor edits.
 
 Defaults are 1,000 candidates, seed 0, scale `[0.8,1.2]`, unrestricted height,
 and slope `[0,35]`. `align_to_normal` tilts objects onto the ground; it defaults
@@ -293,8 +329,7 @@ CPU selection, GPU buffer updates, and draw submission time.
 
 These details are decorative: they do not create colliders, navigation obstacles,
 or individually interactable entities. Use regular scene/prefab entities for
-trees or rocks that need those behaviors. Scatter placement currently uses
-height/slope rules rather than painted density maps or terrain layer weights.
+trees or rocks that need those behaviors.
 
 Invalid descriptor edits retain the working terrain and detail buffers. Model
 and material assets use their existing hot-reload paths. Removing a terrain or
@@ -308,7 +343,8 @@ same triangle diagonal as rendering, stored in one native Box3D triangle mesh
 per terrain entity so collision edges remain connected across render chunks.
 Collision is one-sided, facing upward. It works with `CharacterController3D`,
 dynamic rigid bodies, physics queries, layer masks, and contact events. Query
-hits identify the component as `Terrain`.
+hits identify the component as `Terrain`. During a runtime height preview,
+collision continues to use the last committed heights.
 
 Terrain supports rotation, translation, and positive nonuniform scale. Parent
 transforms follow Rune's existing renderer convention: positions and Euler
@@ -331,8 +367,9 @@ odin run tools/navmesh_baker -linker:msvc -collection:rune=rune "-out:build/navm
 ```
 
 Press **N** in Highland Walk to inspect the result.
-Re-run the bake after terrain edits. The output navmesh hot reloads separately
-from the terrain, and its cell size controls the approximation between samples.
+Re-run the bake after saving authored heightmap changes. The output navmesh hot
+reloads separately from the terrain, and its cell size controls the
+approximation between samples.
 
 ```odin
 settings := ecs.default_terrain()
@@ -351,9 +388,57 @@ if ready {
 Import `rune:terrain` for CPU data loading, grid positions/normals, and local
 height sampling. `sample_height` interpolates the actual triangles, not a
 bilinear surface. For world-space queries, use `ecs.physics_3d_raycast`.
-Borrowed runtime data is read-only and valid until terrain synchronization or
-World destruction. `terrain.clone` creates an independent owned copy, released
+Reacquire read-only `terrain_runtime` data after terrain edits or terrain
+synchronization. `terrain.clone` creates an independent owned copy, released
 with `terrain.destroy`.
+
+### Preview and commit height edits
+
+Once the terrain is loaded, call `ecs.update_terrain_region` on the World
+owner before drawing. A scene system can use `ui_update` to preview a brush
+while simulation is paused.
+Supply nonempty half-open sample bounds `[x0,x1) × [z0,z1)` within the
+resolution and exactly `(x1-x0) * (z1-z0)` heights in row-major order, with X
+varying fastest. Each value is an absolute terrain-local elevation from
+`-100000` through `200000` before the entity's transform. Rune applies
+`height_scale` and `height_offset` when decoding the file. Patches already
+supply the resulting local heights. Rune copies the submitted data and returns
+`false` for an invalid patch without applying any samples. A valid patch that
+matches the existing samples succeeds without marking more work.
+
+For example, this patch sets the neighboring samples at `(12,34)` and `(13,34)`.
+
+```odin
+previewed := ecs.update_terrain_region(world, entity, 12, 34, 14, 35, {8.5, 8.75})
+```
+
+The terrain surface uses the edited samples at the next successful bridge draw.
+The bridge rebuilds chunks whose positions or normals depend on the edited
+samples, including neighboring chunks at a seam.
+`ecs.terrain_dirty_region(world, entity)` returns a `terrain.Sample_Rect` with
+the union of changed sample bounds since the last successful commit, including
+samples edited back to their original values. Its boolean reports whether
+edits are pending. Rendering leaves this region available for the editor.
+
+Call `ecs.commit_terrain_region(world, entity)` once per stroke or when physics
+needs to catch up. A commit with pending edits builds one Box3D mesh for the
+whole terrain to preserve shared edge information. It prepares that mesh even
+if the entity currently has collision disabled. A commit with no pending
+edits succeeds without rebuilding. Physics installs the new mesh on the next
+query or simulation sync when collision is enabled. The bridge refreshes
+height- and slope-dependent details from the committed heights. Box3D can
+reject a commit whose heights exceed its native bounds. A failed commit keeps
+the current collider, committed detail data, and pending preview available for
+retry. A world-space physics query before commit sees the
+previous collision surface, while `terrain_runtime` and
+`terrain.sample_height` expose the preview.
+
+These edits belong to the World. Game editors own saving authored heightmaps;
+runtime patches and commits only affect the loaded terrain and are absent from
+checkpoints. Scene replacement discards them. A successful heightmap or
+descriptor reload supersedes them, and an invalid file retains them.
+
+### File reload and ownership
 
 The scene-owning engine synchronizes terrain before start callbacks and before
 simulation each frame. `hot_reload.terrains` defaults to true and observes the
@@ -369,10 +454,10 @@ belong to the r3d bridge, collision meshes and runtime sample copies to the
 World, and source data to the asset manager. Shut the bridge down while the
 graphics context is still alive, as with other 3D examples.
 
-This version rebuilds the whole terrain on successful height/descriptor edits.
-Large edits can cause a frame stall. It does not yet provide distance LOD,
-streaming, brush tools, layer painting, holes, or caves/overhangs.
-Separate model entities can supply cave and cliff geometry later.
+Successful heightmap or descriptor file reloads rebuild the whole terrain,
+and collision commits also scale with the whole terrain. Brush input and the
+timing of commits belong to the game editor. Use separate model entities for
+caves and overhangs.
 
 ## Example and checks
 
@@ -385,11 +470,14 @@ On Linux, use `-out:build/terrain_3d` and run that executable. The `.bat` and `.
 helpers select the appropriate extension for their platform.
 
 `tools/terrain_validation` checks decoding, collision, character traversal,
-activation, hierarchy edits, reload recovery, and ownership. Its GPU checks also
-verify image/material layer colors, normal and ORM blending, point filtering,
-atlas mip isolation, eight material slots/control channels, reload retention,
-noise continuity and shader cleanup. It runs as part of
-`.\tools\validate.bat --all-examples`.
+activation, hierarchy edits, reload recovery, and ownership. It compares
+committed height patches against collision from a full asset rebuild. Its GPU
+checks cover unaffected chunk reuse, seam edits, queued updates, and detail
+refresh on commit. It also compares tagged CPU weights with the rendered
+blend, checks selective detail refresh on paint reload, and verifies layer
+colors, normal and ORM blending, point filtering, atlas mip isolation, all
+eight control channels, reload retention, noise continuity, and shader
+cleanup. It runs as part of `.\tools\validate.bat --all-examples`.
 
 Run `terrain_validation --runtime-jobs` to repeat the native GPU checks with a
 three-thread shared pool and a one-slot queue. It also checks rebuild counters
@@ -409,8 +497,19 @@ odin build tools/terrain_validation -collection:rune=rune -linker:msvc -collecti
 Use `--runtime-details` instead to run only the detail GPU checks, including
 visibility caching, staging allocation reuse, reload, and transformed placement.
 
-The optional `--runtime` validation suite includes those checks. Linux GPU checks
-need a desktop or Xvfb. PNG decoding uses Odin's `vendor:stb/image`; the toolchain
-installer builds its native Linux archive when missing. For an existing Odin
-installation without `vendor/stb/lib/stb_image.a`, run its
+The optional `--runtime` validation suite includes the correctness checks above.
+
+For height preview performance, build the validator with `-o:speed` and run
+`terrain_validation --region-benchmark`. The benchmark compares the same
+49-sample brush in a single 64-cell chunk on 129×129, 257×257, and 513×513 grids.
+It checks that each edit replaces one GPU mesh and reports CPU medians from
+five edits per size. The timings separate applying the patch, preparing the
+bridge cache, and committing collision. Bridge preparation includes CPU
+geometry, GPU upload calls, and cache replacement. Drawing, presentation,
+GPU completion, and the later native body installation are outside the timings.
+
+Linux GPU checks need a desktop or Xvfb. PNG decoding uses Odin's
+`vendor:stb/image`. The toolchain installer builds its native Linux archive
+when missing. For an existing Odin installation without
+`vendor/stb/lib/stb_image.a`, run its
 `vendor/stb/src/build_stb.sh unix` script. Windows libraries ship with Odin.

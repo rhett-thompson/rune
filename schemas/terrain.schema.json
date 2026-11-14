@@ -17,11 +17,15 @@
     "material": {"type": "string", "description": "Project-relative material JSON; empty uses a green material. Terrain texture maps repeat."},
     "details": {
       "type": "array", "maxItems": 32,
-      "description": "Decorative GPU-instanced scatter rules. At most 250000 candidate placements per terrain; rejected height/slope candidates are omitted. No collision or navigation obstacles are generated.",
+      "description": "Decorative GPU-instanced scatter rules. At most 250000 candidate placements per terrain. Candidates must pass height, slope, and any surface weight filter. No collision or navigation obstacles are generated.",
       "items": {
         "type": "object", "additionalProperties": false,
+        "if": {"required": ["surface_min"], "properties": {"surface_min": {"exclusiveMinimum": 0}}},
+        "then": {"required": ["surface"], "properties": {"surface": {"minLength": 1}}},
         "properties": {
           "name": {"type": "string"},
+          "surface": {"type": "string", "description": "Exact tag of one or more terrain layers. Required when surface_min is positive."},
+          "surface_min": {"type": "number", "minimum": 0, "maximum": 1, "default": 0, "description": "Minimum combined normalized weight of all layers with the matching surface tag. Zero disables the filter."},
           "kind": {"enum": ["grass","tree","rock","model"], "default": "grass"},
           "model": {"type": "string", "description": "Required for kind=model; empty for built-in kinds. Project-relative static model with a ground-level pivot."},
           "material": {"type": "string", "description": "Optional material JSON applied to all meshes; empty uses white, with built-in vertex colors."},
@@ -45,15 +49,17 @@
         "type": "object", "additionalProperties": false, "required": ["material"],
         "properties": {
           "name": {"type": "string"},
+          "surface": {"type": "string", "description": "Optional gameplay tag. Multiple layers can share a tag regardless of their names or render materials."},
           "material": {"type": "string", "minLength": 1, "description": "Project-relative material JSON or color image."},
           "tile_size": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "minimum": 0.001, "maximum": 100000}, "default": [4,4], "description": "Terrain-local units per texture repeat in X/Z."},
           "weight": {"type": "number", "minimum": 0, "maximum": 1000, "default": 1},
+          "weight_source": {"enum": ["default", "bands", "paint_and_bands"], "default": "default", "description": "Default uses its painted channel when control_maps is present and bands otherwise. Bands always uses the height and slope bands. Paint_and_bands multiplies its painted channel by the bands and uses bands alone when no control maps are supplied."},
           "height": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "number", "minimum": -100001, "maximum": 100001}, "default": [-100001,-100000,100000,100001], "description": "Increasing fade-in start/end and fade-out start/end heights. Equal endpoints give a hard edge."},
           "slope": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "number", "minimum": -91, "maximum": 91}, "default": [-1,0,90,91], "description": "Increasing fade-in start/end and fade-out start/end slope angles in degrees."}
         }
       }
     },
-    "control_maps": {"type": "array", "maxItems": 2, "items": {"type": "string", "minLength": 1}, "description": "Optional RGBA weight maps: channels of map 0 select layers 0-3, map 1 selects 4-7. Supply one map per four layers. Replaces height/slope rules; layer weight still multiplies its mask."},
+    "control_maps": {"type": "array", "maxItems": 2, "items": {"type": "string", "minLength": 1}, "description": "Optional RGBA weight maps. Channels of map 0 select layers 0-3, and channels of map 1 select layers 4-7. Supply one map per four layers. Each layer's weight_source determines how its mask is used."},
     "blend": {
       "type": "object",
       "additionalProperties": false,

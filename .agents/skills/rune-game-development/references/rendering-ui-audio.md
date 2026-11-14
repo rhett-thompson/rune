@@ -190,10 +190,6 @@ an NVIDIA GTX 1060 passed the serial asset tests and
 own image/shader edits, failed-shader retention, distinct sampler variants and
 ORM retirement/release. These checks do not establish Linux runtime behavior.
 
-Terrain details support optional `density_distance` and `density_min` settings
-for deterministic distance thinning of built-in and custom models; follow
-`docs/terrain.md` for defaults, valid ranges, and transition behavior.
-
 Camera-local 3D foreground views use `r3d_bridge.Render_View3D` and
 `render_view_3d` with their own camera and `ecs.PostProcessing` profile. Submit
 ordinary R3D geometry through its callback and reuse the bridge model/material
@@ -204,6 +200,42 @@ view. Use this from `Scene3D_Settings.scene_overlay` before the world session,
 and call `destroy_render_view_3d` before bridge shutdown. Legacy
 `render.Overlay3D` remains available for raylib and partial-alpha layers.
 See `docs/overlays-3d.md` for profile, coverage and ownership contracts.
+
+## Terrain height previews
+
+Apply an in-memory patch with `ecs.update_terrain_region(world, entity, x0, z0,
+x1, z1, heights)` before the bridge draws. The bounds are half-open sample
+indices, and the slice holds absolute local elevations from `-100000` through
+`200000` in row-major order, with X varying fastest. Rune copies the data and
+validates the full patch.
+`ui_update` runs while the simulation is paused. `ecs.terrain_runtime` exposes
+the preview heights as borrowed read-only data. Reacquire it after edits and
+terrain synchronization. `ecs.terrain_dirty_region` reports the union of
+changed samples pending a successful commit.
+
+Ground chunks update on the next successful draw, including their shared
+vertex normals. `ecs.commit_terrain_region` rebuilds the single collision mesh
+and makes the committed heights available to decorative details. Native
+queries and simulation install the new collision mesh on sync. Check the
+result before depending on the new collision surface. Save heightmap files
+through the game editor. Successful source reload or scene replacement
+supersedes runtime edits. See `docs/terrain.md` and `rune/ecs/terrain.odin`.
+
+Terrain details support optional `density_distance` and `density_min` settings
+for deterministic distance thinning of built-in and custom models. See
+`docs/terrain.md` for defaults, valid ranges, and transition behavior.
+
+Tag terrain layers with `surface` for gameplay classification. A tag can cover
+several layers. Set the layer's `weight_source` to `bands` for automatic
+coverage even with control maps, or `paint_and_bands` to constrain painted
+coverage. The omitted setting keeps the default paint or automatic behavior.
+Set `surface` and a positive `surface_min` on a detail rule to require a
+minimum combined weight from tagged layers. Mask reloads refresh filtered
+scatter from committed terrain heights. For gameplay, call
+`r3d_bridge.terrain_surface_weight` with a terrain raycast's entity and world
+point and check its availability boolean. Use `terrain.layer_weights` or
+`terrain.surface_weight` for local X/Z with caller-owned data and packed mask
+pixels. See `docs/terrain.md` for coverage, reload, and ownership rules.
 
 ## Orbit navigation in tool viewports
 

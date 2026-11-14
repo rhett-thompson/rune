@@ -43,11 +43,15 @@ write_heightmap :: proc(offset: u16 = 0) {
 }
 
 main :: proc() {
+	for arg in os.args[1:] {
+		if arg == "--region-benchmark" {benchmark_terrain_regions(); return}
+	}
 	validate_png()
 	validate_blend()
 	validate_layer_references()
 	validate_layer_list()
 	validate_detail_scatter()
+	validate_surface_filters()
 	write_heightmap()
 	assert(write_fixture("build/terrain-test.terrain.json",`{"heightmap":"build/terrain-test.r16","resolution":[17,17],"size":[16,16],"height_scale":16,"chunk_cells":8}`)==nil)
 	data,_,error := terrain.load(".","build/terrain-test.terrain.json")
@@ -142,6 +146,7 @@ main :: proc() {
 	_,_,found = ecs.terrain_runtime(&w,e); assert(!found)
 	fmt.println("PASS terrain removal and resource lifetime")
 	validate_snapshot(&r,&manager)
+	validate_region_collision(&r)
 	for arg in os.args[1:] {
 		if arg=="--runtime" {validate_runtime()}
 		if arg=="--runtime-jobs" {validate_runtime(use_jobs=true)}

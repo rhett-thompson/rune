@@ -133,7 +133,10 @@ format support still follows the existing native loader.
 Cached instance batches retry after admission failures and stale completions,
 including when no material job was admitted. Terrain atlases follow successful
 material installations, retaining their handles and pixels during pending or
-failed replacements and across unrelated material edits.
+failed replacements and across unrelated material edits. Control-map textures
+carry a revision for each successful installation. The terrain bridge uses it
+to publish packed control pixels and dependent surface-filtered detail batches
+together, without rebuilding the ground mesh or collider.
 
 `draw_scene_ex` automatically calls `r3d_bridge.pump_material_jobs` before
 material submission. It freezes which completions are eligible and permits at

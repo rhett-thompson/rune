@@ -14,6 +14,7 @@ import rl "vendor:raylib"
 Texture_Asset :: struct {
 	texture:       rl.Texture2D,
 	modified_time: i64,
+	revision:      u64,
 }
 
 Model_Asset :: struct {
@@ -85,6 +86,7 @@ Asset_Manager :: struct {
 	navmeshes:                map[string]NavMesh_Asset,
 	root:                     string,
 	textures:                 map[string]Texture_Asset,
+	texture_revision:         u64,
 	models:                   map[string]Model_Asset,
 	skyboxes: map[string]Skybox_Asset,
 	terrains: map[string]Terrain_Asset,
@@ -348,11 +350,20 @@ texture :: proc(
 		return manager.missing_texture, false
 	}
 	resolve_asset_failure(manager, source_path, field, path)
-	manager.textures[retain_path(manager, path)] = Texture_Asset {
-		texture       = loaded,
-		modified_time = modified_time(full_path),
-	}
+	install_texture(manager,retain_path(manager,path),loaded,modified_time(full_path))
 	return loaded, true
+}
+
+// Identifies the last successful install even if the driver recycles a handle.
+texture_revision :: proc(manager: ^Asset_Manager, path: string) -> u64 {
+	if manager == nil {return 0}
+	return manager.textures[path].revision
+}
+
+@(private)
+install_texture :: proc(manager: ^Asset_Manager, path: string, texture: rl.Texture2D, stamp: i64) {
+	manager.texture_revision += 1
+	manager.textures[path] = {texture=texture,modified_time=stamp,revision=manager.texture_revision}
 }
 
 configure_texture :: proc(texture: ^rl.Texture2D, filter: string, mipmaps: bool, wrap := "") {
@@ -626,10 +637,7 @@ refresh :: proc(manager: ^Asset_Manager) {
 			manager.missing_textures[path] = current_time
 			continue
 		}
-		manager.textures[path] = Texture_Asset {
-			texture       = loaded,
-			modified_time = current_time,
-		}
+		install_texture(manager,path,loaded,current_time)
 		append(&recovered_textures, path)
 		resolve_asset_path_failures(manager, path)
 		material_texture_committed(manager, path, current_time)
@@ -659,10 +667,7 @@ refresh :: proc(manager: ^Asset_Manager) {
 		}
 		resolve_asset_path_failures(manager, path)
 		rl.UnloadTexture(asset.texture)
-		updated_asset := asset
-		updated_asset.texture = replacement
-		updated_asset.modified_time = current_time
-		manager.textures[path] = updated_asset
+		install_texture(manager,path,replacement,current_time)
 		material_texture_committed(manager, path, current_time)
 	}
 	refresh_fonts(manager)

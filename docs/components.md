@@ -290,7 +290,7 @@ Controls independent skeletal playback for the entity's `ModelRenderer` through 
 
 ### Terrain
 
-References a `.terrain.json` asset containing heightmap, material, and chunk settings. Requires `Transform`; keep terrain on its own entity without another 3D collider, rigid body, or character controller. Rendering and static triangle collision use the same height samples. The scene loop synchronizes assets, including during pause. See the terrain guide for supported transforms and asset fields.
+References a `.terrain.json` asset containing heightmap, material, and chunk settings. Requires `Transform`. Keep terrain on its own entity without another 3D collider, rigid body, or character controller. Static triangle collision follows the committed heights, and rendering can preview pending runtime height edits. The scene loop synchronizes assets, including during pause. See the terrain guide for supported transforms, asset fields, and runtime edits.
 
 [Guide / example](terrain.md) · [Implementation](../rune/ecs/terrain.odin)
 

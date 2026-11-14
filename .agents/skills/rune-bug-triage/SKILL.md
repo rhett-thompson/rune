@@ -12,6 +12,10 @@ report concerns DPI/cameras, window modes/visibility/linking, audio, Clay, or R3
 Use [build-and-validation.md](references/build-and-validation.md) for Windows
 linker requirements, choosing validation coverage, and identifying the exact
 source snapshot and executable being tested.
+For heightmap edit stalls or chunk seam regressions, see the terrain notes in
+[dependency-pitfalls.md](references/dependency-pitfalls.md#terrain-height-edits-and-collision-seams).
+For layer weights or surface-filtered details, see
+[terrain layer weights and painted details](references/dependency-pitfalls.md#terrain-layer-weights-and-painted-details).
 For navmesh baking, simplification, path detours, or agent-radius differences,
 read [navigation-pitfalls.md](references/navigation-pitfalls.md). Distinguish the
 standalone baker's warned omission of unregistered components from strict normal

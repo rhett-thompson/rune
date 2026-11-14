@@ -84,16 +84,27 @@ release_detail_batch :: proc(batch:^Terrain_Detail_Batch) {
 	batch^={}
 }
 
-Terrain_Detail_Work :: struct {data:terrain.Data,batches:[]Terrain_Detail_Batch}
+Terrain_Detail_Work :: struct {
+	data: terrain.Data,
+	batches: []Terrain_Detail_Batch,
+	controls: ^terrain.Control_Map,
+	selected: []int,
+	surfaces_pending: bool,
+}
 
 scatter_terrain_detail_job :: proc(index:int,pointer:rawptr) {
 	work:=(^Terrain_Detail_Work)(pointer)
-	work.batches[index].instances=terrain.scatter_details(work.data,work.data.description.details[index])
+	detail_index := index if work.selected==nil else work.selected[index]
+	detail := work.data.description.details[detail_index]
+	if work.surfaces_pending && detail.surface_min>0 {return}
+	work.batches[index].instances=terrain.scatter_details(work.data,detail,work.controls)
 }
 
-prepare_detail_batches :: proc(cache:^Terrain_Cache,data:terrain.Data,pool:^jobs.Pool=nil,stats:^Render_Stats=nil) -> bool {
-	cache.details=make([dynamic]Terrain_Detail_Batch,len(data.description.details))
-	work:=Terrain_Detail_Work{data=data,batches=cache.details[:]}
+prepare_detail_batches :: proc(cache:^Terrain_Cache,data:terrain.Data,pool:^jobs.Pool=nil,stats:^Render_Stats=nil,
+		controls:^terrain.Control_Map=nil,selected:[]int=nil,surfaces_pending:=false) -> bool {
+	count := len(data.description.details) if selected==nil else len(selected)
+	cache.details=make([dynamic]Terrain_Detail_Batch,count)
+	work:=Terrain_Detail_Work{data=data,batches=cache.details[:],controls=controls,selected=selected,surfaces_pending=surfaces_pending}
 	started:=rl.GetTime()
 	jobs.parallel_for(pool,len(cache.details),scatter_terrain_detail_job,&work)
 	if stats!=nil {
@@ -484,6 +495,8 @@ draw_terrain_details :: proc(ctx:^Context,world:^ecs.World,manager:^assets.Asset
 		if !ecs.is_enabled(world,entity) {continue}
 		t,ok:=ecs.terrain_transform(world,entity); if !ok {continue}
 		data,_,found:=ecs.terrain_runtime(world,entity); if !found {continue}
+		source_revision,_,_ := ecs.terrain_render_updates(world,entity)
+		if cache.source_revision!=source_revision {continue}
 		for &batch,i in cache.details {
 			if i>=len(data.description.details) {continue}
 			detail:=data.description.details[i]

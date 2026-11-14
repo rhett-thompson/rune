@@ -128,10 +128,17 @@ Terrain detail batches own cached candidate poses, bounded contiguous chunks,
 eight-root block bounds, packed source indices, and staging arrays. Camera
 movement reuses proven ranges and updates changed GPU prefixes while preserving
 exact distance selection and grass fading. Terrain pose or alignment changes
-rebuild the caches; successful terrain edits replace the batch. Transparent
+rebuild the caches. Successful asset reloads and height commits replace the
+batch. Pending height previews update the ground surface. Transparent
 materials retain a single ordered draw range. All owned arrays are included in
 renderer cache memory estimates and released with the batch. See
 `docs/terrain.md` for selection, upload, and timing counters.
+
+The bridge keeps the packed CPU control pixels used by installed terrain
+layers. Surface queries and filtered scatter use that installed snapshot.
+The World retains committed heights for terrains with layers or details so
+gameplay queries and detail placement stay aligned with collision through
+height previews. See `docs/terrain.md` for the local CPU weight query.
 
 ## Interpret memory measurements
 

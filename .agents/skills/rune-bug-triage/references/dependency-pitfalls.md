@@ -333,6 +333,92 @@ The bridge's runtime worker suite also passed native GPU readbacks and ordinary
 draws on Windows AMD64/GLFW Win32 with MSVC, static raylib 6/R3D, GTX 1060 and
 OpenGL 3.3; see `docs/model-animation.md`. Linux GPU behavior remains unverified.
 
+## Terrain height edits and collision seams
+
+`rune/assets/terrains.odin` loads a complete replacement on successful file
+reload. `ecs.update_terrain_region` changes World-owned samples with per-chunk
+render revisions. `rune/r3d_bridge/terrain.odin` checks those revisions against
+each bridge context's installed meshes. The World keeps pending sample bounds
+until `ecs.commit_terrain_region` succeeds. Both a commit with pending edits and
+a source replacement build one native collision mesh, even if collision is
+disabled. Decorative details use committed heights. Transforms and independent
+material or control-map reloads reuse the ground meshes. See `docs/terrain.md`
+for the current API contracts.
+
+Adjacent render chunks share border vertices. `rune/terrain/terrain.odin`
+derives vertex normals from samples one step away on either axis, and
+`rune/r3d_bridge/terrain_jobs.odin` uses them for chunk vertices and tangents.
+Exercise interior, seam, and corner edits, including changes one sample from a
+seam. Check that unaffected chunks retain their GPU handles. A bridge context
+that skips drawing and terrain preparation can miss revisions. Compare its
+next draw against current samples after multiple edits and after a commit.
+Height and slope also affect detail placement in `rune/terrain/details.odin`.
+
+The [Odin `dev-2026-10` Windows AMD64 release](https://github.com/odin-lang/Odin/releases/tag/dev-2026-10)
+ships Box3D bindings, C source, and a static library under `vendor/box3d`. Check
+the release archive against `toolchain.json` when comparing vendor source. Its
+Box3D files differ from the tagged Git tree. `b3Shape_SetMesh` swaps a complete
+immutable mesh. `b3CreateMesh` copies inputs and builds the full tree and edge
+metadata, so reusing Rune's input arrays leaves that work on the commit path.
+The bundled height-field API also builds complete data, quantizes heights, and
+has no regional setter. Relevant vendor files are `src/include/box3d/collision.h`
+and `types.h`, plus `src/src/shape.c`, `mesh.c`, and `height_field.c` under
+`vendor/box3d`. Box3D identifies shared edges within each mesh. A native check
+with the pinned Windows static library marked the common edge of two coplanar
+triangles in one indexed mesh. The same triangles in separate shapes on one
+static body had no shared-edge flags. Test character and rigid-body traversal
+across seams before changing the one-mesh collision layout.
+
+For scale comparisons, hold sample spacing, edit footprint, and chunk size
+constant. In the full file-reload baseline at Rune `537f090` on 2026-11-14, a
+49-sample `.r16` edit inside one 64-cell chunk replaced 4, 16, and 64 GPU chunks
+on 129², 257², and 513² grids.
+The next unchanged draw built zero chunks, and native raycasts matched sampled
+heights after reload. In the three-render-worker run, median `ecs.sync_terrains`
+elapsed time over five edits per size was about 6, 25, and 111 ms. This was an
+optimized Odin `84bc3fc` build with MSVC on Windows AMD64, static raylib 6/R3D,
+GLFW/Win32, a Ryzen 5900X, and an RTX 5070 with OpenGL 3.3. Stage timings exclude
+file writes, normal drawing and presentation, and GPU completion. Measure asset
+reload, ECS sync, native query/shape installation, and render prep/upload
+separately. For runtime edits, measure patch, draw preparation, and collision
+commit separately. Use `tools/terrain_validation --runtime-jobs` for reload
+retention and GPU correctness. These checks cover Windows.
+
+On the same Windows setup, `tools/terrain_validation --region-benchmark` with
+`-o:speed` rebuilt one of the 4, 16, or 64 GPU chunks for each corresponding
+grid size. Across five edits per size, patch medians were 0.003 ms and bridge
+preparation medians were 0.438, 0.477, and 0.440 ms, including upload calls.
+Full collision commits took 6.031, 27.142, and 119.882 ms. The fixture had no
+decorative details. CPU timings exclude ordinary drawing, presentation, GPU
+completion, and native body installation on a subsequent query or physics sync.
+
+### Terrain layer weights and painted details
+
+`rune/terrain/layers.odin` validates surface tags and per-layer weight sources.
+The default source keeps the legacy paint-or-bands behavior. `paint_and_bands`
+limits a painted layer to its bands. `bands` allows an unpainted automatic
+layer to contribute alongside painted layers. For weight parity, compare
+`rune/terrain/layer_weights.odin` and `rune/r3d_bridge/terrain_layers.glsl`.
+Both interpolate the vertex normals decoded from R3D's signed normalized
+8-bit attributes before evaluating layer slope. The separate detail slope
+filter in `rune/terrain/details.odin` uses a triangle face normal. R3D's packing
+rounds each clamped component times 127 before upload. See
+[`src/r3d_pack.c` at Rune's R3D pin](https://github.com/Bigfoot71/r3d/blob/86303391c92e32418181a8133848a15ba02f060d/src/r3d_pack.c#L39).
+
+The terrain asset watcher tracks descriptor and heightmap changes. A control
+image goes through the texture reload path and advances its installed texture
+revision only on success. The bridge resizes control groups with nearest
+sampling to a common size capped at 2048 pixels per side. Its CPU query and
+filtered details use the same packed RGBA data that the shader samples with
+clamped bilinear filtering. Preserve alpha, authored multipliers, normalized
+contributions and the all-zero layer-0 fallback in tests.
+
+Test paint-only reloads independently of descriptor and heightmap reloads.
+Verify that they update surface-filtered details from committed heights with
+ground mesh, unfiltered detail and collision reuse. Corrupt input should leave
+the installed paint and filtered scatter available. See `docs/terrain.md`
+for the authoring and query contracts.
+
 ## R3D preparation and apparently dirty submodules
 
 Relevant files: `third_party/r3d-compat/README.md`,

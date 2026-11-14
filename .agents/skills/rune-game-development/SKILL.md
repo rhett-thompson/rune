@@ -30,8 +30,8 @@ Read only the references needed for the task:
 Use Rune's current `docs/components.md`, schemas, focused guides, and the closest
 working example for API details. Do not load the entire manual or all examples
 for a small feature. Check installed source signatures before inventing calls.
-For terrain detail distance thinning, follow the optional density settings in
-`docs/terrain.md` and the rendering reference.
+For terrain layer mixing, surface queries, and detail filtering or distance
+thinning, see `docs/terrain.md` and the rendering reference.
 
 ## Implement through Rune's supported workflow
 
@@ -139,6 +139,11 @@ For terrain detail distance thinning, follow the optional density settings in
   existing renderer caches without changing files. Clone borrowed material data,
   save JSON through the tool, and clear previews when live authoring ends. See
   the rendering reference for ownership and save ordering.
+- Preview sculpt strokes with `ecs.update_terrain_region` before drawing, for
+  example in `ui_update` while paused. Commit with `ecs.commit_terrain_region`
+  when collision and decorative details should use the edited heights. Game
+  editors own saving source heightmaps. See
+  [terrain height previews](references/rendering-ui-audio.md#terrain-height-previews).
 - Fade installed runtime geometry with `ecs.set_static_mesh_opacity`; it changes
   per-draw material alpha without replacing geometry or changing collision.
   Games own timing and cleanup; mesh replacement resets opacity to one. See

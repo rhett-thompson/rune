@@ -9,6 +9,8 @@ MAX_LAYERS :: 8
 // Each four-value range is fade-in start/end, then fade-out start/end.
 Layer :: struct {
 	name, material: string,
+	surface: string `json:"surface,omitempty"`,
+	weight_source: string `json:"weight_source,omitempty"`,
 	tile_size: [2]f32,
 	height, slope: [4]f32,
 	weight: f32,
@@ -16,6 +18,11 @@ Layer :: struct {
 
 default_layer :: proc() -> Layer {
 	return {tile_size={4,4},height={-100001,-100000,100000,100001},slope={-1,0,90,91},weight=1}
+}
+
+@(private)
+layer_weight_source_valid :: proc(source: string) -> bool {
+	return source=="" || source=="default" || source=="bands" || source=="paint_and_bands"
 }
 
 layers_valid :: proc(d: Description) -> bool {
@@ -26,6 +33,7 @@ layers_valid :: proc(d: Description) -> bool {
 	for path in d.control_maps {if path=="" {return false}}
 	for layer in d.layers {
 		if layer.material=="" || !(layer.weight>=0 && layer.weight<=1000) {return false}
+		if !layer_weight_source_valid(layer.weight_source) {return false}
 		for size in layer.tile_size {if !(size>=0.001 && size<=100000) {return false}}
 		for range,i in ([2][4]f32{layer.height,layer.slope}) {
 			limit:f32=100001 if i==0 else 91
@@ -43,7 +51,10 @@ layers_json_valid :: proc(value: json.Value) -> bool {
 		object,ok := item.(json.Object); if !ok {return false}
 		for key,field in object {
 			switch key {
-			case "name","material": if _,valid:=field.(json.String); !valid {return false}
+			case "name","material","surface": if _,valid:=field.(json.String); !valid {return false}
+			case "weight_source":
+				source,valid := field.(json.String)
+				if !valid || source=="" || !layer_weight_source_valid(string(source)) {return false}
 			case "weight": if _,valid:=jsonutil.number(field); !valid {return false}
 			case "tile_size","height","slope":
 				values,valid := field.(json.Array)
@@ -75,6 +86,8 @@ clone_layer_fields :: proc(target:^Description,source:Description) {
 		target.layers[i]=layer
 		target.layers[i].name,_=strings.clone(layer.name)
 		target.layers[i].material,_=strings.clone(layer.material)
+		target.layers[i].surface,_=strings.clone(layer.surface)
+		target.layers[i].weight_source,_=strings.clone(layer.weight_source)
 	}
 	target.control_maps=make([]string,len(source.control_maps))
 	for path,i in source.control_maps {target.control_maps[i],_=strings.clone(path)}

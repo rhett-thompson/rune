@@ -74,7 +74,7 @@ does not establish a relocated game's runtime compatibility.
 | Window modes, visibility, or shared-raylib linking | `tools/window_validation` for settings; compile a separate shared target with `-define:RAYLIB_SHARED=true` | `window_validation --runtime`; run `--startup-windowed`, `--startup-borderless`, and `--startup-fullscreen` in separate processes when startup modes matter; use `--hidden-runtime` for persistent visibility |
 | Audio ownership, mixing, stopping, or preload | `tools/mixer_validation` and `tools/audio_stop_validation` for configuration | Both validators with `--runtime`, using a working playback backend |
 | Navmesh bake coverage or path detours | `rune/navigation` tests, `tools/navigation_bake_validation`, and headless `tools/navigation_3d_validation`; compare actual route lengths on the reported bake/query settings | `navigation_3d_validation --runtime` when visible agent motion or rendered navigation is the symptom |
-| Terrain editing or reload retention | `tools/terrain_validation` for PNG/R16 decoding, CPU data ownership, native collision, corrupt-heightmap retention and recovery | `terrain_validation --runtime` for GPU chunk replacement, invalid-reload retention, materials and instanced details |
+| Terrain editing or reload retention | `tools/terrain_validation` for PNG/R16 decoding, patch validation and ownership, commit parity against a full rebuild, and corrupt-heightmap recovery | `terrain_validation --runtime` for selective GPU chunk replacement, seam edits, queued previews, detail commit, invalid-reload retention, and materials |
 | Selective material invalidation or asynchronous image loading | Serial `rune/assets` and `rune/image_decode` tests; private decoder symbol/TLS audit from `third_party/rune-image/README.md` | `material_reload_validation --runtime` for actual texture/shader reuse and ORM lease retirement; `material_async_validation --runtime` for the bounded worker/commit path |
 | Skeletal pose jobs or animation resource replacement | Serial `rune/r3d_bridge` tests and headless `tools/model_animation_validation`; `tools/animation_worker_benchmark` for isolated native CPU comparisons | `model_animation_validation --runtime` checks native players/uploads and the worker suite; `--runtime-jobs` selects worker pose/pixel equivalence, reload ordering and shared-pool contention alone |
 | Console transport, batching, or completion | `rune/console` tests, focused `rune/core` console/quit tests, and `tools/console_validation` | `debug_console_validation --runtime` for capture pixels, profile completion, and results retained across rendered frames |
@@ -86,10 +86,24 @@ from them. UI pixel checks do not replace the serial dropdown/input tests.
 Shared CPU jobs use `rune/jobs` tests for queue saturation, nested batches, and
 drain/join shutdown; the aggregate validators include this package. Run
 `tools/terrain_validation --runtime-jobs` for worker-backed terrain preparation,
-GPU installation, reload retention and cache reuse.
+GPU installation, reload retention, and cache reuse.
+`tools/terrain_validation/region.odin` compares native collision with a full
+asset rebuild and checks that unchanged GPU chunks keep their allocations
+through previews and commits. Use `terrain_validation --region-benchmark` from
+an `-o:speed` build for fixed-area timing and GPU reuse across supported sizes.
 This terrain suite requests synchronous material replacement for its one-draw
 pixel assertions; `material_async_validation --runtime` separately checks
 background material replacement through ordinary cached prop and terrain draws.
+`tools/terrain_validation/surfaces.odin` compares local and world-space weights
+with a rendered blend. It covers legacy defaults, all weight sources, exact
+surface tags, seeded scatter, and committed height sampling. In `--runtime-jobs`
+it also exercises background control-image decode and installation. Both
+runtime modes check missing-mask recovery, corrupt-mask retention, and reuse of
+ground meshes, collision bodies and unfiltered detail batches across paint.
+On 2026-11-14, these cases passed with Odin `84bc3fc` on Windows AMD64/MSVC,
+GLFW/Win32, RTX 5070 and OpenGL 3.3 in `--runtime` and `--runtime-jobs`.
+`--runtime-jobs` also passed on Ubuntu 24.04.2 WSL2 with Xvfb, Mesa 25.2.8
+llvmpipe, and OpenGL 4.5. The Linux run covers software-rendered correctness.
 Geometry and 3D navigation tests compare serial/parallel results with bounded
 queues and owned outputs.
 The scheduler's gated-worker regressions verify that completed indexed batches
@@ -141,6 +155,19 @@ On 2026-10-23, both terrain validator modes passed with the pinned October Odin
 compiler and MSVC linker on Windows AMD64; hidden-window rendering used an
 NVIDIA GTX 1060 and OpenGL 3.3. Invalid edits retained native collision and GPU
 chunks, and valid repairs replaced them. This does not establish Linux behavior.
+
+On 2026-11-14, headless `terrain_validation`, `--runtime`, and `--runtime-jobs`
+passed the height preview and commit checks with Odin `84bc3fc` and MSVC on
+Windows AMD64, along with 66 serial ECS tests and 94 serial bridge tests.
+Runtime checks used hidden GLFW/Win32, static raylib 6/R3D, an NVIDIA RTX 5070,
+and OpenGL 3.3. The checks cover stale collision during preview, committed
+collision against a direct file load, retry after a native height bounds
+failure, affected mesh handles at chunk seams,
+preserved handles outside the edit and its normal dependencies, and committed
+details in a fresh renderer cache. `terrain_validation --runtime-jobs` also
+passed with the pinned compiler on Ubuntu 24.04.2 WSL2 under Xvfb, Mesa 25.2.8,
+llvmpipe with LLVM 20.1.2, and OpenGL 4.5. The Linux run covers software-rendered
+correctness.
 
 Inspect stdout/stderr for skipped branches as well as the exit status.
 For example, window runtime can report a skipped maximized roundtrip when the

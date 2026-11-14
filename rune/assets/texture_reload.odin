@@ -179,7 +179,7 @@ pump_asset_jobs :: proc(manager: ^Asset_Manager) -> int {
 			release_texture_reload(s,path,r); continue
 		}
 		old,found:=manager.textures[path]
-		manager.textures[path]=Texture_Asset{texture=texture,modified_time=r.stamp}
+		install_texture(manager,path,texture,r.stamp)
 		delete_key(&manager.missing_textures,path)
 		resolve_asset_path_failures(manager,path)
 		material_texture_committed(manager,path,r.stamp)
@@ -218,7 +218,7 @@ refresh_texture_native :: proc(manager: ^Asset_Manager, path: string, stamp: i64
 	texture:=rl.LoadTexture(cpath)
 	if !rl.IsTextureValid(texture) {texture_reload_failure(manager,path,stamp,"raylib could not reload this native texture format"); return}
 	old,found:=manager.textures[path]
-	manager.textures[path]=Texture_Asset{texture,stamp}; delete_key(&manager.missing_textures,path)
+	install_texture(manager,path,texture,stamp); delete_key(&manager.missing_textures,path)
 	resolve_asset_path_failures(manager,path); material_texture_committed(manager,path,stamp)
 	if found {rl.UnloadTexture(old.texture)}
 }

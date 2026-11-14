@@ -81,12 +81,20 @@ Data :: struct {
 	heights: []f32,
 }
 
+// Terrain-local sample indices with exclusive right and bottom edges.
+Sample_Rect :: struct {x0, z0, x1, z1: int}
+
+chunk_grid :: proc(d: Description) -> (columns, rows: int) {
+	return (d.resolution[0]-2+d.chunk_cells)/d.chunk_cells,
+	       (d.resolution[1]-2+d.chunk_cells)/d.chunk_cells
+}
+
 default_description :: proc() -> Description {
 	return {size = {256,256}, height_scale = 32, chunk_cells = 64, uv_scale = {16,16},blend=default_blend()}
 }
 
 description_valid :: proc(d: Description) -> bool {
-	if !details_valid(d.details) {return false}
+	if !details_valid(d.details) || !detail_surfaces_valid(d) {return false}
 	if !layers_valid(d) {return false}
 	if d.heightmap == "" {return false}
 	for n in d.resolution {if n < 2 || n > 513 {return false}}
@@ -158,7 +166,7 @@ load :: proc(root, path: string) -> (result: Data, watched_heightmap: string, er
 	}
 	d.layers = layers
 	d.details = details
-	if !details_valid(d.details) {return {},d.heightmap,"invalid terrain details: check kinds, count limits, scale, height/slope ranges and draw distance"}
+	if !detail_surfaces_valid(d) {return {},d.heightmap,"terrain detail surface filter must match a layer surface tag"}
 	if !blend_valid(d.blend) {return {},d.heightmap,"invalid terrain blend: provide all three image/material paths, increasing height/slope ranges, slope 0..90, noise_scale (0,100], noise_strength 0..1"}
 	if !description_valid(d) {return {}, d.heightmap, "invalid terrain settings: resolution 2..513, positive size/UV scale, bounded finite heights, chunk_cells 8/16/32/64/128 required"}
 	samples, read_ok := os.read_entire_file(resolve(root,d.heightmap), context.temp_allocator)
@@ -212,11 +220,17 @@ destroy :: proc(data: ^Data) {
 	delete(data.description.blend.grass)
 	delete(data.description.blend.dirt)
 	delete(data.description.blend.rock)
-	for layer in data.description.layers {delete(layer.name); delete(layer.material)}
+	for layer in data.description.layers {
+		delete(layer.name); delete(layer.material)
+		delete(layer.surface); delete(layer.weight_source)
+	}
 	delete(data.description.layers)
 	for path in data.description.control_maps {delete(path)}
 	delete(data.description.control_maps)
-	for detail in data.description.details {delete(detail.name); delete(detail.kind); delete(detail.model); delete(detail.material)}
+	for detail in data.description.details {
+		delete(detail.name); delete(detail.kind)
+		delete(detail.model); delete(detail.material); delete(detail.surface)
+	}
 	delete(data.description.details)
 	data^ = {}
 }

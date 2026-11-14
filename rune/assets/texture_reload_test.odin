@@ -80,6 +80,8 @@ when #config(RUNE_TEXTURE_RELOAD_GPU_TESTS,false) {
 		pool:=jobs.create(1,1); if !testing.expect(t,pool!=nil) {return}; defer jobs.destroy(pool)
 		m:=init(directory); defer shutdown(&m)
 		initial_a,ok:=texture(&m,"a.png"); assert(ok); initial_b,b_ok:=texture(&m,"b.png"); assert(b_ok)
+		initial_revision:=texture_revision(&m,"a.png")
+		testing.expect(t,initial_revision!=0 && texture_revision(&m,"b.png")>initial_revision)
 		_,missing_ok:=texture(&m,"missing.png"); testing.expect(t,!missing_ok)
 		limits:=Default_Texture_Reload_Limits; limits.max_input_bytes=4096; limits.max_result_bytes=4096; limits.max_reserved_bytes=16384
 		assert(configure_asset_jobs(&m,pool,limits))
@@ -102,16 +104,19 @@ when #config(RUNE_TEXTURE_RELOAD_GPU_TESTS,false) {
 		sync.sema_post(&gate.release); jobs.wait(&group); texture_reload_wait_requests(&m)
 		testing.expect(t,pump_asset_jobs(&m)==0 && m.texture_reloads.discarded==1 && m.textures["a.png"].texture.id==initial_a.id,
 			"obsolete completion is discarded before GPU upload")
+		testing.expect(t,texture_revision(&m,"a.png")==initial_revision)
 		texture_reload_wait_requests(&m); testing.expect(t,pump_asset_jobs(&m)==1)
 		texture_reload_expect_color(t,&m,"a.png",rl.GREEN)
 		refresh_background(&m); texture_reload_wait_requests(&m); pump_asset_jobs(&m)
 		texture_reload_expect_color(t,&m,"b.png",rl.BLUE)
 		good_id:=m.textures["a.png"].texture.id
+		good_revision:=texture_revision(&m,"a.png")
+		testing.expect(t,good_revision>initial_revision)
 		assert(os.write_entire_file(a,"invalid PNG replacement")==nil)
 		timestamp:=time.unix(1750000004,0); assert(os.change_times(a,timestamp,timestamp)==nil)
 		refresh_background(&m); texture_reload_wait_requests(&m); testing.expect(t,pump_asset_jobs(&m)==0)
 		token:=m.texture_reloads.next_token; refresh_background(&m)
-		testing.expect(t,m.textures["a.png"].texture.id==good_id && m.texture_reloads.next_token==token,
+		testing.expect(t,m.textures["a.png"].texture.id==good_id && texture_revision(&m,"a.png")==good_revision && m.texture_reloads.next_token==token,
 			"invalid content keeps the good resource and is not retried until edited")
 		texture_reload_write_png(a,rl.BLUE,5)
 		tiny:=limits; tiny.max_result_bytes=1; assert(configure_asset_jobs(&m,pool,tiny))
