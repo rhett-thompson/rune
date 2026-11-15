@@ -110,6 +110,38 @@ validate_data :: proc(registry: ^ecs.Component_Registry) {
 	assert(ecs.destroy_entity(&w, e) && len(w.post_processing) == 0)
 }
 
+validate_distance_fog_toggle :: proc(registry: ^ecs.Component_Registry) {
+	w := ecs.init()
+	defer ecs.destroy(&w)
+	e := ecs.create_entity(&w)
+	assert(ecs.add_component(&w, registry, e, "PostProcessing", parse(`{"fog":{"mode":"exp","density":0.0025}}`)))
+	legacy, _ := ecs.get(&w, e, ecs.PostProcessing)
+	base := r3d.ENVIRONMENT_BASE
+	legacy_env := bridge.post_processing_environment(base, legacy)
+	assert(legacy.fog.enabled == nil && legacy_env.fog.mode == .EXP)
+
+	assert(ecs.set_runtime_field(&w, registry, e, "PostProcessing", "fog.enabled", json.Boolean(false)))
+	disabled, _ := ecs.get(&w, e, ecs.PostProcessing)
+	expected := legacy
+	expected.fog.enabled = false
+	assert(disabled == expected, "the toggle retains the configured mode and density")
+	roundtrip, serialized := ecs.runtime_component_json(&w, e, "PostProcessing")
+	copy, decoded := ecs.post_processing_from_json(roundtrip)
+	assert(serialized && decoded && copy == disabled)
+	legacy_env.fog.mode = .DISABLED
+	assert(bridge.post_processing_environment(base, disabled) == legacy_env)
+	assert(!ecs.set_runtime_field(&w, registry, e, "PostProcessing", "fog.enabled", json.Integer(1)))
+
+	assert(ecs.set_runtime_field(&w, registry, e, "PostProcessing", "fog.enabled", json.Boolean(true)))
+	enabled, _ := ecs.get(&w, e, ecs.PostProcessing)
+	assert(bridge.post_processing_environment(base, enabled).fog.mode == .EXP)
+	enabled.fog.mode = .disabled
+	assert(bridge.post_processing_environment(base, enabled).fog.mode == .DISABLED, "a disabled mode still has no fog")
+	assert(ecs.set_runtime_field(&w, registry, e, "PostProcessing", "fog.enabled", nil))
+	reset, _ := ecs.get(&w, e, ecs.PostProcessing)
+	assert(reset == legacy)
+}
+
 validate_volumetric_fog_data :: proc(registry: ^ecs.Component_Registry) {
 	defaults := ecs.default_post_processing()
 	assert(defaults.volumetric_fog == ecs.Post_Volumetric_Fog{
@@ -335,6 +367,13 @@ validate_runtime :: proc(registry: ^ecs.Component_Registry) {
 			rl.EndDrawing()
 		}
 	}
+	assert(r3d.GetEnvironment().fog.mode == .EXP2)
+	assert(ecs.set_runtime_field(&w, registry, e, "PostProcessing", "fog.enabled", json.Boolean(false)))
+	bridge.apply_post_processing(&ctx, &w, 0)
+	assert(r3d.GetEnvironment().fog.mode == .DISABLED && r3d.GetEnvironment().bloom.mode == .ADDITIVE)
+	assert(ecs.set_runtime_field(&w, registry, e, "PostProcessing", "fog.enabled", json.Boolean(true)))
+	bridge.apply_post_processing(&ctx, &w, 0)
+	assert(r3d.GetEnvironment().fog.mode == .EXP2)
 	r3d.GetEnvironment().background.energy = 4
 	assert(ecs.remove_component(&w, e, "PostProcessing"))
 	bridge.apply_post_processing(&ctx, &w, 0)
@@ -455,6 +494,7 @@ main :: proc() {
 	defer ecs.destroy_registry(&registry)
 	assert(ecs.register_builtin_components(&registry))
 	validate_data(&registry)
+	validate_distance_fog_toggle(&registry)
 	validate_volumetric_fog_data(&registry)
 	validate_selection(&registry)
 	validate_reload(&registry)

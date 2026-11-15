@@ -16,6 +16,11 @@ Audio_Voice :: struct {
 	sequence:      u64,
 }
 
+Buffered_Source :: struct {
+	sound: rl.Sound,
+	references: int,
+}
+
 Audio_Instance :: struct {
 	suspended: bool,
 	resume_stream: bool,
@@ -23,7 +28,7 @@ Audio_Instance :: struct {
 	configured_sound: string,
 	configured_clips: []string,
 	configured_buffered: bool,
-	sources: map[string]rl.Sound,
+	sources: map[string]rl.Sound, // Each clip has an independent playback alias.
 	sound:                rl.Sound,
 	voices:               [dynamic]Audio_Voice,
 	music:                rl.Music,
@@ -48,6 +53,7 @@ Audio_System :: struct {
 	reverb:           ^Reverb_State,
 	root:             string,
 	instances:        map[ecs.Component_Instance]Audio_Instance,
+	buffered_sources: map[string]Buffered_Source,
 	retained_strings: map[string]string,
 	arena:            ^mem.Dynamic_Arena,
 	available:        bool,
@@ -65,6 +71,7 @@ init :: proc(project_root: string) -> Audio_System {
 	system := Audio_System {
 		mixer            = default_mixer(),
 		instances        = make(map[ecs.Component_Instance]Audio_Instance),
+		buffered_sources = make(map[string]Buffered_Source),
 		retained_strings = make(map[string]string),
 		arena            = arena,
 		available        = available,
@@ -81,6 +88,7 @@ shutdown :: proc(system: ^Audio_System) {
 	}
 	shutdown_reverb(system)
 	delete(system.instances)
+	delete(system.buffered_sources)
 	delete(system.retained_strings)
 	if system.owns_device && rl.IsAudioDeviceReady() {rl.CloseAudioDevice()}
 	if system.arena != nil {
@@ -263,16 +271,12 @@ same_clip_configuration :: proc(instance: Audio_Instance, player: ecs.AudioPlaye
 
 ensure_instance :: proc(system: ^Audio_System, key: ecs.Component_Instance, player: ecs.AudioPlayer, choose: bool) -> bool {
 	instance, found := system.instances[key]
-	if found && !same_clip_configuration(instance, player) {
-		unload_instance(system, instance)
-		delete_key(&system.instances, key)
-		instance, found = {}, false
-	}
-	if found && !choose {return true}
+	compatible := found && same_clip_configuration(instance, player)
+	if compatible && !choose {return true}
 	path := select_clip(player)
-	if found && instance.path == path {return true}
+	if compatible && instance.path == path {return true}
 	streaming := !player.buffered && is_streaming_path(path)
-	if found && !streaming {
+	if compatible && !streaming {
 		if sound, cached := instance.sources[path]; cached {
 			if instance.streaming {
 				unroute_reverb_source(system, instance.music.stream)
@@ -285,11 +289,21 @@ ensure_instance :: proc(system: ^Audio_System, key: ecs.Component_Instance, play
 			return true
 		}
 	}
-	sound,music,loaded := load_source(system,path,streaming)
-	if !loaded {return false}
+	sound: rl.Sound
+	music: rl.Music
+	loaded: bool
+	if streaming {_, music, loaded = load_source(system, path, true)}
+	else {sound, loaded = acquire_buffered_sound(system, path)}
+	if !loaded {
+		if found && !compatible {
+			unload_instance(system, instance)
+			delete_key(&system.instances, key)
+		}
+		return false
+	}
 	// Streams remain a single playback channel. Buffered clips share a source
 	// cache and a bounded alias pool, so selecting a new clip never cuts a tail.
-	if found && (instance.streaming || streaming) {
+	if found && (!compatible || instance.streaming || streaming) {
 		unload_instance(system, instance)
 		instance, found = {}, false
 	}
@@ -407,6 +421,7 @@ play_one_shot :: proc(
 ) {
 	instance := system.instances[key]
 	ensure_voice_count(system, &instance, player.max_voices)
+	if len(instance.voices) == 0 {return}
 	voice_index := 0
 	oldest_sequence := ~u64(0)
 	for &voice, index in instance.voices {
@@ -421,13 +436,17 @@ play_one_shot :: proc(
 		}
 	}
 	voice := &instance.voices[voice_index]
-	if rl.IsSoundPlaying(voice.sound) {rl.StopSound(voice.sound)}
 	if voice.path != instance.path {
+		alias := buffered_voice(system, instance.path)
+		if !rl.IsSoundValid(alias) {
+			system.instances[key] = instance
+			return
+		}
 		unroute_reverb_source(system, voice.sound.stream)
 		rl.UnloadSoundAlias(voice.sound)
-		voice.sound = rl.LoadSoundAlias(instance.sound)
+		voice.sound = alias
 		voice.path = instance.path
-	}
+	} else if rl.IsSoundPlaying(voice.sound) {rl.StopSound(voice.sound)}
 	voice.suspended = false
 	voice.volume_offset = random_variation(player.random_volume)
 	voice.pitch_offset = random_variation(player.random_pitch)
@@ -460,7 +479,9 @@ ensure_voice_count :: proc(system: ^Audio_System, instance: ^Audio_Instance, req
 		pop(&instance.voices)
 	}
 	for len(instance.voices) < int(target) {
-		append(&instance.voices, Audio_Voice{sound = rl.LoadSoundAlias(instance.sound), path = instance.path})
+		alias := buffered_voice(system, instance.path)
+		if !rl.IsSoundValid(alias) {break}
+		append(&instance.voices, Audio_Voice{sound = alias, path = instance.path})
 	}
 }
 
@@ -541,10 +562,7 @@ unload_instance :: proc(system: ^Audio_System, instance: Audio_Instance) {
 		}
 	}
 	delete(instance.voices)
-	for _, sound in instance.sources {
-		unroute_reverb_source(system, sound.stream)
-		rl.UnloadSound(sound)
-	}
+	for path, sound in instance.sources {release_buffered_sound(system, path, sound)}
 	delete(instance.sources)
 	delete(instance.configured_clips)
 }

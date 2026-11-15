@@ -7,8 +7,8 @@ import "core:os"
 import "core:path/filepath"
 import core_slice "core:slice"
 import "core:strings"
-import "core:time"
 import "rune:jsonutil"
+import "rune:pathutil"
 import rl "vendor:raylib"
 
 Texture_Asset :: struct {
@@ -82,6 +82,7 @@ Material_Asset :: struct {
 Asset_Manager :: struct {
 	// Stable heap-owned requests; configure only on the owning game thread.
 	texture_reloads: ^Texture_Reload_State,
+	reload_poll: Asset_Reload_Poll,
 	shadow_profiles: map[string]Shadow_Profile_Asset,
 	navmeshes:                map[string]NavMesh_Asset,
 	root:                     string,
@@ -233,6 +234,7 @@ model_revision :: proc(manager: ^Asset_Manager, path: string) -> (u64, bool) {
 cache_model_bounds :: proc(manager:^Asset_Manager,path:string,bounds:rl.BoundingBox) {
 	if manager==nil {return}
 	asset,ok:=manager.models[path]; if !ok {return}
+	if asset.has_model_bounds && asset.model_bounds==bounds {return}
 	asset.model_bounds=bounds
 	asset.has_model_bounds=true
 	manager.models[path]=asset
@@ -627,9 +629,9 @@ refresh :: proc(manager: ^Asset_Manager) {
 	recovered_textures := make([dynamic]string)
 	defer delete(recovered_textures)
 	for path, failed_time in manager.missing_textures {
-		full_path := resolve_path(manager, path)
-		current_time := modified_time(full_path)
+		current_time := reload_stamp(manager, path, failed_time)
 		if current_time == failed_time {continue}
+		full_path := resolve_path(manager, path)
 		path_cstring, _ := strings.clone_to_cstring(full_path)
 		loaded := rl.LoadTexture(path_cstring)
 		delete(path_cstring)
@@ -646,9 +648,9 @@ refresh :: proc(manager: ^Asset_Manager) {
 		delete_key(&manager.missing_textures, path)
 	}
 	for path, asset in manager.textures {
-		full_path := resolve_path(manager, path)
-		current_time := modified_time(full_path)
+		current_time := reload_stamp(manager, path, asset.modified_time)
 		if current_time == asset.modified_time {continue}
+		full_path := resolve_path(manager, path)
 		path_cstring, _ := strings.clone_to_cstring(full_path)
 		replacement := rl.LoadTexture(path_cstring)
 		delete(path_cstring)
@@ -676,9 +678,9 @@ refresh :: proc(manager: ^Asset_Manager) {
 refresh_fonts :: proc(manager: ^Asset_Manager) {
 	for key, asset in manager.fonts {
 		path := key.path
-		full_path := resolve_path(manager, path)
-		current_time := modified_time(full_path)
+		current_time := reload_stamp(manager, path, asset.modified_time)
 		if current_time == asset.modified_time {continue}
+		full_path := resolve_path(manager, path)
 		path_cstring, _ := strings.clone_to_cstring(full_path)
 		replacement := load_font_file(path_cstring, key.raster_size)
 		delete(path_cstring)
@@ -709,9 +711,9 @@ refresh_materials :: proc(manager: ^Asset_Manager) {
 	materials_changed := false
 	if refresh_model_materials(manager) {materials_changed = true}
 	for path, asset in manager.materials {
-		full_path := resolve_path(manager, path)
-		current_time := modified_time(full_path)
+		current_time := reload_stamp(manager, path, asset.modified_time)
 		if current_time == asset.modified_time {continue}
+		full_path := resolve_path(manager, path)
 		data, loaded := load_material_data(full_path)
 		if !loaded {
 			report_failure(
@@ -740,7 +742,7 @@ refresh_materials :: proc(manager: ^Asset_Manager) {
 		materials_changed = true
 	}
 	for path, previous_time in manager.material_texture_watches {
-		current_time := modified_time(resolve_path(manager, path))
+		current_time := reload_stamp(manager, path, previous_time)
 		if current_time == previous_time {continue}
 		if material_dependency_source_changed(manager,path,current_time) {materials_changed = true}
 	}
@@ -751,8 +753,7 @@ refresh_materials :: proc(manager: ^Asset_Manager) {
 
 refresh_models :: proc(manager: ^Asset_Manager) {
 	for path, asset in manager.models {
-		full_path := resolve_path(manager, path)
-		current_time := modified_time(full_path)
+		current_time := reload_stamp(manager, path, asset.modified_time)
 		if current_time == asset.modified_time {continue}
 		updated_asset := asset
 		updated_asset.modified_time = current_time
@@ -1136,11 +1137,7 @@ is_billboard_mode_name :: proc(name: string) -> bool {
 	return name == "disabled" || name == "front" || name == "y_axis"
 }
 
-modified_time :: proc(path: string) -> i64 {
-	modified, err := os.modification_time_by_path(path)
-	if err != nil {return -1}
-	return time.to_unix_nanoseconds(modified)
-}
+modified_time :: pathutil.modified_time
 
 path_modified_time :: proc(manager: ^Asset_Manager, path: string) -> i64 {
 	if len(path) == 0 {return 0}
@@ -1149,7 +1146,10 @@ path_modified_time :: proc(manager: ^Asset_Manager, path: string) -> i64 {
 
 shutdown :: proc(manager: ^Asset_Manager) {
 	if manager == nil {return}
+	drain_reload_poll(&manager.reload_poll)
 	shutdown_texture_reloads(manager)
+	delete(manager.reload_poll.paths)
+	delete(manager.reload_poll.samples)
 	shutdown_material_dependencies(manager)
 	for _, asset in manager.textures {
 		rl.UnloadTexture(asset.texture)

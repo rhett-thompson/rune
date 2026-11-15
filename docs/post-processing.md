@@ -124,11 +124,11 @@ serialization, and ownership of the source ID.
 
 ## Fog
 
-Fog is part of `PostProcessing`; add it to the scene's existing profile so the
-other effects stay together:
+Add distance fog to the scene's existing `PostProcessing` profile.
 
 ```json
 "fog": {
+  "enabled": true,
   "mode": "linear",
   "color": [38, 49, 67, 255],
   "start": 12,
@@ -139,14 +139,16 @@ other effects stay together:
 
 This keeps nearby objects clear and fades distant geometry toward the
 third-person example's background color. Distances are measured from the camera
-in world units. `linear` uses `start` and `end`; `exp` and `exp2` use `density`
-(higher values produce thicker fog). `sky_affect` controls sky influence from
-0 to 1. Use `mode: "disabled"` to turn fog off without disabling other effects.
+in world units. `linear` uses `start` and `end`. `exp` and `exp2` use `density`,
+with higher values producing thicker fog. `sky_affect` controls sky influence
+from 0 to 1.
 
-This is distance fog applied to the rendered view. It does not create bounded
-fog banks or volumetric light scattering. Scene edits hot reload; for a running
-game, the console can also set `PostProcessing.fog.mode`, `.start`, `.end`,
-`.density`, and `.color` on the profile entity.
+Set `enabled` to `false` to turn off distance fog and keep its mode and tuning.
+The selected mode controls distance fog when `enabled` is `true`, `null`, or
+omitted. The default mode is `disabled`.
+
+Scene edits hot reload. The console can set `PostProcessing.fog.enabled`,
+`.mode`, `.start`, `.end`, `.density`, and `.color` on the profile entity.
 
 ### Volumetric fog
 
@@ -427,15 +429,16 @@ changing their relative bilateral weighting. See the
 | `ssil` | Indirect light and occlusion strengths, sampling, radius, bias |
 | `ssgi` | Global illumination enable, slices, edge fade, distance falloff, normal rejection, intensity, denoising |
 | `ssr` | Reflections enable, ray/binary steps, step size, thickness, distance, edge fade |
-| `fog` | `disabled`, `linear`, `exp2`, `exp`; RGBA color, start/end, density, sky influence |
+| `fog` | Enable toggle, `disabled`/`linear`/`exp2`/`exp` mode, RGBA color, start/end, density, sky influence |
 | `volumetric_fog` | Enable, scattering/absorption densities, scattering/emission RGBA colors, anisotropy strictly between -1 and 1, emission energy, sky influence, march length and step size |
 | `height_fog` | Enable, RGBA color, world base height, density at base, exponential falloff, sky integration distance |
 | `upper_height_fog` | Same controls as `height_fog`, with density increasing above the base height; disabled by default |
 | `dof` | Enable, focus distance/scale, near scale, maximum blur |
 | `auto_exposure` | Enable, minimum/maximum EV, EV compensation, bright/dark adaptation times |
 
-JSON names use snake_case and lowercase mode strings. Unknown properties, null,
-wrong scalar types, nonfinite values, and out-of-range values fail validation.
+JSON names use snake_case and lowercase mode strings. Unknown properties, wrong
+scalar types, nonfinite values, and out-of-range values fail validation. Only
+`fog.enabled` accepts `null`.
 Counts and RGBA channels must be integers. Typed `ecs.add` and `ecs.set` enforce
 the same value constraints; invalid writes leave the existing component intact.
 Fog end must exceed start; maximum EV must be at least minimum EV.

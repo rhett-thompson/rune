@@ -21,7 +21,7 @@ load_navmesh :: proc(manager:^Asset_Manager,path:string,operation:Asset_Operatio
 	manager.navmeshes[path]=old
 }
 refresh_navmeshes :: proc(manager:^Asset_Manager) {
-	for path,asset in manager.navmeshes {if modified_time(resolve_path(manager,path))!=asset.stamp {load_navmesh(manager,path,.Reload)}}
+	for path,asset in manager.navmeshes {if reload_stamp(manager, path, asset.stamp)!=asset.stamp {load_navmesh(manager,path,.Reload)}}
 }
 shutdown_navmeshes :: proc(manager:^Asset_Manager) {
 	for _,&asset in manager.navmeshes {navigation.destroy_mesh_3d(&asset.mesh)}

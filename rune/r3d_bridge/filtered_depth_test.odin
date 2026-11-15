@@ -1,7 +1,11 @@
 package r3d_bridge
 
+import "core:math"
 import "core:testing"
+import "rune:assets"
 import "rune:ecs"
+import "rune:geometry"
+import r3d "r3d:r3d"
 import rl "vendor:raylib"
 
 @(test)
@@ -83,4 +87,109 @@ depth_pass_render_rejects_uninitialized_context_and_zero_view_teardown_is_safe :
 	testing.expect(t,w.entity_count==entity_count && ecs.is_enabled(&w,entity),"Rejected passes leave the live scene untouched")
 	destroy_depth_pass_3d(&view)
 	destroy_depth_pass_3d(&view)
+}
+
+@(test)
+depth_pass_only_skips_proven_offscreen_exclusions :: proc(t: ^testing.T) {
+	w := ecs.init(); defer ecs.destroy(&w)
+	r := ecs.init_registry(); defer ecs.destroy_registry(&r)
+	assert(ecs.register_builtin_components(&r))
+	ctx := new(Context); defer free(ctx)
+	ctx.static_mesh_generation = w.generation
+	ctx.static_meshes = make(map[ecs.Entity]Static_Mesh_Cache); defer delete(ctx.static_meshes)
+	ctx.r3d_materials = make(map[string]R3D_Material_Asset); defer delete(ctx.r3d_materials)
+	manager := assets.Asset_Manager {
+		materials = make(map[string]assets.Material_Asset),
+		material_previews = make(map[string]assets.Material_Data),
+	}
+	defer {delete(manager.materials); delete(manager.material_previews)}
+	material :: "beam.material.json"
+	manager.materials[material] = {data = {billboard = "disabled"}}
+
+	root := ecs.create_entity(&w)
+	assert(ecs.add(&w, &r, root, ecs.Transform{position={20, 0, -4}, scale={1, 1, 1}}))
+	beam := ecs.create_entity(&w)
+	assert(ecs.set_parent(&w, beam, root))
+	assert(ecs.add(&w, &r, beam, ecs.default_transform()))
+	assert(ecs.add(&w, &r, beam, ecs.MeshRenderer{primitive="static", material=material}))
+	cells := [1]u8{1}
+	palette := [2][4]u8{{}, {255, 255, 255, 255}}
+	mesh, generated := geometry.surface({size={1, 1, 1}, cells=cells[:], origin={-0.5, -0.5, -0.5}, spacing=1}, palette[:])
+	assert(generated); defer geometry.destroy_mesh(&mesh)
+	assert(ecs.set_static_mesh_owned(&w, beam, &mesh, collidable=false))
+	ctx.static_meshes[beam] = {revision=w.static_meshes[beam].revision, mesh={aabb={{-0.5, -0.5, -0.5}, {0.5, 0.5, 0.5}}}}
+	roots := [1]ecs.Entity{root}
+	filter := Depth_Pass_Filter{ignored_subtrees=roots[:]}
+	frustum := r3d.ComputeFrustum(rl.MatrixPerspective(60*math.PI/180, 1, 0.1, 100))
+	testing.expect(t, depth_pass_filter_effective(&w, filter), "Standalone depth still recognizes offscreen exclusions")
+	testing.expect(t, depth_pass_exclusions_outside_frustum(ctx, &w, &manager, filter, &frustum))
+	testing.expect(t, !depth_pass_exclusions_outside_frustum(ctx, &w, nil, filter, &frustum), "Unknown materials fail open")
+	testing.expect(t, !depth_pass_exclusions_outside_frustum(ctx, &w, &manager, filter, nil), "Unknown projections fail open")
+
+	manager.material_previews[material] = {surface_shader="move-vertices.glsl"}
+	testing.expect(t, !depth_pass_exclusions_outside_frustum(ctx, &w, &manager, filter, &frustum), "Preview shaders may move geometry into view")
+	delete_key(&manager.material_previews, material)
+	shader: r3d.SurfaceShader
+	ctx.r3d_materials[material] = {material={shader=&shader}}
+	testing.expect(t, !depth_pass_exclusions_outside_frustum(ctx, &w, &manager, filter, &frustum), "A retained shader after reload also prevents skipping")
+	ctx.r3d_materials[material] = {material={billboardMode=.FRONT}}
+	testing.expect(t, !depth_pass_exclusions_outside_frustum(ctx, &w, &manager, filter, &frustum), "A billboard can extend past its authored bounds")
+	delete_key(&ctx.r3d_materials, material)
+	assert(ecs.add(&w, &r, beam, ecs.SphereRenderer{radius=1}))
+	testing.expect(t, !depth_pass_exclusions_outside_frustum(ctx, &w, &manager, filter, &frustum), "The static mesh bounds cannot prove anything about a compound renderer")
+	assert(ecs.remove_component(&w, beam, "SphereRenderer"))
+
+	assert(ecs.set_transform(&w, root, ecs.Transform{position={0, 0, -0.2}, scale={1, 1, 1}}))
+	testing.expect(t, !depth_pass_exclusions_outside_frustum(ctx, &w, &manager, filter, &frustum), "A box crossing the near plane still needs filtered depth")
+	assert(ecs.set_transform(&w, root, ecs.Transform{position={2.5, 0, -4}, scale={1, 1, 1}}))
+	testing.expect(t, !depth_pass_exclusions_outside_frustum(ctx, &w, &manager, filter, &frustum), "A side-plane crossing must stay eligible after a live ancestor edit")
+	assert(ecs.set_transform(&w, root, ecs.Transform{position={20, 0, -4}, scale={1, 1, 1}}))
+	cache := ctx.static_meshes[beam]
+	cache.revision += 1
+	ctx.static_meshes[beam] = cache
+	testing.expect(t, !depth_pass_exclusions_outside_frustum(ctx, &w, &manager, filter, &frustum), "Stale uploaded geometry fails open")
+}
+
+@(test)
+filtered_depth_rejects_only_proven_offscreen_stock_props :: proc(t: ^testing.T) {
+	w := ecs.init(); defer ecs.destroy(&w)
+	r := ecs.init_registry(); defer ecs.destroy_registry(&r)
+	assert(ecs.register_builtin_components(&r))
+	ctx := new(Context); defer free(ctx)
+	defer release_render_cache(ctx)
+	ctx.cube_no_shadow = {vertexCount=24, aabb={{-0.5, -0.5, -0.5}, {0.5, 0.5, 0.5}}}
+	ctx.r3d_materials = make(map[string]R3D_Material_Asset); defer delete(ctx.r3d_materials)
+	manager := assets.Asset_Manager{materials=make(map[string]assets.Material_Asset)}
+	defer delete(manager.materials)
+	material :: "stock.material.json"
+	manager.materials[material] = {data={billboard="disabled"}}
+
+	root := ecs.create_entity(&w)
+	assert(ecs.add(&w, &r, root, ecs.Transform{position={20, 0, -4}, scale={1, 1, 1}}))
+	prop := ecs.create_entity(&w)
+	assert(ecs.set_parent(&w, prop, root))
+	assert(ecs.add(&w, &r, prop, ecs.default_transform()))
+	assert(ecs.add(&w, &r, prop, ecs.MeshRenderer{primitive="cube", material=material}))
+	frustum := r3d.ComputeFrustum(rl.MatrixPerspective(60*math.PI/180, 1, 0.1, 100))
+	prepare_render_cache(ctx, &w)
+	entry := ctx.render_cache.entries[prop]
+	testing.expect(t, depth_stock_prop_outside_frustum(ctx, &w, &manager, prop, &entry, .Non_Plane, &frustum))
+	testing.expect(t, !depth_stock_prop_outside_frustum(ctx, &w, &manager, prop, &entry, .Plane_Only, &frustum), "Each rejection belongs to a stock prop's own pass")
+	testing.expect(t, !depth_stock_prop_outside_frustum(ctx, &w, nil, prop, &entry, .Non_Plane, &frustum), "Unknown materials retain their submissions")
+	assert(ecs.add(&w, &r, prop, ecs.SphereRenderer{radius=1}))
+	testing.expect(t, !depth_stock_prop_outside_frustum(ctx, &w, &manager, prop, &entry, .Non_Plane, &frustum), "A cube's bounds do not cover its sphere renderer")
+	assert(ecs.remove_component(&w, prop, "SphereRenderer"))
+
+	manager.materials[material] = {data={surface_shader="deformed.glsl"}}
+	testing.expect(t, !depth_stock_prop_outside_frustum(ctx, &w, &manager, prop, &entry, .Non_Plane, &frustum), "An authored shader can move vertices into view")
+	manager.materials[material] = {data={billboard="disabled"}}
+	ctx.r3d_materials[material] = {material={billboardMode=.FRONT}}
+	testing.expect(t, !depth_stock_prop_outside_frustum(ctx, &w, &manager, prop, &entry, .Non_Plane, &frustum), "A retained billboard can extend past its authored bounds")
+	delete_key(&ctx.r3d_materials, material)
+
+	// A long rotated box crosses the side plane even when its center is outside.
+	assert(ecs.set_transform(&w, root, ecs.Transform{position={4, 0, -4}, rotation={0, 40, 0}, scale={8, 1, 1}}))
+	prepare_render_cache(ctx, &w)
+	entry = ctx.render_cache.entries[prop]
+	testing.expect(t, !depth_stock_prop_outside_frustum(ctx, &w, &manager, prop, &entry, .Non_Plane, &frustum), "The live composed bounds retain a rotated prop that crosses into view")
 }

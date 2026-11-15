@@ -73,6 +73,10 @@ JSON, strings, and metadata while entity handles remain valid; call it only at a
 safe point and reacquire those borrows. See `rune/ecs/component_api.odin` and
 `rune/ecs/storage_maintenance.odin`.
 
+Use `ecs.set_parent` to assemble runtime trees. Leaf attachments defer the
+hierarchy index rebuild until the next root or nonempty child traversal. See
+`docs/entity_features.md`.
+
 Use `ecs.destroy_entities(world, roots)` for bulk cleanup. It removes descendants
 before ancestors, deduplicates overlapping roots, ignores stale/foreign World
 handles, and returns the total entities removed. It borrows the input slice only

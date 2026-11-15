@@ -43,8 +43,8 @@ load_terrain :: proc(manager: ^Asset_Manager, path: string, operation: Asset_Ope
 
 refresh_terrains :: proc(manager: ^Asset_Manager) {
 	for path,asset in manager.terrains {
-		if modified_time(resolve_path(manager,path)) != asset.descriptor_stamp ||
-		   (asset.watched_heightmap != "" && modified_time(resolve_path(manager,asset.watched_heightmap)) != asset.heightmap_stamp) {
+		if reload_stamp(manager, path, asset.descriptor_stamp) != asset.descriptor_stamp ||
+		   (asset.watched_heightmap != "" && reload_stamp(manager, asset.watched_heightmap, asset.heightmap_stamp) != asset.heightmap_stamp) {
 			load_terrain(manager,path,.Reload)
 		}
 	}

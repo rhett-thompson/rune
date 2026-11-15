@@ -287,7 +287,9 @@ camera selection, missing assets, input mappings, pause, and reload as relevant.
 
 Odin source changes require a rebuild. JSON reload depends on the game's
 `hot_reload` settings; invalid reloads must be distinguished from the previously
-valid scene remaining visible. Project settings, input mappings, and audio-file
+valid scene remaining visible. With `jobs.worker_count` enabled, the engine
+samples asset timestamps on its pool and applies reloads on the owner thread.
+Project settings, input mappings, and audio-file
 contents are not automatically reloaded: restart or use the supported runtime
 API for the specific change. Value-only scene reload preserves runtime values
 whose authored data did not change; it does not reset the whole simulation.

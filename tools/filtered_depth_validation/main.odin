@@ -125,6 +125,7 @@ main :: proc() {
 	assert(mesh_ok);defer geometry.destroy_mesh(&beam_mesh)
 	assert(ecs.set_static_mesh_owned(&w,beam,&beam_mesh,collidable=false))
 	wall:=box(&w,&r,{0,0,-8},{3.5,2,0.2},"wall.material.json")
+	_ = box(&w,&r,{40,0,-8},{1,1,1},"wall.material.json")
 	source:=ecs.create_entity(&w)
 	assert(ecs.add(&w,&r,source,ecs.Transform{position={0,0,-50},scale={1,1,1}}))
 	ecs.set_entity_metadata(&w,source,"shaft_source","","",ecs.Default_Layer_Mask)
@@ -151,6 +152,8 @@ main :: proc() {
 	assert(after.r>after.b*2,"excluding the beam from auxiliary depth must not hide it from ordinary rendering")
 	assert(abs(after_depth-before_depth)<0.0005,"the normal scene depth must retain the foreground beam")
 	assert(ctx.filtered_depth.valid && ctx.filtered_depth.target.id!=0,"the shaft consumer must use the opt-in filtered depth")
+	assert(ctx.frame_stats.filtered_depth_props_submitted==1 && ctx.frame_stats.filtered_depth_props_rejected==1,"auxiliary depth submits the visible rear wall and rejects the offscreen stock prop")
+	assert(ctx.frame_stats.prop_draws==2,"the main draw still submits both props to the native renderer")
 	// This point is on the red beam but above the included rear wall's projected
 	// silhouette. The shaft shader must see open sky there only in the filtered
 	// view; checking a texture alone would not prove sampler consumption.
@@ -167,6 +170,18 @@ main :: proc() {
 	assert(i32(filtered_shafts.b)>i32(ordinary_shafts.b)+10,"the shaft shader must consume the filtered depth and add light over the excluded beam")
 	assert(abs(i32(restored_shafts.r)-i32(ordinary_shafts.r))<=2 && abs(i32(restored_shafts.g)-i32(ordinary_shafts.g))<=2 && abs(i32(restored_shafts.b)-i32(ordinary_shafts.b))<=2,"ordinary rendering must restore the original shaft depth rather than reuse the filtered sampler")
 	assert(!ctx.filtered_depth.valid && ctx.filtered_depth.pass_count==passes,"returning to the ordinary path must perform no auxiliary pass")
+	beam_pose,_:=ecs.get_transform(&w,beam)
+	offscreen:=beam_pose;offscreen.position.x=40
+	assert(ecs.set_transform(&w,beam,offscreen))
+	_,_=scene_frame(&ctx,&w,&manager,&profile,{},false,"shafts-offscreen-unfiltered")
+	offscreen_unfiltered:=read_screen_color(probe)
+	_,_=scene_frame(&ctx,&w,&manager,&profile,filter,true,"shafts-offscreen-filtered")
+	offscreen_filtered:=read_screen_color(probe)
+	assert(ctx.frame_stats.filtered_depth_frustum_skipped && !ctx.filtered_depth.valid && ctx.filtered_depth.pass_count==passes,"an offscreen exclusion should reuse main depth without creating another pass")
+	assert(abs(i32(offscreen_filtered.r)-i32(offscreen_unfiltered.r))<=2 && abs(i32(offscreen_filtered.g)-i32(offscreen_unfiltered.g))<=2 && abs(i32(offscreen_filtered.b)-i32(offscreen_unfiltered.b))<=2,"offscreen exclusions must preserve the shafts' sampled depth and color")
+	assert(ecs.set_transform(&w,beam,beam_pose))
+	_,_=scene_frame(&ctx,&w,&manager,&profile,filter,true,"shafts-offscreen-return")
+	assert(!ctx.frame_stats.filtered_depth_frustum_skipped && ctx.filtered_depth.valid && ctx.filtered_depth.pass_count>passes,"an exclusion returning onscreen must restore the auxiliary depth pass")
 	profile.light_shafts.intensity=0.001
 	// Existing unlit materials draw after the native opaque linear-depth pass.
 	// Filtered depth must retain that membership rather than promote them to

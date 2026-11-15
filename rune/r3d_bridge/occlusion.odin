@@ -108,6 +108,28 @@ release_occlusion_faces :: proc(cache:^Static_Mesh_Cache) {
 	cache.occlusion_faces_ready=false;cache.occlusion_world_ready=false;cache.occlusion_clip_ready=false
 }
 
+// Precompute the camera-independent faces for an uploaded mesh. Staged
+// loaders may call this on the graphics owner for disabled destination meshes.
+warm_static_mesh_occlusion :: proc(ctx:^Context,w:^ecs.World,manager:^assets.Asset_Manager,entity:ecs.Entity) {
+	if !ctx.initialized || !ctx.occlusion_enabled || ctx.static_optimizations_disabled || ctx.static_mesh_generation!=w.generation {return}
+	if _,found:=ctx.static_meshes[entity]; !found {return}
+	cache:=&ctx.static_meshes[entity]
+	if cache.occlusion_faces_ready {return}
+	opaque,_,_:=occlusion_material(ctx,w,manager,entity)
+	if opaque {prepare_occlusion_faces(cache,w,entity)}
+}
+
+@(private)
+prepare_occlusion_faces :: proc(cache:^Static_Mesh_Cache,w:^ecs.World,entity:ecs.Entity) -> bool {
+	if cache.occlusion_faces_ready {return false}
+	data,present:=w.static_meshes[entity]
+	if !present || data.revision!=cache.revision {return false}
+	cache.occlusion_faces=extract_occlusion_faces(data.data)
+	cache.occlusion_world_ready=false
+	cache.occlusion_faces_ready=true
+	return true
+}
+
 transform_occlusion_face :: proc(face:Occlusion_Face,transform:rl.Matrix) -> Occlusion_World_Face {
 	world:=Occlusion_World_Face{count=face.count}
 	for i in 0..<face.count {world.points[i]=rl.Vector3Transform(face.points[i],transform)}
@@ -337,12 +359,8 @@ prepare_occlusion_view :: proc(ctx:^Context,w:^ecs.World,manager:^assets.Asset_M
 		opaque=opaque && u32(cache.mesh.layerMask)&cull_mask!=0
 		if cache.occlusion_opaque!=opaque || cache.occlusion_eligible!=eligible || cache.occlusion_cull!=cull {state.dirty=true;force_probe=true}
 		cache.occlusion_opaque=opaque; cache.occlusion_eligible=eligible; cache.occlusion_cull=cull
-		if opaque && !cache.occlusion_faces_ready {
-			if data,present:=w.static_meshes[e]; present && data.revision==cache.revision {
-				cache.occlusion_faces=extract_occlusion_faces(data.data)
-				cache.occlusion_world_ready=false
-				cache.occlusion_faces_ready=true;state.dirty=true;force_probe=true
-			}
+		if opaque && prepare_occlusion_faces(&cache,w,e) {
+			state.dirty=true;force_probe=true
 		}
 		if opaque {
 			world_rebuilt:=prepare_occlusion_world_faces(&cache)

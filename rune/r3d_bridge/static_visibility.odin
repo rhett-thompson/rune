@@ -11,6 +11,8 @@ Render_Stats :: struct {
 	scene_cpu_ms, static_cpu_ms, backend_cpu_ms: f64,
 	filtered_depth_cpu_ms: f64,
 	filtered_depth_passes: int,
+	filtered_depth_props_submitted, filtered_depth_props_rejected: int,
+	filtered_depth_frustum_skipped: bool,
 	static_meshes, static_enabled, static_uploads: int,
 	static_submitted, static_triangles_submitted: int,
 	static_clusters, static_clusters_outside_view, static_meshes_skipped: int,

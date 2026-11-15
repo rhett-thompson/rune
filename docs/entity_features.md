@@ -42,6 +42,10 @@ Disabling a parent suspends its descendants without changing their local
 settings. Re-enabling the parent restores only children whose own setting is
 true. Reparenting immediately updates inherited activation.
 
+Use `ecs.set_parent` when assembling runtime hierarchies. Parenting leaves
+defers rebuilding the traversal indexes until a caller needs roots or a
+nonempty child list, so a series of leaf attachments can share one rebuild.
+
 Disabled entities keep their handles, metadata, components, hierarchy, and
 runtime state. They are omitted from scene rendering, lights, active camera and
 listener selection, built-in simulation, and normal component queries. Native

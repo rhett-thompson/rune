@@ -54,6 +54,7 @@ configure_asset_jobs :: proc(manager: ^Asset_Manager, pool: ^jobs.Pool, limits: 
 	if pool != nil && (limits.max_in_flight < 1 || limits.max_in_flight > 64 || limits.max_input_bytes < 1 || limits.max_input_bytes > 1024*1024*1024 ||
 		limits.max_result_bytes < 1 || limits.max_result_bytes > 1024*1024*1024 || limits.max_reserved_bytes < limits.max_result_bytes ||
 		limits.max_reserved_bytes > u64(4)*1024*1024*1024 || limits.uploads_per_frame < 1 || limits.uploads_per_frame > 64 || limits.starts_per_poll < 1 || limits.starts_per_poll > 64) {return false}
+	drain_reload_poll(&manager.reload_poll)
 	shutdown_texture_reloads(manager)
 	if pool == nil {return true}
 	s, error := mem.new(Texture_Reload_State)
@@ -77,9 +78,10 @@ refresh_background :: proc(manager: ^Asset_Manager) {
 	slice.sort(keys[:])
 	started := 0
 	for path in keys {
-		full_path:=resolve_path(manager,path); stamp:=modified_time(full_path)
 		old, found:=manager.textures[path]
-		if (found && old.modified_time==stamp) || (!found && manager.missing_textures[path]==stamp) {continue}
+		previous := old.modified_time if found else manager.missing_textures[path]
+		stamp := reload_stamp(manager, path, previous)
+		if previous==stamp {continue}
 		if attempted,seen:=s.attempted[path]; seen && attempted==stamp {continue}
 		if _,pending:=s.requests[path]; pending {continue} // one owned request per key
 		if !image_decode.supports_extension(path) {s.attempted[path]=stamp; refresh_texture_native(manager,path,stamp); continue}

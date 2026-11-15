@@ -185,11 +185,14 @@ a valid `sound` fallback.
 }
 ```
 
-Buffered clips load on first selection and remain cached for that player.
+Buffered clips load on first selection or preload. Players in the same audio
+system share one decoded sample buffer for each configured path. Each player
+and overlapping voice has independent playback, volume, pitch, pan and
+reverb routing. Samples are released after their last player is removed.
 Overlapping plays share `max_voices` across all clips; when full, the oldest
 voice is replaced. Mixer changes affect every voice, including older clips.
-Changing `sound`, `clips`, or `buffered` releases the old cache and playback on
-the next update or play. Volume and pitch edits keep the selected clip. Typed
+Changing `sound`, `clips`, or `buffered` replaces the old resources on the next
+update or play. Volume and pitch edits keep the selected clip. Typed
 setters copy clip lists, which survive scene snapshots and reloads.
 
 Ogg Vorbis and other streaming formats use one playback channel by default.

@@ -23,11 +23,12 @@ subtrees without supported rendered geometry do not request an auxiliary pass.
 Games must reacquire entity handles after scene replacement or restoration.
 
 This additive entry point preserves the existing `draw_scene_ex` signature and
-`Scene3D_Settings` layout. The built-in screen-space light shafts currently use
-the auxiliary depth when their effect is active and the filter excludes enabled
-rendered geometry. Without those conditions the original path remains in use,
-with no extra depth target allocation or pass. Other native effects continue to
-use the main scene depth.
+`Scene3D_Settings` layout. Active screen-space light shafts use auxiliary depth
+when the filter excludes enabled geometry that may touch the sampling frustum.
+With matching main and auxiliary projections, Rune can skip the pass when
+current bounds prove that every excluded draw is outside the frustum. Unknown
+geometry, custom surface shaders, billboards, and projection differences keep
+the auxiliary pass eligible. Other native effects sample the main scene depth.
 
 The normal color and depth draws still contain the excluded objects. A filtered
 pass omits their geometry from the auxiliary draw; it does not erase their
@@ -68,6 +69,12 @@ bypassed because removing an occluder can reveal geometry hidden in the main
 scene. Exclusions are indexed once per pass rather than walking each excluded
 root's ancestry for every draw.
 
+Before submitting ordinary stock cubes, planes, and quads, Rune tests their
+prepared bounds against the auxiliary view's own frustum. Bounds touching the
+frustum, compound renderers, custom surface shaders, billboards, and unavailable
+material or geometry information retain their submissions. The main renderer
+continues to submit geometry for the scene and shadow passes independently.
+
 Cloud volumes and code-owned particle batches are not part of this opaque depth
 pass; they do not write the normal opaque scene depth either. Standalone calls
 require prepared terrain, static-mesh, and animation caches for the intended
@@ -86,6 +93,13 @@ unsupported targets return false.
 `frame_stats.filtered_depth_passes` and `filtered_depth_cpu_ms` report the
 auxiliary work; ordinary scene draw counts remain separate. Both are zero
 when the integrated effect does not need a filtered pass.
+`filtered_depth_frustum_skipped` identifies integrated views that used main
+depth after proving the exclusions offscreen. Standalone `render_scene_depth`
+still produces the requested auxiliary texture for effective filters.
+`filtered_depth_props_submitted` and `filtered_depth_props_rejected` count
+ordinary render-list entries sent to the auxiliary draw path and skipped by its
+frustum test. The counters exclude static clusters, terrain, and subtrees
+selected by the filter.
 `gpu_backend_ms` measures the scene GPU timestamp interval including auxiliary
 depth, its copy and the main view. It excludes earlier overlay views, game UI
 and presentation, and can include GPU idle time during CPU submission. It is
@@ -98,7 +112,7 @@ cleanup run on the graphics/World owner thread, outside an active R3D session.
 See `rune/r3d_bridge/filtered_depth_test.odin` for CPU filtering/default-path
 checks. Runtime verification should include an excluded foreground object over
 an included wall, an excluded object over empty sky, matching camera sampling,
-and resource resize/cleanup.
+an offscreen exclusion that reenters the frustum, and resource resize/cleanup.
 
 The Windows amd64 GPU fixture is `tools/filtered_depth_validation`. Build it
 with Rune's compiler guard, then run its executable separately as described in

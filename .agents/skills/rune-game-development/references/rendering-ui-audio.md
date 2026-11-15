@@ -108,13 +108,19 @@ roots borrowed through the call. Geometry behind excluded subtrees still writes
 depth; materials, entity activation, main scene depth, and normal color remain
 unchanged. Built-in light shafts consume this buffer when active. Empty, stale,
 disabled, or non-rendering exclusions retain the original path without an
-additional allocation or pass; other native effects retain the main depth.
+additional allocation or pass. When the two projections match, the integrated
+draw also uses main depth if current bounds place every exclusion outside the
+sampling frustum. Unknown bounds and deformed geometry keep the auxiliary pass
+eligible. Other native effects sample the main depth.
 
 The auxiliary path uses native depth-only shaders and shared cached transforms,
 then linearizes hardware depth for the effect. It does not rerun lighting or
-color post processing. Scene GPU timestamps include this pass and the main
-view, with possible idle gaps during CPU submission; overlay views, game UI
-and presentation remain outside that interval.
+color post processing. Its own frustum can reject stock props with bounds that
+remain valid under their materials. Inspect `filtered_depth_props_submitted`
+and `filtered_depth_props_rejected` to distinguish this from a skipped pass.
+Scene GPU timestamps include this pass and the main view, with possible idle
+gaps during CPU submission; overlay views, game UI and presentation remain
+outside that interval.
 
 For another consumer, call `render_scene_depth` with a caller-owned
 `Depth_Pass3D`. Its `.target.texture` red channel is positive linear view-space
@@ -135,6 +141,11 @@ diagnostic helpers mutate pending/deduplication state. A CPU job needs copied
 paths/settings and owned result/error buffers, rather than a manager pointer.
 Keep GPU upload, cache publication, revision changes, and old-resource disposal
 on the owner. Existing borrowed data can expire on a successful refresh.
+
+The engine samples watched asset timestamps across frames, sharing one result
+per path within a sweep. Refresh handlers apply changes on the owner when the
+sweep completes. Direct refreshes and texture-upload validation use current
+timestamps. See `docs/assets.md` for the polling and ownership contract.
 
 The manager's raylib texture cache and the bridge's directly loaded R3D material
 maps are separate paths; improving `assets.texture` alone does not change normal
@@ -200,6 +211,11 @@ view. Use this from `Scene3D_Settings.scene_overlay` before the world session,
 and call `destroy_render_view_3d` before bridge shutdown. Legacy
 `render.Overlay3D` remains available for raylib and partial-alpha layers.
 See `docs/overlays-3d.md` for profile, coverage and ownership contracts.
+
+Toggle distance fog with `PostProcessing.fog.enabled`. Set it to `false` to
+disable distance fog and keep the configured mode and tuning. `true`, `null`,
+and an omitted `enabled` use the selected mode. In Odin, `Post_Fog.enabled` is
+`Maybe(bool)` and `nil` uses the selected mode. See `docs/post-processing.md`.
 
 ## Terrain height previews
 
@@ -298,6 +314,12 @@ unchanged World. Caller-owned, equally sized request/result slices share scene
 traversal, bounds and transforms. Results retain scalar-query semantics and
 are refreshed on every call; no geometry snapshot survives later World edits.
 `render.scene_sphere_cast_batch_3d` provides the CPU-only entry point.
+
+For owner-thread visual preparation, `r3d_bridge.scene_sampling_frustum`
+encloses both the main render and its auxiliary depth projection before drawing.
+Pass the draw's sampling FOV. `frustum_may_intersect_transformed_box` tests an
+undeformed local box at its current pose. A failed camera lookup or unknown
+geometry calls for the ordinary preparation path.
 
 Rendered sweeps lazily cache a World-owned BVH of visible static triangles.
 Replacing/removing meshes releases it; no physics body is added. Run queries
@@ -514,6 +536,9 @@ its owner must outlive borrowers. Address repeatable `AudioPlayer` components
 by entity and instance name: `rune.play_audio(game, world, entity, "bell")`,
 `stop_audio`, and `preload_audio`. Preloading loads buffered variants and reserves
 voices without playing or randomly choosing a clip. Streams retain one channel.
+Buffered players in the same audio system share decoded samples for each path.
+Their playback settings and voices remain independent, and the last owner
+releases the samples. Preloading disabled entities is supported.
 Set `AudioPlayer.buffered` to decode compressed short effects such as Ogg Vorbis
 into memory and retain overlapping voices. The default selects by format.
 To continue playback across scene replacement or structural reload, retain the

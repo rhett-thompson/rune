@@ -158,6 +158,8 @@ thinning, see `docs/terrain.md` and the rendering reference.
   a supported screen-space effect needs depth excluding entity subtrees.
   Materials and normal scene depth remain unchanged. See the rendering
   reference and `docs/filtered-depth.md` for borrowing, defaults, and ownership.
+- Set `PostProcessing.fog.enabled` to `false` to disable distance fog and keep
+  its mode and tuning. See `docs/post-processing.md` for defaults and runtime edits.
 - Reacquire scene entities and borrowed state after reload or restoration.
   Frame scratch and borrowed component strings/collections are not persistent
   game storage. Keep durable game state in owned storage or configured saves.

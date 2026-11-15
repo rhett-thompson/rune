@@ -93,6 +93,44 @@ occlusion_test_cached_quad :: proc(ctx:^Context,w:^ecs.World,r:^ecs.Component_Re
 }
 
 @(test)
+occlusion_warmup_prepares_disabled_meshes_for_the_current_revision :: proc(t:^testing.T) {
+	w := ecs.init(); defer ecs.destroy(&w)
+	r := ecs.init_registry(); defer ecs.destroy_registry(&r); assert(ecs.register_builtin_components(&r))
+	ctx := new(Context)
+	ctx.initialized = true
+	ctx.occlusion_enabled = true
+	ctx.static_mesh_generation = w.generation
+	ctx.static_meshes = make(map[ecs.Entity]Static_Mesh_Cache)
+	defer {for _, &cache in ctx.static_meshes {release_occlusion_faces(&cache)}; delete(ctx.static_meshes); free(ctx)}
+	front := occlusion_test_cached_quad(ctx, &w, &r, -3, 1.2)
+	target := occlusion_test_cached_quad(ctx, &w, &r, -7, 0.25)
+	front_cache := &ctx.static_meshes[front]
+	assert(ecs.set_enabled(&w, front, false))
+	front_cache.enabled = false
+	front_cache.revision -= 1
+	warm_static_mesh_occlusion(ctx, &w, nil, front)
+	testing.expect(t, !ctx.static_meshes[front].occlusion_faces_ready, "an outdated GPU mesh cannot warm the replacement geometry")
+	front_cache.revision = w.static_meshes[front].revision
+	assert(ecs.set_static_mesh_opacity(&w, front, 0.5))
+	warm_static_mesh_occlusion(ctx, &w, nil, front)
+	testing.expect(t, !ctx.static_meshes[front].occlusion_faces_ready, "a translucent mesh is not an occluder")
+	assert(ecs.set_static_mesh_opacity(&w, front, 1))
+	warm_static_mesh_occlusion(ctx, &w, nil, front)
+	faces := ctx.static_meshes[front].occlusion_faces
+	if !testing.expect(t, ctx.static_meshes[front].occlusion_faces_ready && len(faces) == 1) {return}
+	warm_static_mesh_occlusion(ctx, &w, nil, front)
+	testing.expect(t, raw_data(ctx.static_meshes[front].occlusion_faces) == raw_data(faces), "the same mesh revision retains its prepared faces")
+	testing.expect(t, !ecs.is_enabled(&w, front) && !ctx.static_meshes[front].occlusion_world_ready && !ctx.occlusion.prepared,
+		"warming extracts local faces without enabling the entity or evaluating a camera view")
+	assert(ecs.set_enabled(&w, front, true))
+	front_cache.enabled = true
+	projection := rl.MatrixPerspective(60*math.PI/180, 1, 0.1, 100)
+	prepare_occlusion_view(ctx, &w, nil, {}, projection, nil, 1, 320, 320)
+	testing.expect(t, ctx.static_meshes[target].occluded && raw_data(ctx.static_meshes[front].occlusion_faces) == raw_data(faces),
+		"the first visible draw uses the prepared geometry for its current-view proof")
+}
+
+@(test)
 occlusion_skips_offscreen_face_preparation_and_rechecks_visibility_on_rotation :: proc(t:^testing.T) {
 	w:=ecs.init();defer ecs.destroy(&w)
 	r:=ecs.init_registry();defer ecs.destroy_registry(&r);assert(ecs.register_builtin_components(&r))

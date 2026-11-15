@@ -90,7 +90,7 @@ post_processing_environment :: proc(base: r3d.Environment, value: ecs.PostProces
 		edgeFade = value.ssr.edge_fade,
 	}
 	env.fog = {
-		mode = r3d.Fog(value.fog.mode),
+		mode = r3d.Fog(value.fog.mode) if (value.fog.enabled.(bool) or_else true) else .DISABLED,
 		color = rl.Color{value.fog.color[0], value.fog.color[1], value.fog.color[2], value.fog.color[3]},
 		start = value.fog.start,
 		end = value.fog.end,

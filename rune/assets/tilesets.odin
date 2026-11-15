@@ -179,9 +179,9 @@ read_tileset_vector2 :: proc(value: json.Value, allow_zero: bool) -> ([2]i32, bo
 refresh_tilesets :: proc(manager: ^Asset_Manager) {
 	if manager == nil {return}
 	for path, asset in manager.tilesets {
-		full_path := resolve_path(manager, path)
-		current_time := modified_time(full_path)
+		current_time := reload_stamp(manager, path, asset.modified_time)
 		if current_time == asset.modified_time {continue}
+		full_path := resolve_path(manager, path)
 		data, loaded := load_tileset_data(full_path)
 		if !loaded {
 			report_failure(

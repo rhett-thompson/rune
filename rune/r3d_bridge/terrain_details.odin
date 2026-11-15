@@ -129,8 +129,13 @@ prepare_detail_batches :: proc(cache:^Terrain_Cache,data:terrain.Data,pool:^jobs
 }
 
 detail_transform :: proc(t:ecs.Transform) -> rl.Matrix {
+	return detail_transform_with_rotation(t, rotation_quaternion(t))
+}
+
+@(private)
+detail_transform_with_rotation :: proc(t:ecs.Transform, rotation:rl.Quaternion) -> rl.Matrix {
 	return rl.MatrixTranslate(t.position[0],t.position[1],t.position[2])*
-		rl.QuaternionToMatrix(rotation_quaternion(t))*rl.MatrixScale(t.scale[0],t.scale[1],t.scale[2])
+		rl.QuaternionToMatrix(rotation)*rl.MatrixScale(t.scale[0],t.scale[1],t.scale[2])
 }
 
 detail_candidates_current :: proc(batch:^Terrain_Detail_Batch,t:ecs.Transform,align_to_normal:bool,chunked:bool=true) -> bool {

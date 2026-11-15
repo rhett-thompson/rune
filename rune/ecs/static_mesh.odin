@@ -75,7 +75,7 @@ install_static_mesh :: proc(world: ^World, entity: Entity, data: geometry.Mesh, 
 	remove_static_mesh(world,entity)
 	world.static_mesh_revision += 1
 	world.static_meshes[entity] = {data=copy_data,mesh=mesh,revision=world.static_mesh_revision,opacity=1}
-	world.physics_3d.needs_sync=true
+	if mesh != nil {world.physics_3d.needs_sync = true}
 	return true
 }
 
@@ -93,8 +93,10 @@ set_static_mesh_opacity :: proc(world: ^World, entity: Entity, opacity: f32) -> 
 remove_static_mesh :: proc(world: ^World, entity: Entity) {
 	state,found := world.static_meshes[entity]
 	if !found {return}
-	physics_3d_remove_entity(world,entity)
-	if state.mesh!=nil {b3.DestroyMesh(state.mesh)}
+	if state.mesh != nil {
+		physics_3d_remove_entity(world,entity)
+		b3.DestroyMesh(state.mesh)
+	}
 	if state.query_mesh!=nil {b3.DestroyMesh(state.query_mesh)}
 	geometry.destroy_mesh(&state.data)
 	delete_key(&world.static_meshes,entity)

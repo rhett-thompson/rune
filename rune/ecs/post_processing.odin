@@ -103,6 +103,7 @@ Post_SSR :: struct {
 
 Post_Fog :: struct {
 	mode: Post_Fog_Mode,
+	enabled: Maybe(bool), // Nil preserves mode-only configuration.
 	color: [4]u8,
 	start: f32,
 	end: f32,
@@ -301,6 +302,8 @@ post_processing_json_shape_valid :: proc(value: json.Value, tid: typeid) -> bool
 	case reflect.Type_Info_Boolean:
 		_, ok := value.(json.Boolean)
 		return ok
+	case reflect.Type_Info_Union:
+		return tid == Maybe(bool) && (json_value_is_nil(value) || post_processing_json_shape_valid(value, bool))
 	case reflect.Type_Info_Integer:
 		number, ok := value.(json.Integer)
 		if !ok {return false}

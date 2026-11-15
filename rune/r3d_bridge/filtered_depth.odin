@@ -148,15 +148,20 @@ render_scene_depth_internal :: proc(view:^Depth_Pass3D,ctx:^Context,world:^ecs.W
 	}
 	draw_terrains(ctx,world,manager,filter)
 	draw_terrain_details(ctx,world,manager,camera.position,filter)
-	for entity in ctx.render_cache.planes {
-		if excluded[entity] || !ctx.render_cache.nodes[entity].enabled {continue}
-		entry:=ctx.render_cache.entries[entity]
-		draw_entity(ctx,world,manager,entity,entry.pose,.Plane_Only,&entry.transform)
-	}
-	for entity in ctx.render_cache.others {
-		if excluded[entity] || !ctx.render_cache.nodes[entity].enabled || ecs.has_component_data(world,entity,"CloudVolume") {continue}
-		entry:=ctx.render_cache.entries[entity]
-		draw_entity(ctx,world,manager,entity,entry.pose,.Non_Plane,&entry.transform)
+	prop_frustum:=&frustum if occlusion_frustum_valid(&frustum) else nil
+	for pass in ([2]Render_Pass{.Plane_Only,.Non_Plane}) {
+		entities:=ctx.render_cache.planes[:] if pass==.Plane_Only else ctx.render_cache.others[:]
+		for entity in entities {
+			if excluded[entity] || !ctx.render_cache.nodes[entity].enabled {continue}
+			if pass==.Non_Plane && ecs.has_component_data(world,entity,"CloudVolume") {continue}
+			entry:=ctx.render_cache.entries[entity]
+			if depth_stock_prop_outside_frustum(ctx,world,manager,entity,&entry,pass,prop_frustum) {
+				saved_stats.filtered_depth_props_rejected+=1
+				continue
+			}
+			saved_stats.filtered_depth_props_submitted+=1
+			draw_entity(ctx,world,manager,entity,entry.pose,pass,&entry.transform)
+		}
 	}
 	update_material_shader_time(ctx,{material_time=material_time,material_time_override=true},f64(material_time))
 	r3d.End()

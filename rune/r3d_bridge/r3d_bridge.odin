@@ -331,7 +331,8 @@ draw_scene_internal :: proc(ctx:^Context,world:^ecs.World,asset_manager:^assets.
 	camera,has_transform:=scene_camera_3d(world,entity,camera_component)
 	if !has_transform {release_skybox(ctx); return false}
 	visible_camera:=camera
-	sampling_camera,viewport,sampling_projection:=scene_sampling_projection(camera,settings.sampling_fovy,{rl.GetRenderWidth(),rl.GetRenderHeight()})
+	framebuffer:=[2]i32{rl.GetRenderWidth(),rl.GetRenderHeight()}
+	sampling_camera,viewport,sampling_projection:=scene_sampling_projection(camera,settings.sampling_fovy,framebuffer)
 	camera=sampling_camera
 	// Present the crop continuously between source pixels. Native nearest
 	// upscaling otherwise makes contact bands jump during lens animation.
@@ -363,7 +364,12 @@ draw_scene_internal :: proc(ctx:^Context,world:^ecs.World,asset_manager:^assets.
 	gpu_slot:=begin_gpu_timing(ctx)
 	geometry_prepared:=false
 	material_settings:=settings
-	if shafts_enabled && depth_pass_filter_effective(world,filter) {
+	filter_effective:=shafts_enabled && depth_pass_filter_effective(world,filter)
+	if filter_effective && depth_pass_exclusions_outside_view(ctx,world,asset_manager,filter,camera,viewport,framebuffer) {
+		ctx.frame_stats.filtered_depth_frustum_skipped=true
+		filter_effective=false
+	}
+	if filter_effective {
 		material_settings.material_time=f32(started) if !settings.material_time_override else settings.material_time
 		material_settings.material_time_override=true
 		depth_started:=rl.GetTime()
@@ -476,8 +482,8 @@ draw_entity :: proc(
 	render_matrix: ^rl.Matrix = nil,
 ) {
 	if pass==.Non_Plane {draw_cloud_volume(ctx,world,entity,transform,render_matrix)}
-	if mesh, has_mesh := ecs.get_mesh_renderer(world, entity);
-	   has_mesh && mesh.primitive == "cube" {
+	mesh, has_mesh := ecs.get_mesh_renderer(world, entity)
+	if has_mesh && mesh.primitive == "cube" {
 		if pass != .Non_Plane {return}
 		material := material_from_path(ctx, asset_manager, mesh.material, mesh.color)
 		cube := ctx.cube if mesh.shadows else ctx.cube_no_shadow
@@ -496,8 +502,7 @@ draw_entity :: proc(
 			)
 		}
 	}
-	if mesh, has_mesh := ecs.get_mesh_renderer(world, entity);
-	   has_mesh && mesh.primitive == "plane" {
+	if has_mesh && mesh.primitive == "plane" {
 		if pass != .Plane_Only {return}
 		material := material_from_path(ctx, asset_manager, mesh.material, mesh.color)
 		plane := ctx.plane if mesh.shadows else ctx.plane_no_shadow
@@ -516,8 +521,7 @@ draw_entity :: proc(
 			)
 		}
 	}
-	if mesh, has_mesh := ecs.get_mesh_renderer(world, entity);
-	   has_mesh && mesh.primitive == "quad" {
+	if has_mesh && mesh.primitive == "quad" {
 		if pass != .Non_Plane {return}
 		material := material_from_path(ctx, asset_manager, mesh.material, mesh.color)
 		quad := ctx.quad if mesh.shadows else ctx.quad_no_shadow

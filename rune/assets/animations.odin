@@ -197,9 +197,9 @@ refresh_animations :: proc(manager: ^Asset_Manager) {
 	if manager == nil {return}
 	refresh_model_events(manager)
 	for path, asset in manager.animations {
-		full_path := resolve_path(manager, path)
-		current_time := modified_time(full_path)
+		current_time := reload_stamp(manager, path, asset.modified_time)
 		if current_time == asset.modified_time {continue}
+		full_path := resolve_path(manager, path)
 		data, loaded := load_animation_data(full_path)
 		if !loaded {
 			report_failure(

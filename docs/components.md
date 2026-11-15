@@ -509,6 +509,7 @@ A complete r3d 3D effects profile; no `Transform` required. An enabled profile o
 | `ssr.max_distance` | number; > 0 | `4` | Maximum reflection ray distance. |
 | `ssr.edge_fade` | number; ≥ 0; ≤ 1 | `0.25` | Screen-edge reflection fade setting. |
 | `fog` | object | Defaults below | Distance fog; end must exceed start. |
+| `fog.enabled` | boolean or `null` | `true` (effective) | `false` disables distance fog and preserves its settings. `true`, `null`, and omission use the selected mode. |
 | `fog.mode` | `"disabled"`, `"linear"`, `"exp2"`, `"exp"` | `"disabled"` | Disabled, linear, or exponential distance fog. |
 | `fog.color` | 4-item array of integer; ≥ 0; ≤ 255 | `[255, 255, 255, 255]` | RGBA color. |
 | `fog.start` | number; ≥ 0 | `1` | Camera distance where linear fog begins. |

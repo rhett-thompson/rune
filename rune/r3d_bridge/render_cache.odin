@@ -49,7 +49,6 @@ prepare_render_cache :: proc(ctx:^Context,w:^ecs.World) {
 		c.nodes=make(map[ecs.Entity]Static_Transform_Node)
 	}
 	c.frame+=1
-	for _,&entry in c.entries {entry.next_mask=0}
 	// Inspect renderer membership only. Public map edits and primitive changes
 	// are detected without traversing cameras, physics, audio, or gameplay nodes.
 	for e,mesh in w.mesh_renderers {
@@ -60,29 +59,35 @@ prepare_render_cache :: proc(ctx:^Context,w:^ecs.World) {
 	}
 	for e in w.sphere_renderers {mark_render_entity(c,e,Render_Other)}
 	for e in w.model_renderers {mark_render_entity(c,e,Render_Other)}
-	if clouds,found:=w.component_data["CloudVolume"]; found {for e in clouds {mark_render_entity(c,e,Render_Other)}}
+	if !ctx.cloud_volumes_disabled {
+		if clouds,found:=w.component_data["CloudVolume"]; found {
+			for e in clouds {mark_render_entity(c,e,Render_Other)}
+		}
+	}
 	roots:=ecs.root_entities(w)
 	dirty:=c.hierarchy_version!=w.hierarchy_version
+	// Consume membership marks while preparing the surviving transforms.
 	for e,&entry in c.entries {
 		if entry.mask!=entry.next_mask {dirty=true}
 		entry.mask=entry.next_mask
-		if entry.mask==0 {delete_key(&c.entries,e)}
+		entry.next_mask=0
+		if entry.mask==0 {delete_key(&c.entries,e); continue}
+		node:=cached_transform_node(&c.nodes,c.frame,w,e,&ctx.frame_stats.render_transform_nodes)
+		if !node.enabled {continue}
+		ctx.frame_stats.render_entities+=1
+		if !entry.prepared || entry.pose!=node.pose {
+			entry.pose=node.pose
+			entry.rotation=rotation_quaternion(node.pose)
+			entry.transform=detail_transform_with_rotation(node.pose,entry.rotation)
+			entry.prepared=true
+			ctx.frame_stats.render_matrices_rebuilt+=1
+		}
 	}
 	if dirty {
 		clear(&c.planes); clear(&c.others)
 		for root in roots {append_render_tree(c,w,root)}
 		c.hierarchy_version=w.hierarchy_version
 		ctx.frame_stats.render_list_rebuilds+=1
-	}
-	for e,&entry in c.entries {
-		node:=cached_transform_node(&c.nodes,c.frame,w,e,&ctx.frame_stats.render_transform_nodes)
-		if !node.enabled {continue}
-		ctx.frame_stats.render_entities+=1
-		if !entry.prepared || entry.pose!=node.pose {
-			entry.pose=node.pose; entry.transform=detail_transform(node.pose); entry.prepared=true
-			entry.rotation=rotation_quaternion(node.pose)
-			ctx.frame_stats.render_matrices_rebuilt+=1
-		}
 	}
 	for e,node in c.nodes {if node.frame!=c.frame {delete_key(&c.nodes,e)}}
 }

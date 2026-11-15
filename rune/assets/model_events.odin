@@ -102,9 +102,9 @@ model_events :: proc(manager: ^Asset_Manager, path: string) -> (Model_Events_Dat
 refresh_model_events :: proc(manager: ^Asset_Manager) {
 	if manager == nil {return}
 	for path, &cached in manager.model_events {
-		full_path := resolve_path(manager, path)
-		modified := modified_time(full_path)
+		modified := reload_stamp(manager, path, cached.modified_time)
 		if modified == cached.modified_time {continue}
+		full_path := resolve_path(manager, path)
 		data, error := load_model_events_data(full_path)
 		if error != "" {
 			report_failure(manager, {kind = .Animation, operation = .Reload, source_path = path, field = "ModelAnimator.events", asset_path = path, detail = fmt.tprintf("%s; keeping previous markers", error)})

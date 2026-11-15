@@ -50,6 +50,20 @@ The isolated decoder is provided by `rune/image_decode` and its private native
 library; importing ordinary vendor stb symbols would not isolate raylib's
 decoder globals.
 
+Asset and scene watches share `pathutil.modified_time`. On Windows, ordinary
+files and absent optional sidecars use a timestamp-only query. Long paths,
+reparse points, and other unusual responses use the standard `core:os` lookup.
+An absent model material sidecar remains watched, so creating it still updates
+the model's material defaults after a poll sees it.
+
+Development asset polls share a timestamp per watched path across enabled asset
+types. The engine starts a sweep on the configured interval. With a worker pool,
+one job samples an owned snapshot of paths and the owner applies completed
+results on a later frame. Without a pool, or when submission fails, the owner
+samples a bounded batch each frame. Owner-side reload handlers still confirm
+changed stamps before reloading. Scene watches, explicit refreshes, and texture
+upload validation continue to read current timestamps.
+
 At the next frame boundary, the game thread polls completed requests without
 waiting, verifies that their source timestamp and cache entry are still current,
 and uploads a limited number of results before simulation/rendering. Newer

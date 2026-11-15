@@ -116,6 +116,11 @@ or lights: skipped views render fully, useful probes stay active, and scene
 changes or stopping after a skipped view force fresh checks. See
 `docs/static-geometry.md`.
 
+During staged loading, `r3d_bridge.warm_static_mesh_occlusion` can prepare
+local faces for an uploaded opaque mesh on the graphics owner, even if its
+entity is disabled. Spread calls across frames and let drawing evaluate the
+current view. See `docs/static-geometry.md`.
+
 `ecs.set_navigation_mesh_3d` instead borrows arrays for a `NavMesh3D` configured
 with `runtime=true`. Keep those arrays alive and unchanged until the binding is
 cleared/replaced, its component/entity is removed, or the World is destroyed.

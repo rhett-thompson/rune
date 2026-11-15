@@ -314,6 +314,11 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "enabled": {
+          "type": ["boolean", "null"],
+          "default": true,
+          "description": "False disables distance fog while preserving its settings. True, null, or omission uses the selected mode, which defaults to disabled."
+        },
         "mode": {
           "type": "string",
           "enum": [

@@ -29,7 +29,7 @@ preload :: proc(system: ^Audio_System, world: ^ecs.World, entity: ecs.Entity, in
 	defer {
 		if !success {
 			for voice in voices {rl.UnloadSoundAlias(voice.sound)}
-			for _, sound in pending {rl.UnloadSound(sound)}
+			for clip, sound in pending {release_buffered_sound(system, clip, sound)}
 			if rl.IsMusicValid(music) {rl.UnloadMusicStream(music)}
 		}
 		delete(voices); delete(pending)
@@ -47,16 +47,14 @@ preload :: proc(system: ^Audio_System, world: ^ecs.World, entity: ecs.Entity, in
 		if alias_path=="" {alias_path=clip}
 		if _, cached := instance.sources[clip]; cached {continue}
 		if _, cached := pending[clip]; cached {continue}
-		sound, _, loaded := load_source(system,clip,false)
+		sound, loaded := acquire_buffered_sound(system, clip)
 		if !loaded {return false}
 		pending[clip]=sound
 	}
 	if alias_path!="" && !player.looping {
-		sound, cached := instance.sources[alias_path]
-		if !cached {sound=pending[alias_path]}
 		// Never shrink an existing pool here: its last voices may still be heard.
 		for len(instance.voices)+len(voices)<int(max(player.max_voices,1)) {
-			alias := rl.LoadSoundAlias(sound)
+			alias := buffered_voice(system, alias_path)
 			if !rl.IsSoundValid(alias) {return false}
 			append(&voices,Audio_Voice{sound=alias,path=retain_string(system,alias_path)})
 		}

@@ -15,15 +15,25 @@ set_parent :: proc(world: ^World, child, parent: Entity) -> bool {
 		if ancestor == child {return false}
 		ancestor = world.parents[ancestor]
 	}
-	if world.parents[child] == parent {return true}
+	previous := world.parents[child]
+	if previous == parent {return true}
+	if previous != 0 {decrement_child_count(world, previous)}
 	if parent == Entity(0) {
 		delete_key(&world.parents, child)
 	} else {
 		world.parents[child] = parent
+		world.child_counts[parent] += 1
 	}
 	world.hierarchy_dirty = true
 	refresh_activation(world, child)
 	return true
+}
+
+@(private)
+decrement_child_count :: proc(world: ^World, parent: Entity) {
+	count := world.child_counts[parent]
+	if count == 1 {delete_key(&world.child_counts, parent)}
+	else {world.child_counts[parent] = count - 1}
 }
 
 get_parent :: proc(world: ^World, entity: Entity) -> (Entity, bool) {
@@ -39,6 +49,9 @@ root_entities :: proc(world: ^World) -> []Entity {
 }
 
 child_entities :: proc(world: ^World, parent: Entity) -> []Entity {
+	// Construction and activation often ask about a new leaf. Only build the
+	// traversal index when the caller actually has descendants to visit.
+	if world.child_counts[parent] == 0 {return nil}
 	ensure_hierarchy_indexes(world)
 	children, found := world.children_by_parent[parent]
 	if !found {return nil}

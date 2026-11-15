@@ -78,6 +78,8 @@ World :: struct {
 	entity_tags:                 map[Entity]string,
 	layer_masks:                 map[Entity]u64,
 	parents:                     map[Entity]Entity,
+	// Maintained by parenting and destruction, even while the traversal cache is dirty.
+	child_counts:                map[Entity]int,
 	// Hierarchy indexes are rebuilt only when parenting changes. Rendering can
 	// then walk direct child lists instead of repeatedly scanning every parent.
 	roots:                       [dynamic]Entity,
@@ -190,6 +192,7 @@ init :: proc() -> World {
 		entity_tags = make(map[Entity]string),
 		layer_masks = make(map[Entity]u64),
 		parents = make(map[Entity]Entity),
+		child_counts = make(map[Entity]int),
 		roots = make([dynamic]Entity),
 		children_by_parent = make(map[Entity][dynamic]Entity),
 		hierarchy_dirty = true,
@@ -291,6 +294,7 @@ destroy :: proc(world: ^World) {
 	delete(world.entity_tags)
 	delete(world.layer_masks)
 	delete(world.parents)
+	delete(world.child_counts)
 	delete(world.children_by_parent)
 	delete(world.component_data)
 	delete(world.component_instance_data)

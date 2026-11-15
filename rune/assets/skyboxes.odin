@@ -16,7 +16,7 @@ skybox_revision :: proc(manager: ^Asset_Manager, path: string) -> u64 {
 
 refresh_skyboxes :: proc(manager: ^Asset_Manager) {
 	for path, asset in manager.skyboxes {
-		stamp := modified_time(resolve_path(manager, path))
+		stamp := reload_stamp(manager, path, asset.modified_time)
 		if stamp == asset.modified_time {continue}
 		updated := asset
 		updated.modified_time = stamp

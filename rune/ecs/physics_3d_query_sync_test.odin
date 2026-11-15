@@ -134,3 +134,50 @@ physics_3d_queries_follow_simulated_mesh_ancestors :: proc(t:^testing.T) {
 		testing.expect(t,w.physics_3d.sync_count==count,"queries reuse the synchronized result after simulation")
 	}
 }
+
+@(test)
+physics_3d_queries_ignore_render_only_mesh_edits :: proc(t:^testing.T) {
+	lock_native_physics_test();defer unlock_native_physics_test()
+	w:=init();defer destroy(&w)
+	r:=init_registry();defer destroy_registry(&r);assert(register_builtin_components(&r))
+	entity:=create_entity(&w);assert(add(&w,&r,entity,default_transform()))
+	mesh:geometry.Mesh;defer geometry.destroy_mesh(&mesh)
+	for point in ([3][3]f32{{0,0,0},{0,0,2},{2,0,0}}) {
+		append(&mesh.vertices,geometry.Vertex{position=point,normal={0,1,0}})
+	}
+	append(&mesh.indices,0,1,2)
+	origin:=[3]f32{0.5,1,0.5}
+	translation:=[3]f32{0,-2,0}
+	_,found:=physics_3d_raycast(&w,origin,translation)
+	assert(!found)
+	count:=w.physics_3d.sync_count
+
+	assert(set_static_mesh(&w,entity,mesh,collidable=false))
+	testing.expect(t,!w.physics_3d.needs_sync,"render-only install leaves physics clean")
+	assert(static_mesh_query_acceleration(&w,entity)!=nil)
+	assert(set_static_mesh(&w,entity,mesh,collidable=false))
+	testing.expect(t,!w.physics_3d.needs_sync && w.static_meshes[entity].query_mesh==nil,
+		"render-only replacement discards visible query acceleration without invalidating physics")
+	assert(static_mesh_query_acceleration(&w,entity)!=nil)
+	_,found=physics_3d_raycast(&w,origin,translation)
+	testing.expect(t,!found && w.physics_3d.sync_count==count,"native queries ignore the visible-only mesh")
+
+	remove_static_mesh(&w,entity)
+	_,found=physics_3d_raycast(&w,origin,translation)
+	testing.expect(t,!found && w.physics_3d.sync_count==count && static_mesh_query_acceleration(&w,entity)==nil,
+		"render-only removal drops the visible query data and leaves physics synchronized")
+
+	assert(set_static_mesh(&w,entity,mesh,collidable=false))
+	assert(set_static_mesh(&w,entity,mesh))
+	hit:Raycast_Hit_3D
+	hit,found=physics_3d_raycast(&w,origin,translation)
+	testing.expect(t,found && hit.entity==entity && w.physics_3d.sync_count==count+1,
+		"replacing a render-only mesh with a collidable mesh installs native collision")
+
+	assert(set_static_mesh(&w,entity,mesh,collidable=false))
+	_,body_found:=physics_3d_native_body(&w,entity)
+	testing.expect(t,!body_found,"replacing a collidable mesh with a render-only mesh detaches the old body immediately")
+	_,found=physics_3d_raycast(&w,origin,translation)
+	testing.expect(t,!found && w.physics_3d.sync_count==count+2,
+		"queries synchronize after removing native collision")
+}

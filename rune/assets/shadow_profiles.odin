@@ -40,6 +40,6 @@ load_shadow_profile :: proc(manager: ^Asset_Manager, path: string, operation: As
 
 refresh_shadow_profiles :: proc(manager: ^Asset_Manager) {
 	for path,a in manager.shadow_profiles {
-		if modified_time(resolve_path(manager,path))!=a.stamp {load_shadow_profile(manager,path,.Reload)}
+		if reload_stamp(manager, path, a.stamp)!=a.stamp {load_shadow_profile(manager,path,.Reload)}
 	}
 }

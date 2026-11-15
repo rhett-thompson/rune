@@ -83,7 +83,8 @@ Omitting this argument preserves the shared render/collision behavior.
 
 Use `ecs.set_static_mesh(world, entity, mesh, collidable=false)` for render-only
 surfaces. This copies and uploads the same mesh data but creates no Box3D mesh
-or body, so rays, overlaps, and character movement ignore it. Replacing a
+or body, so rays, overlaps, and character movement ignore it. Render-only
+mesh edits reuse the current native physics state. Replacing a
 collidable mesh with render-only data removes the previous body; replacing it
 again with the default options restores collision. A collision mesh cannot be
 supplied together with `collidable=false`. Transform and component ownership
@@ -178,6 +179,12 @@ translation term. Changing camera bases, moving meshes, and nonfinite matrices
 use the full projection path. Coverage and depth proofs always use the current
 view. The bridge owns and releases local, world, and clip face arrays together;
 `memory_stats().occlusion_face_bytes` includes all three.
+
+Staged loaders can call `r3d_bridge.warm_static_mesh_occlusion` on the graphics
+owner after the bridge uploads each destination mesh. The call can prepare
+local faces for an opaque mesh while its entity is disabled. World-space faces
+and visibility proofs still use the current transforms and camera at draw time.
+Budget these calls across frames for large destinations.
 
 `Context.occlusion_adaptive_enabled=true` additionally budgets unproductive
 camera-motion checks. After two completed probes hide no meshes or local lights,
@@ -279,7 +286,9 @@ it skips samples when full. `gpu_supported` reports query availability,
 `gpu_sample_age_frames`, and `gpu_samples` describe the delayed result. Query
 objects are released at bridge shutdown. Both instancing and GPU timing are
 opt-in in Rune. `Context.cloud_volumes_disabled` skips cloud preparation and
-drawing without removing entities, for rendering comparisons.
+drawing. The render cache also skips membership contributed by `CloudVolume`.
+Entities with other renderers still contribute to their render lists, and
+cloud entities still supply transforms to any rendered descendants.
 
 Run the headless ownership/collision validator (also discovered by
 `.\tools\validate.bat`) from the Rune root:

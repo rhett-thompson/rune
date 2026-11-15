@@ -4,7 +4,56 @@ import "rune:audio"
 import "rune:ecs"
 import rl "vendor:raylib"
 
+shared_buffer_test :: proc(system: ^audio.Audio_System, world: ^ecs.World, registry: ^ecs.Component_Registry) {
+	path := "examples/audio_components/assets/bell.wav"
+	first, second := ecs.create_entity(world), ecs.create_entity(world)
+	defer {
+		ecs.destroy_entities(world, []ecs.Entity{first, second})
+		audio.update(system, world)
+	}
+	assert(ecs.add_component(world,registry,first,"AudioPlayer",parse(`{
+		"loop":{"sound":"examples/audio_components/assets/bell.wav","looping":true,"volume":0.25}
+	}`)))
+	assert(ecs.add_component(world,registry,second,"AudioPlayer",parse(`{
+		"loop":{"sound":"examples/audio_components/assets/bell.wav","looping":true,"volume":0.65},
+		"hit":{"sound":"examples/audio_components/assets/bell.wav","max_voices":2},
+		"missing":{"clips":["examples/audio_components/assets/bell.wav","examples/audio_components/assets/__missing_preload__.wav"]}
+	}`)))
+	assert(ecs.set_enabled(world,first,false))
+	assert(audio.preload(system,world,first,"loop"))
+	first_key := ecs.Component_Instance{entity=first,name="loop"}
+	second_key := ecs.Component_Instance{entity=second,name="loop"}
+	hit_key := ecs.Component_Instance{entity=second,name="hit"}
+	source := system.buffered_sources[path]
+	assert(source.references==1 && rl.IsSoundValid(source.sound))
+	assert(audio.play(system,world,second,"loop"))
+	assert(audio.play(system,world,second,"hit"))
+	second_loop, hit := system.instances[second_key], system.instances[hit_key]
+	assert(system.buffered_sources[path].sound==source.sound && system.buffered_sources[path].references==3,
+		"preload and lazy plays retain the same decoded samples")
+	assert(second_loop.sound.stream.buffer!=source.sound.stream.buffer &&
+		second_loop.sound.stream.buffer!=system.instances[first_key].sound.stream.buffer &&
+		hit.voices[0].sound.stream.buffer!=second_loop.sound.stream.buffer,
+		"loop channels and overlapping voices use independent playback buffers")
+	assert(!audio.preload(system,world,second,"missing"))
+	assert(system.buffered_sources[path].references==3,"failed preload releases its temporary shared reference")
+	assert(ecs.set_enabled(world,first,true) && audio.play(system,world,first,"loop"))
+	assert_volume(system,first,"loop",0.25)
+	assert_volume(system,second,"loop",0.65)
+	assert(audio.stop(system,first,"loop",0))
+	assert(!audio.is_playing(system,first,"loop") && audio.is_playing(system,second,"loop"))
+	assert(ecs.destroy_entity(world,first))
+	audio.update(system,world)
+	assert(system.buffered_sources[path].references==2 && audio.is_playing(system,second,"loop"),
+		"removing one owner does not stop another instance or unload its samples")
+	assert(ecs.destroy_entity(world,second))
+	audio.update(system,world)
+	_, retained := system.buffered_sources[path]
+	assert(!retained,"releasing the last playback instance releases the decoded samples")
+}
+
 preload_test :: proc(system: ^audio.Audio_System, world: ^ecs.World, registry: ^ecs.Component_Registry) {
+	shared_buffer_test(system,world,registry)
 	entity := ecs.create_entity(world)
 	defer {ecs.destroy_entity(world,entity); audio.update(system,world,0)}
 	assert(ecs.add_component(world,registry,entity,"AudioPlayer",parse(`{

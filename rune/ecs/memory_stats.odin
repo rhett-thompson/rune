@@ -44,6 +44,7 @@ memory_stats :: proc(world: ^World) -> Memory_Stats {
 	result.map_bytes += memory.map_bytes(world.entity_tags)
 	result.map_bytes += memory.map_bytes(world.layer_masks)
 	result.map_bytes += memory.map_bytes(world.parents)
+	result.map_bytes += memory.map_bytes(world.child_counts)
 	result.map_bytes += memory.map_bytes(world.children_by_parent)
 	result.map_bytes += memory.map_bytes(world.component_data)
 	result.map_bytes += memory.map_bytes(world.owned_component_json)

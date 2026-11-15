@@ -2,6 +2,8 @@ package r3d_bridge
 
 import "core:testing"
 import "rune:ecs"
+import r3d "r3d:r3d"
+import rl "vendor:raylib"
 
 @(test)
 scene_camera_origin_inherits_hierarchy_with_world_target_and_up :: proc(t:^testing.T) {
@@ -33,4 +35,28 @@ scene_camera_origin_inherits_hierarchy_with_world_target_and_up :: proc(t:^testi
 	missing:=ecs.create_entity(&w)
 	_,valid=scene_camera_3d(&w,missing,value)
 	testing.expect(t,!valid,"camera still requires its own Transform component")
+}
+
+@(test)
+scene_view_aspects_follow_the_sampling_viewport_and_internal_target :: proc(t:^testing.T) {
+	main,auxiliary,valid:=scene_view_aspects({}, {1920,1080}, {1280,800}, .EXPAND)
+	testing.expect(t,valid && main==1920.0/1080.0 && auxiliary==1.6)
+	main,auxiliary,valid=scene_view_aspects({width=2560,height=1440}, {1920,1080}, {1280,800}, .KEEP)
+	testing.expect(t,valid && main==auxiliary && auxiliary==1.6)
+	_,_,valid=scene_view_aspects({}, {0,1080}, {1280,800}, .KEEP)
+	testing.expect(t,!valid)
+}
+
+@(test)
+frustum_box_test_retains_crossing_and_unavailable_bounds :: proc(t:^testing.T) {
+	camera:=r3d.Camera{fovy=60,nearPlane=0.1,farPlane=250,projection=.PERSPECTIVE}
+	r3d.CameraLookAt(&camera,{0,0,-1},{0,1,0})
+	frustum:=r3d.ComputeFrustum(r3d.GetCameraViewProj(camera,1))
+	local:=rl.BoundingBox{{-0.1,-0.1,-10},{0.1,0.1,10}}
+	pose:=ecs.Transform{position={35,0,-15},scale={1,1,4}}
+	testing.expect(t,!frustum_may_intersect_transformed_box(&frustum,local,pose))
+	pose.rotation={0,45,0}
+	testing.expect(t,frustum_may_intersect_transformed_box(&frustum,local,pose),"the rotated long box crosses the camera even with an offscreen center")
+	testing.expect(t,frustum_may_intersect_transformed_box(nil,local,pose))
+	testing.expect(t,frustum_may_intersect_transformed_box(&frustum,{{1,1,1},{0,0,0}},pose))
 }

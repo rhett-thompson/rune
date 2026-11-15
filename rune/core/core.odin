@@ -6,7 +6,6 @@ import "core:mem"
 import "core:os"
 import "core:path/filepath"
 import "core:strings"
-import "core:time"
 import "rune:assets"
 import "rune:audio"
 import "rune:console"
@@ -600,7 +599,7 @@ watch_scene :: proc(engine: ^Engine, path: string) -> string {
 		if dependency_path != path && !engine.project.hot_reload.prefabs {continue}
 		if _, exists := watch[dependency_path]; exists {continue}
 		owned_dependency, _ := strings.clone(dependency_path)
-		watch[owned_dependency] = file_modified_time(dependency_path)
+		watch[owned_dependency] = pathutil.modified_time(dependency_path)
 	}
 	engine.scene_watches[owned_scene_path] = watch
 	return owned_scene_path
@@ -621,15 +620,9 @@ scene_changed :: proc(engine: ^Engine, path: string) -> bool {
 		return false
 	}
 	for dependency_path, recorded_time in watch {
-		if file_modified_time(dependency_path) != recorded_time {return true}
+		if pathutil.modified_time(dependency_path) != recorded_time {return true}
 	}
 	return false
-}
-
-file_modified_time :: proc(path: string) -> i64 {
-	modified, err := os.modification_time_by_path(path)
-	if err != nil {return -1}
-	return time.to_unix_nanoseconds(modified)
 }
 
 // run follows a familiar game-object lifecycle: on_update changes game state,
@@ -960,40 +953,8 @@ begin_frame :: proc(engine: ^Engine) {
 	engine.hot_reload_due = hot_reload_poll_due(engine)
 	asset_refresh_started := debug_profile_started()
 	assets.pump_asset_jobs(&engine.assets)
-	if engine.hot_reload_due && engine.project.hot_reload.enabled && engine.project.hot_reload.shadow_profiles {
-		assets.refresh_shadow_profiles(&engine.assets)
-	}
-	if engine.hot_reload_due &&
-	   engine.project.hot_reload.enabled &&
-	   engine.project.hot_reload.textures {
-		assets.refresh_background(&engine.assets)
-	}
-	if engine.hot_reload_due &&
-	   engine.project.hot_reload.enabled &&
-	   engine.project.hot_reload.models {
-		assets.refresh_models(&engine.assets)
-		assets.refresh_skyboxes(&engine.assets)
-	}
-	if engine.hot_reload_due && engine.project.hot_reload.enabled && engine.project.hot_reload.terrains {
-		assets.refresh_terrains(&engine.assets)
-	}
-	if engine.hot_reload_due && engine.project.hot_reload.enabled && engine.project.hot_reload.navmeshes {
-		assets.refresh_navmeshes(&engine.assets)
-	}
-	if engine.hot_reload_due &&
-	   engine.project.hot_reload.enabled &&
-	   engine.project.hot_reload.materials {
-		assets.refresh_materials(&engine.assets)
-	}
-	if engine.hot_reload_due &&
-	   engine.project.hot_reload.enabled &&
-	   engine.project.hot_reload.animations {
-		assets.refresh_animations(&engine.assets)
-	}
-	if engine.hot_reload_due &&
-	   engine.project.hot_reload.enabled &&
-	   engine.project.hot_reload.tilesets {
-		assets.refresh_tilesets(&engine.assets)
+	when !Player_Build {
+		assets.advance_reload_poll(&engine.assets, asset_reload_kinds(engine.project.hot_reload), engine.hot_reload_due)
 	}
 	engine.debug.sample.asset_refresh_ms += debug_profile_elapsed_ms(asset_refresh_started)
 	flush_asset_diagnostics(engine)
@@ -1051,6 +1012,21 @@ clear_background :: proc(engine: ^Engine) {
 			engine.project.background_color[3],
 		},
 	)
+}
+
+@(private)
+asset_reload_kinds :: proc(settings: Hot_Reload_Settings) -> assets.Asset_Reload_Kinds {
+	kinds: assets.Asset_Reload_Kinds
+	if !settings.enabled {return kinds}
+	if settings.shadow_profiles {kinds += {.Shadow_Profiles}}
+	if settings.textures {kinds += {.Textures}}
+	if settings.models {kinds += {.Models}}
+	if settings.terrains {kinds += {.Terrains}}
+	if settings.navmeshes {kinds += {.Navmeshes}}
+	if settings.materials {kinds += {.Materials}}
+	if settings.animations {kinds += {.Animations}}
+	if settings.tilesets {kinds += {.Tilesets}}
+	return kinds
 }
 
 hot_reload_poll_due :: proc(engine: ^Engine) -> bool {

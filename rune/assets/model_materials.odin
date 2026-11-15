@@ -48,8 +48,7 @@ model_material_path :: proc(manager: ^Asset_Manager, model: string, slot: i32) -
 refresh_model_materials :: proc(manager: ^Asset_Manager) -> bool {
 	changed := false
 	for _, &cached in manager.model_materials {
-		full_path := resolve_path(manager, cached.sidecar_path)
-		modified := modified_time(full_path)
+		modified := reload_stamp(manager, cached.sidecar_path, cached.modified_time)
 		if modified == cached.modified_time {continue}
 		cached.modified_time = modified
 		if modified < 0 {
@@ -59,7 +58,7 @@ refresh_model_materials :: proc(manager: ^Asset_Manager) -> bool {
 			resolve_asset_failure(manager, cached.sidecar_path, "$.materials", cached.sidecar_path)
 			continue
 		}
-		materials, ok := load_model_material_paths(full_path)
+		materials, ok := load_model_material_paths(resolve_path(manager, cached.sidecar_path))
 		if !ok {
 			report_failure(manager, {kind = .Material, operation = .Reload, source_path = cached.sidecar_path,
 				field = "$.materials", asset_path = cached.sidecar_path,

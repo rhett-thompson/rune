@@ -3,6 +3,51 @@ package ecs
 import "core:testing"
 
 @(test)
+leaf_updates_defer_hierarchy_index_rebuild :: proc(t:^testing.T) {
+	lock_native_physics_test();defer unlock_native_physics_test()
+	w:=init();defer destroy(&w)
+	r:=init_registry();defer destroy_registry(&r);assert(register_builtin_components(&r))
+	parent:=create_entity(&w)
+	assert(add(&w,&r,parent,default_transform()))
+	surface:=physics_query_sync_surface(&w,&r,parent,false)
+	physics_query_sync_expect_surface(t,&w,surface)
+	_ = root_entities(&w)
+	version:=w.hierarchy_version
+	for _ in 0..<32 {
+		leaf:=create_entity(&w)
+		assert(set_parent(&w,leaf,parent) && add(&w,&r,leaf,default_transform()))
+		assert(set_enabled(&w,leaf,false) && destroy_entity(&w,leaf,recursive=false))
+	}
+	testing.expect(t,w.hierarchy_version==version && w.hierarchy_dirty,"leaf construction, activation and destruction leave rebuilds to traversal")
+	children:=child_entities(&w,parent)
+	testing.expect(t,len(children)==1 && children[0]==surface && w.hierarchy_version==version+1,"the next traversal rebuilds the index once")
+}
+
+@(test)
+reparented_groups_keep_children_and_native_activation_current :: proc(t:^testing.T) {
+	lock_native_physics_test();defer unlock_native_physics_test()
+	w:=init();defer destroy(&w)
+	r:=init_registry();defer destroy_registry(&r);assert(register_builtin_components(&r))
+	wall:=create_entity(&w)
+	disabled:=create_entity(&w)
+	group:=create_entity(&w)
+	assert(add(&w,&r,wall,default_transform()))
+	assert(add(&w,&r,wall,BoxCollider{size={1,1,1},is_static=true}))
+	assert(set_enabled(&w,disabled,false) && set_parent(&w,wall,group))
+	_,hit:=physics_3d_raycast(&w,{0,2,0},{0,-4,0})
+	testing.expect(t,hit,"a newer parent can own an older child")
+	assert(set_parent(&w,group,disabled))
+	_,hit=physics_3d_raycast(&w,{0,2,0},{0,-4,0})
+	testing.expect(t,!hit,"moving a group under a disabled parent suspends its child's collision")
+	assert(set_parent(&w,group,0))
+	_,hit=physics_3d_raycast(&w,{0,2,0},{0,-4,0})
+	testing.expect(t,hit && !destroy_entity(&w,group,recursive=false),"detaching restores collision and preserves the child")
+	assert(set_parent(&w,wall,0))
+	version:=w.hierarchy_version
+	testing.expect(t,destroy_entity(&w,group,recursive=false) && w.hierarchy_version==version,"detaching the last child restores the leaf fast path")
+}
+
+@(test)
 visual_activation_reuses_native_collision_and_groups_toggle_descendant_bodies :: proc(t:^testing.T) {
 	lock_native_physics_test();defer unlock_native_physics_test()
 	w:=init();defer destroy(&w)
