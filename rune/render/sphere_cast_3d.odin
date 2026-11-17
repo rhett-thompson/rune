@@ -36,10 +36,21 @@ scene_sphere_cast_batch_3d :: proc(world:^ecs.World,requests:[]Scene_Sphere_Cast
 		} else {lengths[i]=length;active=true}
 	}
 	if !active {return}
-	for entity in world.entities {
-		if !ecs.is_enabled(world,entity) {continue}
+	// Carry the inherited pose once and prune entire disabled or excluded branches.
+	Branch :: struct {remaining: []ecs.Entity, parent_pose: ecs.Transform}
+	stack := make([dynamic]Branch, context.temp_allocator)
+	append(&stack, Branch{ecs.root_entities(world), ecs.default_transform()})
+	for len(stack) > 0 {
+		branch := &stack[len(stack)-1]
+		if len(branch.remaining) == 0 {
+			pop(&stack)
+			continue
+		}
+		entity := branch.remaining[0]
+		branch.remaining = branch.remaining[1:]
+		if !ecs.is_locally_enabled(world,entity) {continue}
 		excluded:=false
-		for root in ignored_subtrees {if pick_3d_in_subtree(world,entity,root) {excluded=true;break}}
+		for root in ignored_subtrees {if entity==root {excluded=true;break}}
 		if excluded {continue}
 		mesh,has_mesh:=ecs.get_mesh_renderer(world,entity)
 		sphere,has_sphere:=ecs.get_sphere_renderer(world,entity)
@@ -67,8 +78,12 @@ scene_sphere_cast_batch_3d :: proc(world:^ecs.World,requests:[]Scene_Sphere_Cast
 			}
 		}
 		if has_sphere {bounds={-[3]f32{1,1,1}*sphere.radius,[3]f32{1,1,1}*sphere.radius};has_bounds=true}
+		children := ecs.child_entities(world, entity)
+		if !has_bounds && len(children)==0 {continue}
+		pose := branch.parent_pose
+		if local, found := ecs.get_transform(world, entity); found {pose = ecs.compose_transform_3d(pose, local)}
+		if len(children) > 0 {append(&stack, Branch{children, pose})}
 		if !has_bounds {continue}
-		pose:=ecs.world_transform_3d(world,entity)
 		if !pick_3d_vector_valid(pose.position) || !pick_3d_vector_valid(pose.rotation) || !pick_3d_vector_valid(pose.scale) {continue}
 		if pose.scale[0]==0 || pose.scale[1]==0 || pose.scale[2]==0 {continue}
 		rotation:=pose.rotation*f32(math.PI/180)

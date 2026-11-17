@@ -3,6 +3,7 @@ package render
 import "core:testing"
 import "rune:ecs"
 import "rune:geometry"
+import rl "vendor:raylib"
 
 @(test)
 rendered_sphere_batch_keeps_independent_hits_and_refreshes_edited_geometry :: proc(t:^testing.T) {
@@ -105,4 +106,63 @@ rendered_sphere_cast_mesh_acceleration_follows_replacement_and_bvh_branches :: p
 	testing.expect(t,ok && abs(hit.distance-14.75)<0.02)
 	ecs.destroy_entity(&w,entity)
 	_,ok=scene_sphere_cast_3d(&w,{195,0,0},{0,0,20},0.25);testing.expect(t,!ok)
+}
+
+@(private="file")
+Sphere_Cast_Bounds_Probe :: struct {
+	bounds: map[ecs.Entity]rl.BoundingBox,
+	visits: map[ecs.Entity]int,
+}
+
+@(private="file")
+sphere_cast_probe_bounds :: proc(data: rawptr, world: ^ecs.World, entity: ecs.Entity) -> (rl.BoundingBox, bool) {
+	probe := (^Sphere_Cast_Bounds_Probe)(data)
+	probe.visits[entity] += 1
+	bounds, found := probe.bounds[entity]
+	return bounds, found
+}
+
+@(test)
+rendered_sphere_batch_keeps_hierarchy_and_custom_bounds_semantics :: proc(t: ^testing.T) {
+	w := ecs.init(); defer ecs.destroy(&w)
+	r := ecs.init_registry(); defer ecs.destroy_registry(&r)
+	assert(ecs.register_builtin_components(&r))
+	model := ecs.create_entity(&w)
+	root := ecs.create_entity(&w)
+	assert(ecs.add(&w, &r, root, ecs.Transform{position={3,0,10}, rotation={0,90,0}, scale={2,1,1}}))
+	group := ecs.create_entity(&w)
+	assert(ecs.set_parent(&w, group, root) && ecs.set_parent(&w, model, group))
+	compound := ecs.create_entity(&w)
+	assert(ecs.set_parent(&w, compound, group))
+	assert(ecs.add(&w, &r, compound, ecs.Transform{position={0,0,5}, scale={1,1,1}}))
+	assert(ecs.add(&w, &r, compound, ecs.MeshRenderer{primitive="cube"}))
+	assert(ecs.add(&w, &r, compound, ecs.SphereRenderer{radius=1}))
+	disabled, hidden, excluded, ignored := ecs.create_entity(&w), ecs.create_entity(&w), ecs.create_entity(&w), ecs.create_entity(&w)
+	assert(ecs.set_parent(&w, disabled, root) && ecs.set_parent(&w, hidden, disabled) && ecs.set_enabled(&w, disabled, false))
+	assert(ecs.set_parent(&w, excluded, root) && ecs.set_parent(&w, ignored, excluded))
+	probe := Sphere_Cast_Bounds_Probe{make(map[ecs.Entity]rl.BoundingBox), make(map[ecs.Entity]int)}
+	defer {delete(probe.bounds); delete(probe.visits)}
+	for entity in ([5]ecs.Entity{root, model, compound, hidden, ignored}) {probe.bounds[entity] = {{-2,-2,-2},{2,2,2}}}
+	exclusions := [1]ecs.Entity{excluded}
+	requests := [4]Scene_Sphere_Cast_3D{
+		{origin={3,0,0}, translation={0,0,20}, radius=0.25, ignore=root},
+		{origin={8,0,0}, translation={0,0,20}, radius=0.25},
+		{origin={3,0,10}, translation={0,0,20}, radius=0.25},
+		{origin={3,0,0}, translation={0,0,20}, ignore=root},
+	}
+	results: [len(requests)]Scene_Sphere_Cast_Result_3D
+	scene_sphere_cast_batch_3d(&w, requests[:], results[:], sphere_cast_probe_bounds, &probe, exclusions[:])
+	testing.expect(t, results[0].found && results[0].hit.entity == model && abs(results[0].hit.distance-5.75) < 0.02,
+		"custom bounds can supply geometry beneath a transformless parent and an exactly ignored entity")
+	testing.expect(t, results[1].found && results[1].hit.entity == compound && abs(results[1].hit.distance-7.75) < 0.02,
+		"compound bounds preserve sphere priority over a cube and custom model")
+	testing.expect(t, results[2].found && results[2].hit.entity == model && results[2].hit.distance == 0,
+		"the lower entity ID wins a tied initial overlap even when its parent is visited first")
+	testing.expect(t, results[3].found && results[3].hit.entity == model && abs(results[3].hit.distance-6) < 0.02,
+		"zero radius keeps the ordinary ray's contact")
+	testing.expect(t, probe.visits[root] == 1 && probe.visits[group] == 2 && probe.visits[model] == 2 && probe.visits[compound] == 2,
+		"the positive-radius traversal shares one callback per entity and the ray keeps its own exact-ignore rule")
+	for entity in ([4]ecs.Entity{disabled, hidden, excluded, ignored}) {
+		testing.expect(t, probe.visits[entity] == 0, "bounds callbacks skip disabled and excluded subtrees")
+	}
 }

@@ -13,12 +13,13 @@ cache. Queries remain on the World owner thread and do not advance simulation.
 For related sweeps, use `scene_sphere_cast_batch(world, requests, results,
 bridge=nil, ignored_subtrees=nil)`. Supply equally sized borrowed slices of
 `Scene_Sphere_Cast` (`origin`, `translation`, `radius`, `ignore`) and caller-owned
-`Scene_Sphere_Cast_Result` (`hit`, `found`). One synchronous scene traversal
-shares composed transforms and local bounds across requests; conservative world
-bounds reject misses before matrix inversion and triangle traversal. Results
-are cleared on every call and retain scalar-query semantics, including initial
-overlaps, mirrored scale, finite segments and zero-radius rays. The World must
-not change during the call; later calls observe edits and activation changes.
+`Scene_Sphere_Cast_Result` (`hit`, `found`). Positive-radius sweeps share a
+hierarchy traversal, composed transforms, and local bounds. Conservative world
+bounds reject misses before matrix inversion and triangle traversal. Zero-radius
+requests use ordinary ray picking. Results are cleared on every call and retain
+scalar-query semantics, including initial overlaps, mirrored scale, and finite
+segments. Keep the World stable during each call. Later calls observe edits and
+activation changes.
 The CPU equivalents are `render.Scene_Sphere_Cast_3D`,
 `render.Scene_Sphere_Cast_Result_3D` and `render.scene_sphere_cast_batch_3d`.
 

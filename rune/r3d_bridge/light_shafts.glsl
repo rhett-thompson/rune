@@ -10,15 +10,15 @@ uniform vec2 u_resolution;
 uniform sampler2D u_occlusion_depth;
 uniform int u_use_occlusion_depth;
 
-float clearPath(vec2 uv) {
-    if(any(lessThan(uv,vec2(0.0))) || any(greaterThanEqual(uv,vec2(1.0)))) return 0.0;
+bool clearPath(vec2 uv) {
+    if(any(lessThan(uv,vec2(0.0))) || any(greaterThanEqual(uv,vec2(1.0)))) return false;
     ivec2 pixel=ivec2(uv*u_resolution);
     float depth=u_use_occlusion_depth!=0 ? texelFetch(u_occlusion_depth,pixel,0).r : FetchDepth(pixel);
-    if(depth>=FAR_PLANE-0.01) return 1.0;
+    if(depth>=FAR_PLANE-0.01) return true;
     // All architecture masks the scattering sky, including geometry farther
     // away than the finite emitter. Only the emitter's own footprint is clear.
     float radius=length((uv-u_source.xy)*vec2(u_settings.w,1.0));
-    return radius<=u_disk_radius && abs(depth-u_source.z)<=u_settings.z+0.5 ? 1.0 : 0.0;
+    return radius<=u_disk_radius && abs(depth-u_source.z)<=u_settings.z+0.5;
 }
 
 void fragment() {
@@ -38,9 +38,11 @@ void fragment() {
         if(i>=u_samples) break;
         float t=(float(i)+jitter)/float(u_samples)*0.85;
         vec2 uv=mix(TEXCOORD,u_source.xy,t);
-        float r=length((uv-u_source.xy)*aspect)/u_settings.y;
         float weight=exp(-t*4.0);
-        sum+=clearPath(uv)*exp(-r*r*2.0)*weight;
+        if(clearPath(uv)) {
+            float r=length((uv-u_source.xy)*aspect)/u_settings.y;
+            sum+=exp(-r*r*2.0)*weight;
+        }
         normalization+=weight;
     }
     COLOR+=u_color*(sum/normalization)*envelope*u_settings.x*u_edge_fade;

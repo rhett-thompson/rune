@@ -310,10 +310,12 @@ render-only surfaces must block. The CPU entry point is
 `render.scene_sphere_cast_3d`; see `rune/r3d_bridge/scene_query.md`.
 
 Use `r3d_bridge.scene_sphere_cast_batch` for related sweeps against the same
-unchanged World. Caller-owned, equally sized request/result slices share scene
-traversal, bounds and transforms. Results retain scalar-query semantics and
-are refreshed on every call; no geometry snapshot survives later World edits.
-`render.scene_sphere_cast_batch_3d` provides the CPU-only entry point.
+unchanged World. Supply equally sized, caller-owned request and result slices.
+Positive-radius sweeps share hierarchy traversal, bounds and transforms, and
+skip disabled and excluded subtrees. Zero-radius requests use ordinary ray
+picking. Each call refreshes results and retains scalar-query semantics.
+See `rune/r3d_bridge/scene_query.md` and the CPU-only entry point
+`render.scene_sphere_cast_batch_3d`.
 
 For owner-thread visual preparation, `r3d_bridge.scene_sampling_frustum`
 encloses both the main render and its auxiliary depth projection before drawing.
