@@ -61,6 +61,12 @@ Resolve a local path with `ecs.find_prefab_child(world, instance, "camera")`, or
 supply an explicitly qualified scene ID for `Entity_Ref`. Do not use display
 names as IDs. See `docs/prefabs.md` and `rune/ecs/prefab_references.odin`.
 
+For runtime prefab spawning, pass a resolved tree and its placement parent to
+`scene.instantiate_entity_tree`. Use `scene.apply_entity_updates` on the World
+owner thread to update existing instances from pairs of resolved source trees.
+Supply stable, fully qualified IDs and effective layers. Keep source watches
+and gameplay binding updates with the spawning system. See `docs/prefabs.md`.
+
 Use `ecs.get`, `ecs.set`, `ecs.add`, and typed `ecs.query`/`query2`/`query3` for
 normal gameplay. Check returned success/found values. Getters return copies;
 their strings and collections borrow component storage. Treat those references

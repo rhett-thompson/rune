@@ -414,17 +414,7 @@ add_component_owned :: proc(
 		return false
 	}
 	descriptor, _ := component_descriptor(registry, name)
-	if _,mesh := world.static_meshes[entity]; mesh {
-		for other in ([]string{"Terrain","RigidBody3D","BoxCollider","SphereCollider","CharacterController","CharacterController3D"}) {
-			if name==other {return false}
-		}
-	}
-	// Terrain owns a static body; mixing another 3D body/controller on the same
-	// entity would give two systems ownership of that body and its transform.
-	for other in ([]string{"RigidBody3D","BoxCollider","SphereCollider","CharacterController","CharacterController3D"}) {
-		if (name == "Terrain" && has_component_data(world,entity,other)) ||
-		   (name == other && has_component_data(world,entity,"Terrain")) {return false}
-	}
+	if !component_attachment_allowed(world, entity, name) {return false}
 	already_present := has_component_data(world, entity, name)
 	if descriptor.type_id != nil {world.component_names_by_type[descriptor.type_id] = name}
 	if descriptor.create_typed != nil {
@@ -755,6 +745,26 @@ add_component_owned :: proc(
 		record_component_change(world, entity, name, kind)
 	}
 	world.component_descriptors[name] = descriptor
+	return true
+}
+
+// Check whether a component can coexist with the entity's other components.
+// Batch editors may supply pending membership changes by name. Component data
+// validation still happens through add_component.
+component_attachment_allowed :: proc(world: ^World, entity: Entity, name: string, pending: map[string]bool = nil) -> bool {
+	_, has_static_mesh := world.static_meshes[entity]
+	if name == "Terrain" && has_static_mesh {return false}
+	// Terrain and static meshes own their bodies and single transform.
+	for body in ([5]string{"RigidBody3D", "BoxCollider", "SphereCollider", "CharacterController", "CharacterController3D"}) {
+		if name == "Terrain" {
+			present := pending[body] or_else has_component_data(world, entity, body)
+			if present {return false}
+		}
+		if name == body {
+			has_terrain := pending["Terrain"] or_else has_component_data(world, entity, "Terrain")
+			return !has_static_mesh && !has_terrain
+		}
+	}
 	return true
 }
 // add_typed_component attaches a runtime-created custom component without

@@ -109,6 +109,9 @@ thinning, see `docs/terrain.md` and the rendering reference.
   defaults with Rune's decoder/default helpers. Use typed ECS setters/adders and
   supported named-instance APIs so validation, ownership, change tracking, and
   physics/render caches stay consistent.
+- Spawn resolved prefab trees with `scene.instantiate_entity_tree` and apply
+  later source edits with `scene.apply_entity_updates` on the World owner.
+  Supply qualified IDs and effective layers as described in `docs/prefabs.md`.
 - Treat authored scene documents as the source of truth. Game level editors own
   creating and saving them; Rune owns validation, loading, and instantiation.
   Keep scene saving in game-owned tools and scene export APIs/console commands

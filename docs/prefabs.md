@@ -204,12 +204,22 @@ instantiation through `scene.instantiate_with_layers_at`. `prefab.load` returns
 authored data; `prefab.resolve_scene` expands JSON using caller-owned scratch
 storage. Neither API registers gameplay systems or saves edited files.
 
+For a runtime-spawned prefab, use `scene.instantiate_entity_tree` with resolved
+entity data and the placement parent. It returns the root handle and cleans up
+partial trees on failure. To apply a later edit, pass `scene.Entity_Update`
+pairs to `scene.apply_entity_updates` on the World owner thread. Supply the
+previous and updated resolved trees with IDs qualified for each live placement
+and inherited layers already filled in. Unchanged objects and component fields
+keep their live handles and values. Added and removed children follow the new
+tree by ID. The caller owns source watching, validation of gameplay rules, and
+any gameplay bindings that need to refresh after a successful update.
+
 Run the headless controller-shaped composition fixtures, legacy replacement
 checks, cycle/error checks, and nested reload tests:
 
 ```powershell
 $exe = '.exe'
-odin run tools/prefab_validation -linker:msvc -collection:rune=rune "-out:build/prefab_validation$exe"
+.\tools\odin.bat run tools/prefab_validation -linker:msvc -collection:rune=rune "-out:build/prefab_validation$exe"
 ```
 
 The fixtures live under [tools/prefab_validation/fixtures](../tools/prefab_validation/fixtures).
