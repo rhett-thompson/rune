@@ -422,8 +422,27 @@ play_audio :: proc(
 	world: ^ecs.World,
 	entity: ecs.Entity,
 	instance_name: string,
+	gain: f32 = 1,
 ) -> bool {
-	return audio.play(&engine.audio, world, entity, instance_name)
+	return audio.play(&engine.audio, world, entity, instance_name, gain)
+}
+
+set_audio_gain :: proc(engine: ^Engine, entity: ecs.Entity, instance_name: string, gain: f32) -> bool {
+	return engine != nil && audio.set_gain(&engine.audio, entity, instance_name, gain)
+}
+
+pause_audio_stream :: proc(engine: ^Engine, entity: ecs.Entity, instance_name: string) -> bool {
+	return engine != nil && audio.pause_stream(&engine.audio, entity, instance_name)
+}
+
+resume_audio_stream :: proc(
+	engine: ^Engine,
+	world: ^ecs.World,
+	entity: ecs.Entity,
+	instance_name: string,
+	gain: f32 = 1,
+) -> bool {
+	return engine != nil && audio.resume_stream(&engine.audio, world, entity, instance_name, gain)
 }
 
 stop_audio :: proc(engine: ^Engine, entity: ecs.Entity, instance_name: string, fade_seconds: f32 = -1) -> bool {

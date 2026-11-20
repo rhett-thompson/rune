@@ -16,7 +16,7 @@ preload :: proc(system: ^Audio_System, world: ^ecs.World, entity: ecs.Entity, in
 	key := ecs.Component_Instance{entity=entity,name=instance_name}
 	previous, found := system.instances[key]
 	reuse := found && same_clip_configuration(previous,player)
-	instance: Audio_Instance
+	instance := Audio_Instance{playback_gain=previous.playback_gain if found else 1}
 	if reuse {instance=previous}
 	path := player.sound
 	if len(player.clips)>0 {path=player.clips[0]}

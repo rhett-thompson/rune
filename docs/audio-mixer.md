@@ -21,8 +21,8 @@ audio.fade_bus(&game.audio.mixer, .music, 0, 2.0)
 ```
 
 Volumes range from 0 to 1. Setters reject invalid values and return success.
-Gain is player volume (including per-voice variation) times distance attenuation
-times bus volume times master volume. Players routed directly to master apply
+Gain is player volume (including per-voice variation) times distance attenuation,
+playback gain, bus volume, and master volume. Players routed directly to master apply
 master once. Mute preserves the slider value. A new linear fade replaces the
 previous fade starting at the current value; setting volume cancels a fade.
 
@@ -51,6 +51,42 @@ The Audio Components example demonstrates SFX controls: M toggles mute, F fades
 out over two seconds, R restores volume, and left-click plays the bell. The Clay
 example's volume slider controls the master bus.
 
+## Playback gain
+
+Pass an initial `gain` to start a named player at a specific level. Change the
+gain of an existing playback instance without restarting playback or changing
+its `AudioPlayer` component.
+
+```odin
+rune.play_audio(&game, world, entity, "theme", gain=0)
+rune.set_audio_gain(&game, entity, "theme", 0.25)
+```
+
+Each explicit play defaults to gain `1`. Both calls accept finite gains from
+`0` through `1`. `set_audio_gain` returns `false` if the instance is missing or
+the gain is invalid. A successful change applies on the next audio update to
+the stream or all buffered voices on that instance. The gain multiplies the
+authored volume and works with the bus controls and stop fades. The direct
+audio-system APIs are `audio.play` and `audio.set_gain`.
+
+## Pause and resume a stream
+
+Pause a playing named stream to retain the current decoder and playback
+position. Resume applies the supplied gain and current player settings before
+the stream returns to the mixer. The default resume gain is `1`.
+
+```odin
+rune.pause_audio_stream(&game, entity, "theme")
+rune.resume_audio_stream(&game, world, entity, "theme", gain=0.5)
+```
+
+The pause persists through regular audio updates and entity activation changes.
+Resume requires an enabled owner, matching clip settings and a finite gain
+from `0` through `1`. Check the return value to determine whether a retained
+stream resumed. Explicit play starts a new play, and stop discards the paused
+position. These calls operate on streaming players. The direct audio-system
+APIs are `audio.pause_stream` and `audio.resume_stream`.
+
 ## Room reverb
 
 Set a bus's room send from the game thread with `audio.set_bus_reverb`. The
@@ -64,7 +100,7 @@ audio.set_bus_reverb(&game.audio, .sfx, 0)
 ```
 
 The stereo return is added to the existing dry signal. It follows source
-volume, distance attenuation and stop fades, and the bus and master control
+volume, distance attenuation, playback gain, and stop fades. The bus and master control
 its output gain and mute. Buffered voices, loops, and streaming players all
 feed the selected bus. The send smooths changes and the return keeps ringing
 after a source stops. Rune sends affect only players on the selected bus. Raw
@@ -108,7 +144,7 @@ The destination must be live and use the same `sound`, ordered `clips`, and
 players unchanged. Rebinding to the same compatible key succeeds unchanged.
 
 The audio system moves ownership of the decoder, cursor, selected clip, buffered
-aliases, suspension and pending stop fade without playing, stopping or reloading.
+aliases, playback gain, suspension, explicit stream pause, and pending stop fade.
 Destination volume, bus, looping and spatial settings apply during normal audio
 servicing; mixer gains/fades stay intact. Removing the destination releases the
 resources normally. Games own which transitions preserve a player; do not fade

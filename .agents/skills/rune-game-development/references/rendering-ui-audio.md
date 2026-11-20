@@ -541,6 +541,14 @@ voices without playing or randomly choosing a clip. Streams retain one channel.
 Buffered players in the same audio system share decoded samples for each path.
 Their playback settings and voices remain independent, and the last owner
 releases the samples. Preloading disabled entities is supported.
+Use the optional `gain` argument on `rune.play_audio` to set an initial runtime
+multiplier from 0 to 1. `rune.set_audio_gain` changes that multiplier on the next
+audio update without restarting playback or editing the component. Each
+explicit play defaults to a multiplier of 1. Use the runtime gain to blend
+individual players while retaining the Music bus controls.
+`rune.pause_audio_stream` retains a playing stream's decoder and cursor, and
+`rune.resume_audio_stream` applies a requested gain before continuing playback.
+Check the resume result to handle a missing stream or an incompatible source.
 Set `AudioPlayer.buffered` to decode compressed short effects such as Ogg Vorbis
 into memory and retain overlapping voices. The default selects by format.
 To continue playback across scene replacement or structural reload, retain the
@@ -549,9 +557,10 @@ old entity handle and call `rune.rebind_audio(game, new_world, old_entity,
 first audio update. The live destination must have identical sound, ordered clips,
 and buffering mode, and no existing playback instance. The old World may already
 be destroyed.
-Rebinding preserves the decoder, buffered voices and pending fades without
-restarting; games decide which transitions retain playback and avoid fading or
-explicitly replaying that player. Destination settings apply on the next update.
+Rebinding preserves the decoder, buffered voices, playback gain, explicit pause,
+and pending fades. Games decide which transitions retain playback and avoid
+fading or explicitly replaying that player. Destination settings apply on the
+next update.
 Configure an active `AudioListener` for spatial playback. Automatic servicing
 continues while paused, which does not itself mute audio. Use
 `audio.set_bus_reverb(&game.audio, .sfx, wet)` for a room send on sound effects.

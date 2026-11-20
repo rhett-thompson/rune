@@ -23,6 +23,7 @@ Buffered_Source :: struct {
 
 Audio_Instance :: struct {
 	suspended: bool,
+	stream_paused: bool,
 	resume_stream: bool,
 	resume_sound: bool,
 	configured_sound: string,
@@ -41,6 +42,7 @@ Audio_Instance :: struct {
 	stop_fade_duration, stop_fade_elapsed: f32,
 	settings_initialized: bool,
 	volume, pitch, pan:   f32,
+	playback_gain:        f32,
 	volume_offset:        f32,
 	pitch_offset:         f32,
 	next_sequence:        u64,
@@ -119,9 +121,9 @@ update :: proc(system: ^Audio_System, world: ^ecs.World, dt: f32 = 0) {
 	// it once avoids scanning all instances again for each audio entity.
 	for key, player in world.audio_players {
 		enabled := ecs.is_enabled(world, key.entity)
-		suspend_instance(system, key, !enabled)
-		if !enabled {continue}
 		current, instance_exists := system.instances[key]
+		suspend_instance(system, key, !enabled || current.stream_paused)
+		if !enabled || current.stream_paused {continue}
 		// Deferred players load only when explicitly played.
 		if !instance_exists && !player.play_on_start {continue}
 		if !ensure_instance(system, key, player, !instance_exists || (player.play_on_start && !current.started && !current.stop_requested)) {continue}
@@ -168,19 +170,25 @@ play :: proc(
 	world: ^ecs.World,
 	entity: ecs.Entity,
 	instance_name: string,
+	gain: f32 = 1,
 ) -> bool {
-	if !system.available || !ecs.is_enabled(world, entity) {return false}
+	if !system.available || !valid_gain(gain) || !ecs.is_enabled(world, entity) {return false}
 	update_reverb_gains(system)
 	key := ecs.Component_Instance {
 		entity = entity,
 		name   = instance_name,
 	}
-	suspend_instance(system, key, false)
+	if !system.instances[key].stream_paused {suspend_instance(system, key, false)}
 	player, found := ecs.get_audio_player(world, entity, instance_name)
 	if !found || !ensure_instance(system, key, player, true) {return false}
 	listener_entity, _, listener_found := ecs.active_audio_listener(world)
 	instance := system.instances[key]
+	if instance.stream_paused {
+		stop_instance(&instance)
+		instance.suspended = false
+	}
 	instance.fade_out_on_stop = player.fade_out_on_stop
+	instance.playback_gain = gain
 	instance.stop_requested, instance.stop_fading = false, false
 	instance.stop_fade_duration, instance.stop_fade_elapsed = 0, 0
 	instance.settings_initialized = false
@@ -196,6 +204,51 @@ play :: proc(
 	play_instance(instance)
 	instance.started = true
 	system.instances[key] = instance
+	return true
+}
+
+// Apply a runtime multiplier to all playback on an existing named player.
+// The next audio update applies it without restarting or changing the component.
+set_gain :: proc(system: ^Audio_System, entity: ecs.Entity, instance_name: string, gain: f32) -> bool {
+	if system == nil || !system.available || !valid_gain(gain) {return false}
+	key := ecs.Component_Instance{entity=entity, name=instance_name}
+	instance, found := system.instances[key]
+	if !found {return false}
+	instance.playback_gain = gain
+	system.instances[key] = instance
+	return true
+}
+
+// Retain a playing stream's decoder and cursor until an explicit resume,
+// play, or stop. An activation-suspended stream can also be explicitly paused.
+pause_stream :: proc(system: ^Audio_System, entity: ecs.Entity, instance_name: string) -> bool {
+	if system == nil || !system.available {return false}
+	key := ecs.Component_Instance{entity=entity, name=instance_name}
+	instance, found := system.instances[key]
+	if !found || !instance.streaming || !instance.started || instance.stop_requested {return false}
+	if !instance.resume_stream && !rl.IsMusicStreamPlaying(instance.music) {return false}
+	instance.stream_paused = true
+	system.instances[key] = instance
+	suspend_instance(system, key, true)
+	return true
+}
+
+// Restore an explicitly paused stream at its retained cursor. Apply current
+// settings and the requested gain before rejoining the native mixer.
+resume_stream :: proc(system: ^Audio_System, world: ^ecs.World, entity: ecs.Entity, instance_name: string, gain: f32 = 1) -> bool {
+	if system == nil || world == nil || !system.available || !valid_gain(gain) || !ecs.is_enabled(world,entity) {return false}
+	key := ecs.Component_Instance{entity=entity, name=instance_name}
+	instance, found := system.instances[key]
+	if !found || !instance.stream_paused || !instance.resume_stream {return false}
+	player, configured := ecs.get_audio_player(world,entity,instance_name)
+	if !configured || !same_clip_configuration(instance,player) {return false}
+	instance.stream_paused = false
+	instance.playback_gain = gain
+	system.instances[key] = instance
+	update_reverb_gains(system)
+	listener_entity, _, listener_found := ecs.active_audio_listener(world)
+	apply_settings(system, world, key, player, listener_entity, listener_found, true)
+	suspend_instance(system, key, false)
 	return true
 }
 
@@ -228,6 +281,7 @@ stop_instance :: proc(instance: ^Audio_Instance) {
 		for &voice in instance.voices {rl.StopSound(voice.sound); voice.suspended = false}
 	}
 	instance.resume_stream, instance.resume_sound = false, false
+	instance.stream_paused = false
 	instance.started, instance.stop_fading = false, false
 	instance.stop_requested = true
 	instance.stop_fade_duration, instance.stop_fade_elapsed = 0, 0
@@ -248,7 +302,7 @@ is_stopping :: proc(system: ^Audio_System, entity: ecs.Entity, instance_name: st
 is_playing :: proc(system: ^Audio_System, entity: ecs.Entity, instance_name: string) -> bool {
 	instance, found :=
 		system.instances[ecs.Component_Instance{entity = entity, name = instance_name}]
-	if !system.available || !found {return false}
+	if !system.available || !found || instance.stream_paused {return false}
 	if instance.streaming {return rl.IsMusicStreamPlaying(instance.music)}
 	if rl.IsSoundPlaying(instance.sound) {return true}
 	for voice in instance.voices {
@@ -305,7 +359,9 @@ ensure_instance :: proc(system: ^Audio_System, key: ecs.Component_Instance, play
 	// cache and a bounded alias pool, so selecting a new clip never cuts a tail.
 	if found && (!compatible || instance.streaming || streaming) {
 		unload_instance(system, instance)
-		instance, found = {}, false
+		instance, found = {playback_gain=instance.playback_gain}, false
+	} else if !found {
+		instance.playback_gain = 1
 	}
 	if !found {
 		instance.configured_sound = retain_string(system, player.sound)
@@ -349,8 +405,8 @@ apply_settings :: proc(
 ) {
 	instance := system.instances[key]
 	spatial_gain, pan := spatial_factors(world,key.entity,player,listener_entity,listener_found)
-	stop_gain := stop_fade_gain(instance)
-	gain := spatial_gain*bus_gain(&system.mixer,player.bus)*stop_gain
+	source_gain := spatial_gain*instance.playback_gain*stop_fade_gain(instance)
+	gain := source_gain*bus_gain(&system.mixer,player.bus)
 	player_volume := max(0, player.volume + instance.volume_offset)
 	volume := player_volume*gain
 	pitch := max(0.01, player.pitch + instance.pitch_offset)
@@ -359,19 +415,18 @@ apply_settings :: proc(
 		// the source sound so bus fades cannot leave older one-shots audible.
 		for voice in instance.voices {
 			voice_volume := max(0, player.volume + voice.volume_offset)
-			route_reverb_source(system, voice.sound.stream, player.bus, voice_volume*spatial_gain*stop_gain, false)
-			if player.looping {continue}
+			route_reverb_source(system, voice.sound.stream, player.bus, voice_volume*source_gain, false)
 			rl.SetSoundVolume(voice.sound, voice_volume*gain)
 			rl.SetSoundPitch(voice.sound,max(0.01,player.pitch+voice.pitch_offset))
 			rl.SetSoundPan(voice.sound,pan)
 		}
 	}
 	if instance.streaming {
-		route_reverb_source(system, instance.music.stream, player.bus, player_volume*spatial_gain*stop_gain, starting)
+		route_reverb_source(system, instance.music.stream, player.bus, player_volume*source_gain, starting)
 	} else {
 		// An old looping source or one-shot alias can still be playing after a
 		// looping setting edit. Reconcile its send while preserving dry playback.
-		route_reverb_source(system, instance.sound.stream, player.bus, player_volume*spatial_gain*stop_gain, starting && player.looping)
+		route_reverb_source(system, instance.sound.stream, player.bus, player_volume*source_gain, starting && player.looping)
 	}
 	if instance.settings_initialized &&
 	   instance.volume == volume &&
@@ -459,7 +514,7 @@ play_one_shot :: proc(
 		listener_entity,
 		listener_found,
 	)
-	source_volume := max(0, player.volume + voice.volume_offset) * spatial_gain
+	source_volume := max(0, player.volume + voice.volume_offset) * spatial_gain * instance.playback_gain
 	volume := source_volume * bus_gain(&system.mixer,player.bus)
 	route_reverb_source(system, voice.sound.stream, player.bus, source_volume, true)
 	rl.SetSoundVolume(voice.sound, volume)

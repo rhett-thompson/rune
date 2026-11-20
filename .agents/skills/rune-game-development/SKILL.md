@@ -82,6 +82,11 @@ thinning, see `docs/terrain.md` and the rendering reference.
   handle and instance name, and match the destination's sound, ordered clips,
   and buffering mode.
   See [audio lifetime and commands](references/rendering-ui-audio.md#audio-lifetime-and-commands).
+- For crossfades, start named audio players with `rune.play_audio(..., gain=0)`
+  and adjust active players with `rune.set_audio_gain`. Keep transition timing
+  in the game and use the Music bus for overall volume.
+- To hold a streaming track at its current cursor, use `rune.pause_audio_stream`
+  and `rune.resume_audio_stream`, which accepts an initial gain.
 - For room reverb, set a send on the selected Rune audio bus with
   `audio.set_bus_reverb`. Keep the listener's environment rules in the game.
 - Configure Box3D through `project.json`'s `physics_3d.worker_count` (1 through

@@ -28,8 +28,9 @@ rebind :: proc(
 	if source == destination {return true}
 	if _, occupied := system.instances[destination]; occupied {return false}
 	destination.name = retain_string(system,destination_name)
-	// Only the key changes: decoder cursor, native buffers, aliases, suspension,
-	// pending stop fades and variation remain owned exactly once by this system.
+	// Only the key changes. This system retains the decoder cursor, native
+	// buffers, aliases, playback gain, suspension, explicit stream pause, pending
+	// fades, and variation.
 	delete_key(&system.instances,source)
 	system.instances[destination] = instance
 	return true

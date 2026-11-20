@@ -1,6 +1,7 @@
 package audio
 
 import "core:encoding/json"
+import "core:math"
 import "core:mem"
 import "core:testing"
 import "rune:ecs"
@@ -54,6 +55,11 @@ audio_rebind_preserves_resources_and_fades_after_world_destruction :: proc(t: ^t
 		volume=0.2,pitch=0.9,pan=0.1,volume_offset=0.03,pitch_offset=-0.1,
 		suspended=true,resume_stream=true,next_sequence=7,
 	}
+	assert(set_gain(&system,old_owner,"music",0.25))
+	for gain in ([4]f32{-0.1,1.1,math.nan_f32(),math.inf_f32(1)}) {
+		testing.expect(t,!set_gain(&system,old_owner,"music",gain))
+	}
+	testing.expect(t,!set_gain(&system,old_owner,"missing",0.5))
 	testing.expect(t,rebind(&system,&next,old_owner,"music",owner,"theme"),"a destroyed source World does not invalidate the audio system's retained playback")
 	destination := ecs.Component_Instance{entity=owner,name="theme"}
 	transferred, found := system.instances[destination]
@@ -63,7 +69,8 @@ audio_rebind_preserves_resources_and_fades_after_world_destruction :: proc(t: ^t
 		raw_data(transferred.configured_clips)==raw_data(clips) && transferred.path=="b.ogg","the decoder and selected clip retain their original storage")
 	testing.expect(t,transferred.started && transferred.streaming && transferred.suspended && transferred.resume_stream &&
 		transferred.stop_requested && transferred.stop_fading && transferred.stop_fade_duration==2 && transferred.stop_fade_elapsed==0.4 &&
-		transferred.volume==0.2 && transferred.pitch_offset==-0.1 && transferred.next_sequence==7,"playback, suspension, variation and pending stop progress remain intact")
+		transferred.playback_gain==0.25 && transferred.volume==0.2 && transferred.pitch_offset==-0.1 && transferred.next_sequence==7,
+		"playback gain, suspension, variation and pending stop progress remain intact")
 	testing.expect(t,system.mixer==mixer_before,"rebinding never modifies bus gains or fades")
 	remove_missing_instances(&system,&next)
 	testing.expect(t,len(system.instances)==1,"ordinary destination cleanup retains the moved player")
@@ -99,4 +106,36 @@ audio_rebind_rejects_incompatible_or_occupied_destinations_atomically :: proc(t:
 	system.available=true
 	ecs.destroy_entity(&w,owner)
 	testing.expect(t,!rebind(&system,&w,source_owner,"music",owner,"theme") && len(system.instances)==1,"stale destination handles cannot claim playback")
+}
+
+@(test)
+audio_explicit_stream_pause_survives_activation_and_rebinding :: proc(t: ^testing.T) {
+	registry := ecs.init_registry(); defer ecs.destroy_registry(&registry)
+	assert(ecs.register_builtin_components(&registry))
+	w := ecs.init(); defer ecs.destroy(&w)
+	owner := rebind_test_player(&w,&registry,`{"theme":{"sound":"theme.ogg"}}`)
+	next := rebind_test_player(&w,&registry,`{"theme":{"sound":"theme.ogg"}}`)
+	key := ecs.Component_Instance{entity=owner,name="theme"}
+	next_key := ecs.Component_Instance{entity=next,name="theme"}
+	system := rebind_test_system(); defer rebind_test_destroy_system(&system)
+	testing.expect(t,!pause_stream(&system,owner,"theme") && !resume_stream(&system,&w,owner,"theme"))
+	system.instances[key]={configured_sound="theme.ogg",streaming=true}
+	testing.expect(t,!pause_stream(&system,owner,"theme"),"A preloaded stream has no playing cursor to pause")
+	// Model an activation-suspended stream without calling native audio functions.
+	system.instances[key]={configured_sound="theme.ogg",streaming=true,started=true,suspended=true,resume_stream=true}
+	assert(ecs.set_enabled(&w,owner,false))
+	assert(pause_stream(&system,owner,"theme"))
+	assert(ecs.set_enabled(&w,owner,true))
+	update(&system,&w)
+	testing.expect(t,system.instances[key].stream_paused && system.instances[key].suspended && system.instances[key].resume_stream)
+	assert(rebind(&system,&w,owner,"theme",next,"theme"))
+	assert(ecs.set_enabled(&w,next,false))
+	testing.expect(t,!resume_stream(&system,&w,next,"theme"),"An explicitly paused stream waits for an enabled owner")
+	assert(ecs.set_enabled(&w,next,true))
+	config, found := ecs.get_audio_player(&w,next,"theme"); assert(found)
+	config.sound="replacement.ogg"
+	assert(ecs.set_audio_player(&w,next,"theme",config))
+	update(&system,&w)
+	testing.expect(t,!resume_stream(&system,&w,next,"theme") && system.instances[next_key].stream_paused,
+		"A different source cannot claim a retained playback cursor")
 }
