@@ -92,6 +92,10 @@ try {
     run(["git", "-C", source, "apply", "--check", depthPatch]);
     run(["git", "-C", source, "apply", depthPatch]);
     run(["git", "-C", source, "apply", "--reverse", "--check", depthPatch]);
+    var ambientPatch = fs.BuildPath(nativeRoot, "ambient-effects.patch");
+    run(["git", "-C", source, "apply", "--check", ambientPatch]);
+    run(["git", "-C", source, "apply", ambientPatch]);
+    run(["git", "-C", source, "apply", "--reverse", "--check", ambientPatch]);
     var headerRoot = fs.BuildPath(work, "headers"); mkdir(headerRoot);
     for (var i = 0; i < headers.length; ++i) fs.CopyFile(fs.BuildPath(raylibHeaders, headers[i]), fs.BuildPath(headerRoot, headers[i]), true);
     fs.CopyFile(fs.BuildPath(nativeRoot, "r3d_config.h"), fs.BuildPath(headerRoot, "r3d_config.h"), true);

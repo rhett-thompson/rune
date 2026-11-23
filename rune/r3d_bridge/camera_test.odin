@@ -60,3 +60,19 @@ frustum_box_test_retains_crossing_and_unavailable_bounds :: proc(t:^testing.T) {
 	testing.expect(t,frustum_may_intersect_transformed_box(nil,local,pose))
 	testing.expect(t,frustum_may_intersect_transformed_box(&frustum,{{1,1,1},{0,0,0}},pose))
 }
+
+@(test)
+frustum_box_test_pads_mirrored_off_center_bounds :: proc(t:^testing.T) {
+	camera:=r3d.Camera{fovy=10,nearPlane=0.1,farPlane=250,projection=.ORTHOGRAPHIC}
+	r3d.CameraLookAt(&camera,{0,0,-1},{0,1,0})
+	frustum:=r3d.ComputeFrustum(r3d.GetCameraViewProj(camera,1))
+	local:=rl.BoundingBox{{1,-0.5,-0.5},{3,0.5,0.5}}
+	pose:=ecs.Transform{position={11.005,0,-4},scale={-2,1,0.5}}
+	identity:=rl.Quaternion(1)
+	for cached in ([2]^rl.Quaternion{nil,&identity}) {
+		testing.expect(t,frustum_may_intersect_box_at_pose(&frustum,local,pose,cached),"the padded box still reaches the right clip plane")
+		outside:=pose
+		outside.position.x=11.03
+		testing.expect(t,!frustum_may_intersect_box_at_pose(&frustum,local,outside,cached))
+	}
+}

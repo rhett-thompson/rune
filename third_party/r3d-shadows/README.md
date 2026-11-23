@@ -5,9 +5,10 @@ changes are in [stable-projection.patch](stable-projection.patch),
 [light-scissor.patch](light-scissor.patch),
 [receiver-plane.patch](receiver-plane.patch),
 [ssao-reconstruction.patch](ssao-reconstruction.patch),
-[pre-transparency.patch](pre-transparency.patch), and
-[foreground-view.patch](foreground-view.patch), and
-[depth-only.patch](depth-only.patch). Rune's bridge loads the included
+[pre-transparency.patch](pre-transparency.patch),
+[foreground-view.patch](foreground-view.patch),
+[depth-only.patch](depth-only.patch), and
+[ambient-effects.patch](ambient-effects.patch). Rune's bridge loads the included
 objects on Windows AMD64 and Linux AMD64. They replace three members of the
 bundled native archive without modifying the r3d-odin submodule or its bindings.
 Other targets retain the upstream shadow and screen-space sampling behavior.
@@ -92,6 +93,11 @@ fades because of numerical rejection alone. The sampling and lighting settings
 remain authored values; animated lenses can still use Rune's separate
 `ssao_reference_fovy` screen-radius correction.
 
+SSAO skips taps that land on the receiver with a nonnegative bias and taps
+whose depth difference already puts them outside the occlusion radius. SSAO,
+SSIL, and SSGI also share a single half-resolution geometry input pass when
+enabled together. The depth selector, sample budgets, and denoising stay the same.
+
 The draw module provides a Rune-owned screen shader chain after opaque surfaces,
 including unlit geometry, and before transparent blending. Rune's bridge orders
 the moon disk, screen-space shafts, and height fog in this chain; volumetric
@@ -112,7 +118,7 @@ The build shares Rune's exact R3D, raylib header, and Zig pins in
 The private core and shader states use the pinned CMake defaults recorded in
 [r3d_config.h](r3d_config.h), including `R3D_MAX_SCREEN_SHADERS=4`. Rebuild and
 revalidate all three objects when upgrading the bundled native library. The build
-applies the five patches in the order listed above.
+applies the patches in the order listed above.
 
 Ordinary Odin builds use the checked-in objects. Rebuilding exports the pinned
 revision into a fresh directory under `build/`, verifies the raylib header
@@ -156,9 +162,9 @@ Windows and Linux AMD64 objects were rebuilt with the pinned helper; these
 runtime observations cover Windows, not Linux.
 
 ```powershell
-odin build tools/light_shadow_validation -o:none -thread-count:2 -collection:rune=rune -collection:r3d=third_party/r3d-odin -linker:msvc -out:build/light_shadow_validation.exe
+.\tools\odin.bat build tools/light_shadow_validation -o:none -thread-count:2 -collection:rune=rune -collection:r3d=third_party/r3d-odin -linker:msvc -out:build/light_shadow_validation.exe
 ./build/light_shadow_validation.exe --runtime
-odin build tools/shadow_render_probe -o:none -thread-count:2 -collection:rune=rune -collection:r3d=third_party/r3d-odin -linker:msvc -out:build/shadow_render_probe.exe
+.\tools\odin.bat build tools/shadow_render_probe -o:none -thread-count:2 -collection:rune=rune -collection:r3d=third_party/r3d-odin -linker:msvc -out:build/shadow_render_probe.exe
 ./build/shadow_render_probe.exe build/shadow-render-probe
 ```
 

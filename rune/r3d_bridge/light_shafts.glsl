@@ -10,14 +10,13 @@ uniform vec2 u_resolution;
 uniform sampler2D u_occlusion_depth;
 uniform int u_use_occlusion_depth;
 
-bool clearPath(vec2 uv) {
+bool clearPath(vec2 uv, float radius) {
     if(any(lessThan(uv,vec2(0.0))) || any(greaterThanEqual(uv,vec2(1.0)))) return false;
     ivec2 pixel=ivec2(uv*u_resolution);
     float depth=u_use_occlusion_depth!=0 ? texelFetch(u_occlusion_depth,pixel,0).r : FetchDepth(pixel);
     if(depth>=FAR_PLANE-0.01) return true;
     // All architecture masks the scattering sky, including geometry farther
     // away than the finite emitter. Only the emitter's own footprint is clear.
-    float radius=length((uv-u_source.xy)*vec2(u_settings.w,1.0));
     return radius<=u_disk_radius && abs(depth-u_source.z)<=u_settings.z+0.5;
 }
 
@@ -34,16 +33,23 @@ void fragment() {
     // regularly spaced taps. It stays still when the simulation is paused.
     float jitter=fract(52.9829189*fract(dot(vec2(PIXCOORD),vec2(0.06711056,0.00583715))));
     float sum=0.0, normalization=0.0;
+    // The jitter multiplies every exponential weight by the same factor,
+    // which cancels on normalization. Advance the remaining weight per tap.
+    float attenuation=exp(-3.4/float(u_samples));
+    float weight=1.0;
     for(int i=0;i<64;i++) {
         if(i>=u_samples) break;
         float t=(float(i)+jitter)/float(u_samples)*0.85;
         vec2 uv=mix(TEXCOORD,u_source.xy,t);
-        float weight=exp(-t*4.0);
-        if(clearPath(uv)) {
-            float r=length((uv-u_source.xy)*aspect)/u_settings.y;
+        // The tap moves along the same radial line, so its distance scales
+        // with the remaining fraction of the original distance.
+        float radius=distance*(1.0-t);
+        if(clearPath(uv,radius)) {
+            float r=radius/u_settings.y;
             sum+=exp(-r*r*2.0)*weight;
         }
         normalization+=weight;
+        weight*=attenuation;
     }
     COLOR+=u_color*(sum/normalization)*envelope*u_settings.x*u_edge_fade;
 }

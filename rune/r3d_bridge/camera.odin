@@ -89,19 +89,25 @@ frustum_may_intersect_box_at_pose :: proc(frustum: ^r3d.Frustum, local: rl.Bound
 	if frustum == nil || !ecs.component_value_valid(pose) ||
 	   !scene_query_vector_valid(local.min) || !scene_query_vector_valid(local.max) {return true}
 	for axis in 0..<3 {if local.min[axis] > local.max[axis] {return true}}
-	rotation := cached_rotation^ if cached_rotation != nil else rotation_quaternion(pose)
-	center := pose.position + rl.Vector3RotateByQuaternion((local.min+local.max)*0.5*pose.scale, rotation)
+	identity := rl.Quaternion(1)
+	rotation := identity
+	if cached_rotation != nil {rotation = cached_rotation^}
+	else if !is_unrotated(pose) {rotation = rotation_quaternion(pose)}
+	offset := (local.min+local.max)*0.5*pose.scale
+	box := r3d.OrientedBox{axisX={1,0,0}, axisY={0,1,0}, axisZ={0,0,1}}
+	if rotation != identity {
+		offset = rl.Vector3RotateByQuaternion(offset, rotation)
+		box.axisX = rl.Vector3RotateByQuaternion(box.axisX, rotation)
+		box.axisY = rl.Vector3RotateByQuaternion(box.axisY, rotation)
+		box.axisZ = rl.Vector3RotateByQuaternion(box.axisZ, rotation)
+	}
+	center := pose.position + offset
 	scale := [3]f32{abs(pose.scale[0]), abs(pose.scale[1]), abs(pose.scale[2])}
 	half := (local.max-local.min)*0.5*scale
 	if !scene_query_vector_valid(center) || !scene_query_vector_valid(half) {return true}
 	magnitude := max(abs(center[0]), abs(center[1]), abs(center[2]), half[0], half[1], half[2])
 	pad := 0.01+magnitude*0.000004
-	half += [3]f32{pad, pad, pad}
-	box := r3d.OrientedBox {
-		center = center, halfExtents = half,
-		axisX = rl.Vector3RotateByQuaternion({1,0,0}, rotation),
-		axisY = rl.Vector3RotateByQuaternion({0,1,0}, rotation),
-		axisZ = rl.Vector3RotateByQuaternion({0,0,1}, rotation),
-	}
+	box.center = center
+	box.halfExtents = half + [3]f32{pad, pad, pad}
 	return r3d.FrustumIntersectsOrientedBox(frustum, box)
 }

@@ -12,6 +12,8 @@ report concerns DPI/cameras, window modes/visibility/linking, audio, Clay, or R3
 Use [build-and-validation.md](references/build-and-validation.md) for Windows
 linker requirements, choosing validation coverage, and identifying the exact
 source snapshot and executable being tested.
+For SSAO or combined ambient-effect regressions, see
+[native ambient effects](references/dependency-pitfalls.md#native-ambient-effects).
 For heightmap edit stalls or chunk seam regressions, see the terrain notes in
 [dependency-pitfalls.md](references/dependency-pitfalls.md#terrain-height-edits-and-collision-seams).
 For layer weights or surface-filtered details, see

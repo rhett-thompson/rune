@@ -1,0 +1,149 @@
+diff --git a/shaders/prepare/ssao.frag b/shaders/prepare/ssao.frag
+index 9ac5015e6964898ea41c13c16463c48c6f87c827..b32ebe05d288ec01180a588c83d436639e13a8d7 100644
+--- a/shaders/prepare/ssao.frag
++++ b/shaders/prepare/ssao.frag
+@@ -98,13 +98,18 @@ void main()
+     if (!(depth > 0.0 && depth < uView.far)) return;
+ 
+     ivec2 resolution = textureSize(uDepthTex, 0);
+-    vec3 position = SsaoViewPosition(pixelCoord, depth);
+-    vec3 normal = V_GetViewNormal(uNormalTex, pixelCoord);
+-
+-    float projScale = abs(uView.proj[1][1]) * textureSize(uDepthTex, 0).y * 0.5;
++    float projScale = abs(uView.proj[1][1]) * resolution.y * 0.5;
+     float ssRadiusRaw = projScale * uSsao.radius / max(depth, 0.1);
+     float ssRadius = min(ssRadiusRaw, uSsao.ssMaxRadius);
+ 
++    // Integer offsets below one pixel all land on the receiver. A center tap
++    // contributes zero with a nonnegative bias.
++    bool skipCenter = uSsao.bias >= 0.0;
++    if (skipCenter && ssRadius < 1.0) return;
++
++    vec3 position = SsaoViewPosition(pixelCoord, depth);
++    vec3 normal = V_GetViewNormal(uNormalTex, pixelCoord);
++
+     float radiusScale = ssRadius / max(ssRadiusRaw, 1e-4);
+     float radiusSq = uSsao.radius * uSsao.radius;
+ 
+@@ -120,6 +125,7 @@ void main()
+         float rNorm;
+         vec2 unitDir = TapLocation(i, float(numSpiralTurns), spin, rNorm);
+         ivec2 pixelOffset = pixelCoord + ivec2(unitDir * ssRadius * rNorm);
++        if (skipCenter && all(equal(pixelOffset, pixelCoord))) continue;
+ 
+         // Missing geometry contributes no occlusion. texelFetch outside a
+         // texture is undefined and must not become a near-camera occluder.
+@@ -128,6 +134,9 @@ void main()
+         float sampleDepth = texelFetch(uDepthTex, pixelOffset, 0).r;
+         if (!(sampleDepth > 0.0 && sampleDepth < uView.far)) continue;
+ 
++        // The depth difference alone puts this tap outside the falloff sphere.
++        if (abs(sampleDepth - depth) >= uSsao.radius) continue;
++
+         vec3 samplePos = SsaoViewPosition(pixelOffset, sampleDepth);
+         vec3 v = samplePos - position;
+ 
+diff --git a/src/r3d_draw.c b/src/r3d_draw.c
+index da9641a921ef9233b9943da9eccd092c3ae22cc4..80036ae17186ac8871dcf0e8ccfd4496d5c9d936 100644
+--- a/src/r3d_draw.c
++++ b/src/r3d_draw.c
+@@ -80,6 +80,7 @@ static void pass_scene_prepass(void);
+ static void pass_scene_decals(void);
+ 
+ static void pass_prepare_depth_pyramid(void);
++static void pass_prepare_ambient_inputs(bool diffuse);
+ static r3d_target_t pass_prepare_ssao(void);
+ static r3d_target_t pass_prepare_ssil(void);
+ static r3d_target_t pass_prepare_ssgi(void);
+@@ -364,6 +365,7 @@ void R3D_End(void)
+             pass_prepare_depth_pyramid();
+         }
+ 
++        if (ssao || ssil || ssgi) pass_prepare_ambient_inputs(ssil || ssgi);
+         if (ssao) ssaoSource = pass_prepare_ssao();
+         if (ssil) ssilSource = pass_prepare_ssil();
+         if (ssgi) ssgiSource = pass_prepare_ssgi();
+@@ -2055,6 +2057,30 @@ void pass_prepare_depth_pyramid(void)
+     }
+ }
+ 
++void pass_prepare_ambient_inputs(bool diffuse)
++{
++    // The depth-pyramid pass has set up the screen pipeline. All three
++    // ambient effects select the same normal, and both GI effects also
++    // select the same diffuse texel. Fill the shared mip levels once.
++    if (diffuse)
++    {
++        R3D_TARGET_BIND_LEVEL(1, R3D_TARGET_DIFFUSE, R3D_TARGET_NORMAL);
++        R3D_SHADER_USE(prepare.ssgiInDown);
++        R3D_SHADER_BIND_SAMPLER(prepare.ssgiInDown, uSelectorTex, r3d_target_get_level(R3D_TARGET_SELECTOR, 0));
++        R3D_SHADER_BIND_SAMPLER(prepare.ssgiInDown, uDiffuseTex, r3d_target_get_level(R3D_TARGET_DIFFUSE, 0));
++        R3D_SHADER_BIND_SAMPLER(prepare.ssgiInDown, uNormalTex, r3d_target_get_level(R3D_TARGET_NORMAL, 0));
++    }
++    else
++    {
++        R3D_TARGET_BIND_LEVEL(1, R3D_TARGET_NORMAL);
++        R3D_SHADER_USE(prepare.ssaoInDown);
++        R3D_SHADER_BIND_SAMPLER(prepare.ssaoInDown, uSelectorTex, r3d_target_get_level(R3D_TARGET_SELECTOR, 0));
++        R3D_SHADER_BIND_SAMPLER(prepare.ssaoInDown, uNormalTex, r3d_target_get_level(R3D_TARGET_NORMAL, 0));
++    }
++
++    R3D_RENDER_SCREEN();
++}
++
+ r3d_target_t pass_prepare_ssao(void)
+ {
+     /* --- Setup OpenGL pipeline --- */
+@@ -2064,16 +2090,6 @@ r3d_target_t pass_prepare_ssao(void)
+     r3d_driver_disable(GL_CULL_FACE);
+     r3d_driver_disable(GL_BLEND);
+ 
+-    /* --- Downsample G-Buffer --- */
+-
+-    R3D_TARGET_BIND_LEVEL(1, R3D_TARGET_NORMAL);
+-    R3D_SHADER_USE(prepare.ssaoInDown);
+-
+-    R3D_SHADER_BIND_SAMPLER(prepare.ssaoInDown, uSelectorTex, r3d_target_get_level(R3D_TARGET_SELECTOR, 0));
+-    R3D_SHADER_BIND_SAMPLER(prepare.ssaoInDown, uNormalTex, r3d_target_get_level(R3D_TARGET_NORMAL, 0));
+-
+-    R3D_RENDER_SCREEN();
+-
+     /* --- Calculate SSAO --- */
+ 
+     R3D_TARGET_BIND(false, R3D_TARGET_SSAO_0);
+@@ -2114,17 +2130,6 @@ r3d_target_t pass_prepare_ssil(void)
+     r3d_driver_disable(GL_CULL_FACE);
+     r3d_driver_disable(GL_BLEND);
+ 
+-    /* --- Downsample G-Buffer --- */
+-
+-    R3D_TARGET_BIND_LEVEL(1, R3D_TARGET_DIFFUSE, R3D_TARGET_NORMAL);
+-    R3D_SHADER_USE(prepare.ssilInDown);
+-
+-    R3D_SHADER_BIND_SAMPLER(prepare.ssilInDown, uSelectorTex, r3d_target_get_level(R3D_TARGET_SELECTOR, 0));
+-    R3D_SHADER_BIND_SAMPLER(prepare.ssilInDown, uDiffuseTex, r3d_target_get_level(R3D_TARGET_DIFFUSE, 0));
+-    R3D_SHADER_BIND_SAMPLER(prepare.ssilInDown, uNormalTex, r3d_target_get_level(R3D_TARGET_NORMAL, 0));
+-
+-    R3D_RENDER_SCREEN();
+-
+     /* --- Calculate SSIL --- */
+ 
+     R3D_TARGET_BIND(false, R3D_TARGET_SSIL_0);
+@@ -2173,17 +2178,6 @@ r3d_target_t pass_prepare_ssgi(void)
+     r3d_driver_disable(GL_CULL_FACE);
+     r3d_driver_disable(GL_BLEND);
+ 
+-    /* --- Downsample G-Buffer --- */
+-
+-    R3D_TARGET_BIND_LEVEL(1, R3D_TARGET_DIFFUSE, R3D_TARGET_NORMAL);
+-    R3D_SHADER_USE(prepare.ssgiInDown);
+-
+-    R3D_SHADER_BIND_SAMPLER(prepare.ssgiInDown, uSelectorTex, r3d_target_get_level(R3D_TARGET_SELECTOR, 0));
+-    R3D_SHADER_BIND_SAMPLER(prepare.ssgiInDown, uDiffuseTex, r3d_target_get_level(R3D_TARGET_DIFFUSE, 0));
+-    R3D_SHADER_BIND_SAMPLER(prepare.ssgiInDown, uNormalTex, r3d_target_get_level(R3D_TARGET_NORMAL, 0));
+-
+-    R3D_RENDER_SCREEN();
+-
+     /* --- Calculate SSGI (RAW) --- */
+ 
+     R3D_TARGET_BIND_LEVEL(0, R3D_TARGET_SSGI_0);

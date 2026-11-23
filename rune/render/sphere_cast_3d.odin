@@ -86,8 +86,7 @@ scene_sphere_cast_batch_3d :: proc(world:^ecs.World,requests:[]Scene_Sphere_Cast
 		if !has_bounds {continue}
 		if !pick_3d_vector_valid(pose.position) || !pick_3d_vector_valid(pose.rotation) || !pick_3d_vector_valid(pose.scale) {continue}
 		if pose.scale[0]==0 || pose.scale[1]==0 || pose.scale[2]==0 {continue}
-		rotation:=pose.rotation*f32(math.PI/180)
-		transform:=rl.MatrixTranslate(pose.position[0],pose.position[1],pose.position[2])*rl.QuaternionToMatrix(rl.QuaternionFromEuler(rotation[0],rotation[1],rotation[2]))*rl.MatrixScale(pose.scale[0],pose.scale[1],pose.scale[2])
+		transform:=sphere_cast_transform_3d(pose)
 		centre:=rl.Vector3Transform((bounds.min+bounds.max)*0.5,transform)
 		half:=(bounds.max-bounds.min)*0.5
 		extent:=[3]f32{
@@ -129,6 +128,24 @@ scene_sphere_cast_batch_3d :: proc(world:^ecs.World,requests:[]Scene_Sphere_Cast
 			result.found=true
 		}
 	}
+}
+
+// Build the affine TRS directly. This runs for every candidate, including the
+// many unrotated props rejected by the world-space bounds test.
+@(private)
+sphere_cast_transform_3d :: proc(pose: ecs.Transform) -> rl.Matrix {
+	result:=rl.Matrix(1)
+	if pose.rotation==([3]f32{}) {
+		for axis in 0..<3 {result[axis,axis]=pose.scale[axis]}
+	} else {
+		rotation:=pose.rotation*f32(math.PI/180)
+		result=rl.QuaternionToMatrix(rl.QuaternionFromEuler(rotation[0],rotation[1],rotation[2]))
+		for row in 0..<3 {
+			for column in 0..<3 {result[row,column]*=pose.scale[column]}
+		}
+	}
+	for row in 0..<3 {result[row,3]=pose.position[row]}
+	return result
 }
 
 @(private)

@@ -228,6 +228,22 @@ alone does not update an already linked game. Use
 `--runtime` hidden receiver/edge/camera-turn regression. See the native README
 for exact validation coverage; a Windows run does not establish Linux behavior.
 
+## Native ambient effects
+
+`third_party/r3d-shadows/ambient-effects.patch` skips zero-contribution SSAO
+taps and shares half-resolution geometry inputs across SSAO, SSIL, and SSGI.
+Rebuild the shader and draw objects together with `tools/build_r3d_shadows.bat`
+or `.sh`. The helpers apply the recorded patch sequence to the pinned source;
+see `third_party/r3d-shadows/README.md` for inputs and platform targets.
+
+Use `tools/post_processing_validation --runtime` for separate and combined
+effect paths, `tools/ssao_contact_probe` in `stable` mode for contact shading,
+and `tools/ssao_upsample_probe` for distant unoccluded surfaces. On 2026-11-23,
+these passed with pinned Odin `84bc3fc`, Windows AMD64/MSVC, GLFW/Win32,
+RTX 5070 and OpenGL 3.3. The complete contact fixture covered 18 combinations
+of geometry, viewport and effect. Both platform objects rebuilt with Zig
+0.15.2; these runtime checks cover Windows.
+
 ## Native asset import and decoder boundaries
 
 On 2026-11-02, a no-UV OBJ with +X normals and a runtime -90 degree Y rotation
