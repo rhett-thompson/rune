@@ -102,14 +102,13 @@ bake_inside_triangle_xz_3d :: proc(p,a,b,c:[3]f32) -> bool {
 
 // Exact union coverage, using convex subtraction. Partial boundary cells are
 // discarded; a tiny triangle or overlapping duplicate cannot invent support.
-bake_covered_3d :: proc(cell: ^Bake_Cell_3D, span: Bake_Span_3D, square: Bake_Polygon_3D, a: mem.Allocator) -> bool {
-	remaining:=make([dynamic]Bake_Polygon_3D,0,8,a);defer delete(remaining)
-	next:=make([dynamic]Bake_Polygon_3D,0,8,a);defer delete(next)
-	append(&remaining,square)
+bake_covered_3d :: proc(cell: ^Bake_Cell_3D, span: Bake_Span_3D, square: Bake_Polygon_3D, remaining,next: ^[dynamic]Bake_Polygon_3D) -> bool {
+	clear(remaining)
+	append(remaining,square)
 	for patch in cell.patches[span.first:span.last] {
 		if !patch.walkable || bake_polygon_area_3d(patch.polygon)<1e-10 {continue}
-		clear(&next)
-		for polygon in remaining {
+		clear(next)
+		for polygon in remaining^ {
 			inside:=polygon
 			p:=patch.polygon
 			sign:f64=1
@@ -121,15 +120,15 @@ bake_covered_3d :: proc(cell: ^Bake_Cell_3D, span: Bake_Span_3D, square: Bake_Po
 				normal:=[3]f64{-(v.z-u.z)*sign,0,(v.x-u.x)*sign}
 				if bake_dot_3d(normal,normal)<1e-12 {continue}
 				outside:=bake_clip_3d(inside,u,-normal)
-				if bake_polygon_area_3d(outside)>1e-9 {append(&next,outside)}
+				if bake_polygon_area_3d(outside)>1e-9 {append(next,outside)}
 				inside=bake_clip_3d(inside,u,normal)
 			}
 		}
-		remaining,next=next,remaining
-		if len(remaining)==0 {return true}
-		if len(remaining)>128 {return false} // Conservative complexity limit.
+		remaining^,next^=next^,remaining^
+		if len(remaining^)==0 {return true}
+		if len(remaining^)>128 {return false} // Conservative complexity limit.
 	}
-	area:f64;for p in remaining {area+=bake_polygon_area_3d(p)}
+	area:f64;for p in remaining^ {area+=bake_polygon_area_3d(p)}
 	return area<=bake_polygon_area_3d(square)*1e-6
 }
 bake_height_3d :: proc(cell: ^Bake_Cell_3D, span: Bake_Span_3D, p: [3]f64, lowest:=false) -> (f64,bool) {
@@ -201,6 +200,9 @@ bake_mesh_3d :: proc(g: Bake_Geometry_3D, s:=Default_Bake_Settings_3D) -> (mesh:
 			if patch_count>4000000 || len(cell.patches)>4096 {return {},stats,"bake rasterization limit exceeded; simplify geometry or split the level"}
 		}}
 	}
+	// The bake arena retains allocations until teardown, so reuse these across spans.
+	coverage_remaining:=make([dynamic]Bake_Polygon_3D,0,8,a)
+	coverage_next:=make([dynamic]Bake_Polygon_3D,0,8,a)
 	for &cell,index in cells {
 		if len(cell.patches)==0 {continue}
 		slice.sort_by(cell.patches[:],proc(a,b:Bake_Patch_3D)->bool {return a.low<b.low || (a.low==b.low && a.high<b.high)})
@@ -222,7 +224,7 @@ bake_mesh_3d :: proc(g: Bake_Geometry_3D, s:=Default_Bake_Settings_3D) -> (mesh:
 			// This lets abutting solids and ramp/floor seams remain connected.
 			span.valid=true
 			if i+1<len(cell.spans) && cell.spans[i+1].low-span.high<f64(s.agent_height) {span.valid=false;continue}
-			if !bake_covered_3d(&cell,span,square,a) {span.valid=false;continue}
+			if !bake_covered_3d(&cell,span,square,&coverage_remaining,&coverage_next) {span.valid=false;continue}
 			for patch in cell.patches[span.first:span.last] {
 				if patch.walkable {continue}
 				for j in 0..<patch.polygon.count {
