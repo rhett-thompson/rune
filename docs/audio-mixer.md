@@ -71,9 +71,9 @@ audio-system APIs are `audio.play` and `audio.set_gain`.
 
 ## Pause and resume a stream
 
-Pause a playing named stream to retain the current decoder and playback
-position. Resume applies the supplied gain and current player settings before
-the stream returns to the mixer. The default resume gain is `1`.
+Pause a playing named stream to retain the current decoder, playback position,
+and sequence position. Resume applies the supplied gain and current player
+settings before the stream returns to the mixer. The default resume gain is `1`.
 
 ```odin
 rune.pause_audio_stream(&game, entity, "theme")
@@ -86,6 +86,12 @@ from `0` through `1`. Check the return value to determine whether a retained
 stream resumed. Explicit play starts a new play, and stop discards the paused
 position. These calls operate on streaming players. The direct audio-system
 APIs are `audio.pause_stream` and `audio.resume_stream`.
+
+Use `rune.audio_stream_time(&game, entity, "theme")` to read the elapsed time
+and duration in seconds, followed by a success flag. The cursor belongs to the
+current clip and stays at its retained position while paused. The query returns
+`false` before playback starts, after playback ends, for buffered audio, or
+when the stream is unavailable. The direct audio-system API is `audio.stream_time`.
 
 ## Room reverb
 
@@ -139,16 +145,18 @@ rune.rebind_audio(&game, new_world, previous_owner, "theme", next_owner, "theme"
 
 Retain only the previous entity handle and instance name, then reacquire the
 destination entity from the new World. The old World may already be destroyed.
-The destination must be live and use the same `sound`, ordered `clips`, and
-`buffered` settings. A missing source or occupied destination leaves both
-players unchanged. Rebinding to the same compatible key succeeds unchanged.
+The destination must be live and match the source's `sound`, ordered `clips`,
+`buffered`, and `sequential` settings. A missing source or occupied destination
+leaves both players unchanged. Rebinding to the same compatible key succeeds
+unchanged.
 
-The audio system moves ownership of the decoder, cursor, selected clip, buffered
-aliases, playback gain, suspension, explicit stream pause, and pending stop fade.
-Destination volume, bus, looping and spatial settings apply during normal audio
-servicing; mixer gains/fades stay intact. Removing the destination releases the
-resources normally. Games own which transitions preserve a player; do not fade
-or explicitly play that player when seamless continuation is intended.
+The audio system moves ownership of the decoder, cursor, selected clip,
+sequence index, buffered aliases, playback gain, suspension, explicit stream
+pause, and pending stop fade. Destination volume, bus, looping, and spatial
+settings apply during normal audio servicing. Mixer gains and fades stay intact.
+Removing the destination releases the resources normally. Games own which
+transitions preserve a player. For seamless continuation, leave the player's
+ongoing playback in place.
 For a move within one World, remove the source `AudioPlayer` before servicing
 audio so its separate autoplay setting cannot start another instance.
 
@@ -196,18 +204,25 @@ the player until another explicit play or a source configuration change.
 # Windows PowerShell; on Linux omit .exe and -linker:msvc, and use ./build/...
 New-Item -ItemType Directory -Force build | Out-Null
 $exe = '.exe'
-odin build tools/mixer_validation -linker:msvc -collection:rune=rune "-out:build/mixer_validation$exe"
+.\tools\odin.bat build tools/mixer_validation -linker:msvc -collection:rune=rune "-out:build/mixer_validation$exe"
 & "./build/mixer_validation$exe"
 & "./build/mixer_validation$exe" --runtime
 ```
 
+Run `rune/audio` tests with `-define:ODIN_TEST_THREADS=1`. Add
+`-define:RUNE_SEQUENTIAL_AUDIO_RUNTIME_TEST=true` and
+`-define:ODIN_TEST_NAMES=audio.audio_sequential_streams_advance_wrap_and_resume`
+to select the live-device sequence test. It covers natural clip endings,
+looping, pause/resume at a pending transition, and mixed streamed/buffered clips.
+
 ## Random clip players
 
 An `AudioPlayer` can use an arbitrary-length `clips` array instead of a single
-`sound`. Each explicit `rune.play_audio`/`audio.play` call (and initial autoplay)
-chooses an entry uniformly. Consecutive repeats are allowed; duplicate entries
-weight the selection. A non-empty list overrides `sound`; an empty list requires
-a valid `sound` fallback.
+`sound`. With the default `sequential: false`, each explicit
+`rune.play_audio`/`audio.play` call and initial autoplay choose an entry
+uniformly. Consecutive repeats are allowed, and duplicate entries weight the
+selection. A nonempty list overrides `sound`. An empty list requires a valid
+`sound` fallback.
 
 ```json
 "AudioPlayer": {
@@ -227,8 +242,8 @@ and overlapping voice has independent playback, volume, pitch, pan and
 reverb routing. Samples are released after their last player is removed.
 Overlapping plays share `max_voices` across all clips; when full, the oldest
 voice is replaced. Mixer changes affect every voice, including older clips.
-Changing `sound`, `clips`, or `buffered` replaces the old resources on the next
-update or play. Volume and pitch edits keep the selected clip. Typed
+Changing `sound`, `clips`, `buffered`, or `sequential` replaces the old resources
+on the next update or play. Volume and pitch edits keep the selected clip. Typed
 setters copy clip lists, which survive scene snapshots and reloads.
 
 Ogg Vorbis and other streaming formats use one playback channel by default.
@@ -238,3 +253,29 @@ to decode them into memory and allow overlapping voices.
 Looping repeats the selected clip until the next explicit play; it does not
 randomize the clip at each loop boundary. Sources and aliases are released when
 the player is removed or the audio system shuts down.
+
+## Sequential clip players
+
+Set `sequential: true` to play two or more clips in array order. Autoplay and
+each explicit play start at the first clip. Each clip plays to completion
+before the next one starts. With `looping: true`, playback wraps to the first
+clip. Otherwise, playback ends after the last clip. Players with zero or one
+clip use ordinary playback behavior.
+
+```json
+"AudioPlayer": {
+  "music": {
+    "clips": ["assets/intro.ogg", "assets/theme.ogg", "assets/outro.ogg"],
+    "sequential": true,
+    "looping": true,
+    "play_on_start": true,
+    "bus": "music"
+  }
+}
+```
+
+A sequence can mix streamed and buffered clips and plays one at a time. The
+`max_voices` limit applies to ordinary buffered one-shots. Suspending the entity
+retains the current clip and playback position. The stream pause and resume
+APIs support the same behavior while the current clip is streamed. Rebinding a
+compatible player preserves the sequence position across scenes.

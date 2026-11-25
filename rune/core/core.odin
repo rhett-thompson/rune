@@ -457,6 +457,12 @@ audio_is_stopping :: proc(engine: ^Engine, entity: ecs.Entity, instance_name: st
 	return audio.is_stopping(&engine.audio, entity, instance_name)
 }
 
+// Query the current streamed clip in seconds. Paused streams keep their cursor.
+audio_stream_time :: proc(engine: ^Engine, entity: ecs.Entity, instance_name: string) -> (elapsed, duration: f32, ok: bool) {
+	if engine == nil {return 0, 0, false}
+	return audio.stream_time(&engine.audio, entity, instance_name)
+}
+
 // Preserve active playback across scene replacement. Call before the first
 // audio update of the destination World. Its player must use the same sources
 // and buffering mode.

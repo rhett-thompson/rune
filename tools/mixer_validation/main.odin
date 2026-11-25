@@ -143,16 +143,30 @@ rebind_runtime_test :: proc(system: ^audio.Audio_System, registry: ^ecs.Componen
 		for _ in 0..<(1 if streaming else 3) {assert(audio.play(system,&previous,source,"bell"))}
 		for _ in 0..<8 {audio.update(system,&previous,0.02); time.sleep(20*time.Millisecond)}
 		before := system.instances[ecs.Component_Instance{entity=source,name="bell"}]
-		elapsed_before: f32
-		if streaming {elapsed_before=rl.GetMusicTimePlayed(before.music); assert(elapsed_before>0)}
+		elapsed_before, duration_before, timing_available := audio.stream_time(system,source,"bell")
+		assert(timing_available==streaming, "only streamed clips expose playback time")
+		if streaming {
+			assert(elapsed_before>0 && elapsed_before<duration_before)
+			assert(audio.pause_stream(system,source,"bell"))
+			paused_elapsed, paused_duration, paused_available := audio.stream_time(system,source,"bell")
+			time.sleep(20*time.Millisecond)
+			held_elapsed, _, held_available := audio.stream_time(system,source,"bell")
+			assert(paused_available && held_available && paused_duration==duration_before && held_elapsed==paused_elapsed,
+				"a paused stream exposes a stable cursor and duration")
+			assert(audio.resume_stream(system,&previous,source,"bell"))
+		}
 		assert(audio.rebind(system,&next,source,"bell",destination,"bell"))
 		ecs.destroy(&previous)
 		audio.update(system,&next,0.02)
 		after := system.instances[ecs.Component_Instance{entity=destination,name="bell"}]
 		assert(len(system.instances)==1 && audio.is_playing(system,destination,"bell"))
 		if streaming {
-			assert(after.music.stream.buffer==before.music.stream.buffer && rl.GetMusicTimePlayed(after.music)>=elapsed_before,
+			elapsed_after, duration_after, timing_after := audio.stream_time(system,destination,"bell")
+			assert(after.music.stream.buffer==before.music.stream.buffer && timing_after && elapsed_after>=elapsed_before && duration_after==duration_before,
 				"scene replacement retains the same advancing decoder instead of restarting music")
+			assert(audio.stop(system,destination,"bell",0))
+			_, _, stopped_timing := audio.stream_time(system,destination,"bell")
+			assert(!stopped_timing, "a stopped stream has no active cursor")
 		} else {
 			assert(raw_data(after.voices)==raw_data(before.voices) && len(after.voices)==3 && after.next_sequence==3,
 				"buffered aliases move together without selecting or replaying another voice")
@@ -220,7 +234,7 @@ clip_configuration_test :: proc() {
 	for &clip in clips {clip = "many.wav"}
 	player := ecs.default_audio_player()
 	player.clips = clips
-	assert(audio.select_clip(player) == "many.wav")
+	assert(audio.select_clip(player, 0) == "many.wav")
 	fmt.println("Audio clips: single/list configuration and arbitrary clip counts passed")
 }
 

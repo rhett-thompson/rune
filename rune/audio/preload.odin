@@ -6,8 +6,8 @@ import "rune:ecs"
 import rl "vendor:raylib"
 
 // Load configured buffered variants and reserve the one-shot voice pool without
-// playing, selecting a random clip, or changing active playback. Streams retain
-// one channel: the first configured clip until an explicit play selects another.
+// playing, selecting a random clip, or changing active playback. Preloading a
+// stream reserves one channel for the first configured clip.
 // Disabled entities may preload before activation. The system owns all resources.
 preload :: proc(system: ^Audio_System, world: ^ecs.World, entity: ecs.Entity, instance_name: string) -> bool {
 	if system == nil || world == nil || !system.available || !ecs.is_alive(world,entity) {return false}
@@ -51,7 +51,7 @@ preload :: proc(system: ^Audio_System, world: ^ecs.World, entity: ecs.Entity, in
 		if !loaded {return false}
 		pending[clip]=sound
 	}
-	if alias_path!="" && !player.looping {
+	if alias_path!="" && !player.looping && !plays_clip_sequence(player) {
 		// Never shrink an existing pool here: its last voices may still be heard.
 		for len(instance.voices)+len(voices)<int(max(player.max_voices,1)) {
 			alias := buffered_voice(system, alias_path)
@@ -63,6 +63,7 @@ preload :: proc(system: ^Audio_System, world: ^ecs.World, entity: ecs.Entity, in
 		instance.path=retain_string(system,instance.path)
 		instance.configured_sound=retain_string(system,player.sound)
 		instance.configured_buffered=player.buffered
+		instance.configured_sequential=player.sequential
 		instance.configured_clips=make([]string,len(player.clips))
 		for clip,i in player.clips {instance.configured_clips[i]=retain_string(system,clip)}
 		instance.fade_out_on_stop=player.fade_out_on_stop

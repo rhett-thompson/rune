@@ -26,7 +26,8 @@ audio_bus_name :: proc(bus: Audio_Bus) -> string {
 AudioPlayer :: struct {
 	bus:           Audio_Bus,
 	sound:         string,
-	clips:         []string, // Non-empty list overrides sound; each play chooses uniformly.
+	clips:         []string, // Non-empty list overrides sound.
+	sequential:    bool, // Play a multi-clip list in order instead of choosing one per play.
 	volume:        f32,
 	pitch:         f32,
 	random_volume: f32,
@@ -90,6 +91,10 @@ audio_player_from_json :: proc(data: json.Value) -> (AudioPlayer, bool) {
 			if !valid || clip == "" {return {}, false}
 			result.clips[i] = clip
 		}
+	}
+	if value, found := object["sequential"]; found {
+		result.sequential, ok = value.(json.Boolean)
+		if !ok {return {}, false}
 	}
 	if value, found := object["volume"]; found {
 		result.volume, ok = read_number(value)

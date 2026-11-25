@@ -549,18 +549,26 @@ individual players while retaining the Music bus controls.
 `rune.pause_audio_stream` retains a playing stream's decoder and cursor, and
 `rune.resume_audio_stream` applies a requested gain before continuing playback.
 Check the resume result to handle a missing stream or an incompatible source.
+`rune.audio_stream_time` reads the active clip's elapsed time and duration in
+seconds. It also reports paused positions. Check the success flag for buffered,
+missing, or finished clips before scheduling gameplay from the cursor.
+Set `AudioPlayer.sequential` to play two or more clips in authored order.
+Autoplay and explicit play start with the first clip, and
+`looping` wraps to the first after the last. A sequence plays one streamed or
+buffered clip at a time. Pausing a streamed clip also retains its sequence index.
 Set `AudioPlayer.buffered` to decode compressed short effects such as Ogg Vorbis
-into memory and retain overlapping voices. The default selects by format.
+into memory. Ordinary buffered one-shots can use overlapping voices. The default
+selects playback mode by format.
 To continue playback across scene replacement or structural reload, retain the
 old entity handle and call `rune.rebind_audio(game, new_world, old_entity,
 "theme", new_entity, "theme")` during destination initialization, before the
-first audio update. The live destination must have identical sound, ordered clips,
-and buffering mode, and no existing playback instance. The old World may already
-be destroyed.
-Rebinding preserves the decoder, buffered voices, playback gain, explicit pause,
-and pending fades. Games decide which transitions retain playback and avoid
-fading or explicitly replaying that player. Destination settings apply on the
-next update.
+first audio update. The live destination must have identical sound, clip list,
+buffering mode, and sequential mode, and no existing playback instance. The old
+World may already be destroyed.
+Rebinding preserves the decoder, sequence index, buffered voices, playback gain,
+explicit pause, and pending fades. Games decide which transitions retain
+playback and avoid fading or explicitly replaying that player. Destination
+settings apply on the next update.
 Configure an active `AudioListener` for spatial playback. Automatic servicing
 continues while paused, which does not itself mute audio. Use
 `audio.set_bus_reverb(&game.audio, .sfx, wet)` for a room send on sound effects.

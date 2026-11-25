@@ -1004,7 +1004,7 @@ Selects the scene audio reference point, normally on a camera entity with a tran
 
 ### AudioPlayer
 
-Named audio instances on an entity. Supply a nonempty sound path or clips list. A nonempty clips list overrides sound and chooses randomly per play. Music formats stream by default. Set `buffered` to use buffered voices for compressed effects. Playback is game-owned unless `play_on_start` is true. Spatial audio uses composed emitter/listener world positions. `max_distance >= min_distance`. Disabled entities suspend playback. Mix bus settings live at engine/project level.
+Named audio instances on an entity. Supply a nonempty sound path or clips list. A nonempty clips list overrides sound and chooses randomly per play by default. Set `sequential` to play multiple clips in order. Music formats stream by default. Set `buffered` to use buffered sounds for compressed effects. Playback is game-owned unless `play_on_start` is true. Spatial audio uses composed emitter/listener world positions. `max_distance >= min_distance`. Disabled entities suspend playback. Mix bus settings live at engine/project level.
 
 [Guide / example](audio-mixer.md) · [Implementation](../rune/ecs/audio.odin)
 
@@ -1026,15 +1026,16 @@ The following fields belong to each named instance. Use
 | Field | Type / constraints | JSON default | Meaning |
 | --- | --- | --- | --- |
 | `sound` | string | One source required | Project-relative sound/music path. |
-| `clips` | array of string; nonempty | One source required | Randomly select one clip per play; overrides sound when non-empty. |
+| `clips` | array of nonempty strings | One source required | Clip paths. A nonempty list overrides `sound`. |
+| `sequential` | boolean | `false` | Play lists with two or more clips in array order. Otherwise, playback uses the usual single-source or random selection behavior. |
 | `bus` | `"master"`, `"music"`, `"sfx"`, `"ui"` | `"sfx"` | Mixer bus. |
 | `volume` | number; ≥ 0 | `1` | Base volume multiplier. |
 | `pitch` | number; > 0 | `1` | Base pitch multiplier. |
 | `random_volume` | number; ≥ 0 | `0` | Uniform per-play variation around volume. |
 | `random_pitch` | number; ≥ 0 | `0` | Uniform per-play variation around pitch. |
-| `max_voices` | integer; ≥ 1 | `4` | Maximum simultaneous buffered voices for this instance. |
+| `max_voices` | integer; ≥ 1 | `4` | Maximum simultaneous buffered one-shot voices. A sequence plays one clip at a time. |
 | `buffered` | boolean | `false` | Decode the entire clip as a buffered sound instead of streaming. With `false`, the format selects the playback mode. |
-| `looping` | boolean | `false` | Loop playback. |
+| `looping` | boolean | `false` | Repeat the selected clip, or wrap the sequence back to its first clip. |
 | `fade_out_on_stop` | finite number; ≥ 0 | `0` | Fade to silence over this many seconds when stopped; zero stops immediately. |
 | `play_on_start` | boolean | `false` | Start when the scene audio is initialized. |
 | `spatial` | boolean | `false` | Attenuate using listener/emitter positions. |

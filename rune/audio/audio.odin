@@ -29,12 +29,15 @@ Audio_Instance :: struct {
 	configured_sound: string,
 	configured_clips: []string,
 	configured_buffered: bool,
+	configured_sequential: bool,
 	sources: map[string]rl.Sound, // Each clip has an independent playback alias.
 	sound:                rl.Sound,
 	voices:               [dynamic]Audio_Voice,
 	music:                rl.Music,
 	streaming:            bool,
 	path:                 string,
+	clip_index:           int,
+	sequence_has_next:    bool,
 	started:              bool,
 	stop_requested:       bool,
 	stop_fading:          bool,
@@ -109,7 +112,7 @@ retain_string :: proc(system: ^Audio_System, value: string) -> string {
 }
 
 // update synchronizes configured players, starts play_on_start sounds, and
-// restarts looping sounds when raylib reports that their current play ended.
+// advances clip sequences and restarts looping sounds when their current play ends.
 update :: proc(system: ^Audio_System, world: ^ecs.World, dt: f32 = 0) {
 	update_mixer(&system.mixer,dt)
 	if !system.available {return}
@@ -135,12 +138,24 @@ update :: proc(system: ^Audio_System, world: ^ecs.World, dt: f32 = 0) {
 		}
 		system.instances[key] = instance
 		starting := player.play_on_start && !instance.started && !instance.stop_requested
+		sequential := plays_clip_sequence(player)
+		if sequential && instance.started && !instance.stop_requested &&
+		   has_next_clip(instance, player) && !source_is_playing(instance) {
+			if !advance_clip_sequence(system, key, player, instance.clip_index) {
+				stop_instance(&instance)
+				system.instances[key] = instance
+				continue
+			}
+			instance = system.instances[key]
+			starting = true
+		}
 		restarting :=
+			!sequential &&
 			!instance.streaming &&
 			player.looping &&
 			instance.started &&
 			!rl.IsSoundPlaying(instance.sound)
-		if starting && !instance.streaming && !player.looping {
+		if starting && !sequential && !instance.streaming && !player.looping {
 			play_one_shot(system, world, key, player, listener_entity, listener_found)
 			instance = system.instances[key]
 			instance.started = true
@@ -150,16 +165,17 @@ update :: proc(system: ^Audio_System, world: ^ecs.World, dt: f32 = 0) {
 		if starting || restarting {randomize_settings(system, key, player)}
 		apply_settings(system, world, key, player, listener_entity, listener_found, starting || restarting)
 		instance = system.instances[key]
+		configure_looping(&instance, player)
 		if starting {
 			play_instance(instance)
 			instance.started = true
-			system.instances[key] = instance
 		} else if restarting {
 			rl.PlaySound(instance.sound)
 		}
 		if instance.streaming && instance.started {
-			instance.music.looping = player.looping
 			rl.UpdateMusicStream(instance.music)
+		}
+		if starting || sequential || (instance.streaming && instance.started) {
 			system.instances[key] = instance
 		}
 	}
@@ -183,7 +199,8 @@ play :: proc(
 	if !found || !ensure_instance(system, key, player, true) {return false}
 	listener_entity, _, listener_found := ecs.active_audio_listener(world)
 	instance := system.instances[key]
-	if instance.stream_paused {
+	sequential := plays_clip_sequence(player)
+	if instance.stream_paused || sequential {
 		stop_instance(&instance)
 		instance.suspended = false
 	}
@@ -193,7 +210,7 @@ play :: proc(
 	instance.stop_fade_duration, instance.stop_fade_elapsed = 0, 0
 	instance.settings_initialized = false
 	system.instances[key] = instance
-	if !instance.streaming && !player.looping {
+	if !sequential && !instance.streaming && !player.looping {
 		play_one_shot(system, world, key, player, listener_entity, listener_found)
 		apply_settings(system, world, key, player, listener_entity, listener_found)
 		return true
@@ -201,6 +218,7 @@ play :: proc(
 	randomize_settings(system, key, player)
 	apply_settings(system, world, key, player, listener_entity, listener_found, true)
 	instance = system.instances[key]
+	configure_looping(&instance, player)
 	play_instance(instance)
 	instance.started = true
 	system.instances[key] = instance
@@ -226,7 +244,7 @@ pause_stream :: proc(system: ^Audio_System, entity: ecs.Entity, instance_name: s
 	key := ecs.Component_Instance{entity=entity, name=instance_name}
 	instance, found := system.instances[key]
 	if !found || !instance.streaming || !instance.started || instance.stop_requested {return false}
-	if !instance.resume_stream && !rl.IsMusicStreamPlaying(instance.music) {return false}
+	if !instance.resume_stream && !rl.IsMusicStreamPlaying(instance.music) && !sequence_pending(instance) {return false}
 	instance.stream_paused = true
 	system.instances[key] = instance
 	suspend_instance(system, key, true)
@@ -239,7 +257,7 @@ resume_stream :: proc(system: ^Audio_System, world: ^ecs.World, entity: ecs.Enti
 	if system == nil || world == nil || !system.available || !valid_gain(gain) || !ecs.is_enabled(world,entity) {return false}
 	key := ecs.Component_Instance{entity=entity, name=instance_name}
 	instance, found := system.instances[key]
-	if !found || !instance.stream_paused || !instance.resume_stream {return false}
+	if !found || !instance.stream_paused || (!instance.resume_stream && !sequence_pending(instance)) {return false}
 	player, configured := ecs.get_audio_player(world,entity,instance_name)
 	if !configured || !same_clip_configuration(instance,player) {return false}
 	instance.stream_paused = false
@@ -303,32 +321,90 @@ is_playing :: proc(system: ^Audio_System, entity: ecs.Entity, instance_name: str
 	instance, found :=
 		system.instances[ecs.Component_Instance{entity = entity, name = instance_name}]
 	if !system.available || !found || instance.stream_paused {return false}
-	if instance.streaming {return rl.IsMusicStreamPlaying(instance.music)}
-	if rl.IsSoundPlaying(instance.sound) {return true}
+	// Callers can poll before update services the next clip.
+	if !instance.suspended && sequence_pending(instance) {return true}
+	if source_is_playing(instance) {return true}
+	if instance.streaming {return false}
 	for voice in instance.voices {
 		if rl.IsSoundPlaying(voice.sound) {return true}
 	}
 	return false
 }
 
-select_clip :: proc(player: ecs.AudioPlayer) -> string {
+// Return the active stream's clip-local cursor and duration in seconds.
+// A paused stream retains its cursor. Buffered, preloaded and ended clips have no cursor.
+stream_time :: proc(system: ^Audio_System, entity: ecs.Entity, instance_name: string) -> (elapsed, duration: f32, ok: bool) {
+	if system == nil || !system.available {return 0, 0, false}
+	instance, found := system.instances[ecs.Component_Instance{entity=entity, name=instance_name}]
+	if !found || !instance.streaming || !instance.started || !rl.IsMusicValid(instance.music) {return 0, 0, false}
+	if !instance.resume_stream && !rl.IsMusicStreamPlaying(instance.music) {return 0, 0, false}
+	duration = rl.GetMusicTimeLength(instance.music)
+	elapsed = rl.GetMusicTimePlayed(instance.music)
+	if duration <= 0 || math.is_nan(duration) || math.is_inf(duration) || math.is_nan(elapsed) || math.is_inf(elapsed) {
+		return 0, 0, false
+	}
+	return clamp(elapsed, 0, duration), duration, true
+}
+
+source_is_playing :: proc(instance: Audio_Instance) -> bool {
+	if instance.streaming {return rl.IsMusicStreamPlaying(instance.music)}
+	return rl.IsSoundPlaying(instance.sound)
+}
+
+plays_clip_sequence :: proc(player: ecs.AudioPlayer) -> bool {
+	return player.sequential && len(player.clips) > 1
+}
+
+has_next_clip :: proc(instance: Audio_Instance, player: ecs.AudioPlayer) -> bool {
+	return player.looping || instance.clip_index + 1 < len(player.clips)
+}
+
+sequence_pending :: proc(instance: Audio_Instance) -> bool {
+	return instance.started && !instance.stop_requested && instance.sequence_has_next
+}
+
+configure_looping :: proc(instance: ^Audio_Instance, player: ecs.AudioPlayer) {
+	sequential := plays_clip_sequence(player)
+	instance.sequence_has_next = sequential && has_next_clip(instance^, player)
+	if instance.streaming {instance.music.looping = player.looping && !sequential}
+}
+
+advance_clip_sequence :: proc(system: ^Audio_System, key: ecs.Component_Instance, player: ecs.AudioPlayer, index: int) -> bool {
+	// Skip unavailable clips, with at most one pass through the list.
+	count := len(player.clips)
+	for offset in 1..=count {
+		next := index + offset
+		if !player.looping && next >= count {break}
+		if ensure_instance(system, key, player, true, next % count) {return true}
+	}
+	return false
+}
+
+select_clip :: proc(player: ecs.AudioPlayer, clip_index: int) -> string {
 	if len(player.clips) == 0 {return player.sound}
+	if plays_clip_sequence(player) {return player.clips[clip_index]}
 	return player.clips[rl.GetRandomValue(0, i32(len(player.clips)-1))]
 }
 
 same_clip_configuration :: proc(instance: Audio_Instance, player: ecs.AudioPlayer) -> bool {
 	if instance.configured_sound != player.sound || len(instance.configured_clips) != len(player.clips) ||
-	   instance.configured_buffered != player.buffered {return false}
+	   instance.configured_buffered != player.buffered || instance.configured_sequential != player.sequential {return false}
 	for clip, i in player.clips {if instance.configured_clips[i] != clip {return false}}
 	return true
 }
 
-ensure_instance :: proc(system: ^Audio_System, key: ecs.Component_Instance, player: ecs.AudioPlayer, choose: bool) -> bool {
+ensure_instance :: proc(system: ^Audio_System, key: ecs.Component_Instance, player: ecs.AudioPlayer, choose: bool, clip_index: int = 0) -> bool {
 	instance, found := system.instances[key]
 	compatible := found && same_clip_configuration(instance, player)
 	if compatible && !choose {return true}
-	path := select_clip(player)
-	if compatible && instance.path == path {return true}
+	path := select_clip(player, clip_index)
+	if compatible && instance.path == path {
+		if instance.clip_index != clip_index {
+			instance.clip_index = clip_index
+			system.instances[key] = instance
+		}
+		return true
+	}
 	streaming := !player.buffered && is_streaming_path(path)
 	if compatible && !streaming {
 		if sound, cached := instance.sources[path]; cached {
@@ -338,6 +414,7 @@ ensure_instance :: proc(system: ^Audio_System, key: ecs.Component_Instance, play
 				instance.music={}; instance.streaming=false
 			} else {rl.StopSound(instance.sound)} // Aliases remain independent.
 			instance.sound, instance.path = sound, retain_string(system, path)
+			instance.clip_index = clip_index
 			instance.settings_initialized = false
 			system.instances[key] = instance
 			return true
@@ -366,6 +443,7 @@ ensure_instance :: proc(system: ^Audio_System, key: ecs.Component_Instance, play
 	if !found {
 		instance.configured_sound = retain_string(system, player.sound)
 		instance.configured_buffered = player.buffered
+		instance.configured_sequential = player.sequential
 		instance.configured_clips = make([]string, len(player.clips))
 		for clip, i in player.clips {instance.configured_clips[i] = retain_string(system, clip)}
 		if !streaming {
@@ -374,6 +452,7 @@ ensure_instance :: proc(system: ^Audio_System, key: ecs.Component_Instance, play
 		}
 	} else {rl.StopSound(instance.sound)}
 	instance.path = retain_string(system, path)
+	instance.clip_index = clip_index
 	instance.streaming = streaming
 	instance.settings_initialized = false
 	if streaming {instance.music = music} else {
@@ -426,7 +505,8 @@ apply_settings :: proc(
 	} else {
 		// An old looping source or one-shot alias can still be playing after a
 		// looping setting edit. Reconcile its send while preserving dry playback.
-		route_reverb_source(system, instance.sound.stream, player.bus, player_volume*source_gain, starting && player.looping)
+		route_reverb_source(system, instance.sound.stream, player.bus, player_volume*source_gain,
+			starting && (player.looping || plays_clip_sequence(player)))
 	}
 	if instance.settings_initialized &&
 	   instance.volume == volume &&
@@ -436,7 +516,7 @@ apply_settings :: proc(
 		rl.SetMusicVolume(instance.music, volume)
 		rl.SetMusicPitch(instance.music, pitch)
 		rl.SetMusicPan(instance.music, pan)
-	} else if player.looping {
+	} else if player.looping || plays_clip_sequence(player) {
 		rl.SetSoundVolume(instance.sound, volume)
 		rl.SetSoundPitch(instance.sound, pitch)
 		rl.SetSoundPan(instance.sound, pan)

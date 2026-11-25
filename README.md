@@ -1095,10 +1095,10 @@ instead of globals.
 `AudioListener` selects the scene audio reference point and normally belongs on
 the active camera entity. `AudioPlayer` belongs on entities that emit sounds.
 Sound paths are project-relative; Odin audio systems own playback commands.
-Each named player accepts a single `sound` or an arbitrary-length `clips` list,
-which randomly selects one entry on each play. Buffered clips load on demand and
-share the player's `max_voices` limit. The runtime honors `play_on_start` and
-restarts looping sounds.
+Each named player accepts a single `sound` or an arbitrary-length `clips` list.
+Lists choose one entry at random per play by default. Set `sequential: true` to
+play multiple clips in order. Buffered one-shots load on demand and share the
+player's `max_voices` limit. The runtime honors `play_on_start` and `looping`.
 Music formats use streamed playback. Audio files are not timestamp-polled for
 hot reload; changing a player's sound path or clip list replaces its cache when serviced.
 Spatial players use world-space distance attenuation and listener-relative
@@ -1130,9 +1130,9 @@ standalone listeners use their composed Transform orientation. See
 
 `AudioPlayer` is repeatable: every instance requires a unique name such as
 `bell`, `shoot`, or `explode`. Pass that name to the playback API.
-A non-empty `clips` list overrides `sound`; random choices can repeat. See
-[random clip players](docs/audio-mixer.md#random-clip-players) for an example and
-streaming/looping behavior.
+A nonempty `clips` list overrides `sound`. See the examples and looping behavior
+for [random clip players](docs/audio-mixer.md#random-clip-players) and
+[sequential clip players](docs/audio-mixer.md#sequential-clip-players).
 `random_volume` and `random_pitch` independently sample a variation in the
 inclusive range `-amount` to `+amount` whenever playback starts. Final volume
 is clamped to zero and final pitch remains positive. Buffered one-shots use up
