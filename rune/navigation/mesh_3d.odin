@@ -107,6 +107,24 @@ triangle_allowed_3d :: proc(mesh: ^Mesh_3D,index: i32,max_slope: f32) -> bool {
 	return index>=0 && int(index)<len(mesh.triangles) && !mesh.triangles[index].blocked &&
 		mesh.triangles[index].normal.y >= math.cos(max_slope*math.PI/180)-1e-6
 }
+
+@(private)
+reachable_triangles_3d :: proc(mesh:^Mesh_3D,start:i32,max_slope:f32,allocator:mem.Allocator) -> []bool {
+	reachable:=make([]bool,len(mesh.triangles),allocator)
+	queue:=make([]i32,len(mesh.triangles),context.temp_allocator)
+	queue[0]=start
+	reachable[start]=true
+	count:=1
+	for cursor:=0; cursor<count; cursor+=1 {
+		for neighbor in mesh.triangles[queue[cursor]].neighbors {
+			if !triangle_allowed_3d(mesh,neighbor,max_slope) || reachable[neighbor] {continue}
+			reachable[neighbor]=true
+			queue[count]=neighbor
+			count+=1
+		}
+	}
+	return reachable
+}
 inside_triangle_3d :: proc(p,a,b,c: [3]f32) -> bool {
 	u,v,w := area_xz(a,b,p),area_xz(b,c,p),area_xz(c,a,p)
 	return (u>=-1e-5 && v>=-1e-5 && w>=-1e-5) || (u<=1e-5 && v<=1e-5 && w<=1e-5)
@@ -131,13 +149,32 @@ closest_triangle_3d :: proc(mesh: ^Mesh_3D,index: i32,p: [3]f32) -> [3]f32 {
 
 // Nearest by full XYZ distance, so overlapping floors remain distinct.
 project_point_3d :: proc(mesh: ^Mesh_3D,point: [3]f32,max_distance: f32,max_slope: f32 = 45) -> ([3]f32,i32,bool) {
+	return project_point_impl_3d(mesh,point,max_distance,max_slope,false,nil,nil)
+}
+
+@(private)
+project_point_impl_3d :: proc(mesh:^Mesh_3D,point:[3]f32,max_distance,max_slope:f32,$bounded:bool,bounds,blocks:[]Clearance_Bounds_3D) -> ([3]f32,i32,bool) {
 	if !finite_point_3d(point) || !finite_3d(max_distance) || max_distance<0 || !finite_3d(max_slope) || max_slope<0 || max_slope>=89 {return {},-1,false}
 	best := max_distance; result: [3]f32; index: i32 = -1
-	for _,i in mesh.triangles {
-		if !triangle_allowed_3d(mesh,i32(i),max_slope) {continue}
-		p := closest_triangle_3d(mesh,i32(i),point)
-		d := distance_3d(p,point)
-		if d <= best && (index<0 || d<best-1e-6) {best=d; result=p; index=i32(i)}
+	// Visit faces in mesh order so ties select the same face as an unindexed query.
+	for first:=0; first<len(mesh.triangles); {
+		end:=len(mesh.triangles)
+		when bounded {end=min(end,first+Clearance_Bounds_Block_Size_3D)}
+		block_start:=first
+		first=end
+		when bounded {
+			block:=blocks[block_start/Clearance_Bounds_Block_Size_3D]
+			if clearance_bounds_distance_squared_3d(block,point)>best*best {continue}
+		}
+		for i in block_start..<end {
+			when bounded {
+				if clearance_bounds_distance_squared_3d(bounds[i],point)>best*best {continue}
+			}
+			if !triangle_allowed_3d(mesh,i32(i),max_slope) {continue}
+			p := closest_triangle_3d(mesh,i32(i),point)
+			d := distance_3d(p,point)
+			if d <= best && (index<0 || d<best-1e-6) {best=d; result=p; index=i32(i)}
+		}
 	}
 	return result,index,index>=0
 }

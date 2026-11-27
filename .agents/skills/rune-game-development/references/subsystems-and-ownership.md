@@ -22,6 +22,12 @@ Queries wider than the baked inset also enforce extra whole-segment clearance.
 Keep the agent's intended radius and height rather than changing its dimensions
 to influence route selection. See `docs/navigation-3d.md`.
 
+Use `navigation.find_first_path_3d` for a preference-ordered set of destinations
+on a read-only mesh. It returns the first complete path and its goal index.
+Agents within the baked radius share a start projection and skip disconnected
+goals before pathfinding. Release the caller-owned path with
+`navigation.destroy_path_3d`.
+
 Opt-in project `jobs.worker_count` enables the engine CPU pool. Navigation uses
 it only for at least four due agent paths in a fixed step: the owning thread
 prepares immutable mesh/cache snapshots, waits for all searches, then applies

@@ -1,6 +1,7 @@
 package navigation
 
 import "core:math"
+import "core:mem"
 
 Path_Status_3D :: enum {Invalid, Complete, Start_Off_Mesh, Goal_Off_Mesh, Unreachable, Insufficient_Clearance}
 Path_Options_3D :: struct {
@@ -146,7 +147,44 @@ find_path_3d :: proc(mesh: ^Mesh_3D,start,goal: [3]f32,options := Default_Path_O
 	if !start_ok {return {status=.Start_Off_Mesh}}
 	g,gi,goal_ok := project_point_3d(mesh,goal,options.max_projection,options.max_slope)
 	if !goal_ok {return {status=.Goal_Off_Mesh}}
-	direct:=surface_direct_path_3d(mesh,s,g,si,gi,options.max_slope,allocator)
+	return find_projected_path_3d(mesh,s,g,si,gi,options.max_slope,allocator)
+}
+
+// Try goals in preference order. Return the first complete path and its index,
+// or an unsuccessful path and -1. For agents that fit the baked clearance,
+// share the start projection and reject disconnected goals before pathfinding.
+find_first_path_3d :: proc(mesh:^Mesh_3D,start:[3]f32,goals:[][3]f32,options:=Default_Path_Options_3D,allocator:=context.allocator) -> (Path_3D,int) {
+	if !path_options_valid_3d(options) || !finite_point_3d(start) || len(goals)==0 {return {},-1}
+	if options.height>mesh.agent_height+1e-6 {return {status=.Insufficient_Clearance},-1}
+	if len(goals)==1 {
+		path:=find_path_3d(mesh,start,goals[0],options,allocator)
+		return path,0 if path.status==.Complete else -1
+	}
+	if options.radius>mesh.agent_radius+1e-6 {
+		for goal,i in goals {
+			path:=find_path_3d(mesh,start,goal,options,allocator)
+			if path.status==.Complete {return path,i}
+		}
+		return {status=.Unreachable},-1
+	}
+	s,si,found:=project_point_3d(mesh,start,options.max_projection,options.max_slope)
+	if !found {return {status=.Start_Off_Mesh},-1}
+	reachable:=reachable_triangles_3d(mesh,si,options.max_slope,context.temp_allocator)
+	bounds:=make([]Clearance_Bounds_3D,len(mesh.triangles),context.temp_allocator)
+	for &bound,i in bounds {bound=clearance_triangle_bounds_3d(mesh,i32(i))}
+	blocks:=clearance_bounds_blocks_3d(bounds,context.temp_allocator)
+	for goal,i in goals {
+		g,gi,ok:=project_point_impl_3d(mesh,goal,options.max_projection,options.max_slope,true,bounds,blocks)
+		if !ok || !reachable[gi] {continue}
+		path:=find_projected_path_3d(mesh,s,g,si,gi,options.max_slope,allocator)
+		if path.status==.Complete {return path,i}
+	}
+	return {status=.Unreachable},-1
+}
+
+@(private)
+find_projected_path_3d :: proc(mesh:^Mesh_3D,s,g:[3]f32,si,gi:i32,max_slope:f32,allocator:mem.Allocator) -> Path_3D {
+	direct:=surface_direct_path_3d(mesh,s,g,si,gi,max_slope,allocator)
 	if direct.status==.Complete {return direct}
 	count := len(mesh.triangles)
 	scores := make([]f32,count,context.temp_allocator)
@@ -162,7 +200,7 @@ find_path_3d :: proc(mesh: ^Mesh_3D,start,goal: [3]f32,options := Default_Path_O
 		closed[current]=true
 		if current==gi {break}
 		for neighbor in mesh.triangles[current].neighbors {
-			if !triangle_allowed_3d(mesh,neighbor,options.max_slope) || closed[neighbor] {continue}
+			if !triangle_allowed_3d(mesh,neighbor,max_slope) || closed[neighbor] {continue}
 			score := scores[current]+distance_3d(mesh.triangles[current].center,mesh.triangles[neighbor].center)
 			if score<scores[neighbor] {scores[neighbor]=score; parents[neighbor]=current
 				heap_push_3d(&heap,{neighbor,score+distance_3d(mesh.triangles[neighbor].center,mesh.triangles[gi].center)})}

@@ -493,6 +493,12 @@ are owned by the caller. Failed queries have no path and distinguish invalid inp
 start/goal off mesh, insufficient clearance, and unreachable destinations. No partial
 path is reported as complete.
 
+`navigation.find_first_path_3d(mesh, start, goals, options, allocator)` tries
+destinations in preference order and returns the first complete path and its
+zero-based goal index. A failed search returns index `-1`. Agents that fit the
+baked radius share the start projection and use the current mesh connectivity
+to skip unreachable destinations. The caller owns the returned path as above.
+
 `navigation.project_point_3d(mesh, point, max_distance, max_slope)` returns the
 nearest permitted surface point, triangle index, and success. Distance is measured
 in XYZ, so an upper-floor point does not silently become a lower-floor destination.

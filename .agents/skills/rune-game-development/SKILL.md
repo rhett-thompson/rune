@@ -114,6 +114,9 @@ thinning, see `docs/terrain.md` and the rendering reference.
   each omission; review those warnings for misspelled built-ins. Normal scene
   loading stays strict. Bake a game-side World when systems generate geometry;
   see `docs/navigation-3d.md`.
+- Use `navigation.find_first_path_3d` for preference-ordered destinations.
+  Release its returned path with `navigation.destroy_path_3d`; see the subsystem
+  reference for shared query work and ownership.
 - Author scene/prefab/input JSON against the game's schemas. Verify omitted-field
   defaults with Rune's decoder/default helpers. Use typed ECS setters/adders and
   supported named-instance APIs so validation, ownership, change tracking, and

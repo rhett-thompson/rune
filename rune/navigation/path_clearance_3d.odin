@@ -36,7 +36,7 @@ Clearance_Interval_3D :: struct {low,high:f32}
 clearance_query_3d :: proc(mesh:^Mesh_3D,options:Path_Options_3D,start:i32,a:=context.temp_allocator) -> Clearance_Query_3D {
 	q:=Clearance_Query_3D{mesh=mesh,options=options,allocator=a,
 		radius=max(0,options.radius-mesh.agent_radius),
-		component=make([]bool,len(mesh.triangles),a),
+		component=reachable_triangles_3d(mesh,start,options.max_slope,a),
 		edges=make([dynamic]Clearance_Edge_3D,a),
 		nodes=make([dynamic]Clearance_Node_3D,a),
 		triangle_nodes=make([][dynamic]i32,len(mesh.triangles),a),
@@ -44,13 +44,6 @@ clearance_query_3d :: proc(mesh:^Mesh_3D,options:Path_Options_3D,start:i32,a:=co
 		triangle_edges=make([][dynamic]Clearance_Edge_3D,len(mesh.triangles),a),
 		portals=make(map[Edge_3D]bool,a)}
 	q.vertical_range=q.radius*math.tan(options.max_slope*math.PI/180)+0.05
-	queue:=make([dynamic]i32,a);append(&queue,start);q.component[start]=true
-	for cursor:=0;cursor<len(queue);cursor+=1 {
-		for neighbor in mesh.triangles[queue[cursor]].neighbors {
-			if !triangle_allowed_3d(mesh,neighbor,options.max_slope) || q.component[neighbor] {continue}
-			q.component[neighbor]=true;append(&queue,neighbor)
-		}
-	}
 	for triangle,i in mesh.triangles {
 		q.triangle_bounds[i]=clearance_triangle_bounds_3d(mesh,i32(i))
 		if !q.component[i] {continue}

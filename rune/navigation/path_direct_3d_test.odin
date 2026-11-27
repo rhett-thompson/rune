@@ -3,6 +3,7 @@ package navigation
 import "core:fmt"
 import "core:math"
 import "core:mem"
+import "core:slice"
 import "core:testing"
 
 direct_test_path_length_3d :: proc(path:^Path_3D) -> f32 {
@@ -120,6 +121,34 @@ ordinary_surface_trace_respects_obstacles_and_real_shared_edges :: proc(t:^testi
 	direct_test_path_surface_3d(t,&floors,&upper,upper_start,upper_goal,options)
 	for point in upper.points {testing.expect(t,abs(point.y-3)<0.001,"a direct path remains on the selected floor")}
 	destroy_path_3d(&upper)
+}
+
+@(test)
+first_path_skips_disconnected_goals_in_preference_order :: proc(t:^testing.T) {
+	keep:=[12]bool{true,true,true,false,true,true,true,true,true,true,true,true}
+	mesh,error:=clearance_test_grid_3d(12,1,keep[:])
+	if !testing.expect(t,error=="",error) {return}
+	defer destroy_mesh_3d(&mesh)
+	options:=Default_Path_Options_3D
+	options.max_projection=0.01
+	start:=[3]f32{0.2,0,0.3}
+	goals:=[4][3]f32{{2.5,3,0.3},{11.4,0,0.3},{2.4,0,0.3},{0.5,0,0.3}}
+
+	path,index:=find_first_path_3d(&mesh,start,goals[:],options)
+	defer destroy_path_3d(&path)
+	expected:=find_path_3d(&mesh,start,goals[2],options)
+	defer destroy_path_3d(&expected)
+	testing.expect(t,index==2 && path.status==.Complete,"selection skips off-mesh and disconnected goals in order")
+	testing.expect(t,slice.equal(path.points,expected.points) && slice.equal(path.triangles,expected.triangles),"the selected route matches a single-goal query")
+
+	for &triangle in mesh.triangles {
+		if 1<triangle.center.x && triangle.center.x<2 {triangle.blocked=true}
+	}
+	fallback,fallback_index:=find_first_path_3d(&mesh,start,goals[:],options)
+	defer destroy_path_3d(&fallback)
+	testing.expect(t,fallback_index==3 && fallback.status==.Complete,"live blocking makes the next reachable goal the first choice")
+	missing,missing_index:=find_first_path_3d(&mesh,start,goals[:3],options)
+	testing.expect(t,missing_index==-1 && missing.status==.Unreachable && len(missing.points)==0)
 }
 
 @(test)
